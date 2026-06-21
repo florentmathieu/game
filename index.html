@@ -260,16 +260,17 @@
   }
 
   // ---- Unités -------------------------------------------------------------
-  // Applique l'arme active (épée = mêlée portée 1, arbalète/arc = distance) aux stats de combat.
+  // Applique l'arme active aux stats de combat (+ bonus de flanc éventuel des dagues).
   function applyWeapon(u){
     const w = u.weapons[u.mode] || u.weapons.melee || u.weapons.ranged;
     u.aim = w.aim; u.dmgMin = w.dmgMin; u.dmgMax = w.dmgMax; u.range = w.range || 1; u.wtype = w.type;
+    u.flank = w.flank || null;
   }
   function setMode(u, mode){ if (u.weapons[mode]){ u.mode = mode; applyWeapon(u); } }
 
   function placeUnits(){
     const mk = (o) => {
-      const u = Object.assign({ acted:false, overwatch:false, reacted:false, shieldBlock:0 }, o);
+      const u = Object.assign({ acted:false, overwatch:false, reacted:false, shieldBlock:0, parry:0, facing:0 }, o);
       u.mode = o.weapons.ranged ? "ranged" : "melee";   // par défaut on tire si on a une arme à distance
       applyWeapon(u);
       u.hp = o.maxHp; u.bracing = false;
@@ -279,16 +280,20 @@
       u.mob = MOB_AP; u.ap = AP_MAX; u.freeAvail = true;
       return u;
     };
-    const sword = (aim, lo, hi) => ({ type:"melee", aim, dmgMin:lo, dmgMax:hi });
-    const bow   = (aim, lo, hi, rng, clip) => ({ type:"ranged", aim, dmgMin:lo, dmgMax:hi, range:rng, clip });
+    const sword  = (aim, lo, hi) => ({ type:"melee", aim, dmgMin:lo, dmgMax:hi });
+    const bow    = (aim, lo, hi, rng, clip) => ({ type:"ranged", aim, dmgMin:lo, dmgMax:hi, range:rng, clip });
+    const dagger = (aim, lo, hi, back, side) => ({ type:"melee", aim, dmgMin:lo, dmgMax:hi, flank:{ back, side } });
     units = [
-      // Stiff (sergent) : épée + bouclier (mêlée, forte chance de blocage)
+      // Stiff (sergent) : épée + bouclier (bloque CàC ET flèches)
       mk({ col:3,  row:16, team:"player", name:"Stiff", role:"Sergent", maxMp:8, maxHp:10, shieldBlock:40,
            weapons:{ melee: sword(75,4,6) } }),
-      // Gizzard (sapeur) : arbalète (1 coup, à recharger) + épée + 1 cracker (grenade)
-      mk({ col:5,  row:14, team:"player", name:"Gizzard", role:"Sapeur", maxMp:8, maxHp:7, crackers:1,
+      // Merry (sapeur) : arbalète (1 coup, à recharger) + épée + 1 cracker (grenade)
+      mk({ col:5,  row:14, team:"player", name:"Merry", role:"Sapeur", maxMp:8, maxHp:7, crackers:1,
            weapons:{ ranged: bow(65,3,4,6,1), melee: sword(70,3,5),
                      cracker:{ type:"throw", dmgMin:5, dmgMax:9, range:6, radius:2, scatter:2 } } }),
+      // Gizzard (assassin) : deux dagues, dégâts de dos/flanc, parade (CàC), pas de bouclier
+      mk({ col:4,  row:15, team:"player", name:"Gizzard", role:"Assassin", maxMp:8, maxHp:7, parry:35,
+           weapons:{ melee: dagger(80,3,4, 5, 2) } }),
       // Garde : épée + bouclier
       mk({ col:15, row:4,  team:"enemy",  name:"Garde",   maxMp:6, maxHp:8, shieldBlock:30,
            weapons:{ melee: sword(65,3,4) } }),
@@ -301,6 +306,7 @@
     ];
     // les cases de départ ne doivent pas être des obstacles
     for (const u of units) tiles[u.row][u.col].obstacle = false;
+    for (const u of units){ const o = nearestOpposing(u); if (o) faceTowards(u, o.col, o.row); }  // orientation initiale
     selected = null; reach = null; log = []; turn = 1; gameOver = null;
     explored = new Set(); lastSeen = new Map();
     recomputeVision();
@@ -480,6 +486,26 @@
     return Math.round(best);
   }
 
+  // ---- Orientation ---------------------------------------------------------
+  const normAng = a => { const T = Math.PI*2; while (a <= -Math.PI) a += T; while (a > Math.PI) a -= T; return a; };
+  function angleTiles(c0, r0, c1, r1){ const a = tileCenter(c0, r0), b = tileCenter(c1, r1); return Math.atan2(b.y-a.y, b.x-a.x); }
+  function faceTowards(u, c, r){ if (c !== u.col || r !== u.row) u.facing = angleTiles(u.col, u.row, c, r); }
+  // position de l'attaquant vis-à-vis de l'orientation de la cible : "front" / "side" / "back"
+  function flankOf(att, tgt){
+    const diff = Math.abs(normAng(angleTiles(tgt.col, tgt.row, att.col, att.row) - tgt.facing));
+    return diff > 2.2 ? "back" : diff > 1.0 ? "side" : "front";
+  }
+  function flankBonus(att, tgt){
+    if (!att.flank || att.wtype !== "melee") return 0;
+    const f = flankOf(att, tgt);
+    return f === "back" ? att.flank.back : f === "side" ? att.flank.side : 0;
+  }
+  function nearestOpposing(u){
+    let best = null, bd = Infinity;
+    for (const o of units){ if (o.hp <= 0 || o.team === u.team) continue; const d = hexDistUnits(u, o); if (d < bd){ bd = d; best = o; } }
+    return best;
+  }
+
   // Ligne de tir : un relief plus haut ou un couvert total NON adjacent à la cible bloque le tir.
   function lineOfFire(att, tgt){
     const a = offsetToCube(att.col, att.row), b = offsetToCube(tgt.col, tgt.row);
@@ -523,19 +549,24 @@
   }
 
   function doAttack(att, tgt, reaction = false){
+    faceTowards(att, tgt.col, tgt.row);                               // on se tourne vers la cible
     const bd = hitBreakdown(att, tgt);
     pushFx(att, tgt, bd.melee);                                        // effet visuel (projectile / épée)
     if (att.wtype === "ranged" && att.clip !== undefined) att.ammo--;  // un coup consommé (arme à chargeur)
     const chance = reaction ? Math.max(5, bd.chance - 15) : bd.chance; // riposte moins précise
     const hit = Math.random()*100 < chance;
-    let dmg = 0, blocked = false;
+    let dmg = 0, saveTxt = "";
     if (hit){
-      if (tgt.shieldBlock > 0 && Math.random()*100 < tgt.shieldBlock) blocked = true; // bouclier
-      else { dmg = att.dmgMin + Math.floor(Math.random()*(att.dmgMax-att.dmgMin+1)); tgt.hp -= dmg; }
+      if (tgt.shieldBlock > 0 && Math.random()*100 < tgt.shieldBlock) saveTxt = "bloqué 🛡";        // bouclier (CàC + tir)
+      else if (bd.melee && tgt.parry > 0 && Math.random()*100 < tgt.parry) saveTxt = "paré 🗡";      // parade (CàC seulement)
+      else {
+        dmg = att.dmgMin + Math.floor(Math.random()*(att.dmgMax-att.dmgMin+1)) + flankBonus(att, tgt);
+        tgt.hp -= dmg;
+      }
     }
     const dead = tgt.hp <= 0;
     const verb = reaction ? "⚡ riposte sur" : (bd.melee ? "frappe" : "tire sur");
-    const res = !hit ? "raté" : blocked ? "bloqué 🛡" : `touché ${dmg}${dead ? " ✝" : ""}`;
+    const res = !hit ? "raté" : saveTxt ? saveTxt : `touché ${dmg}${dead ? " ✝" : ""}`;
     pushLog(`${att.team === "player" ? "▲" : "▼"} ${att.name} ${verb} ${tgt.name} (${chance}%) : ${res}`, att.team);
     if (!reaction) att.ap = 0;                        // une attaque consomme tous les PA (une riposte n'épuise rien)
     if (dead){ tgt.hp = 0; tgt.dead = true; }          // on garde le corps sur la carte
@@ -581,6 +612,7 @@
     triggerReactions(unit);                     // opportunité en quittant la case de départ
     if (unit.hp <= 0) return 0;
     for (let i = 1; i < path.length; i++){
+      unit.facing = angleTiles(path[i-1][0], path[i-1][1], path[i][0], path[i][1]);  // regarde dans le sens du pas
       unit.col = path[i][0]; unit.row = path[i][1];
       recomputeVision();
       triggerReactions(unit);
@@ -796,6 +828,7 @@
   }
   function holdOrWatch(e){
     if (e.range > 1 && (e.clip === undefined || e.ammo > 0) && enemyKnowsPlayers()) e.overwatch = true;
+    const p = nearestOpposing(e); if (p) faceTowards(e, p.col, p.row);   // fait face à la menace (anti-backstab)
     e.ap = 0;
   }
 
@@ -1119,6 +1152,12 @@
         ctx.lineWidth = 3; ctx.strokeStyle = "#8fd3ff"; ctx.stroke();
       }
 
+      // "nez" indiquant l'orientation
+      ctx.beginPath();
+      ctx.moveTo(x + Math.cos(u.facing)*SIZE*0.4, y + Math.sin(u.facing)*SIZE*0.4);
+      ctx.lineTo(x + Math.cos(u.facing)*SIZE*0.85, y + Math.sin(u.facing)*SIZE*0.85);
+      ctx.lineWidth = 3; ctx.strokeStyle = u.team === "player" ? "#bfe6ff" : "#f0b0ac"; ctx.stroke();
+
       ctx.beginPath(); ctx.arc(x, y, SIZE*0.55, 0, Math.PI*2);
       ctx.fillStyle = u.team === "player" ? "#5fb0d8" : "#d8635f";
       ctx.globalAlpha = (u.team === "player" && u.ap <= 0 && !u.overwatch && !u.bracing) ? 0.5 : 1; ctx.fill(); ctx.globalAlpha = 1;
@@ -1243,7 +1282,9 @@
                + (bd.dh ? ` · hauteur ${hsign}${bd.height} (Δ${bd.dh})` : ``)
                + (bd.def ? ` · garde −${bd.def}` : ``)
                + (bd.melee ? ` · corps à corps` : ``) + `</span>`
-               + (u.shieldBlock ? `<br><span style="color:#9a8a74">cible : bouclier ${u.shieldBlock}% de blocage</span>` : ``)
+               + ((u.shieldBlock || (bd.melee && u.parry)) ? `<br><span style="color:#9a8a74">cible : ${u.shieldBlock?`bouclier ${u.shieldBlock}%`:``}${(u.shieldBlock&&bd.melee&&u.parry)?` · `:``}${(bd.melee&&u.parry)?`parade ${u.parry}%`:``}</span>` : ``)
+               + (() => { const fb = flankBonus(selected, u); const f = (selected.flank && bd.melee) ? flankOf(selected, u) : null;
+                          return fb ? `<br><span style="color:#9adf9a">${f === "back" ? "dans le dos" : "de flanc"} : +${fb} dégâts</span>` : ``; })()
                + `<br><span style="color:#9a8a74">dégâts ${selected.dmgMin}–${selected.dmgMax} · clic pour ${bd.melee ? "frapper" : "tirer"}</span>`;
           }
         }
@@ -1456,7 +1497,9 @@
         + `<br>portée <code>${selected.range}</code> · dégâts <code>${selected.dmgMin}–${selected.dmgMax}</code>`
         + (selected.clip !== undefined ? `<br>munitions : <code>${selected.ammo}/${selected.clip}</code>${selected.ammo<=0?` <span style="color:#e0a85f">(recharger)</span>`:``}` : ``)
         + (selected.weapons.cracker ? `<br>crackers : <code>${selected.crackers}</code>` : ``)
-        + (selected.shieldBlock ? `<br>bouclier : <code>${selected.shieldBlock}%</code> de blocage` : ``)
+        + (selected.shieldBlock ? `<br>bouclier : <code>${selected.shieldBlock}%</code> (CàC + tir)` : ``)
+        + (selected.parry ? `<br>parade : <code>${selected.parry}%</code> (CàC)` : ``)
+        + (selected.flank ? `<br>dos : <code>+${selected.flank.back}</code> · flanc : <code>+${selected.flank.side}</code>` : ``)
         + `<br>position <code>(${selected.col}, ${selected.row})</code> · altitude <code>${elevOf(selected)}</code>`
         + (selected.bracing ? `<br><span style="color:#8fd3ff">En garde (+${DEF_BRACE} défense).</span>` : ``)
         + (selected.overwatch ? `<br><span style="color:#7fe0d0">En vigilance.</span>`
@@ -1514,7 +1557,7 @@
       const tag = u.hp <= 0 ? "tombé" : u.overwatch ? "vigilance" : u.bracing ? "en garde" : `PA ${u.ap}/${AP_MAX}`;
       return `<div class="${cls}" data-i="${i}">`
         + `<div class="nm"><span>${u.name}</span><span>${Math.max(0,u.hp)}/${u.maxHp}</span></div>`
-        + `<div class="role">${u.role || ""} · ${u.weapons.ranged ? "arbalète" : "épée"}${u.shieldBlock ? " + bouclier" : ""}</div>`
+        + `<div class="role">${u.role || ""} · ${u.weapons.ranged ? "arbalète" : (u.weapons.melee && u.weapons.melee.flank) ? "dagues" : "épée"}${u.shieldBlock ? " + bouclier" : u.parry ? " + parade" : ""}</div>`
         + `<div class="hpbar"><div class="hpfill" style="width:${100*Math.max(0,u.hp)/u.maxHp}%"></div></div>`
         + `<div class="tags">${tag}</div></div>`;
     }).join("");
