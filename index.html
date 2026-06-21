@@ -52,6 +52,7 @@
   #actions button{display:flex; justify-content:space-between; align-items:center; gap:10px; text-align:left}
   .te{font-weight:bold; color:#caa86a; letter-spacing:-1px}
   .te.end{color:#e0a060}
+  .dmg{color:#e0a86a; font-size:.78em; opacity:.9}
   #info,#sel{color:var(--muted); min-height:2.6em}
   code{color:var(--ink)}
   .hint{font-size:.72rem; color:var(--muted); line-height:1.4; margin-top:4px}
@@ -71,13 +72,13 @@
       <div id="turninfo" class="hint" style="margin-bottom:6px"></div>
       <div id="sel">Clique une unité bleue.</div>
       <div id="actions">
-        <button id="act-shoot"><span>🏹 Tirer</span><span class="te end">&gt;|</span></button>
-        <button id="act-melee"><span>⚔️ Épée</span><span class="te end">&gt;|</span></button>
-        <button id="act-ow-shoot"><span>👁️ Vigilance — tir</span><span class="te end">&gt;|</span></button>
-        <button id="act-ow-melee"><span>👁️ Vigilance — épée</span><span class="te end">&gt;|</span></button>
+        <button id="act-shoot"><span>🏹 Tirer <small id="dmg-shoot" class="dmg"></small></span><span class="te end">&gt;|</span></button>
+        <button id="act-melee"><span>⚔️ Épée <small id="dmg-melee" class="dmg"></small></span><span class="te end">&gt;|</span></button>
+        <button id="act-ow-shoot"><span>👁️ Vigilance — tir <small id="dmg-ows" class="dmg"></small></span><span class="te end">&gt;|</span></button>
+        <button id="act-ow-melee"><span>👁️ Vigilance — épée <small id="dmg-owm" class="dmg"></small></span><span class="te end">&gt;|</span></button>
         <button id="act-reload"><span>🔄 Recharger</span><span class="te">&gt;</span></button>
         <button id="act-brace"><span>🛡️ Brace</span><span class="te">&gt;</span></button>
-        <button id="act-cracker"><span>💣 Cracker</span><span class="te end">&gt;|</span></button>
+        <button id="act-cracker"><span>💣 Cracker <small id="dmg-cracker" class="dmg"></small></span><span class="te end">&gt;|</span></button>
       </div>
       <div class="row"><button id="endturn">Fin de tour ▶ (phase ennemie)</button></div>
 
@@ -543,20 +544,27 @@
     checkEnd();
   }
 
-  // ---- Overwatch : tir d'opportunité pendant le déplacement adverse -------
-  function canReact(w, tgt){
-    if (w.hp <= 0 || tgt.hp <= 0) return false;
-    if (w.wtype === "ranged" && w.clip !== undefined && w.ammo <= 0) return false;   // chargeur vide : pas de riposte
-    if (cubeDist(offsetToCube(w.col, w.row), offsetToCube(tgt.col, tgt.row)) > VISION) return false;
-    if (hexDistUnits(w, tgt) > w.range) return false;
-    return lineOfFire(w, tgt);
+  // ---- Réactions : tir de vigilance (overwatch) + attaque d'opportunité à l'épée -------
+  // Mode de riposte d'une unité W contre un mobile M, ou null si pas de réaction possible.
+  //  - épée : toute unité avec une épée menace une case adjacente (opportunité), même sans vigilance ;
+  //  - tir  : seulement en vigilance, dans la portée, à vue et avec une ligne de tir dégagée.
+  function reactionMode(w, m){
+    if (w.hp <= 0 || m.hp <= 0 || w.reacted) return null;
+    if (w.weapons.melee && hexDistUnits(w, m) === 1) return "melee";   // attaque d'opportunité (entrée OU sortie d'adjacence)
+    if (w.overwatch && w.weapons.ranged && (w.clip === undefined || w.ammo > 0)
+        && hexDistUnits(w, m) <= w.weapons.ranged.range
+        && cubeDist(offsetToCube(w.col, w.row), offsetToCube(m.col, m.row)) <= VISION
+        && lineOfFire(w, m)) return "ranged";
+    return null;
   }
   function triggerReactions(mover){
     for (const w of units){
-      if (w.team === mover.team || !w.overwatch || w.reacted || w.hp <= 0) continue;
-      if (!canReact(w, mover)) continue;
+      if (w.team === mover.team || w.hp <= 0) continue;
+      const mode = reactionMode(w, mover);
+      if (!mode) continue;
+      setMode(w, mode);                         // riposte avec l'arme adéquate (épée de près, arme à distance sinon)
       doAttack(w, mover, true);
-      w.reacted = true; w.overwatch = false;   // vigilance consommée
+      w.reacted = true; w.overwatch = false;    // une réaction par tour adverse
       if (mover.hp <= 0) break;
     }
   }
@@ -567,9 +575,11 @@
     return path;
   }
 
-  // Avance une unité le long d'un chemin, case par case : la vision se met à jour
-  // et les guetteurs adverses peuvent riposter en chemin. Renvoie l'index d'arrêt.
+  // Avance une unité le long d'un chemin : à chaque case, les adversaires peuvent riposter
+  // (en QUITTANT une case adjacente comme en y entrant). Renvoie l'index d'arrêt.
   function executeMove(unit, path){
+    triggerReactions(unit);                     // opportunité en quittant la case de départ
+    if (unit.hp <= 0) return 0;
     for (let i = 1; i < path.length; i++){
       unit.col = path[i][0]; unit.row = path[i][1];
       recomputeVision();
@@ -955,13 +965,13 @@
     if (z === 0) return "rgba(120,200,255,0.95)";
     return (u.ap - z > 0) ? "rgba(232,178,96,0.95)" : "rgba(235,120,95,0.95)";
   }
-  function drawReachOutline(){
+  function drawReachOutline(maxZone){
     const u = selected;
     const cells = [[u.col, u.row]];
     for (const k in reach.dist){ const [c, r] = k.split(",").map(Number); cells.push([c, r]); }
     ctx.lineCap = "round";
     for (const [c, r] of cells){
-      const z = zoneAt(u, c, r); if (z === Infinity) continue;
+      const z = zoneAt(u, c, r); if (z === Infinity || z > maxZone) continue;   // que les zones ≤ la case visée
       for (const [dc, dr] of NEI[r & 1]){
         const nc = c + dc, nr = r + dr;
         if (zoneAt(u, nc, nr) <= z) continue;          // bord seulement vers une zone plus coûteuse / l'extérieur
@@ -1025,8 +1035,11 @@
     }
     drawWalls();   // murets sur les arêtes (par-dessus le sol)
 
-    // 2) portée de déplacement : seulement le CONTOUR de chaque zone de PA
-    if (reach && selected && selected.hp > 0) drawReachOutline();
+    // 2) portée de déplacement : contours affichés au survol, zones ≤ la case visée
+    if (reach && selected && selected.hp > 0 && hover){
+      const hz = zoneAt(selected, hover.col, hover.row);
+      if (hz !== Infinity) drawReachOutline(hz);
+    }
 
     // 3) aperçu du chemin au survol
     if (selected && hover){
@@ -1483,6 +1496,9 @@
     show(reload,  ready && selected.clip !== undefined && selected.ammo < selected.clip);
     show(brace,   ready && selected.shieldBlock > 0 && !selected.bracing);
     show(cracker, ready && w.cracker && selected.crackers > 0);
+    // dégâts de chaque attaque, lus sur l'arme correspondante
+    const dmg = (id, wp) => { const el = document.getElementById(id); if (el) el.textContent = wp ? `${wp.dmgMin}–${wp.dmgMax}` : ""; };
+    if (w){ dmg("dmg-shoot", w.ranged); dmg("dmg-melee", w.melee); dmg("dmg-ows", w.ranged); dmg("dmg-owm", w.melee); dmg("dmg-cracker", w.cracker); }
     const armedMode = targeting ? selected.mode : null;
     shoot.classList.toggle("armed", armedMode === "ranged");
     melee.classList.toggle("armed", armedMode === "melee");
