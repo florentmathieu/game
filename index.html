@@ -49,6 +49,7 @@
       <h2>Unité</h2>
       <div id="turninfo" class="hint" style="margin-bottom:6px"></div>
       <div id="sel">Clique une unité bleue.</div>
+      <div class="row"><button id="weapon">Changer d'arme (épée / arbalète)</button></div>
       <div class="row"><button id="overwatch">Vigilance (overwatch)</button></div>
       <div class="row"><button id="endturn">Fin de tour ▶ (phase ennemie)</button></div>
       <div class="hint">PM = points de mouvement. Monter d'un niveau coûte +1 PM. Un dénivelé de 2 niveaux ou plus est une falaise infranchissable. Obstacles et cases occupées bloquent le passage. Rocher (sur une case) = couvert total, infranchissable, coupe la vue. Muret (sur une arête) = couvert partiel, franchissable, laisse voir ; s'il sépare deux hauteurs, il ne protège que la case basse (le bas est protégé du haut). Le côté protégé d'une unité est marqué : trait plein vert = total, pointillé jaune = partiel. Tu peux bouger PUIS tirer dans le même tour. « Vigilance » fait riposter l'unité sur le premier ennemi qui traverse sa ligne de tir pendant la phase adverse (anneau turquoise). « Fin de tour » fait jouer les ennemis.</div>
@@ -225,15 +226,39 @@
   }
 
   // ---- Unités -------------------------------------------------------------
+  // Applique l'arme active (épée = mêlée portée 1, arbalète/arc = distance) aux stats de combat.
+  function applyWeapon(u){
+    const w = u.weapons[u.mode] || u.weapons.melee || u.weapons.ranged;
+    u.aim = w.aim; u.dmgMin = w.dmgMin; u.dmgMax = w.dmgMax; u.range = w.range || 1; u.wtype = w.type;
+  }
+  function setMode(u, mode){ if (u.weapons[mode]){ u.mode = mode; applyWeapon(u); } }
+
   function placeUnits(){
-    const mk = (o) => Object.assign({ acted:false, overwatch:false, reacted:false }, o, { hp:o.maxHp, mp:o.maxMp });
+    const mk = (o) => {
+      const u = Object.assign({ acted:false, overwatch:false, reacted:false, shieldBlock:0 }, o);
+      u.mode = o.weapons.ranged ? "ranged" : "melee";   // par défaut on tire si on a une arme à distance
+      applyWeapon(u);
+      u.hp = o.maxHp; u.mp = o.maxMp;
+      return u;
+    };
+    const sword = (aim, lo, hi) => ({ type:"melee", aim, dmgMin:lo, dmgMax:hi });
+    const bow   = (aim, lo, hi, rng) => ({ type:"ranged", aim, dmgMin:lo, dmgMax:hi, range:rng });
     units = [
-      mk({ col:3,  row:16, team:"player", name:"Sergent", maxMp:8, maxHp:8,  aim:72, dmgMin:3, dmgMax:5, range:7 }),
-      mk({ col:5,  row:14, team:"player", name:"Sapeur",  maxMp:8, maxHp:7,  aim:65, dmgMin:3, dmgMax:4, range:6 }),
-      mk({ col:15, row:4,  team:"enemy",  name:"Garde",   maxMp:6, maxHp:8,  aim:60, dmgMin:3, dmgMax:4, range:6 }),
-      mk({ col:12, row:8,  team:"enemy",  name:"Archer",  maxMp:6, maxHp:6,  aim:70, dmgMin:2, dmgMax:4, range:8 }),
-      // Brute : mêlée uniquement (portée 1) — fonce au contact, pas d'overwatch
-      mk({ col:16, row:12, team:"enemy",  name:"Brute",   maxMp:8, maxHp:13, aim:70, dmgMin:5, dmgMax:7, range:1 }),
+      // Sergent : épée + bouclier (mêlée, forte chance de blocage)
+      mk({ col:3,  row:16, team:"player", name:"Sergent", maxMp:8, maxHp:10, shieldBlock:40,
+           weapons:{ melee: sword(75,4,6) } }),
+      // Sapeur : arbalète (défaut) + épée
+      mk({ col:5,  row:14, team:"player", name:"Sapeur",  maxMp:8, maxHp:7,
+           weapons:{ ranged: bow(65,3,4,6), melee: sword(70,3,5) } }),
+      // Garde : épée + bouclier
+      mk({ col:15, row:4,  team:"enemy",  name:"Garde",   maxMp:6, maxHp:8, shieldBlock:30,
+           weapons:{ melee: sword(65,3,4) } }),
+      // Archer : arc (distance), pas de bouclier
+      mk({ col:12, row:8,  team:"enemy",  name:"Archer",  maxMp:6, maxHp:6,
+           weapons:{ ranged: bow(70,2,4,8) } }),
+      // Brute : épée (mêlée), grosse frappe
+      mk({ col:16, row:12, team:"enemy",  name:"Brute",   maxMp:8, maxHp:13,
+           weapons:{ melee: sword(70,5,7) } }),
     ];
     // les cases de départ ne doivent pas être des obstacles
     for (const u of units) tiles[u.row][u.col].obstacle = false;
@@ -389,11 +414,10 @@
     return true;
   }
 
-  function isMelee(att, tgt){ return hexDistUnits(att, tgt) === 1; }
-
   // Détail de la précision, pour l'affichage comme pour le tir.
+  // Le type d'arme (et non la distance) décide si le couvert s'applique : l'épée (mêlée) l'ignore.
   function hitBreakdown(att, tgt){
-    const melee = isMelee(att, tgt);
+    const melee = att.wtype === "melee";
     const cover = melee ? 0 : coverPenalty(tgt, att.col, att.row);   // le corps à corps ignore le couvert
     const dh = elevOf(att) - elevOf(tgt);
     const height = dh * HEIGHT_BONUS;                                // avantage proportionnel à l'écart
@@ -415,11 +439,14 @@
     const bd = hitBreakdown(att, tgt);
     const chance = reaction ? Math.max(5, bd.chance - 15) : bd.chance; // riposte moins précise
     const hit = Math.random()*100 < chance;
-    let dmg = 0;
-    if (hit){ dmg = att.dmgMin + Math.floor(Math.random()*(att.dmgMax-att.dmgMin+1)); tgt.hp -= dmg; }
+    let dmg = 0, blocked = false;
+    if (hit){
+      if (tgt.shieldBlock > 0 && Math.random()*100 < tgt.shieldBlock) blocked = true; // bouclier
+      else { dmg = att.dmgMin + Math.floor(Math.random()*(att.dmgMax-att.dmgMin+1)); tgt.hp -= dmg; }
+    }
     const dead = tgt.hp <= 0;
     const verb = reaction ? "⚡ riposte sur" : (bd.melee ? "frappe" : "tire sur");
-    const res = hit ? `touché ${dmg}${dead ? " ✝" : ""}` : "raté";
+    const res = !hit ? "raté" : blocked ? "bloqué 🛡" : `touché ${dmg}${dead ? " ✝" : ""}`;
     pushLog(`${att.team === "player" ? "▲" : "▼"} ${att.name} ${verb} ${tgt.name} (${chance}%) : ${res}`, att.team);
     if (!reaction){ att.acted = true; att.mp = 0; }   // une riposte n'épuise pas le tour
     if (dead){ units = units.filter(u => u !== tgt); if (selected === tgt) selected = null; }
@@ -499,7 +526,7 @@
   // Chance de toucher qu'aurait un tireur (stats + position) sur une cible (position),
   // sans tenir compte du brouillard : sert à évaluer offensive ET menace.
   function shotChanceFrom(ac, ar, stats, tc, tr){
-    const att = { col:ac, row:ar, aim:stats.aim };
+    const att = { col:ac, row:ar, aim:stats.aim, wtype:stats.wtype };
     const tgt = { col:tc, row:tr };
     if (hexDistUnits(att, tgt) > stats.range) return 0;
     if (!lineOfFire(att, tgt)) return 0;
@@ -913,12 +940,13 @@
           if (selected && canAttack(selected, u)){
             const bd = hitBreakdown(selected, u);
             const hsign = bd.height >= 0 ? "+" : "";
-            s += `<br><b style="color:#ff8b86">Tir : ${bd.chance}% de toucher</b>`
+            s += `<br><b style="color:#ff8b86">${bd.melee ? "Épée" : "Tir"} : ${bd.chance}% de toucher</b>`
                + `<br><span style="color:#9a8a74">base ${bd.base}`
                + (bd.cover ? ` · couvert −${bd.cover}` : ``)
                + (bd.dh ? ` · hauteur ${hsign}${bd.height} (Δ${bd.dh})` : ``)
                + (bd.melee ? ` · corps à corps` : ``) + `</span>`
-               + `<br><span style="color:#9a8a74">dégâts ${selected.dmgMin}–${selected.dmgMax} · clic pour tirer</span>`;
+               + (u.shieldBlock ? `<br><span style="color:#9a8a74">cible : bouclier ${u.shieldBlock}% de blocage</span>` : ``)
+               + `<br><span style="color:#9a8a74">dégâts ${selected.dmgMin}–${selected.dmgMax} · clic pour ${bd.melee ? "frapper" : "tirer"}</span>`;
           }
         }
         if (selected && reach && reach.dist[key(hover.col,hover.row)] !== undefined)
@@ -965,11 +993,14 @@
     let html = "";
     if (!selected){ html = "Clique une unité bleue."; }
     else {
+      const wn = selected.wtype === "ranged" ? "arbalète/arc" : "épée";
+      const dual = selected.weapons.ranged && selected.weapons.melee;
       html = `<code>${selected.name}</code> — PV <code>${Math.max(0,selected.hp)}/${selected.maxHp}</code>`
+        + `<br>arme : <code>${wn}</code>${dual ? ` <span style="color:#9a8a74">(commutable)</span>` : ``}`
         + `<br>PM <code>${selected.mp}/${selected.maxMp}</code> · précision <code>${selected.aim}%</code>`
         + `<br>portée <code>${selected.range}</code> · dégâts <code>${selected.dmgMin}–${selected.dmgMax}</code>`
+        + (selected.shieldBlock ? `<br>bouclier : <code>${selected.shieldBlock}%</code> de blocage` : ``)
         + `<br>position <code>(${selected.col}, ${selected.row})</code> · altitude <code>${elevOf(selected)}</code>`
-        + (selected.range === 1 ? `<br><span style="color:#9a8a74">mêlée uniquement</span>` : ``)
         + (selected.overwatch ? `<br><span style="color:#7fe0d0">En vigilance.</span>`
            : selected.acted ? `<br><span style="color:#c98f3c">A déjà agi ce tour.</span>` : ``);
     }
@@ -989,6 +1020,12 @@
 
   document.getElementById("regen").addEventListener("click", () => { if (anim) return; generate(); placeUnits(); updateSel(); renderLog(); draw(); });
   document.getElementById("endturn").addEventListener("click", () => { if (!anim) endPlayerTurn(); });
+  document.getElementById("weapon").addEventListener("click", () => {
+    if (anim || gameOver || !selected) return;
+    if (!(selected.weapons.ranged && selected.weapons.melee)) return;  // seules les unités à 2 armes basculent
+    setMode(selected, selected.mode === "ranged" ? "melee" : "ranged");
+    updateSel(); draw();
+  });
   document.getElementById("overwatch").addEventListener("click", () => {
     if (anim || gameOver || !selected || selected.acted) return;
     selected.overwatch = true; selected.acted = true; selected.mp = 0; reach = null;
