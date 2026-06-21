@@ -420,12 +420,19 @@
     u.mob = MOB_AP; u.ap = AP_MAX; u.freeAvail = true;
     return u;
   }
-  // construit une unité d'un type donné posée en (col,row) — armes clonées du modèle
-  function buildUnit(type, col, row, team){
+  // construit une unité d'un type donné posée en (col,row) — armes clonées du modèle.
+  // `over` = ajustements optionnels (deltas) : { hp, aim } pour calibrer une mission.
+  function buildUnit(type, col, row, team, over){
     const t = TEMPLATES[type]; if (!t) return null;
     const o = JSON.parse(JSON.stringify(t));
     o.type = type; o.name = type; o.col = col; o.row = row; o.team = team || t.team;
-    return instantiate(o);
+    const u = instantiate(o);
+    if (over && (over.hp || over.aim)){
+      u.over = { hp: over.hp || 0, aim: over.aim || 0 };
+      if (over.hp){ u.maxHp = Math.max(1, u.maxHp + over.hp); u.hp = u.maxHp; }
+      if (over.aim){ for (const k in u.weapons){ const w = u.weapons[k]; if (w && typeof w.aim === "number") w.aim += over.aim; } applyWeapon(u); }
+    }
+    return u;
   }
   // noms uniques quand un type est dupliqué : Garde, Garde 2, Garde 3…
   function dedupeNames(){
@@ -438,12 +445,14 @@
     ["Stiff","player",3,16],["Merry","player",5,14],["Gizzard","player",4,15],
     ["Garde","enemy",15,4],["Archer","enemy",12,8],["Brute","enemy",16,12],
   ];
-  // pose une liste d'unités [type,team,col,row] et (ré)initialise l'état de partie
+  // pose une liste d'unités (tableaux [type,team,col,row,over] ou objets {type,team,col,row,hp,aim})
   function placeUnitsFrom(list){
     units = [];
-    for (const [type, team, col, row] of list){
+    for (const it of list){
+      const [type, team, col, row, over] = Array.isArray(it)
+        ? it : [it.type, it.team, it.col, it.row, it.over || { hp:it.hp, aim:it.aim }];
       if (col < 0 || col >= COLS || row < 0 || row >= ROWS) continue;
-      const u = buildUnit(type, col, row, team); if (u) units.push(u);
+      const u = buildUnit(type, col, row, team, over); if (u) units.push(u);
     }
     dedupeNames();
     for (const u of units){ if (tiles[u.row] && tiles[u.row][u.col]){ tiles[u.row][u.col].obstacle = false; delete tiles[u.row][u.col].cover; } }
@@ -463,7 +472,12 @@
       name: name || "Mission", cols: COLS, rows: ROWS,
       elev: tiles.map(row => row.map(t => t.elev)),
       rocks, walls: [...walls],
-      units: units.map(u => ({ type: u.type, team: u.team, col: u.col, row: u.row })),
+      units: units.map(u => {
+        const o = { type:u.type, team:u.team, col:u.col, row:u.row };
+        if (u.over && u.over.hp) o.hp = u.over.hp;
+        if (u.over && u.over.aim) o.aim = u.over.aim;
+        return o;
+      }),
     };
   }
   function applyMission(m){
@@ -473,7 +487,10 @@
       if (m.elev[r] && m.elev[r][c] != null) tiles[r][c].elev = clampElev(m.elev[r][c]);
     if (m.rocks) for (const [c, r] of m.rocks) if (tiles[r] && tiles[r][c]){ tiles[r][c].obstacle = true; tiles[r][c].cover = "full"; }
     walls = new Set(m.walls || []);
-    placeUnitsFrom((m.units || []).map(u => [u.type, u.team || (TEMPLATES[u.type] ? TEMPLATES[u.type].team : "enemy"), u.col, u.row]));
+    placeUnitsFrom((m.units || []).map(u => ({
+      type:u.type, team:u.team || (TEMPLATES[u.type] ? TEMPLATES[u.type].team : "enemy"),
+      col:u.col, row:u.row, hp:u.hp, aim:u.aim,
+    })));
   }
 
   // ---- Brouillard de guerre : vision des unités joueur --------------------
