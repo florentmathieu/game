@@ -1605,7 +1605,7 @@
   canvas.addEventListener("click", onClick);
   canvas.addEventListener("touchstart", (e) => { e.preventDefault(); onMove(e); onClick(e); }, { passive:false });
 
-  document.getElementById("regen").addEventListener("click", () => { if (busy()) return; generate(); placeUnits(); selectUnit(units.find(u => u.team === "player")); renderLog(); });
+  document.getElementById("regen").addEventListener("click", () => { if (busy()) return; generate(); placeUnits(); renderLog(); startSequence(); });
   document.getElementById("endturn").addEventListener("click", () => { if (!busy()) endPlayerTurn(); });
   document.getElementById("act-shoot").addEventListener("click", () => enterTargeting("ranged"));
   document.getElementById("act-melee").addEventListener("click", () => enterTargeting("melee"));
@@ -1692,6 +1692,16 @@ Stiff: Enough. I've decided.`;
   }
   const waitBtn = makeWaiter(introBtn);
   const waitScene = makeWaiter(sceneBtn);
+  const panelEl = document.querySelector(".panel");
+
+  // recharge le texte depuis le fichier (pour iterer sans toucher au code) ; repli sur l'embarque
+  async function loadDialogue(url, fallback){
+    try{
+      const r = await fetch(url + "?_=" + Date.now(), { cache: "no-store" });
+      if (r.ok){ const t = await r.text(); if (t && t.trim()) return t; }
+    }catch(e){}
+    return fallback;
+  }
 
   async function typeInto(el, line){
     if (!el) return;
@@ -1724,11 +1734,12 @@ Stiff: Enough. I've decided.`;
 
   async function runIntro(){
     await waitBtn("new game");                       // écran noir : un seul bouton
-    await playDialogue(INTRO_TEXT, introTextEl, waitBtn);
+    await playDialogue(await loadDialogue("Opening.txt", INTRO_TEXT), introTextEl, waitBtn);
     if (introEl && introEl.style) introEl.style.display = "none";  // on lève le rideau : la map apparaît
     selected = null; reach = null; draw();
-    if (firstGame){ await runScene1(); firstGame = false; }        // dialogue sous la map (1re partie)
+    if (firstGame){ await runScene1(); firstGame = false; }        // dialogue sous la map
     introActive = false;
+    if (panelEl) panelEl.style.display = "";          // la colonne n'apparaît qu'une fois le texte disparu
     selectUnit(units.find(u => u.team === "player" && u.hp > 0));
     draw();
   }
@@ -1736,15 +1747,25 @@ Stiff: Enough. I've decided.`;
   async function runScene1(){
     if (!sceneEl) return;
     sceneEl.style.display = "block";
-    await playDialogue(SCENE1_TEXT, sceneTextEl, waitScene);
+    await playDialogue(await loadDialogue("Scene1.txt", SCENE1_TEXT), sceneTextEl, waitScene);
     sceneEl.style.display = "none";
+  }
+
+  // (re)lance toute la séquence d'ouverture en rechargeant les deux textes
+  function startSequence(){
+    introActive = true; firstGame = true;
+    if (introEl && introEl.style) introEl.style.display = "";
+    if (introTextEl) introTextEl.textContent = "";
+    if (sceneEl && sceneEl.style) sceneEl.style.display = "none";
+    if (panelEl) panelEl.style.display = "none";      // colonne masquée tant que le texte tourne
+    runIntro();
   }
 
   // ---- Init ---------------------------------------------------------------
   setupCanvas(); generate(); placeUnits();
   selected = units.find(u => u.team === "player"); reach = selected ? computeReach(selected) : null;
   renderLog(); refreshAll();
-  runIntro();
+  startSequence();
 })();
 </script>
 </body>
