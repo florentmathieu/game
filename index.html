@@ -48,6 +48,8 @@
   .chip .tags{font-size:.66rem; color:#7fe0d0; margin-top:3px; min-height:.8em}
   button:disabled{opacity:.4; cursor:default}
   button.armed{background:#5a3030; border-color:#a05050}
+  #actions{display:flex; flex-direction:column; gap:4px; margin:6px 0}
+  #actions button{text-align:left}
   #info,#sel{color:var(--muted); min-height:2.6em}
   code{color:var(--ink)}
   .hint{font-size:.72rem; color:var(--muted); line-height:1.4; margin-top:4px}
@@ -66,10 +68,15 @@
       <h2>Unité</h2>
       <div id="turninfo" class="hint" style="margin-bottom:6px"></div>
       <div id="sel">Clique une unité bleue.</div>
-      <div class="row"><button id="act-shoot">Tirer</button><button id="act-melee">Épée</button></div>
-      <div class="row"><button id="act-ow-shoot">Vig. tir</button><button id="act-ow-melee">Vig. épée</button></div>
-      <div class="row"><button id="act-reload">Recharger</button><button id="act-brace">Brace</button></div>
-      <div class="row"><button id="act-cracker">Cracker</button></div>
+      <div id="actions">
+        <button id="act-shoot">🏹 Tirer</button>
+        <button id="act-melee">⚔️ Épée</button>
+        <button id="act-ow-shoot">👁️ Vigilance — tir</button>
+        <button id="act-ow-melee">👁️ Vigilance — épée</button>
+        <button id="act-reload">🔄 Recharger</button>
+        <button id="act-brace">🛡️ Brace</button>
+        <button id="act-cracker">💣 Cracker</button>
+      </div>
       <div class="row"><button id="endturn">Fin de tour ▶ (phase ennemie)</button></div>
 
       <h2 style="margin-top:14px">Journal</h2>
@@ -179,7 +186,7 @@
   const opts = { showLevels: false, showGrid: false, fog: true };
 
   const tileAt = (c, r) => (r>=0&&r<ROWS&&c>=0&&c<COLS) ? tiles[r][c] : null;
-  const unitAt = (c, r) => units.find(u => u.col === c && u.row === r) || null;
+  const unitAt = (c, r) => units.find(u => u.col === c && u.row === r && u.hp > 0) || null;  // les corps ne bloquent pas
   const key = (c, r) => c + "," + r;
   const isVisible  = (c, r) => !opts.fog || visible.has(key(c, r));
   const isExplored = (c, r) => !opts.fog || explored.has(key(c, r));
@@ -265,8 +272,8 @@
       u.hp = o.maxHp; u.bracing = false;
       if (o.weapons.ranged && o.weapons.ranged.clip){ u.clip = o.weapons.ranged.clip; u.ammo = u.clip; } // chargeur (sinon arme illimitée, ex. arc)
       if (o.weapons.cracker){ u.crackers = o.crackers || 2; }
-      // mêmes limites pour tout le monde : 2 cases gratuites + 2 PA convertibles
-      u.mob = MOB_AP; u.freeMp = FREE_MP; u.ap = AP_MAX; u.mpLeft = FREE_MP;
+      // mêmes limites pour tout le monde : 2 cases gratuites (one-shot) + 2 PA convertibles
+      u.mob = MOB_AP; u.ap = AP_MAX; u.freeAvail = true;
       return u;
     };
     const sword = (aim, lo, hi) => ({ type:"melee", aim, dmgMin:lo, dmgMax:hi });
@@ -282,10 +289,9 @@
       // Garde : épée + bouclier
       mk({ col:15, row:4,  team:"enemy",  name:"Garde",   maxMp:6, maxHp:8, shieldBlock:30,
            weapons:{ melee: sword(65,3,4) } }),
-      // Archer : arc (distance, pas de rechargement, dégâts faibles) + 1 cracker
-      mk({ col:12, row:8,  team:"enemy",  name:"Archer",  maxMp:6, maxHp:6, crackers:1,
-           weapons:{ ranged: bow(70,2,3,8),
-                     cracker:{ type:"throw", dmgMin:5, dmgMax:9, range:6, radius:2, scatter:2 } } }),
+      // Archer : arc (distance, pas de rechargement, dégâts faibles)
+      mk({ col:12, row:8,  team:"enemy",  name:"Archer",  maxMp:6, maxHp:6,
+           weapons:{ ranged: bow(70,2,3,8) } }),
       // Brute : épée (mêlée), grosse frappe
       mk({ col:16, row:12, team:"enemy",  name:"Brute",   maxMp:8, maxHp:13,
            weapons:{ melee: sword(70,5,7) } }),
@@ -390,14 +396,12 @@
   }
 
   // Budget de mouvement total disponible ce tour : mouvement libre restant + PA convertibles.
-  function budgetOf(u){ return u.mpLeft + u.ap * u.mob; }
-  // PA qu'un trajet de coût `cost` consommera : nb de blocs à ouvrir au-delà du restant.
-  function apForMove(u, cost){ return Math.max(0, Math.ceil((cost - u.mpLeft) / u.mob)); }
-  // Dépense le mouvement : ouvre des blocs (consomme des PA) au besoin, puis retire le coût.
-  function spendMove(u, cost){
-    while (cost > u.mpLeft && u.ap > 0){ u.ap--; u.mpLeft += u.mob; }
-    u.mpLeft -= cost;
-  }
+  function freeOf(u){ return u.freeAvail ? FREE_MP : 0; }
+  function budgetOf(u){ return freeOf(u) + u.ap * u.mob; }
+  // PA qu'un trajet de coût `cost` consommera (au-delà du mouvement gratuit du début de tour).
+  function apForMove(u, cost){ return Math.max(0, Math.ceil((cost - freeOf(u)) / u.mob)); }
+  // Dépense le mouvement : le 1er déplacement consomme le gratuit (one-shot), le reste coûte des PA.
+  function spendMove(u, cost){ u.ap -= apForMove(u, cost); if (u.ap < 0) u.ap = 0; u.freeAvail = false; }
 
   function computeReach(unit){
     const dist = {}, prev = {};
@@ -531,9 +535,9 @@
     const res = !hit ? "raté" : blocked ? "bloqué 🛡" : `touché ${dmg}${dead ? " ✝" : ""}`;
     pushLog(`${att.team === "player" ? "▲" : "▼"} ${att.name} ${verb} ${tgt.name} (${chance}%) : ${res}`, att.team);
     if (!reaction) att.ap = 0;                        // une attaque consomme tous les PA (une riposte n'épuise rien)
-    if (dead){ units = units.filter(u => u !== tgt); if (selected === tgt) selected = null; }
+    if (dead){ tgt.hp = 0; tgt.dead = true; }          // on garde le corps sur la carte
     recomputeVision();
-    reach = selected ? computeReach(selected) : null;
+    reach = (selected && selected.hp > 0) ? computeReach(selected) : reach;
     checkEnd();
   }
 
@@ -800,12 +804,11 @@
     // nouveau tour : on recharge tout le monde
     turn++;
     for (const u of units){
-      u.reacted = false; u.ap = AP_MAX; u.mpLeft = FREE_MP; u.bracing = false;
+      u.reacted = false; u.ap = AP_MAX; u.freeAvail = true; u.bracing = false;
       if (u.team === "player") u.overwatch = false;   // la vigilance joueur expire ; celle des ennemis (posée ce tour) reste active
     }
-    if (selected) reach = computeReach(selected);
     recomputeVision();
-    updateSel(); renderRoster(); draw();
+    selectUnit(units.find(u => u.team === "player" && u.hp > 0) || null);  // présélection au nouveau tour
   }
 
   // ---- Rendu --------------------------------------------------------------
@@ -841,7 +844,7 @@
       draw(); if (onDone) onDone(); return;
     }
     anim = { mover, pts, t: 0 };
-    const t0 = performance.now(), dur = 95 * (pts.length - 1);
+    const t0 = performance.now(), dur = 170 * (pts.length - 1);
     (function tick(now){
       anim.t = Math.min(1, (now - t0) / dur);
       draw();
@@ -944,9 +947,14 @@
     const d = reach.dist[key(c, r)];
     return d === undefined ? Infinity : apForMove(u, d);
   }
+  // couleur d'une zone : bleu = gratuit (0 PA) ; sinon orange s'il reste des PA après,
+  // rouge si le déplacement consomme le DERNIER PA disponible.
+  function zoneColor(u, z){
+    if (z === 0) return "rgba(120,200,255,0.95)";
+    return (u.ap - z > 0) ? "rgba(232,178,96,0.95)" : "rgba(235,120,95,0.95)";
+  }
   function drawReachOutline(){
     const u = selected;
-    const COL = ["rgba(120,200,255,0.95)", "rgba(232,178,96,0.95)", "rgba(235,120,95,0.95)"];
     const cells = [[u.col, u.row]];
     for (const k in reach.dist){ const [c, r] = k.split(",").map(Number); cells.push([c, r]); }
     ctx.lineCap = "round";
@@ -957,7 +965,7 @@
         if (zoneAt(u, nc, nr) <= z) continue;          // bord seulement vers une zone plus coûteuse / l'extérieur
         const a = tileCenter(c, r), b = tileCenter(nc, nr);
         const mx = (a.x+b.x)/2, my = (a.y+b.y)/2, ang = Math.atan2(b.y-a.y, b.x-a.x) + Math.PI/2, len = SIZE;
-        ctx.lineWidth = z === 0 ? 2.6 : 2; ctx.strokeStyle = COL[Math.min(2, z)];
+        ctx.lineWidth = z === 0 ? 2.6 : 2; ctx.strokeStyle = zoneColor(u, z);
         ctx.beginPath();
         ctx.moveTo(mx - Math.cos(ang)*len/2, my - Math.sin(ang)*len/2);
         ctx.lineTo(mx + Math.cos(ang)*len/2, my + Math.sin(ang)*len/2);
@@ -1016,7 +1024,7 @@
     drawWalls();   // murets sur les arêtes (par-dessus le sol)
 
     // 2) portée de déplacement : seulement le CONTOUR de chaque zone de PA
-    if (reach && selected) drawReachOutline();
+    if (reach && selected && selected.hp > 0) drawReachOutline();
 
     // 3) aperçu du chemin au survol
     if (selected && hover){
@@ -1064,11 +1072,19 @@
       }
     }
 
-    // 7) unités (les ennemis sous le brouillard sont cachés)
+    // 7) unités (corps toujours visibles ; ennemis vivants cachés sous le brouillard)
     for (const u of units){
-      if (u.team === "enemy" && !isVisible(u.col, u.row)) continue;
       let { x, y } = tileCenter(u.col, u.row);
       if (anim && u === anim.mover){ const p = animPos(); x = p.x; y = p.y; }
+      if (u.hp <= 0){                                   // corps : grisé, toujours dessiné
+        ctx.globalAlpha = 0.55;
+        ctx.beginPath(); ctx.arc(x, y, SIZE*0.42, 0, Math.PI*2); ctx.fillStyle = "#444"; ctx.fill();
+        ctx.lineWidth = 2; ctx.strokeStyle = u.team === "player" ? "#3a6076" : "#6a3a3a";
+        ctx.beginPath(); ctx.moveTo(x-5,y-5); ctx.lineTo(x+5,y+5); ctx.moveTo(x+5,y-5); ctx.lineTo(x-5,y+5); ctx.stroke();
+        ctx.globalAlpha = 1;
+        continue;
+      }
+      if (u.team === "enemy" && !isVisible(u.col, u.row)) continue;
 
       // halo "cible attaquable" si une unité joueur est sélectionnée
       if (selected && canAttack(selected, u)){
@@ -1264,7 +1280,7 @@
     const tgt = targeting.targets[targeting.idx];
     targeting = null;
     doAttack(selected, tgt);
-    refreshAll(); maybeAutoEnd();
+    refreshAll(); afterPlayerAction();
   }
   function cancelTargeting(){ if (targeting){ targeting = null; refreshAll(); } }
 
@@ -1273,9 +1289,9 @@
     if (!selected.weapons[mode]) return;
     if (mode === "ranged" && selected.clip !== undefined && selected.ammo <= 0) return;  // arbalète vide
     setMode(selected, mode);                       // l'arme choisie servira à la riposte
-    selected.overwatch = true; selected.ap = 0; reach = computeReach(selected); targeting = null; throwing = false;
+    selected.overwatch = true; selected.ap = 0; selected.freeAvail = false; reach = computeReach(selected); targeting = null; throwing = false;
     pushLog(`▲ ${selected.name} en vigilance (${mode === "ranged" ? "tir" : "épée"})`, "player");
-    refreshAll(); maybeAutoEnd();
+    refreshAll(); afterPlayerAction();
   }
   // actions du 1er PA (coûtent 1 PA, pas tous)
   function doBrace(){
@@ -1283,14 +1299,14 @@
     if (!selected.shieldBlock || selected.bracing) return;
     selected.ap -= 1; selected.bracing = true; targeting = null; reach = computeReach(selected);
     pushLog(`▲ ${selected.name} se met en garde (+${DEF_BRACE} défense)`, "player");
-    refreshAll(); maybeAutoEnd();
+    refreshAll(); afterPlayerAction();
   }
   function doReload(){
     if (!selected || selected.ap <= 0 || gameOver || busy()) return;
     if (selected.clip === undefined || selected.ammo >= selected.clip) return;
     selected.ap -= 1; selected.ammo = selected.clip; targeting = null; reach = computeReach(selected);
     pushLog(`▲ ${selected.name} recharge`, "player");
-    refreshAll(); maybeAutoEnd();
+    refreshAll(); afterPlayerAction();
   }
 
   // ---- Cracker (grenade) : vise une case, dispersion ±scatter, dégâts en rayon ----
@@ -1326,26 +1342,49 @@
       if (cubeDist(offsetToCube(ic, ir), offsetToCube(u.col, u.row)) <= cr.radius){
         const dmg = cr.dmgMin + Math.floor(Math.random()*(cr.dmgMax-cr.dmgMin+1));
         u.hp -= dmg;
+        if (u.hp <= 0){ u.hp = 0; u.dead = true; }
         pushLog(`   💥 ${u.name} : ${dmg} dégâts${u.hp<=0?" ✝":""}`, u.team);
       }
     }
-    units = units.filter(u => u.hp > 0);
     recomputeVision(); checkEnd();
   }
   function doThrow(tc, tr){       // jet du joueur
     const thrower = selected; throwing = false;
     resolveThrow(thrower, tc, tr);
-    if (!units.includes(thrower)) selected = null;
-    if (selected) reach = computeReach(selected);
-    refreshAll(); maybeAutoEnd();
+    if (selected && selected.hp > 0) reach = computeReach(selected);
+    refreshAll(); afterPlayerAction();
   }
 
+  // une unité n'a plus rien à faire : aucun PA et plus de mouvement gratuit
+  function unitDone(u){ return u.hp <= 0 || (u.ap <= 0 && !u.freeAvail); }
+
+  // passe à l'unité suivante quand la sélection courante est épuisée ou tombée
+  function maybeAdvance(){
+    if (gameOver || !selected) return;
+    if (!unitDone(selected)) return;
+    const ps = units.filter(u => u.team === "player" && u.hp > 0 && !unitDone(u));
+    if (ps.length){
+      // suivant dans l'ordre après l'actuel
+      const order = units.filter(u => u.team === "player");
+      const start = order.indexOf(selected);
+      let pick = ps[0];
+      for (let i = 1; i <= order.length; i++){
+        const cand = order[(start + i) % order.length];
+        if (cand && cand.hp > 0 && !unitDone(cand)){ pick = cand; break; }
+      }
+      selectUnit(pick);
+    }
+  }
+
+  // fin de tour automatique : plus aucune unité joueur ne peut agir
   function maybeAutoEnd(){
     if (gameOver) return false;
     const ps = units.filter(u => u.team === "player" && u.hp > 0);
-    if (ps.length && ps.every(u => u.ap <= 0)){ endPlayerTurn(); return true; }
+    if (ps.length && ps.every(unitDone)){ endPlayerTurn(); return true; }
     return false;
   }
+  // après une action joueur : on avance, sinon on tente la fin de tour
+  function afterPlayerAction(){ maybeAdvance(); maybeAutoEnd(); }
 
   let flashMsg = "";
   function flash(m){ flashMsg = m; setTimeout(() => { flashMsg = ""; const el = document.getElementById("info"); if (el && el.textContent === m) el.textContent = "Passe la souris sur la carte."; }, 1500); const el = document.getElementById("info"); if (el) el.textContent = m; }
@@ -1373,17 +1412,17 @@
     // clic sur une unité joueur -> sélection
     if (u && u.team === "player"){ selectUnit(u); return; }
     // clic sur un ennemi attaquable -> attaque directe (arme active)
-    if (selected && u && canAttack(selected, u)){ doAttack(selected, u); refreshAll(); maybeAutoEnd(); return; }
+    if (selected && u && canAttack(selected, u)){ doAttack(selected, u); refreshAll(); afterPlayerAction(); return; }
     // clic sur une case atteignable -> déplacement (résolu, puis animé)
     if (selected && reach && reach.dist[key(t.col, t.row)] !== undefined){
       const mover = selected;
       const path = buildPath(reach.prev, t.col, t.row);
       spendMove(mover, reach.dist[key(t.col, t.row)]);   // ouvre des blocs (PA) au besoin
       const stop = executeMove(mover, path);
-      if (mover.hp <= 0){ if (selected === mover) selected = null; refreshAll(); maybeAutoEnd(); return; }
+      if (mover.hp <= 0){ refreshAll(); afterPlayerAction(); return; }   // abattu en chemin : corps conservé, on avance
       reach = computeReach(mover);
       refreshAll();
-      animateMove(mover, path.slice(0, stop + 1), () => { refreshAll(); maybeAutoEnd(); });
+      animateMove(mover, path.slice(0, stop + 1), () => { refreshAll(); afterPlayerAction(); });
       return;
     }
     // sinon -> désélection
@@ -1398,7 +1437,7 @@
       const wn = selected.wtype === "ranged" ? "arbalète/arc" : "épée";
       const dual = selected.weapons.ranged && selected.weapons.melee;
       html = `<code>${selected.name}</code> — PV <code>${Math.max(0,selected.hp)}/${selected.maxHp}</code>`
-        + `<br>PA <code>${selected.ap}/${AP_MAX}</code> · mouvement <code>${selected.mpLeft}</code>${selected.ap>0?` (+${selected.ap}×${selected.mob} via PA)`:``}`
+        + `<br>PA <code>${selected.ap}/${AP_MAX}</code> · mouvement libre <code>${freeOf(selected)}</code>${selected.ap>0?` (+${selected.ap}×${selected.mob} via PA)`:``}`
         + `<br>arme : <code>${wn}</code>${dual ? ` <span style="color:#9a8a74">(commutable)</span>` : ``} · précision <code>${selected.aim}%</code>`
         + `<br>portée <code>${selected.range}</code> · dégâts <code>${selected.dmgMin}–${selected.dmgMax}</code>`
         + (selected.clip !== undefined ? `<br>munitions : <code>${selected.ammo}/${selected.clip}</code>${selected.ammo<=0?` <span style="color:#e0a85f">(recharger)</span>`:``}` : ``)
@@ -1432,16 +1471,17 @@
     const brace = document.getElementById("act-brace");
     const cracker = document.getElementById("act-cracker");
     if (!shoot) return;
-    const ready = selected && selected.ap > 0 && !gameOver && !busy();
+    const ready = selected && selected.hp > 0 && selected.ap > 0 && !gameOver && !busy();
     const w = selected && selected.weapons;
     const ammoOk = selected && (selected.clip === undefined || selected.ammo > 0);
-    shoot.disabled   = !(ready && w.ranged && ammoOk);
-    melee.disabled   = !(ready && w.melee);
-    owS.disabled     = !(ready && w.ranged && ammoOk);
-    owM.disabled     = !(ready && w.melee);
-    reload.disabled  = !(ready && selected.clip !== undefined && selected.ammo < selected.clip);
-    brace.disabled   = !(ready && selected.shieldBlock > 0 && !selected.bracing);
-    cracker.disabled = !(ready && w.cracker && selected.crackers > 0);
+    const show = (btn, ok) => { btn.style.display = ok ? "" : "none"; };   // on n'affiche que le dispo
+    show(shoot,   ready && w.ranged && ammoOk);
+    show(melee,   ready && w.melee);
+    show(owS,     ready && w.ranged && ammoOk);
+    show(owM,     ready && w.melee);
+    show(reload,  ready && selected.clip !== undefined && selected.ammo < selected.clip);
+    show(brace,   ready && selected.shieldBlock > 0 && !selected.bracing);
+    show(cracker, ready && w.cracker && selected.crackers > 0);
     const armedMode = targeting ? selected.mode : null;
     shoot.classList.toggle("armed", armedMode === "ranged");
     melee.classList.toggle("armed", armedMode === "melee");
