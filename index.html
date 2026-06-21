@@ -47,9 +47,13 @@
 
     <div class="panel">
       <h2>Unité</h2>
+      <div id="turninfo" class="hint" style="margin-bottom:6px"></div>
       <div id="sel">Clique une unité bleue.</div>
-      <div class="row"><button id="endturn">Nouveau tour (PM + actions)</button></div>
-      <div class="hint">PM = points de mouvement. Monter d'un niveau coûte +1 PM. Un dénivelé de 2 niveaux ou plus est une falaise infranchissable. Obstacles et cases occupées bloquent le passage. Rocher = couvert total (coupe la vue) ; muret = couvert partiel (laisse voir). Le côté protégé d'une unité est marqué : trait plein vert = total, pointillé jaune = partiel. Sélectionne une unité puis clique un ennemi cerclé de rouge pour l'attaquer : le couvert (du bon côté) baisse la précision, dominer en hauteur l'augmente (corps à corps inclus), et l'attaque consomme le tour de l'unité.</div>
+      <div class="row"><button id="endturn">Fin de tour ▶ (phase ennemie)</button></div>
+      <div class="hint">PM = points de mouvement. Monter d'un niveau coûte +1 PM. Un dénivelé de 2 niveaux ou plus est une falaise infranchissable. Obstacles et cases occupées bloquent le passage. Rocher = couvert total (coupe la vue) ; muret = couvert partiel (laisse voir). Le côté protégé d'une unité est marqué : trait plein vert = total, pointillé jaune = partiel. Sélectionne une unité puis clique un ennemi cerclé de rouge pour l'attaquer : le couvert baisse la précision (max de face, nul de flanc), dominer en hauteur l'augmente (corps à corps inclus). « Fin de tour » fait jouer les ennemis.</div>
+
+      <h2 style="margin-top:14px">Journal</h2>
+      <div id="log" class="hint"></div>
 
       <h2 style="margin-top:14px">Carte</h2>
       <div class="row"><button id="regen">Régénérer la carte</button></div>
@@ -131,7 +135,8 @@
   let hover = null;
   let visible = new Set();   // cases actuellement vues par le joueur
   let explored = new Set();  // cases déjà vues au moins une fois (mémoire)
-  let lastAttack = null;     // résumé du dernier tir pour le panneau
+  let log = [];              // journal des dernières actions
+  let turn = 1;              // numéro du tour
   const opts = { showLevels: false, showGrid: true, fog: true };
 
   const tileAt = (c, r) => (r>=0&&r<ROWS&&c>=0&&c<COLS) ? tiles[r][c] : null;
@@ -209,7 +214,7 @@
     ];
     // les cases de départ ne doivent pas être des obstacles
     for (const u of units) tiles[u.row][u.col].obstacle = false;
-    selected = null; reach = null; lastAttack = null;
+    selected = null; reach = null; log = []; turn = 1;
     explored = new Set();
     recomputeVision();
   }
@@ -298,7 +303,8 @@
   const elevOf = (u) => tiles[u.row][u.col].elev;
   function hexDistUnits(a, b){ return cubeDist(offsetToCube(a.col,a.row), offsetToCube(b.col,b.row)); }
 
-  // Couvert directionnel : on retient le meilleur couvert situé du côté de l'attaquant.
+  // Couvert directionnel, dépendant de l'angle : pleine valeur quand l'attaquant
+  // est pile dans l'axe du couvert, décroît en cos(angle), nulle dès 90° (flanking).
   function coverPenalty(target, fromCol, fromRow){
     const a = tileCenter(target.col, target.row), b = tileCenter(fromCol, fromRow);
     let ax = b.x-a.x, ay = b.y-a.y; const al = Math.hypot(ax,ay) || 1; ax/=al; ay/=al;
@@ -309,11 +315,12 @@
       if (!t || !t.obstacle) continue;
       const c = tileCenter(nc, nr);
       let dx = c.x-a.x, dy = c.y-a.y; const dl = Math.hypot(dx,dy) || 1; dx/=dl; dy/=dl;
-      if (ax*dx + ay*dy > 0.35){            // le couvert fait face à l'attaquant
-        best = Math.max(best, t.cover === "full" ? COVER_FULL : COVER_HALF);
-      }
+      const align = ax*dx + ay*dy;          // cos de l'angle entre l'axe du couvert et l'attaquant
+      if (align <= 0) continue;             // 90° ou plus : pris de flanc, aucune protection
+      const base = t.cover === "full" ? COVER_FULL : COVER_HALF;
+      best = Math.max(best, base * align);  // réduit par l'angle (max de face)
     }
-    return best;
+    return Math.round(best);
   }
 
   // Ligne de tir : un relief plus haut ou un couvert total NON adjacent à la cible bloque le tir.
@@ -345,9 +352,9 @@
   }
 
   function canAttack(att, tgt){
-    if (!att || att.team !== "player" || att.acted) return false;
+    if (!att || att.acted || att.hp <= 0) return false;
     if (!tgt || tgt.team === att.team || tgt.hp <= 0) return false;
-    if (!isVisible(tgt.col, tgt.row)) return false;
+    if (att.team === "player" && !isVisible(tgt.col, tgt.row)) return false; // le joueur ne tire que ce qu'il voit
     if (hexDistUnits(att, tgt) > att.range) return false;
     return lineOfFire(att, tgt);
   }
@@ -358,11 +365,81 @@
     let dmg = 0;
     if (hit){ dmg = att.dmgMin + Math.floor(Math.random()*(att.dmgMax-att.dmgMin+1)); tgt.hp -= dmg; }
     const dead = tgt.hp <= 0;
-    lastAttack = { from: att.name, to: tgt.name, melee: bd.melee, chance: bd.chance, hit, dmg, dead };
+    const verb = bd.melee ? "frappe" : "tire sur";
+    const res = hit ? `touché ${dmg}${dead ? " ✝" : ""}` : "raté";
+    pushLog(`${att.team === "player" ? "▲" : "▼"} ${att.name} ${verb} ${tgt.name} (${bd.chance}%) : ${res}`, att.team);
     att.acted = true; att.mp = 0;
-    if (dead){ units = units.filter(u => u !== tgt); }
+    if (dead){ units = units.filter(u => u !== tgt); if (selected === tgt) selected = null; }
     recomputeVision();
     reach = selected ? computeReach(selected) : null;
+  }
+
+  function pushLog(msg, team){
+    log.unshift({ msg, team });
+    if (log.length > 7) log.pop();
+    renderLog();
+  }
+  function renderLog(){
+    const el = document.getElementById("log");
+    if (!el) return;
+    el.innerHTML = log.length
+      ? log.map(e => `<div style="color:${e.team === "player" ? "#9fd3ec" : "#e8a39f"}">${e.msg}</div>`).join("")
+      : "<span style='color:#7a6c58'>Aucune action pour l'instant.</span>";
+  }
+
+  // ---- IA ennemie ---------------------------------------------------------
+  // Meilleure cible joueur tirable par une unité (plus forte chance, puis PV les plus bas).
+  function bestTarget(att){
+    let best = null, bestKey = -Infinity;
+    for (const p of units){
+      if (p.team === att.team || p.hp <= 0) continue;
+      if (!canAttack(att, p)) continue;
+      const k = hitBreakdown(att, p).chance * 1000 - p.hp; // priorise la précision puis l'achèvement
+      if (k > bestKey){ bestKey = k; best = p; }
+    }
+    return best;
+  }
+
+  function enemyAct(e){
+    if (e.hp <= 0) return;
+    const players = units.filter(u => u.team === "player" && u.hp > 0);
+    if (!players.length){ e.acted = true; return; }
+
+    // 1) tir immédiat si une cible est déjà à portée
+    let t = bestTarget(e);
+    if (t){ doAttack(e, t); return; }
+
+    // 2) sinon, se rapprocher de la cible la plus proche en cherchant hauteur + couvert
+    let target = players[0], bd = Infinity;
+    for (const p of players){ const d = hexDistUnits(e, p); if (d < bd){ bd = d; target = p; } }
+    const r = computeReach(e);
+    let bestTile = null, bestScore = Infinity, bestCost = 0;
+    for (const k in r.dist){
+      const [c, row] = k.split(",").map(Number);
+      const dist = cubeDist(offsetToCube(c, row), offsetToCube(target.col, target.row));
+      // score plus bas = meilleur : se rapproche, préfère l'altitude et un couvert face à la cible
+      const def = coverPenalty({ col:c, row }, target.col, target.row);
+      const score = dist*10 - tiles[row][c].elev*2 - def*0.2;
+      if (score < bestScore){ bestScore = score; bestTile = [c, row]; bestCost = r.dist[k]; }
+    }
+    if (bestTile){ e.col = bestTile[0]; e.row = bestTile[1]; e.mp -= bestCost; recomputeVision(); }
+
+    // 3) re-tenter un tir après déplacement
+    t = bestTarget(e);
+    if (t){ doAttack(e, t); return; }
+    e.acted = true;
+  }
+
+  // ---- Tours --------------------------------------------------------------
+  function endPlayerTurn(){
+    selected = null; reach = null;
+    pushLog(`— Tour ${turn} : phase ennemie —`, "enemy");
+    for (const e of units.filter(u => u.team === "enemy")) enemyAct(e);
+    // nouveau tour : on recharge tout le monde
+    turn++;
+    for (const u of units){ u.mp = u.maxMp; u.acted = false; }
+    recomputeVision();
+    updateSel(); draw();
   }
 
   // ---- Rendu --------------------------------------------------------------
@@ -642,14 +719,8 @@
         + `<br>position <code>(${selected.col}, ${selected.row})</code> · altitude <code>${elevOf(selected)}</code>`
         + (selected.acted ? `<br><span style="color:#c98f3c">A déjà agi ce tour.</span>` : ``);
     }
-    if (lastAttack){
-      const r = lastAttack;
-      html += `<hr style="border-color:#3a2c1c;margin:8px 0">`
-        + `<b>${r.from}</b> ${r.melee ? "frappe" : "tire sur"} <b>${r.to}</b> (${r.chance}%) : `
-        + (r.hit ? `<span style="color:#79e08a">touché, ${r.dmg} dégâts${r.dead ? " — éliminé !" : ""}</span>`
-                 : `<span style="color:#ff8b86">raté</span>`);
-    }
     el.innerHTML = html;
+    document.getElementById("turninfo").textContent = `Tour ${turn} — phase joueur`;
   }
 
   // ---- Contrôles ----------------------------------------------------------
@@ -659,13 +730,8 @@
   canvas.addEventListener("click", onClick);
   canvas.addEventListener("touchstart", (e) => { e.preventDefault(); onMove(e); onClick(e); }, { passive:false });
 
-  document.getElementById("regen").addEventListener("click", () => { generate(); placeUnits(); updateSel(); draw(); });
-  document.getElementById("endturn").addEventListener("click", () => {
-    for (const u of units){ u.mp = u.maxMp; u.acted = false; }
-    lastAttack = null;
-    if (selected) reach = computeReach(selected);
-    updateSel(); draw();
-  });
+  document.getElementById("regen").addEventListener("click", () => { generate(); placeUnits(); updateSel(); renderLog(); draw(); });
+  document.getElementById("endturn").addEventListener("click", endPlayerTurn);
   document.getElementById("toggleFog").addEventListener("change", e => { opts.fog = e.target.checked; draw(); });
   document.getElementById("toggleLevels").addEventListener("change", e => { opts.showLevels = e.target.checked; draw(); });
   document.getElementById("toggleGrid").addEventListener("change", e => { opts.showGrid = e.target.checked; draw(); });
@@ -682,7 +748,7 @@
   }
 
   // ---- Init ---------------------------------------------------------------
-  setupCanvas(); buildLegend(); generate(); placeUnits(); updateSel(); draw();
+  setupCanvas(); buildLegend(); generate(); placeUnits(); updateSel(); renderLog(); draw();
 })();
 </script>
 </body>
