@@ -2,5 +2,9 @@
  {
   "file": "mission1.json",
   "name": "Mission 1 — Embuscade"
+ },
+ {
+  "file": "mission-1.json",
+  "name": "Mission 1"
  }
 ]
