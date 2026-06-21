@@ -281,9 +281,13 @@
     // mémoire d'escouade : on note la dernière position connue de chaque joueur vu,
     // et on oublie les unités mortes ou disparues.
     for (const p of [...lastSeen.keys()]) if (!units.includes(p) || p.hp <= 0) lastSeen.delete(p);
-    for (const u of units)
-      if (u.team === "player" && u.hp > 0 && enemyVisible.has(key(u.col, u.row)))
-        lastSeen.set(u, { col: u.col, row: u.row });
+    for (const u of units){
+      if (u.team !== "player" || u.hp <= 0 || !enemyVisible.has(key(u.col, u.row))) continue;
+      const prev = lastSeen.get(u);
+      if (!prev) lastSeen.set(u, { col:u.col, row:u.row, pcol:u.col, prow:u.row });
+      else if (prev.col !== u.col || prev.row !== u.row)
+        lastSeen.set(u, { col:u.col, row:u.row, pcol:prev.col, prow:prev.row }); // garde la direction
+    }
   }
 
   // ---- Coût de déplacement & portée (Dijkstra) ----------------------------
@@ -463,29 +467,45 @@
     return hitBreakdown(att, tgt).chance;
   }
 
-  // Recherche : aucun joueur en vue, mais on a une dernière position connue à fouiller.
+  // Extrapole la position probable du joueur d'après sa direction de fuite : on prolonge
+  // d'un déplacement le vecteur (avant-derniere -> derniere case vue), ramené à une case valide.
+  function predictedGoal(mem){
+    const cur = offsetToCube(mem.col, mem.row), prev = offsetToCube(mem.pcol, mem.prow);
+    const dx = cur.x-prev.x, dy = cur.y-prev.y, dz = cur.z-prev.z;
+    if (!dx && !dy && !dz) return { col: mem.col, row: mem.row };
+    for (let kk = 1; kk >= 0; kk -= 0.2){
+      const cb = cubeRound({ x: cur.x+dx*kk, y: cur.y+dy*kk, z: cur.z+dz*kk });
+      const o = cubeToOffset(cb.x, cb.z), tl = tileAt(o.col, o.row);
+      if (tl && !tl.obstacle) return { col: o.col, row: o.row };
+    }
+    return { col: mem.col, row: mem.row };
+  }
+
+  // Recherche : aucun joueur en vue. On fouille la position extrapolée la plus proche,
+  // en approchant prudemment (on préfère un couvert face à la zone suspecte).
   function searchAct(e){
     const goals = [];
-    for (const [p, pos] of lastSeen) if (p.hp > 0) goals.push(pos);
+    for (const [p, mem] of lastSeen) if (p.hp > 0) goals.push({ p, g: predictedGoal(mem) });
     if (!goals.length){ e.acted = true; return; }     // rien à investiguer : tient sa position
 
-    let goal = goals[0], gd = Infinity;
-    for (const g of goals){
-      const d = cubeDist(offsetToCube(e.col, e.row), offsetToCube(g.col, g.row));
-      if (d < gd){ gd = d; goal = g; }
+    let pick = goals[0], gd = Infinity;
+    for (const it of goals){
+      const d = cubeDist(offsetToCube(e.col, e.row), offsetToCube(it.g.col, it.g.row));
+      if (d < gd){ gd = d; pick = it; }
     }
+    const goal = pick.g;
     // déjà sur place et personne en vue : l'endroit est vide, on l'oublie
     if (cubeDist(offsetToCube(e.col, e.row), offsetToCube(goal.col, goal.row)) <= 1){
-      for (const [p, pos] of lastSeen) if (pos === goal){ lastSeen.delete(p); break; }
-      e.acted = true; return;
+      lastSeen.delete(pick.p); e.acted = true; return;
     }
-    // sinon, avancer vers le point à fouiller
+    // approche prudente vers le but
     const r = computeReach(e);
     let best = [e.col, e.row, 0], bestScore = Infinity;
     for (const k in r.dist){
       const [c, row] = k.split(",").map(Number);
       const d = cubeDist(offsetToCube(c, row), offsetToCube(goal.col, goal.row));
-      const score = d - tiles[row][c].elev * 0.1;     // se rapproche, léger penchant pour la hauteur
+      const def = coverPenalty({ col:c, row }, goal.col, goal.row); // couvert face à la zone suspecte
+      const score = d - def*0.05 - tiles[row][c].elev*0.1;          // approche + prudence + hauteur
       if (score < bestScore){ bestScore = score; best = [c, row, r.dist[k]]; }
     }
     if (best[0] !== e.col || best[1] !== e.row){
