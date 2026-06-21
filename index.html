@@ -138,6 +138,7 @@
   let explored = new Set();  // cases déjà vues au moins une fois (mémoire)
   let log = [];              // journal des dernières actions
   let turn = 1;              // numéro du tour
+  let gameOver = null;       // null | "win" | "lose"
   let walls = new Set();     // murets : couvert partiel posé sur l'arête entre deux cases
 
   // Clé canonique d'une arête entre deux cases adjacentes.
@@ -231,7 +232,7 @@
     ];
     // les cases de départ ne doivent pas être des obstacles
     for (const u of units) tiles[u.row][u.col].obstacle = false;
-    selected = null; reach = null; log = []; turn = 1;
+    selected = null; reach = null; log = []; turn = 1; gameOver = null;
     explored = new Set();
     recomputeVision();
   }
@@ -400,6 +401,14 @@
     if (dead){ units = units.filter(u => u !== tgt); if (selected === tgt) selected = null; }
     recomputeVision();
     reach = selected ? computeReach(selected) : null;
+    checkEnd();
+  }
+
+  function checkEnd(){
+    const players = units.some(u => u.team === "player" && u.hp > 0);
+    const enemies = units.some(u => u.team === "enemy" && u.hp > 0);
+    if (!enemies){ gameOver = "win"; pushLog("— Victoire : tous les ennemis sont éliminés —", "player"); }
+    else if (!players){ gameOver = "lose"; pushLog("— Défaite : toute l'escouade est tombée —", "enemy"); }
   }
 
   function pushLog(msg, team){
@@ -474,9 +483,14 @@
 
   // ---- Tours --------------------------------------------------------------
   function endPlayerTurn(){
+    if (gameOver) return;
     selected = null; reach = null;
     pushLog(`— Tour ${turn} : phase ennemie —`, "enemy");
-    for (const e of units.filter(u => u.team === "enemy")) enemyAct(e);
+    for (const e of units.filter(u => u.team === "enemy")){
+      if (gameOver) break;
+      enemyAct(e);
+    }
+    if (gameOver){ updateSel(); draw(); return; }
     // nouveau tour : on recharge tout le monde
     turn++;
     for (const u of units){ u.mp = u.maxMp; u.acted = false; }
@@ -601,14 +615,14 @@
     if (selected && hover){
       const path = pathTo(hover.col, hover.row);
       if (path && path.length > 1){
-        ctx.lineWidth = 3; ctx.strokeStyle = "#ffd479"; ctx.beginPath();
+        ctx.lineWidth = 3; ctx.strokeStyle = "#c79af0"; ctx.beginPath();
         path.forEach((p, i) => {
           const { x, y } = tileCenter(p[0], p[1]);
           i ? ctx.lineTo(x, y) : ctx.moveTo(x, y);
         });
         ctx.stroke();
         const dest = tileCenter(hover.col, hover.row);
-        ctx.fillStyle = "#ffd479"; ctx.beginPath();
+        ctx.fillStyle = "#c79af0"; ctx.beginPath();
         ctx.arc(dest.x, dest.y, 4, 0, Math.PI*2); ctx.fill();
       }
     }
@@ -627,7 +641,7 @@
     // 5) survol : contour + couvert qu'offrirait la case
     if (hover){
       const { x, y } = tileCenter(hover.col, hover.row);
-      fillHex(x, y, SIZE); ctx.lineWidth = 2; ctx.strokeStyle = "#ffd479"; ctx.stroke();
+      fillHex(x, y, SIZE); ctx.lineWidth = 2.5; ctx.strokeStyle = "#c79af0"; ctx.stroke();
       if (isExplored(hover.col, hover.row)) drawCoverShields(hover.col, hover.row);
     }
 
@@ -672,6 +686,19 @@
       ctx.fillRect(bx, by, bw * Math.max(0, u.hp) / u.maxHp, bh);
 
       drawCoverShields(u.col, u.row);
+    }
+
+    // 8) bannière de fin de partie
+    if (gameOver){
+      const w = canvas.width / (window.devicePixelRatio || 1);
+      const h = canvas.height / (window.devicePixelRatio || 1);
+      ctx.fillStyle = "rgba(8,6,3,0.7)"; ctx.fillRect(0, 0, w, h);
+      ctx.textAlign = "center"; ctx.textBaseline = "middle";
+      ctx.fillStyle = gameOver === "win" ? "#79e08a" : "#ff6b66";
+      ctx.font = "bold 38px 'Trebuchet MS',sans-serif";
+      ctx.fillText(gameOver === "win" ? "VICTOIRE" : "DÉFAITE", w/2, h/2 - 14);
+      ctx.fillStyle = "#e8ddc8"; ctx.font = "16px 'Trebuchet MS',sans-serif";
+      ctx.fillText("« Régénérer la carte » pour rejouer", w/2, h/2 + 22);
     }
   }
 
@@ -734,6 +761,7 @@
   }
 
   function onClick(e){
+    if (gameOver) return;
     const { mx, my } = evtPos(e);
     const t = pickTile(mx, my);
     if (!t) return;
@@ -770,7 +798,10 @@
         + (selected.acted ? `<br><span style="color:#c98f3c">A déjà agi ce tour.</span>` : ``);
     }
     el.innerHTML = html;
-    document.getElementById("turninfo").textContent = `Tour ${turn} — phase joueur`;
+    document.getElementById("turninfo").textContent =
+      gameOver === "win" ? "Victoire ! (Régénérer pour rejouer)"
+      : gameOver === "lose" ? "Défaite… (Régénérer pour rejouer)"
+      : `Tour ${turn} — phase joueur`;
   }
 
   // ---- Contrôles ----------------------------------------------------------
