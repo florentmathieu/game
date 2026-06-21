@@ -177,6 +177,14 @@
       <div class="erow"><button id="ed-loadsaved">Charger</button> <button id="ed-delsaved">Supprimer</button></div>
       <div class="hint">Enregistrées dans ce navigateur — elles apparaissent dans le menu « Missions » du jeu.</div>
 
+      <h2 style="margin-top:12px">Publier dans le dépôt</h2>
+      <div class="erow"><input id="gh-token" type="password" placeholder="token GitHub (fine-grained, Contents: write)" style="flex:1"></div>
+      <div class="erow"><input id="gh-repo" type="text" value="florentmathieu/game" title="dépôt" style="flex:1"></div>
+      <div class="erow"><input id="gh-branch" type="text" placeholder="branche" style="flex:1"></div>
+      <div class="erow"><button id="ed-publish">☁ Publier dans le dépôt</button></div>
+      <div id="gh-status" class="hint"></div>
+      <div class="hint">Le token ne quitte pas ce navigateur (jamais dans le code ni le dépôt). Crée un fine-grained PAT limité à ce dépôt avec la permission <code>Contents: write</code>.</div>
+
       <h2 style="margin-top:12px">Publier (fichier)</h2>
       <div class="erow"><button id="ed-download">⬇ Télécharger</button> <button id="ed-copy">Copier</button> <button id="ed-load">Charger ↑</button></div>
       <textarea id="missionjson" class="hint" spellcheck="false" rows="4" style="width:100%"></textarea>
@@ -1834,6 +1842,14 @@
     document.body.classList.add("editing");
     const ci = document.getElementById("ed-cols"), ri = document.getElementById("ed-rows"), ni = document.getElementById("ed-name");
     if (ci) ci.value = COLS; if (ri) ri.value = ROWS; if (ni) ni.value = editorName;
+    // recharge les réglages de publication (token/dépôt/branche) propres à ce navigateur
+    try{
+      const tok = localStorage.getItem("mgf_gh_token"); if (tok){ const tf = document.getElementById("gh-token"); if (tf) tf.value = tok; }
+      const cfg = JSON.parse(localStorage.getItem("mgf_gh") || "{}");
+      const rf = document.getElementById("gh-repo"), bf = document.getElementById("gh-branch");
+      if (rf && cfg.repo) rf.value = cfg.repo;
+      if (bf) bf.value = cfg.branch || "claude/intelligent-hypatia-nojupi";
+    }catch(e){}
     refreshSavedSelect(); setTool(editTool); updateExport(); draw();
   }
   function leaveEditor(){
@@ -1917,6 +1933,7 @@
     const n = document.getElementById("ed-saved").value; const o = savedMissions();
     if (o[n]){ delete o[n]; writeSaved(o); refreshSavedSelect(); refreshMissionMenu(); }
   });
+  onEd("ed-publish", () => publishToRepo());
   onEd("ed-download", () => {
     const blob = new Blob([JSON.stringify(serializeMission(editorName), null, 1)], { type:"application/json" });
     const a = document.createElement("a"); a.href = URL.createObjectURL(blob);
@@ -2142,6 +2159,57 @@ Stiff: Enough. I've decided.`;
     for (const n of local) opts.push(`<option value="local:${n}">${n} (local)</option>`);
     sel.innerHTML = opts.join("");
     if (row) row.style.display = (repoMissions.length || local.length) ? "" : "none";
+  }
+
+  // ---- Publication directe dans le dépôt via l'API GitHub (token local) ----
+  const b64enc = (s) => { const by = new TextEncoder().encode(s); let bin = ""; for (const c of by) bin += String.fromCharCode(c); return btoa(bin); };
+  const b64dec = (s) => { const bin = atob((s || "").replace(/\n/g, "")); return new TextDecoder().decode(Uint8Array.from(bin, c => c.charCodeAt(0))); };
+  const ghCfg = () => ({
+    repo: (document.getElementById("gh-repo").value || "").trim(),
+    token: (document.getElementById("gh-token").value || "").trim(),
+    branch: (document.getElementById("gh-branch").value || "").trim(),
+  });
+  async function ghGetFile(path, ref){
+    const { repo, token } = ghCfg();
+    const r = await fetch(`https://api.github.com/repos/${repo}/contents/${path}?ref=${encodeURIComponent(ref)}&_=${Date.now()}`,
+      { headers:{ Authorization:"Bearer "+token, Accept:"application/vnd.github+json" }, cache:"no-store" });
+    if (r.status === 200){ const j = await r.json(); return { sha:j.sha, text:b64dec(j.content) }; }
+    return null;
+  }
+  async function ghPutFile(path, contentStr, message, branch){
+    const { repo, token } = ghCfg();
+    const prev = await ghGetFile(path, branch);
+    const body = { message, content:b64enc(contentStr), branch };
+    if (prev) body.sha = prev.sha;
+    const r = await fetch(`https://api.github.com/repos/${repo}/contents/${path}`,
+      { method:"PUT", headers:{ Authorization:"Bearer "+token, Accept:"application/vnd.github+json" }, body:JSON.stringify(body) });
+    if (!r.ok) throw new Error(`${r.status} ${(await r.text()).slice(0,160)}`);
+    return r.json();
+  }
+  async function publishToRepo(){
+    const status = document.getElementById("gh-status"); const set = (m) => { if (status) status.textContent = m; };
+    const { repo, token, branch } = ghCfg();
+    if (!token) return set("Renseigne ton token GitHub.");
+    if (!repo)  return set("Renseigne le dépôt (owner/repo).");
+    if (!branch) return set("Renseigne la branche (ex. celle servie par Pages).");
+    try{ localStorage.setItem("mgf_gh", JSON.stringify({ repo, branch })); localStorage.setItem("mgf_gh_token", token); }catch(e){}
+    const name = editorName || "Mission";
+    const file = (name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "") || "mission") + ".json";
+    try{
+      set("Publication de " + file + "…");
+      await ghPutFile("missions/" + file, JSON.stringify(serializeMission(name), null, 1), "Mission : " + name, branch);
+      set("Mise à jour de list.json…");
+      const cur = await ghGetFile("missions/list.json", branch);
+      let list = [];
+      if (cur){ try{ const p = JSON.parse(cur.text); if (Array.isArray(p)) list = p; }catch(e){} }
+      list = list.map(x => typeof x === "string" ? { file:x.split("/").pop(), name:x.split("/").pop().replace(/\.json$/, "") } : x);
+      const entry = { file, name }, i = list.findIndex(it => it.file === file);
+      if (i >= 0) list[i] = entry; else list.push(entry);
+      await ghPutFile("missions/list.json", JSON.stringify(list, null, 1), "list.json : " + name, branch);
+      if (!repoMissions.some(it => it.file === file)) repoMissions.push(entry);
+      refreshMissionMenu();
+      set("✓ Publié : " + name + " (" + file + "). Disponible dans le menu après le rebuild Pages (~1 min).");
+    }catch(e){ set("Échec : " + e.message); }
   }
 
   // ---- Init ---------------------------------------------------------------
