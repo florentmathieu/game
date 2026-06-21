@@ -33,6 +33,21 @@
   .legend{display:flex; flex-direction:column; gap:3px; margin-top:6px}
   .legend .item{display:flex; align-items:center; gap:8px; font-size:.75rem; color:var(--muted)}
   .swatch{width:18px; height:18px; border-radius:3px; border:1px solid #00000055}
+  #roster{display:flex; gap:10px; flex-wrap:wrap; justify-content:center; margin:0 0 12px; padding:0 12px}
+  .chip{
+    background:var(--panel); border:1px solid #3a2c1c; border-radius:8px; padding:6px 10px;
+    min-width:120px; cursor:pointer; user-select:none;
+  }
+  .chip.active{border-color:var(--accent); box-shadow:0 0 0 1px var(--accent)}
+  .chip.acted{opacity:.55}
+  .chip.dead{opacity:.3; text-decoration:line-through}
+  .chip .nm{font-weight:bold; color:var(--player); font-size:.85rem; display:flex; justify-content:space-between; gap:8px}
+  .chip .role{color:var(--muted); font-size:.68rem}
+  .chip .hpbar{height:5px; background:#3a3128; border-radius:3px; margin-top:4px; overflow:hidden}
+  .chip .hpfill{height:100%; background:#6fd06f}
+  .chip .tags{font-size:.66rem; color:#7fe0d0; margin-top:3px; min-height:.8em}
+  button:disabled{opacity:.4; cursor:default}
+  button.armed{background:#5a3030; border-color:#a05050}
   #info,#sel{color:var(--muted); min-height:2.6em}
   code{color:var(--ink)}
   .hint{font-size:.72rem; color:var(--muted); line-height:1.4; margin-top:4px}
@@ -40,7 +55,9 @@
 </head>
 <body>
   <h1>Carte hexagonale — POC</h1>
-  <div class="sub">Grille 20×20 · l'altitude se lit par la couleur du sol · clique une unité pour la déplacer</div>
+  <div class="sub">Grille 20×20 · Tab = unité suivante · clique une action puis Tab pour changer de cible · Échap annule</div>
+
+  <div id="roster"></div>
 
   <div id="wrap">
     <canvas id="board"></canvas>
@@ -49,10 +66,10 @@
       <h2>Unité</h2>
       <div id="turninfo" class="hint" style="margin-bottom:6px"></div>
       <div id="sel">Clique une unité bleue.</div>
-      <div class="row"><button id="weapon">Changer d'arme (épée / arbalète)</button></div>
-      <div class="row"><button id="overwatch">Vigilance (overwatch)</button></div>
+      <div class="row"><button id="act-shoot">Tirer</button><button id="act-melee">Épée</button></div>
+      <div class="row"><button id="act-overwatch">Vigilance</button></div>
       <div class="row"><button id="endturn">Fin de tour ▶ (phase ennemie)</button></div>
-      <div class="hint">PM = points de mouvement. Monter d'un niveau coûte +1 PM. Un dénivelé de 2 niveaux ou plus est une falaise infranchissable. Obstacles et cases occupées bloquent le passage. Rocher (sur une case) = couvert total, infranchissable, coupe la vue. Muret (sur une arête) = couvert partiel, franchissable, laisse voir ; s'il sépare deux hauteurs, il ne protège que la case basse (le bas est protégé du haut). Le côté protégé d'une unité est marqué : trait plein vert = total, pointillé jaune = partiel. Tu peux bouger PUIS tirer dans le même tour. « Vigilance » fait riposter l'unité sur le premier ennemi qui traverse sa ligne de tir pendant la phase adverse (anneau turquoise). « Fin de tour » fait jouer les ennemis.</div>
+      <div class="hint">Tab = unité suivante. Clique une action (Tirer / Épée / Vigilance) : les cibles valides se surlignent, Tab passe de l'une à l'autre, Entrée ou clic valide, Échap annule. Tu peux bouger (clic sur une case mauve) PUIS attaquer dans le même tour. Monter coûte +1 PM, dénivelé ≥ 2 = falaise. Rocher = couvert total + bloque la vue ; muret (arête) = couvert partiel, protège la case basse. L'épée ignore le couvert ; la hauteur augmente la précision. Le bouclier annule parfois un coup.</div>
 
       <h2 style="margin-top:14px">Journal</h2>
       <div id="log" class="hint"></div>
@@ -141,6 +158,10 @@
   let enemyVisible = new Set(); // cases vues par les ennemis (leur propre brouillard)
   let lastSeen = new Map();     // mémoire d'escouade : joueur -> {col,row} dernière position vue
   let anim = null;              // animation de déplacement en cours (cosmétique)
+  let fx = [];                  // effets d'attaque éphémères (projectiles, coups d'épée)
+  let fxRunning = false;
+  let targeting = null;         // mode ciblage : { targets:[unités], idx }
+  const FX_DUR = 280;
   let log = [];              // journal des dernières actions
   let turn = 1;              // numéro du tour
   let gameOver = null;       // null | "win" | "lose"
@@ -244,11 +265,11 @@
     const sword = (aim, lo, hi) => ({ type:"melee", aim, dmgMin:lo, dmgMax:hi });
     const bow   = (aim, lo, hi, rng) => ({ type:"ranged", aim, dmgMin:lo, dmgMax:hi, range:rng });
     units = [
-      // Sergent : épée + bouclier (mêlée, forte chance de blocage)
-      mk({ col:3,  row:16, team:"player", name:"Sergent", maxMp:8, maxHp:10, shieldBlock:40,
+      // Stiff (sergent) : épée + bouclier (mêlée, forte chance de blocage)
+      mk({ col:3,  row:16, team:"player", name:"Stiff", role:"Sergent", maxMp:8, maxHp:10, shieldBlock:40,
            weapons:{ melee: sword(75,4,6) } }),
-      // Sapeur : arbalète (défaut) + épée
-      mk({ col:5,  row:14, team:"player", name:"Sapeur",  maxMp:8, maxHp:7,
+      // Gizzard (sapeur) : arbalète (défaut) + épée
+      mk({ col:5,  row:14, team:"player", name:"Gizzard", role:"Sapeur", maxMp:8, maxHp:7,
            weapons:{ ranged: bow(65,3,4,6), melee: sword(70,3,5) } }),
       // Garde : épée + bouclier
       mk({ col:15, row:4,  team:"enemy",  name:"Garde",   maxMp:6, maxHp:8, shieldBlock:30,
@@ -437,6 +458,7 @@
 
   function doAttack(att, tgt, reaction = false){
     const bd = hitBreakdown(att, tgt);
+    pushFx(att, tgt, bd.melee);                                        // effet visuel (projectile / épée)
     const chance = reaction ? Math.max(5, bd.chance - 15) : bd.chance; // riposte moins précise
     const hit = Math.random()*100 < chance;
     let dmg = 0, blocked = false;
@@ -651,15 +673,16 @@
       if (gameOver) break;
       enemyAct(e);
     }
-    if (gameOver){ updateSel(); draw(); return; }
+    if (gameOver){ updateSel(); renderRoster(); draw(); return; }
     // nouveau tour : on recharge tout le monde
     turn++;
     for (const u of units){
       u.mp = u.maxMp; u.acted = false; u.reacted = false;
       if (u.team === "player") u.overwatch = false;   // la vigilance joueur expire ; celle des ennemis (posée ce tour) reste active
     }
+    if (selected) reach = computeReach(selected);
     recomputeVision();
-    updateSel(); draw();
+    updateSel(); renderRoster(); draw();
   }
 
   // ---- Rendu --------------------------------------------------------------
@@ -702,6 +725,46 @@
       if (anim.t < 1) requestAnimationFrame(tick);
       else { anim = null; draw(); if (onDone) onDone(); }
     })(t0);
+  }
+
+  // ---- Effets d'attaque (très simples) ------------------------------------
+  function pushFx(att, tgt, melee){
+    const a = tileCenter(att.col, att.row), b = tileCenter(tgt.col, tgt.row);
+    fx.push({ melee, ax:a.x, ay:a.y, bx:b.x, by:b.y, t0:(typeof performance!=="undefined"?performance.now():0) });
+    if (fx.length > 24) fx.shift();
+    ensureFxLoop();
+  }
+  function ensureFxLoop(){
+    if (typeof requestAnimationFrame === "undefined" || typeof performance === "undefined"){ fx = []; return; }
+    if (fxRunning) return;
+    fxRunning = true;
+    requestAnimationFrame(function loop(){
+      fx = fx.filter(f => performance.now() - f.t0 < FX_DUR);
+      draw();
+      if (fx.length) requestAnimationFrame(loop); else fxRunning = false;
+    });
+  }
+  function drawFx(){
+    const now = (typeof performance !== "undefined") ? performance.now() : 0;
+    for (const f of fx){
+      const p = Math.min(1, (now - f.t0) / FX_DUR);
+      ctx.save();
+      if (f.melee){
+        // arc de lame près de la cible
+        ctx.globalAlpha = 1 - p; ctx.strokeStyle = "#fff0c0"; ctx.lineWidth = 3;
+        const ang = Math.atan2(f.by - f.ay, f.bx - f.ax);
+        ctx.beginPath(); ctx.arc(f.bx, f.by, SIZE*0.7, ang - 0.9, ang + 0.9); ctx.stroke();
+      } else {
+        // projectile filant vers la cible
+        const x = f.ax + (f.bx-f.ax)*p, y = f.ay + (f.by-f.ay)*p;
+        const xp = f.ax + (f.bx-f.ax)*Math.max(0,p-0.18), yp = f.ay + (f.by-f.ay)*Math.max(0,p-0.18);
+        ctx.globalAlpha = 0.5; ctx.strokeStyle = "#caa64a"; ctx.lineWidth = 2;
+        ctx.beginPath(); ctx.moveTo(xp, yp); ctx.lineTo(x, y); ctx.stroke();
+        ctx.globalAlpha = 1; ctx.fillStyle = "#ffe08a";
+        ctx.beginPath(); ctx.arc(x, y, 3, 0, Math.PI*2); ctx.fill();
+      }
+      ctx.restore();
+    }
   }
 
   function drawRock(x, y){
@@ -884,6 +947,23 @@
       if (!(anim && u === anim.mover)) drawCoverShields(u.col, u.row);
     }
 
+    // ciblage actif : ligne, réticule sur la cible courante, % de réussite
+    if (targeting && selected && targeting.targets.length){
+      const tgt = targeting.targets[targeting.idx];
+      const a = tileCenter(selected.col, selected.row), b = tileCenter(tgt.col, tgt.row);
+      ctx.lineWidth = 2; ctx.strokeStyle = "#ff6b66"; ctx.setLineDash([5,4]);
+      ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke(); ctx.setLineDash([]);
+      ctx.lineWidth = 3; ctx.strokeStyle = "#ffd479";
+      ctx.beginPath(); ctx.arc(b.x, b.y, SIZE*0.85, 0, Math.PI*2); ctx.stroke();
+      const bd = hitBreakdown(selected, tgt);
+      ctx.fillStyle = "#000"; ctx.fillRect(b.x-16, b.y-SIZE*1.25, 32, 14);
+      ctx.fillStyle = "#ffd479"; ctx.font = "bold 11px sans-serif";
+      ctx.textAlign = "center"; ctx.textBaseline = "middle";
+      ctx.fillText(bd.chance + "%", b.x, b.y - SIZE*1.25 + 7);
+    }
+
+    drawFx();   // projectiles / coups d'épée
+
     // 8) bannière de fin de partie
     if (gameOver){
       const w = canvas.width / (window.devicePixelRatio || 1);
@@ -957,6 +1037,56 @@
     draw();
   }
 
+  // ---- Sélection / ciblage / actions --------------------------------------
+  function refreshAll(){ updateSel(); renderRoster(); draw(); }
+
+  function selectUnit(u){
+    selected = u; targeting = null;
+    reach = u ? computeReach(u) : null;
+    refreshAll();
+  }
+  function cycleUnit(dir){
+    const ps = units.filter(u => u.team === "player" && u.hp > 0);
+    if (!ps.length) return;
+    let i = ps.indexOf(selected);
+    i = (i < 0) ? 0 : (i + dir + ps.length) % ps.length;
+    selectUnit(ps[i]);
+  }
+
+  function enterTargeting(weaponMode){
+    if (!selected || selected.acted || gameOver || anim) return;
+    if (!selected.weapons[weaponMode]) return;
+    setMode(selected, weaponMode);
+    const targets = units.filter(u => u.team === "enemy" && u.hp > 0 && canAttack(selected, u));
+    if (!targets.length){ targeting = null; flash("Aucune cible à portée"); refreshAll(); return; }
+    targeting = { targets, idx: 0 };
+    refreshAll();
+  }
+  function cycleTarget(dir){
+    if (!targeting) return;
+    const n = targeting.targets.length;
+    targeting.idx = (targeting.idx + dir + n) % n;
+    refreshAll();
+  }
+  function confirmTarget(){
+    if (!targeting) return;
+    const tgt = targeting.targets[targeting.idx];
+    targeting = null;
+    doAttack(selected, tgt);
+    refreshAll();
+  }
+  function cancelTargeting(){ if (targeting){ targeting = null; refreshAll(); } }
+
+  function doOverwatch(){
+    if (!selected || selected.acted || gameOver || anim) return;
+    selected.overwatch = true; selected.acted = true; selected.mp = 0; reach = null; targeting = null;
+    pushLog(`▲ ${selected.name} se met en vigilance`, "player");
+    refreshAll();
+  }
+
+  let flashMsg = "";
+  function flash(m){ flashMsg = m; setTimeout(() => { flashMsg = ""; const el = document.getElementById("info"); if (el && el.textContent === m) el.textContent = "Passe la souris sur la carte."; }, 1500); const el = document.getElementById("info"); if (el) el.textContent = m; }
+
   function onClick(e){
     if (gameOver || anim) return;
     const { mx, my } = evtPos(e);
@@ -964,28 +1094,29 @@
     if (!t) return;
     const u = unitAt(t.col, t.row);
 
+    // en mode ciblage : clic sur une cible valide -> attaque ; sinon on annule et on continue
+    if (targeting){
+      if (u && targeting.targets.includes(u)){ targeting.idx = targeting.targets.indexOf(u); confirmTarget(); return; }
+      targeting = null;
+    }
     // clic sur une unité joueur -> sélection
-    if (u && u.team === "player"){
-      selected = u; reach = computeReach(u); updateSel(); draw(); return;
-    }
-    // clic sur un ennemi attaquable -> tir / corps à corps
-    if (selected && u && canAttack(selected, u)){
-      doAttack(selected, u); updateSel(); draw(); return;
-    }
+    if (u && u.team === "player"){ selectUnit(u); return; }
+    // clic sur un ennemi attaquable -> attaque directe (arme active)
+    if (selected && u && canAttack(selected, u)){ doAttack(selected, u); refreshAll(); return; }
     // clic sur une case atteignable -> déplacement (résolu, puis animé)
     if (selected && reach && reach.dist[key(t.col, t.row)] !== undefined){
       const mover = selected;
       const path = buildPath(reach.prev, t.col, t.row);
       mover.mp -= reach.dist[key(t.col, t.row)];
-      const stop = executeMove(mover, path);              // vision + ripostes case par case
-      if (mover.hp <= 0){ if (selected === mover) selected = null; updateSel(); draw(); return; }
+      const stop = executeMove(mover, path);
+      if (mover.hp <= 0){ if (selected === mover) selected = null; refreshAll(); return; }
       reach = computeReach(mover);
-      updateSel();
-      animateMove(mover, path.slice(0, stop + 1));        // glissement visuel
+      refreshAll();
+      animateMove(mover, path.slice(0, stop + 1));
       return;
     }
     // sinon -> désélection
-    selected = null; reach = null; updateSel(); draw();
+    selected = null; reach = null; refreshAll();
   }
 
   function updateSel(){
@@ -1003,12 +1134,51 @@
         + `<br>position <code>(${selected.col}, ${selected.row})</code> · altitude <code>${elevOf(selected)}</code>`
         + (selected.overwatch ? `<br><span style="color:#7fe0d0">En vigilance.</span>`
            : selected.acted ? `<br><span style="color:#c98f3c">A déjà agi ce tour.</span>` : ``);
+      if (targeting && targeting.targets.length){
+        const tgt = targeting.targets[targeting.idx];
+        const bd = hitBreakdown(selected, tgt);
+        html += `<br><b style="color:#ffd479">▶ Cible : ${tgt.name} — ${bd.chance}%</b>`
+              + `<br><span style="color:#9a8a74">${targeting.idx+1}/${targeting.targets.length} · Tab change, Entrée valide, Échap annule</span>`;
+      }
     }
     el.innerHTML = html;
     document.getElementById("turninfo").textContent =
       gameOver === "win" ? "Victoire ! (Régénérer pour rejouer)"
       : gameOver === "lose" ? "Défaite… (Régénérer pour rejouer)"
       : `Tour ${turn} — phase joueur`;
+    refreshButtons();
+  }
+
+  function refreshButtons(){
+    const shoot = document.getElementById("act-shoot");
+    const melee = document.getElementById("act-melee");
+    const ow = document.getElementById("act-overwatch");
+    if (!shoot) return;
+    const ready = selected && !selected.acted && !gameOver;
+    shoot.disabled = !(ready && selected.weapons.ranged);
+    melee.disabled = !(ready && selected.weapons.melee);
+    ow.disabled = !ready;
+    const armedMode = targeting ? selected.mode : null;
+    shoot.classList.toggle("armed", armedMode === "ranged");
+    melee.classList.toggle("armed", armedMode === "melee");
+  }
+
+  function renderRoster(){
+    const el = document.getElementById("roster");
+    if (!el) return;
+    const ps = units.filter(u => u.team === "player");
+    el.innerHTML = ps.map((u, i) => {
+      const cls = "chip" + (u === selected ? " active" : "") + (u.hp <= 0 ? " dead" : (u.acted && !u.overwatch ? " acted" : ""));
+      const tag = u.hp <= 0 ? "tombé" : u.overwatch ? "vigilance" : u.acted ? "a agi" : "";
+      return `<div class="${cls}" data-i="${i}">`
+        + `<div class="nm"><span>${u.name}</span><span>${Math.max(0,u.hp)}/${u.maxHp}</span></div>`
+        + `<div class="role">${u.role || ""} · ${u.weapons.ranged ? "arbalète" : "épée"}${u.shieldBlock ? " + bouclier" : ""}</div>`
+        + `<div class="hpbar"><div class="hpfill" style="width:${100*Math.max(0,u.hp)/u.maxHp}%"></div></div>`
+        + `<div class="tags">${tag}</div></div>`;
+    }).join("");
+    for (const chip of (el.querySelectorAll ? el.querySelectorAll(".chip") : [])){
+      chip.addEventListener("click", () => { const u = ps[+chip.dataset.i]; if (u && u.hp > 0 && !anim) selectUnit(u); });
+    }
   }
 
   // ---- Contrôles ----------------------------------------------------------
@@ -1018,20 +1188,19 @@
   canvas.addEventListener("click", onClick);
   canvas.addEventListener("touchstart", (e) => { e.preventDefault(); onMove(e); onClick(e); }, { passive:false });
 
-  document.getElementById("regen").addEventListener("click", () => { if (anim) return; generate(); placeUnits(); updateSel(); renderLog(); draw(); });
+  document.getElementById("regen").addEventListener("click", () => { if (anim) return; generate(); placeUnits(); selectUnit(units.find(u => u.team === "player")); renderLog(); });
   document.getElementById("endturn").addEventListener("click", () => { if (!anim) endPlayerTurn(); });
-  document.getElementById("weapon").addEventListener("click", () => {
-    if (anim || gameOver || !selected) return;
-    if (!(selected.weapons.ranged && selected.weapons.melee)) return;  // seules les unités à 2 armes basculent
-    setMode(selected, selected.mode === "ranged" ? "melee" : "ranged");
-    updateSel(); draw();
-  });
-  document.getElementById("overwatch").addEventListener("click", () => {
-    if (anim || gameOver || !selected || selected.acted) return;
-    selected.overwatch = true; selected.acted = true; selected.mp = 0; reach = null;
-    pushLog(`▲ ${selected.name} se met en vigilance`, "player");
-    updateSel(); draw();
-  });
+  document.getElementById("act-shoot").addEventListener("click", () => enterTargeting("ranged"));
+  document.getElementById("act-melee").addEventListener("click", () => enterTargeting("melee"));
+  document.getElementById("act-overwatch").addEventListener("click", doOverwatch);
+
+  if (typeof window !== "undefined" && window.addEventListener)
+    window.addEventListener("keydown", (e) => {
+      if (e.key === "Tab"){ e.preventDefault(); if (anim) return; targeting ? cycleTarget(e.shiftKey ? -1 : 1) : cycleUnit(e.shiftKey ? -1 : 1); }
+      else if (e.key === "Enter"){ if (targeting) confirmTarget(); }
+      else if (e.key === "Escape"){ cancelTargeting(); }
+    });
+
   document.getElementById("toggleFog").addEventListener("change", e => { opts.fog = e.target.checked; draw(); });
   document.getElementById("toggleLevels").addEventListener("change", e => { opts.showLevels = e.target.checked; draw(); });
   document.getElementById("toggleGrid").addEventListener("change", e => { opts.showGrid = e.target.checked; draw(); });
@@ -1048,7 +1217,9 @@
   }
 
   // ---- Init ---------------------------------------------------------------
-  setupCanvas(); buildLegend(); generate(); placeUnits(); updateSel(); renderLog(); draw();
+  setupCanvas(); buildLegend(); generate(); placeUnits();
+  selected = units.find(u => u.team === "player"); reach = selected ? computeReach(selected) : null;
+  renderLog(); refreshAll();
 })();
 </script>
 </body>
