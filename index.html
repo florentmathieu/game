@@ -315,19 +315,36 @@
     return true;
   }
 
+  // Un rocher (couvert total) est le seul élément qui arrête la vue.
+  const isOpaque = (c, r) => { const t = tileAt(c, r); return !!(t && t.obstacle && t.cover === "full"); };
+
+  // Champ de vision propagé : contigu, borné au rayon, la vue passe à travers une case
+  // sauf si c'est un rocher. Les murets et le relief ne gênent pas la visibilité.
+  function fieldOfView(u){
+    const src = offsetToCube(u.col, u.row);
+    const vis = new Set([key(u.col, u.row)]);
+    const within = [];
+    for (let r = Math.max(0, u.row - VISION); r <= Math.min(ROWS-1, u.row + VISION); r++)
+      for (let c = Math.max(0, u.col - VISION); c <= Math.min(COLS-1, u.col + VISION); c++){
+        const d = cubeDist(src, offsetToCube(c, r));
+        if (d > 0 && d <= VISION) within.push([d, c, r]);
+      }
+    within.sort((a, b) => a[0] - b[0]);   // du plus proche au plus loin
+    for (const [d, c, r] of within){
+      for (const [nc, nr] of neighbors(c, r)){
+        if (cubeDist(src, offsetToCube(nc, nr)) >= d) continue;   // voisin strictement plus proche
+        if (vis.has(key(nc, nr)) && !isOpaque(nc, nr)){ vis.add(key(c, r)); break; }
+      }
+    }
+    return vis;
+  }
+
   // Cases vues par une équipe (union des champs de vision de ses unités).
   function teamVision(team){
     const set = new Set();
     for (const u of units){
       if (u.team !== team || u.hp <= 0) continue;
-      const src = offsetToCube(u.col, u.row);
-      const e0 = tiles[u.row][u.col].elev;
-      for (let r = 0; r < ROWS; r++){
-        for (let c = 0; c < COLS; c++){
-          if (cubeDist(src, offsetToCube(c, r)) > VISION) continue;
-          if (hasLOS(u.col, u.row, c, r, e0, tiles[r][c].elev)) set.add(key(c, r));
-        }
-      }
+      for (const k of fieldOfView(u)) set.add(k);
     }
     return set;
   }
