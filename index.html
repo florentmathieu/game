@@ -17,7 +17,15 @@
   h1{font-size:1.2rem; margin:14px 0 2px; color:var(--accent); letter-spacing:1px}
   .sub{color:var(--muted); font-size:.78rem; margin-bottom:10px}
   #wrap{display:flex; gap:16px; flex-wrap:wrap; justify-content:center; padding:0 12px 24px}
-  #board{background:#0e0b07; border:1px solid #3a2c1c; border-radius:8px; touch-action:none}
+  #board{background:#0e0b07; border:1px solid #3a2c1c; border-radius:8px; touch-action:none; display:block}
+  #boardwrap{position:relative; align-self:flex-start}
+  #scene{position:absolute; left:10px; right:10px; bottom:10px; display:none; z-index:5;
+    background:rgba(10,8,5,.88); border:1px solid #5a4530; border-radius:8px; padding:14px 16px 12px;
+    color:#d8cdb4; font-family:Georgia,"Times New Roman",serif; box-shadow:0 6px 24px rgba(0,0,0,.55)}
+  #scenetext{min-height:3em; line-height:1.6; white-space:pre-wrap; font-size:1rem}
+  #scenebtn{display:block; margin:10px 0 0 auto; background:#15110c; color:#d8cdb4; border:1px solid #5a4530;
+    border-radius:6px; padding:6px 18px; letter-spacing:3px; cursor:pointer; min-width:90px}
+  #scenebtn:hover{background:#241a12}
   .panel{
     background:var(--panel); border:1px solid #3a2c1c; border-radius:8px;
     padding:12px 14px; width:240px; font-size:.82rem;
@@ -75,7 +83,10 @@
   <div id="roster"></div>
 
   <div id="wrap">
-    <canvas id="board"></canvas>
+    <div id="boardwrap">
+      <canvas id="board"></canvas>
+      <div id="scene"><div id="scenetext"></div><button id="scenebtn">...</button></div>
+    </div>
 
     <div class="panel">
       <h2>Unité</h2>
@@ -186,7 +197,8 @@
   let gameOver = null;       // null | "win" | "lose"
   let enemyPhase = false;    // true pendant la phase ennemie (entrées bloquées)
   let walls = new Set();     // murets : couvert partiel posé sur l'arête entre deux cases
-  let introActive = true;    // true tant que l'écran d'ouverture est affiché (entrées bloquées)
+  let introActive = true;    // true tant que l'ouverture (écran noir + scène) est affichée (entrées bloquées)
+  let firstGame = true;      // la scène sous la map ne joue qu'à la toute première partie
   const busy = () => anim || enemyPhase || introActive;
   const sleep = (ms) => new Promise(res => setTimeout(res, ms));
   function animateMoveP(u, pts){ return new Promise(res => animateMove(u, pts, res)); }
@@ -1638,9 +1650,10 @@ _
 Merry: So it WAS bandits! I knew it.
 Stiff: See, you're not such a no-good.
 _
-…
-_
-Gizzard: Here they are. Looks easy enough.
+…`;
+
+  // Scène 1 : jouée sous la map, à l'arrivée sur le champ de bataille (première partie).
+  const SCENE1_TEXT = `Gizzard: Here they are. Looks easy enough.
 Merry: Just the two of them? Couldn't you have gone by yourself, sarge?
 _
 Stiff: How nice it would have been. But that's not just the two, you idiots. Probably.
@@ -1650,7 +1663,7 @@ Gizzard: I say I got the one on the left and you take care of the rest.
 Merry: Yeah, right.
 Gizzard: What?
 _
-Merry: You're too vicious, is all. Your taste for blood is disguting.
+Merry: You're too vicious, is all. Your taste for blood is disgusting.
 Gizzard: It's just reasonable. And I don't hear a better idea.
 Merry: Well, I have a cracker left, that could probably take care of both, clean.
 _
@@ -1662,23 +1675,29 @@ Stiff: Enough. I've decided.`;
   const introEl = document.getElementById("intro");
   const introTextEl = document.getElementById("introtext");
   const introBtn = document.getElementById("introbtn");
+  const sceneEl = document.getElementById("scene");
+  const sceneTextEl = document.getElementById("scenetext");
+  const sceneBtn = document.getElementById("scenebtn");
   const sleepI = (ms) => new Promise(r => setTimeout(r, ms));
 
-  function waitBtn(label){
-    return new Promise(res => {
-      if (!introBtn || !introBtn.addEventListener){ res(); return; }
-      introBtn.textContent = label;
-      introBtn.style.visibility = "visible";
-      const h = () => { introBtn.removeEventListener("click", h); introBtn.style.visibility = "hidden"; res(); };
-      introBtn.addEventListener("click", h);
+  // attend un clic sur le bouton fourni, après l'avoir étiqueté
+  function makeWaiter(btn){
+    return (label) => new Promise(res => {
+      if (!btn || !btn.addEventListener){ res(); return; }
+      btn.textContent = label;
+      btn.style.visibility = "visible";
+      const h = () => { btn.removeEventListener("click", h); btn.style.visibility = "hidden"; res(); };
+      btn.addEventListener("click", h);
     });
   }
+  const waitBtn = makeWaiter(introBtn);
+  const waitScene = makeWaiter(sceneBtn);
 
-  async function typeLine(line){
-    if (!introTextEl) return;
-    const base = introTextEl.textContent;
+  async function typeInto(el, line){
+    if (!el) return;
+    const base = el.textContent;
     for (let i = 0; i < line.length; i++){
-      introTextEl.textContent = base + line.slice(0, i + 1);
+      el.textContent = base + line.slice(0, i + 1);
       const ch = line[i];
       let d = 30;
       if (ch === "…") d = 650;            // ellipse : longue suspension
@@ -1689,26 +1708,36 @@ Stiff: Enough. I've decided.`;
     }
   }
 
-  async function runIntro(){
-    await waitBtn("new game");           // écran noir : un seul bouton
-    const pages = INTRO_TEXT.replace(/\r/g, "").split(/\n[ \t]*_[ \t]*\n/);
+  // déroule un dialogue page par page (séparées par « _ »), une ligne après l'autre
+  async function playDialogue(text, el, waiter){
+    const pages = text.replace(/\r/g, "").split(/\n[ \t]*_[ \t]*\n/);
     for (let p = 0; p < pages.length; p++){
-      if (introTextEl) introTextEl.textContent = "";
-      const lines = pages[p].split("\n");
+      if (el) el.textContent = "";
+      const lines = pages[p].split("\n").map(s => s.replace(/\s+$/, "")).filter(s => s.length);
       for (let i = 0; i < lines.length; i++){
-        if (i > 0){ if (introTextEl) introTextEl.textContent += "\n"; await sleepI(450); }  // petite pause entre les lignes
-        await typeLine(lines[i]);
+        if (i > 0){ if (el) el.textContent += "\n"; await sleepI(450); }  // petite pause entre les lignes
+        await typeInto(el, lines[i]);
       }
-      await waitBtn(p < pages.length - 1 ? "..." : "...");
+      await waiter("...");
     }
-    finishIntro();
   }
 
-  function finishIntro(){
+  async function runIntro(){
+    await waitBtn("new game");                       // écran noir : un seul bouton
+    await playDialogue(INTRO_TEXT, introTextEl, waitBtn);
+    if (introEl && introEl.style) introEl.style.display = "none";  // on lève le rideau : la map apparaît
+    selected = null; reach = null; draw();
+    if (firstGame){ await runScene1(); firstGame = false; }        // dialogue sous la map (1re partie)
     introActive = false;
-    if (introEl && introEl.style) introEl.style.display = "none";
     selectUnit(units.find(u => u.team === "player" && u.hp > 0));
     draw();
+  }
+
+  async function runScene1(){
+    if (!sceneEl) return;
+    sceneEl.style.display = "block";
+    await playDialogue(SCENE1_TEXT, sceneTextEl, waitScene);
+    sceneEl.style.display = "none";
   }
 
   // ---- Init ---------------------------------------------------------------
