@@ -2,5 +2,9 @@
  {
   "file": "mission-1.json",
   "name": "Mission 1"
+ },
+ {
+  "file": "mission-2.json",
+  "name": "Mission 2"
  }
 ]
