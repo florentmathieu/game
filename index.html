@@ -83,9 +83,9 @@
       <div id="sel">Clique une unité bleue.</div>
       <div id="actions">
         <button id="act-shoot"><span>🏹 Tirer <small id="dmg-shoot" class="dmg"></small></span><span class="te end">&gt;|</span></button>
-        <button id="act-melee"><span>⚔️ Épée <small id="dmg-melee" class="dmg"></small></span><span class="te end">&gt;|</span></button>
+        <button id="act-melee"><span><span id="lbl-melee">⚔️ Épée</span> <small id="dmg-melee" class="dmg"></small></span><span class="te end">&gt;|</span></button>
         <button id="act-ow-shoot"><span>👁️ Vigilance — tir <small id="dmg-ows" class="dmg"></small></span><span class="te end">&gt;|</span></button>
-        <button id="act-ow-melee"><span>👁️ Vigilance — épée <small id="dmg-owm" class="dmg"></small></span><span class="te end">&gt;|</span></button>
+        <button id="act-ow-melee"><span><span id="lbl-owm">👁️ Vigilance — épée</span> <small id="dmg-owm" class="dmg"></small></span><span class="te end">&gt;|</span></button>
         <button id="act-reload"><span>🔄 Recharger</span><span class="te">&gt;</span></button>
         <button id="act-brace"><span>🛡️ Brace</span><span class="te">&gt;</span></button>
         <button id="act-cracker"><span>💣 Cracker <small id="dmg-cracker" class="dmg"></small></span><span class="te end">&gt;|</span></button>
@@ -1550,9 +1550,18 @@
     show(reload,  ready && selected.clip !== undefined && selected.ammo < selected.clip);
     show(brace,   ready && selected.shieldBlock > 0 && !selected.bracing);
     show(cracker, ready && w.cracker && selected.crackers > 0);
+    // libellé de mêlée selon l'arme (épée vs dagues)
+    const isDagger = !!(w && w.melee && w.melee.flank);
+    const lm = document.getElementById("lbl-melee");
+    const lo = document.getElementById("lbl-owm");
+    if (lm) lm.textContent = isDagger ? "🗡️ Dagues" : "⚔️ Épée";
+    if (lo) lo.textContent = isDagger ? "👁️ Vigilance — dagues" : "👁️ Vigilance — épée";
     // dégâts de chaque attaque, lus sur l'arme correspondante
-    const dmg = (id, wp) => { const el = document.getElementById(id); if (el) el.textContent = wp ? `${wp.dmgMin}–${wp.dmgMax}` : ""; };
-    if (w){ dmg("dmg-shoot", w.ranged); dmg("dmg-melee", w.melee); dmg("dmg-ows", w.ranged); dmg("dmg-owm", w.melee); dmg("dmg-cracker", w.cracker); }
+    const dmg = (id, wp, bonus) => { const el = document.getElementById(id); if (el) el.textContent = wp ? `${wp.dmgMin + (bonus||0)}–${wp.dmgMax + (bonus||0)}` : ""; };
+    // si on vise une cible en mêlée, on montre les dégâts incluant le bonus de flanc (dos/flanc)
+    const aimTgt = (targeting && selected.mode === "melee" && targeting.targets && targeting.targets.length) ? targeting.targets[targeting.idx] : null;
+    const meleeFlank = (isDagger && aimTgt) ? flankBonus(selected, aimTgt) : 0;
+    if (w){ dmg("dmg-shoot", w.ranged); dmg("dmg-melee", w.melee, meleeFlank); dmg("dmg-ows", w.ranged); dmg("dmg-owm", w.melee); dmg("dmg-cracker", w.cracker); }
     const armedMode = targeting ? selected.mode : null;
     shoot.classList.toggle("armed", armedMode === "ranged");
     melee.classList.toggle("armed", armedMode === "melee");
@@ -1605,24 +1614,50 @@
   // Texte d'intro. Remplace librement le bloc ci-dessous par le contenu
   // d'Opening.txt. Une ligne ne contenant que « _ » marque une coupure de
   // page : l'écran s'efface et un bouton « ... » invite à continuer.
-  const INTRO_TEXT = `Il y avait jadis un empire...
-
-et il en reste des cendres, et des dieux qui s'en disputent les braises.
+  const INTRO_TEXT = `Merry: What are we off to again?
+Gizzard: Asking me? … Fuck if I know.
 _
-Sur les Plaines, le vent porte encore le nom des Tombés.
-
-On dit que rien ne meurt vraiment, ici...
-seulement ce qui attend de revenir.
+Merry: Sarge, What's the plan? Saving a bunch of kids?
+Gizzard: or animals, innit?
 _
-Une escouade. Quelques lames, un peu de poudre.
-
-C'est peu, face à ce qui marche dans la poussière.
-
-Mais c'est tout ce que tu as.
+Stiff: …
 _
-Alors lève-toi, soldat.
-
-La chute a déjà commencé.`;
+Gizzard: Maybe it was about killing some sort of undead?
+Merry: Can't kill 'em.
+_
+Gizzard: Or bandits?
+Merry: I think I recall bandits, yeah. From the brief.
+Gizzard: You've had a brief?? Come on…
+_
+Stiff: You did too, Gizz. I think.
+Gizzard: Weren't you the one giving it?
+Stiff: I imagine I should've been.
+_
+Stiff: Anyway, let's get this going. They should be close now.
+_
+Merry: So it WAS bandits! I knew it.
+Stiff: See, you're not such a no-good.
+_
+…
+_
+Gizzard: Here they are. Looks easy enough.
+Merry: Just the two of them? Couldn't you have gone by yourself, sarge?
+_
+Stiff: How nice it would have been. But that's not just the two, you idiots. Probably.
+Merry: I knew you were probably an idiot, Gizz.
+_
+Gizzard: I say I got the one on the left and you take care of the rest.
+Merry: Yeah, right.
+Gizzard: What?
+_
+Merry: You're too vicious, is all. Your taste for blood is disguting.
+Gizzard: It's just reasonable. And I don't hear a better idea.
+Merry: Well, I have a cracker left, that could probably take care of both, clean.
+_
+Gizzard: No tempted. I Don't like the smell of burnt flesh. Nor the idea of others running here.
+Merry: You prefer it raw, don't you.
+_
+Stiff: Enough. I've decided.`;
 
   const introEl = document.getElementById("intro");
   const introTextEl = document.getElementById("introtext");
@@ -1646,7 +1681,8 @@ La chute a déjà commencé.`;
       introTextEl.textContent = base + line.slice(0, i + 1);
       const ch = line[i];
       let d = 30;
-      if (ch === ".") d = 230;            // les « ... » s'égrènent plus lentement
+      if (ch === "…") d = 650;            // ellipse : longue suspension
+      else if (ch === ".") d = 230;       // les « ... » s'égrènent plus lentement
       else if (",;:!?".includes(ch)) d = 130;
       else if (ch === " ") d = 20;
       await sleepI(d);
