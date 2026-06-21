@@ -88,7 +88,7 @@
 
   // ---- Paramètres de la grille --------------------------------------------
   const COLS = 20, ROWS = 20, SIZE = 17, LEVELS = 7, MARGIN = 14;
-  const VISION = 5;          // rayon de vision (en cases) des unités joueur
+  const VISION = 8;          // rayon de vision : au moins égal à la course max (2 + 2*3 = 8)
   const ROCK_RATE = 0.07;    // proportion de cases occupées par un rocher (couvert total)
   const WALL_RATE = 0.16;    // densité de murets (couvert partiel) posés sur les arêtes
   const HEIGHT_BONUS = 12;   // % de précision gagné par niveau d'écart de hauteur
@@ -103,13 +103,13 @@
   const canvas = document.getElementById("board");
   const ctx = canvas.getContext("2d");
 
-  // ---- Couleur du sol selon l'altitude ------------------------------------
-  const LOW = [43, 28, 14], HIGH = [232, 212, 160];
+  // ---- Couleur du sol selon l'altitude (palette topographique) ------------
+  const RAMP = [[44,72,60],[60,92,64],[92,114,66],[131,134,72],[168,150,82],[200,176,112],[230,214,166]];
   function elevColor(level){
     const t = LEVELS > 1 ? level / (LEVELS - 1) : 0;
-    return `rgb(${Math.round(LOW[0]+(HIGH[0]-LOW[0])*t)},`
-         + `${Math.round(LOW[1]+(HIGH[1]-LOW[1])*t)},`
-         + `${Math.round(LOW[2]+(HIGH[2]-LOW[2])*t)})`;
+    const x = t * (RAMP.length - 1), i = Math.min(RAMP.length - 2, Math.floor(x)), f = x - i;
+    const a = RAMP[i], b = RAMP[i + 1];
+    return `rgb(${Math.round(a[0]+(b[0]-a[0])*f)},${Math.round(a[1]+(b[1]-a[1])*f)},${Math.round(a[2]+(b[2]-a[2])*f)})`;
   }
 
   // ---- Géométrie ----------------------------------------------------------
@@ -277,9 +277,10 @@
       // Garde : épée + bouclier
       mk({ col:15, row:4,  team:"enemy",  name:"Garde",   maxMp:6, maxHp:8, shieldBlock:30,
            weapons:{ melee: sword(65,3,4) } }),
-      // Archer : arc (distance) — pas de rechargement, mais dégâts plus faibles
-      mk({ col:12, row:8,  team:"enemy",  name:"Archer",  maxMp:6, maxHp:6,
-           weapons:{ ranged: bow(70,2,3,8) } }),
+      // Archer : arc (distance, pas de rechargement, dégâts faibles) + 1 cracker
+      mk({ col:12, row:8,  team:"enemy",  name:"Archer",  maxMp:6, maxHp:6, crackers:1,
+           weapons:{ ranged: bow(70,2,3,8),
+                     cracker:{ type:"throw", dmgMin:5, dmgMax:9, range:6, radius:2, scatter:2 } } }),
       // Brute : épée (mêlée), grosse frappe
       mk({ col:16, row:12, team:"enemy",  name:"Brute",   maxMp:8, maxHp:13,
            weapons:{ melee: sword(70,5,7) } }),
@@ -635,6 +636,12 @@
     const players = units.filter(u => u.team === "player" && u.hp > 0 && enemyVisible.has(key(u.col, u.row)));
     if (!players.length){ searchAct(e); return; }   // personne en vue : fouille la dernière position connue
 
+    // cracker : si une case de jet touche un bon groupe (ou une cible bien à couvert), on lance
+    if (e.weapons.cracker && e.crackers > 0 && e.ap > 0){
+      const g = bestGrenade(e, players);
+      if (g) { resolveThrow(e, g.col, g.row); return; }
+    }
+
     // cible de référence (la plus proche) pour le calcul d'angle d'encerclement
     let primary = players[0], pd = Infinity;
     for (const p of players){ const d = hexDistUnits(e, p); if (d < pd){ pd = d; primary = p; } }
@@ -685,7 +692,33 @@
     // tir après s'être positionné
     const t = bestTarget(e);
     if (t){ doAttack(e, t); return; }
+    // se mettre en garde si on a un bouclier et qu'on est exposé au feu
+    if (e.shieldBlock > 0 && e.ap > 0 && !e.bracing &&
+        players.some(p => shotChanceFrom(p.col, p.row, p, e.col, e.row) > 0)){
+      e.ap -= 1; e.bracing = true; pushLog(`▼ ${e.name} se met en garde`, "enemy");
+    }
     holdOrWatch(e);
+  }
+
+  // meilleure case de jet de cracker : maximise les joueurs touchés (moins les alliés)
+  function bestGrenade(e, players){
+    const cr = e.weapons.cracker, src = offsetToCube(e.col, e.row);
+    let best = null, bestScore = 0;
+    for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++){
+      if (cubeDist(src, offsetToCube(c, r)) > cr.range || !enemyVisible.has(key(c, r))) continue;
+      const ic = offsetToCube(c, r);
+      let pl = 0, al = 0, covered = false;
+      for (const u of units){
+        if (u.hp <= 0) continue;
+        if (cubeDist(ic, offsetToCube(u.col, u.row)) <= cr.radius){
+          if (u.team === "player"){ pl++; if (coverPenalty(u, e.col, e.row) >= 20) covered = true; }
+          else al++;
+        }
+      }
+      const score = pl - 1.5*al;
+      if (pl >= 1 && (score >= 2 || (score >= 1 && covered)) && score > bestScore){ bestScore = score; best = { col:c, row:r }; }
+    }
+    return best;
   }
 
   // une cible serait-elle à portée et à vue si l'arme était chargée ?
@@ -1197,28 +1230,33 @@
     }
     return out;
   }
-  function doThrow(tc, tr){
-    const thrower = selected, cr = thrower.weapons.cracker;
-    thrower.crackers -= 1; thrower.ap = 0; throwing = false;     // l'action est faite (consomme tous les PA)
+  // Résout un jet de cracker par n'importe quelle unité (joueur ou IA).
+  function resolveThrow(thrower, tc, tr){
+    const cr = thrower.weapons.cracker;
+    thrower.crackers -= 1; thrower.ap = 0;                       // consomme tous les PA
     // dispersion : impact tiré au hasard dans un rayon `scatter` autour de la case visée
     const cands = [];
     for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++)
       if (cubeDist(offsetToCube(tc, tr), offsetToCube(c, r)) <= cr.scatter && !tiles[r][c].obstacle) cands.push([c, r]);
     const [ic, ir] = cands.length ? cands[Math.floor(Math.random()*cands.length)] : [tc, tr];
     pushBlast(ic, ir, cr.radius);
-    pushLog(`▲ ${thrower.name} lance un cracker en (${ic},${ir})`, "player");
+    pushLog(`${thrower.team === "player" ? "▲" : "▼"} ${thrower.name} lance un cracker en (${ic},${ir})`, thrower.team);
     // dégâts en rayon (ignore couvert et bouclier), tir ami compris
     for (const u of units){
       if (u.hp <= 0) continue;
       if (cubeDist(offsetToCube(ic, ir), offsetToCube(u.col, u.row)) <= cr.radius){
         const dmg = cr.dmgMin + Math.floor(Math.random()*(cr.dmgMax-cr.dmgMin+1));
         u.hp -= dmg;
-        pushLog(`   💥 ${u.name} : ${dmg} dégâts${u.hp<=0?" ✝":""}`, u.team === "player" ? "player" : "enemy");
+        pushLog(`   💥 ${u.name} : ${dmg} dégâts${u.hp<=0?" ✝":""}`, u.team);
       }
     }
     units = units.filter(u => u.hp > 0);
-    if (!units.includes(thrower)) selected = null;
     recomputeVision(); checkEnd();
+  }
+  function doThrow(tc, tr){       // jet du joueur
+    const thrower = selected; throwing = false;
+    resolveThrow(thrower, tc, tr);
+    if (!units.includes(thrower)) selected = null;
     if (selected) reach = computeReach(selected);
     refreshAll(); maybeAutoEnd();
   }
