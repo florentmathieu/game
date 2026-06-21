@@ -136,6 +136,7 @@
   let hover = null;
   let visible = new Set();   // cases actuellement vues par le joueur
   let explored = new Set();  // cases déjà vues au moins une fois (mémoire)
+  let enemyVisible = new Set(); // cases vues par les ennemis (leur propre brouillard)
   let log = [];              // journal des dernières actions
   let turn = 1;              // numéro du tour
   let gameOver = null;       // null | "win" | "lose"
@@ -255,21 +256,27 @@
     return true;
   }
 
-  function recomputeVision(){
-    visible = new Set();
+  // Cases vues par une équipe (union des champs de vision de ses unités).
+  function teamVision(team){
+    const set = new Set();
     for (const u of units){
-      if (u.team !== "player") continue;
+      if (u.team !== team || u.hp <= 0) continue;
       const src = offsetToCube(u.col, u.row);
       const e0 = tiles[u.row][u.col].elev;
       for (let r = 0; r < ROWS; r++){
         for (let c = 0; c < COLS; c++){
           if (cubeDist(src, offsetToCube(c, r)) > VISION) continue;
-          if (hasLOS(u.col, u.row, c, r, e0, tiles[r][c].elev)){
-            visible.add(key(c, r)); explored.add(key(c, r));
-          }
+          if (hasLOS(u.col, u.row, c, r, e0, tiles[r][c].elev)) set.add(key(c, r));
         }
       }
     }
+    return set;
+  }
+
+  function recomputeVision(){
+    visible = teamVision("player");
+    for (const k of visible) explored.add(k);
+    enemyVisible = teamVision("enemy");   // les ennemis ont les mêmes règles de vision
   }
 
   // ---- Coût de déplacement & portée (Dijkstra) ----------------------------
@@ -383,7 +390,9 @@
   function canAttack(att, tgt){
     if (!att || att.acted || att.hp <= 0) return false;
     if (!tgt || tgt.team === att.team || tgt.hp <= 0) return false;
-    if (att.team === "player" && !isVisible(tgt.col, tgt.row)) return false; // le joueur ne tire que ce qu'il voit
+    // chaque camp ne peut viser que ce que son équipe voit
+    const seen = att.team === "player" ? isVisible(tgt.col, tgt.row) : enemyVisible.has(key(tgt.col, tgt.row));
+    if (!seen) return false;
     if (hexDistUnits(att, tgt) > att.range) return false;
     return lineOfFire(att, tgt);
   }
@@ -449,8 +458,9 @@
 
   function enemyAct(e){
     if (e.hp <= 0) return;
-    const players = units.filter(u => u.team === "player" && u.hp > 0);
-    if (!players.length){ e.acted = true; return; }
+    // l'IA ne connaît que les joueurs que son camp voit (brouillard ennemi)
+    const players = units.filter(u => u.team === "player" && u.hp > 0 && enemyVisible.has(key(u.col, u.row)));
+    if (!players.length){ e.acted = true; return; }   // aucun ennemi en vue : tient sa position
 
     // Évalue chaque case atteignable (+ rester sur place) : on veut un bon tir
     // tout en étant le moins exposé possible, sinon avancer vers l'ennemi.
