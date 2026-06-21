@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>POC tactique — carte hexagonale</title>
+<style>
+  :root{
+    --bg:#15110c; --panel:#221a12; --ink:#e8ddc8; --accent:#c98f3c; --muted:#8a7a64;
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0; background:var(--bg); color:var(--ink);
+    font-family:"Trebuchet MS",system-ui,sans-serif;
+    display:flex; flex-direction:column; align-items:center; min-height:100vh;
+  }
+  h1{font-size:1.2rem; margin:14px 0 2px; color:var(--accent); letter-spacing:1px}
+  .sub{color:var(--muted); font-size:.78rem; margin-bottom:10px}
+  #wrap{display:flex; gap:16px; flex-wrap:wrap; justify-content:center; padding:0 12px 24px}
+  #board{background:#0e0b07; border:1px solid #3a2c1c; border-radius:8px}
+  .panel{
+    background:var(--panel); border:1px solid #3a2c1c; border-radius:8px;
+    padding:12px 14px; width:230px; font-size:.82rem;
+  }
+  .panel h2{font-size:.85rem; color:var(--accent); margin:0 0 8px; text-transform:uppercase; letter-spacing:1px}
+  .row{display:flex; align-items:center; gap:8px; margin:6px 0}
+  button{
+    background:#3a2c1c; color:var(--ink); border:1px solid #5a4530; border-radius:6px;
+    padding:7px 10px; cursor:pointer; font-size:.82rem; width:100%;
+  }
+  button:hover{background:#4a3826}
+  label{display:flex; align-items:center; gap:6px; cursor:pointer; user-select:none}
+  .legend{display:flex; flex-direction:column; gap:3px; margin-top:6px}
+  .legend .item{display:flex; align-items:center; gap:8px; font-size:.75rem; color:var(--muted)}
+  .swatch{width:18px; height:18px; border-radius:3px; border:1px solid #00000055}
+  #info{color:var(--muted); min-height:2.6em}
+  code{color:var(--ink)}
+</style>
+</head>
+<body>
+  <h1>Carte hexagonale — POC</h1>
+  <div class="sub">Grille 20×20 · l'altitude se lit par la couleur du sol</div>
+
+  <div id="wrap">
+    <canvas id="board"></canvas>
+
+    <div class="panel">
+      <h2>Carte</h2>
+      <div class="row"><button id="regen">Régénérer la carte</button></div>
+      <div class="row"><label><input type="checkbox" id="toggleLevels"> Afficher les niveaux</label></div>
+      <div class="row"><label><input type="checkbox" id="toggleGrid" checked> Contour des hexagones</label></div>
+
+      <h2 style="margin-top:14px">Survol</h2>
+      <div id="info">Passe la souris sur la carte.</div>
+
+      <h2 style="margin-top:14px">Altitude</h2>
+      <div class="legend" id="legend"></div>
+    </div>
+  </div>
+
+<script>
+(() => {
+  "use strict";
+
+  // ---- Paramètres de la grille --------------------------------------------
+  const COLS = 20;          // colonnes
+  const ROWS = 20;          // lignes
+  const SIZE = 17;          // rayon d'un hexagone (centre -> coin), en px
+  const LEVELS = 7;         // nombre de paliers d'altitude (0 = bas, LEVELS-1 = haut)
+  const MARGIN = 14;        // marge autour de la grille
+
+  // Hexagones "pointy-top", disposition décalée odd-r.
+  const SQRT3 = Math.sqrt(3);
+  const HEX_W = SQRT3 * SIZE;       // largeur d'un hexagone
+  const HEX_V = 1.5 * SIZE;         // pas vertical entre deux lignes
+
+  const canvas = document.getElementById("board");
+  const ctx = canvas.getContext("2d");
+
+  // ---- Couleur du sol en fonction de l'altitude ---------------------------
+  // Dégradé : marron foncé (bas) -> beige clair (haut).
+  const LOW  = [43, 28, 14];     // #2b1c0e
+  const HIGH = [232, 212, 160];  // #e8d4a0
+  function elevColor(level){
+    const t = LEVELS > 1 ? level / (LEVELS - 1) : 0;
+    const r = Math.round(LOW[0] + (HIGH[0]-LOW[0]) * t);
+    const g = Math.round(LOW[1] + (HIGH[1]-LOW[1]) * t);
+    const b = Math.round(LOW[2] + (HIGH[2]-LOW[2]) * t);
+    return `rgb(${r},${g},${b})`;
+  }
+
+  // ---- Conversion coordonnées ---------------------------------------------
+  // Centre pixel d'une tuile (col, row) en disposition pointy-top odd-r.
+  function tileCenter(col, row){
+    const x = MARGIN + HEX_W * (col + 0.5 * (row & 1)) + HEX_W / 2;
+    const y = MARGIN + HEX_V * row + SIZE;
+    return { x, y };
+  }
+
+  // Les 6 coins d'un hexagone pointy-top.
+  function hexCorners(cx, cy){
+    const pts = [];
+    for (let i = 0; i < 6; i++){
+      const a = Math.PI / 180 * (60 * i - 30);
+      pts.push([cx + SIZE * Math.cos(a), cy + SIZE * Math.sin(a)]);
+    }
+    return pts;
+  }
+
+  // ---- Génération de l'altitude -------------------------------------------
+  // Quelques "collines" radiales additionnées puis quantifiées en paliers.
+  let tiles = []; // tableau [row][col] -> { col, row, elev }
+
+  function generate(){
+    const hills = [];
+    const nHills = 3 + Math.floor(Math.random() * 3);
+    for (let i = 0; i < nHills; i++){
+      hills.push({
+        cx: Math.random() * COLS,
+        cy: Math.random() * ROWS,
+        amp: 0.6 + Math.random() * 1.0,         // hauteur de la colline
+        rad: 3 + Math.random() * 5,             // étendue
+        sign: Math.random() < 0.25 ? -1 : 1,    // parfois une cuvette
+      });
+    }
+
+    // Calcule une valeur brute par tuile.
+    let min = Infinity, max = -Infinity;
+    const raw = [];
+    for (let row = 0; row < ROWS; row++){
+      raw[row] = [];
+      for (let col = 0; col < COLS; col++){
+        // position approchée en "unités de tuile" pour mesurer les distances
+        const px = col + 0.5 * (row & 1);
+        const py = row * 0.9;
+        let v = 0;
+        for (const h of hills){
+          const dx = px - h.cx, dy = py - h.cy;
+          const d2 = dx*dx + dy*dy;
+          v += h.sign * h.amp * Math.exp(-d2 / (2 * h.rad * h.rad));
+        }
+        v += (Math.random() - 0.5) * 0.15; // un peu de bruit
+        raw[row][col] = v;
+        if (v < min) min = v;
+        if (v > max) max = v;
+      }
+    }
+
+    // Quantifie en paliers 0..LEVELS-1.
+    tiles = [];
+    const span = (max - min) || 1;
+    for (let row = 0; row < ROWS; row++){
+      tiles[row] = [];
+      for (let col = 0; col < COLS; col++){
+        const t = (raw[row][col] - min) / span;
+        let elev = Math.round(t * (LEVELS - 1));
+        elev = Math.max(0, Math.min(LEVELS - 1, elev));
+        tiles[row][col] = { col, row, elev };
+      }
+    }
+    draw();
+  }
+
+  // ---- Rendu --------------------------------------------------------------
+  const opts = { showLevels: false, showGrid: true };
+  let hover = null; // { col, row }
+
+  function setupCanvas(){
+    const w = MARGIN * 2 + HEX_W * COLS + HEX_W / 2;
+    const h = MARGIN * 2 + HEX_V * (ROWS - 1) + SIZE * 2;
+    const dpr = window.devicePixelRatio || 1;
+    canvas.style.width = w + "px";
+    canvas.style.height = h + "px";
+    canvas.width = Math.round(w * dpr);
+    canvas.height = Math.round(h * dpr);
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  }
+
+  function draw(){
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    for (let row = 0; row < ROWS; row++){
+      for (let col = 0; col < COLS; col++){
+        const tile = tiles[row][col];
+        const { x, y } = tileCenter(col, row);
+        const corners = hexCorners(x, y);
+
+        ctx.beginPath();
+        ctx.moveTo(corners[0][0], corners[0][1]);
+        for (let i = 1; i < 6; i++) ctx.lineTo(corners[i][0], corners[i][1]);
+        ctx.closePath();
+
+        ctx.fillStyle = elevColor(tile.elev);
+        ctx.fill();
+
+        if (opts.showGrid){
+          ctx.lineWidth = 1;
+          ctx.strokeStyle = "rgba(0,0,0,0.28)";
+          ctx.stroke();
+        }
+
+        if (hover && hover.col === col && hover.row === row){
+          ctx.lineWidth = 2;
+          ctx.strokeStyle = "#ffd479";
+          ctx.stroke();
+        }
+
+        if (opts.showLevels){
+          ctx.fillStyle = tile.elev > LEVELS/2 ? "#2b1c0e" : "#e8d4a0";
+          ctx.font = "10px monospace";
+          ctx.textAlign = "center";
+          ctx.textBaseline = "middle";
+          ctx.fillText(String(tile.elev), x, y);
+        }
+      }
+    }
+  }
+
+  // ---- Détection de la tuile survolée -------------------------------------
+  // Approche simple : on prend la tuile dont le centre est le plus proche.
+  function pickTile(mx, my){
+    let best = null, bestD = Infinity;
+    // estimation de la ligne pour limiter la recherche
+    const approxRow = Math.round((my - MARGIN - SIZE) / HEX_V);
+    for (let row = Math.max(0, approxRow-1); row <= Math.min(ROWS-1, approxRow+1); row++){
+      for (let col = 0; col < COLS; col++){
+        const { x, y } = tileCenter(col, row);
+        const d = (x-mx)*(x-mx) + (y-my)*(y-my);
+        if (d < bestD){ bestD = d; best = { col, row }; }
+      }
+    }
+    // rejette si le clic est clairement hors de l'hexagone
+    if (best && bestD <= (SIZE*SIZE)) return best;
+    return best && bestD <= (HEX_W*HEX_W*0.30) ? best : best; // tolérant pour le POC
+  }
+
+  canvas.addEventListener("mousemove", (e) => {
+    const rect = canvas.getBoundingClientRect();
+    const mx = e.clientX - rect.left;
+    const my = e.clientY - rect.top;
+    const t = pickTile(mx, my);
+    hover = t;
+    const info = document.getElementById("info");
+    if (t){
+      const tile = tiles[t.row][t.col];
+      info.innerHTML = `Tuile <code>(${t.col}, ${t.row})</code><br>Altitude : <code>${tile.elev}</code> / ${LEVELS-1}`;
+    } else {
+      info.textContent = "Passe la souris sur la carte.";
+    }
+    draw();
+  });
+  canvas.addEventListener("mouseleave", () => { hover = null; draw();
+    document.getElementById("info").textContent = "Passe la souris sur la carte."; });
+
+  // ---- Contrôles ----------------------------------------------------------
+  document.getElementById("regen").addEventListener("click", generate);
+  document.getElementById("toggleLevels").addEventListener("change", (e) => {
+    opts.showLevels = e.target.checked; draw();
+  });
+  document.getElementById("toggleGrid").addEventListener("change", (e) => {
+    opts.showGrid = e.target.checked; draw();
+  });
+
+  // ---- Légende ------------------------------------------------------------
+  function buildLegend(){
+    const el = document.getElementById("legend");
+    el.innerHTML = "";
+    for (let lvl = LEVELS - 1; lvl >= 0; lvl--){
+      const item = document.createElement("div");
+      item.className = "item";
+      const labelTxt = lvl === LEVELS-1 ? " (haut)" : lvl === 0 ? " (bas)" : "";
+      item.innerHTML = `<span class="swatch" style="background:${elevColor(lvl)}"></span> niveau ${lvl}${labelTxt}`;
+      el.appendChild(item);
+    }
+  }
+
+  // ---- Init ---------------------------------------------------------------
+  setupCanvas();
+  buildLegend();
+  generate();
+})();
+</script>
+</body>
+</html>
