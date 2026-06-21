@@ -130,7 +130,6 @@
 
       <h2 style="margin-top:14px">Carte</h2>
       <div class="row"><button id="regen">Régénérer la carte</button></div>
-      <div class="row"><button id="openeditor">🛠 Éditeur de mission</button></div>
       <div class="row" id="missionrow" style="display:none"><select id="missionsel"></select></div>
       <div class="row"><label class="filelbl">📂 Charger une mission<input id="ed-file" type="file" accept=".json,application/json" hidden></label></div>
 
@@ -1876,6 +1875,12 @@
   const endPaint = () => { if (editMode && painting){ painting = false; lastPaint = null; updateExport(); } };
   window.addEventListener("pointerup", endPaint);
   window.addEventListener("pointercancel", endPaint);
+  // double-clic sur une unité : on la retire (quel que soit l'outil actif)
+  canvas.addEventListener("dblclick", (e) => {
+    if (!editMode) return; e.preventDefault();
+    const { mx, my } = evtPos(e); const t = pickTile(mx, my);
+    if (t && unitAt(t.col, t.row)){ removeUnitAt(t.col, t.row); updateExport(); draw(); }
+  });
 
   const onEd = (id, fn) => { const el = document.getElementById(id); if (el) el.addEventListener("click", fn); };
   onEd("openeditor", () => enterEditor());
