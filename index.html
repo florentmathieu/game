@@ -173,22 +173,18 @@
 
       <h2 style="margin-top:12px">Mission</h2>
       <div class="erow"><button id="ed-play">▶ Tester</button> <button id="ed-quit">Quitter</button></div>
-      <div class="erow"><button id="ed-save">💾 Enregistrer</button> <select id="ed-saved"></select></div>
-      <div class="erow"><button id="ed-loadsaved">Charger</button> <button id="ed-delsaved">Supprimer</button></div>
-      <div class="hint">Enregistrées dans ce navigateur — elles apparaissent dans le menu « Missions » du jeu.</div>
 
-      <h2 style="margin-top:12px">Publier dans le dépôt</h2>
+      <h2 style="margin-top:12px">Enregistrer (dépôt)</h2>
       <div class="erow"><input id="gh-token" type="password" placeholder="token GitHub (fine-grained, Contents: write)" style="flex:1"></div>
       <div class="erow"><input id="gh-repo" type="text" value="florentmathieu/game" title="dépôt" style="flex:1"></div>
       <div class="erow"><input id="gh-branch" type="text" placeholder="branche" style="flex:1"></div>
-      <div class="erow"><button id="ed-publish">☁ Publier dans le dépôt</button></div>
+      <div class="erow"><button id="ed-publish">💾 Enregistrer dans le dépôt</button></div>
       <div id="gh-status" class="hint"></div>
-      <div class="hint">Le token ne quitte pas ce navigateur (jamais dans le code ni le dépôt). Crée un fine-grained PAT limité à ce dépôt avec la permission <code>Contents: write</code>.</div>
+      <div class="hint">Enregistre la mission dans le dépôt (et le menu « Missions »). Le token ne quitte pas ce navigateur ; crée un fine-grained PAT limité à ce dépôt avec <code>Contents: write</code>.</div>
 
-      <h2 style="margin-top:12px">Publier (fichier)</h2>
+      <h2 style="margin-top:12px">Export fichier (option)</h2>
       <div class="erow"><button id="ed-download">⬇ Télécharger</button> <button id="ed-copy">Copier</button> <button id="ed-load">Charger ↑</button></div>
-      <textarea id="missionjson" class="hint" spellcheck="false" rows="4" style="width:100%"></textarea>
-      <div class="hint" style="margin-top:4px">Pour rendre une mission permanente / partagée : « Télécharger », pousse le fichier dans <code>missions/</code> et ajoute-le à <code>missions/list.json</code>.</div>
+      <textarea id="missionjson" class="hint" spellcheck="false" rows="3" style="width:100%"></textarea>
     </div>
   </div>
 
@@ -1850,7 +1846,7 @@
       if (rf && cfg.repo) rf.value = cfg.repo;
       if (bf) bf.value = cfg.branch || "claude/intelligent-hypatia-nojupi";
     }catch(e){}
-    refreshSavedSelect(); setTool(editTool); updateExport(); draw();
+    setTool(editTool); updateExport(); draw();
   }
   function leaveEditor(){
     editMode = false; painting = false;
@@ -1918,21 +1914,6 @@
   onEd("ed-clearunits", () => { units = []; updateExport(); draw(); });
   { const ni = document.getElementById("ed-name"); if (ni) ni.addEventListener("input", () => { editorName = ni.value || "Mission"; updateExport(); }); }
   for (const b of document.querySelectorAll(".etool")) b.addEventListener("click", () => setTool(b.dataset.tool));
-  onEd("ed-save", () => {
-    const o = savedMissions(); o[editorName] = serializeMission(editorName);
-    if (writeSaved(o)){ refreshSavedSelect(); refreshMissionMenu();
-      const el = document.getElementById("editinfo"); if (el) el.textContent = "Enregistrée : " + editorName; }
-  });
-  onEd("ed-loadsaved", () => {
-    const n = document.getElementById("ed-saved").value; const o = savedMissions();
-    if (o[n]){ applyMission(o[n]); editorName = n;
-      const ci=document.getElementById("ed-cols"),ri=document.getElementById("ed-rows"),ni=document.getElementById("ed-name");
-      if(ci)ci.value=COLS; if(ri)ri.value=ROWS; if(ni)ni.value=editorName; updateExport(); draw(); }
-  });
-  onEd("ed-delsaved", () => {
-    const n = document.getElementById("ed-saved").value; const o = savedMissions();
-    if (o[n]){ delete o[n]; writeSaved(o); refreshSavedSelect(); refreshMissionMenu(); }
-  });
   onEd("ed-publish", () => publishToRepo());
   onEd("ed-download", () => {
     const blob = new Blob([JSON.stringify(serializeMission(editorName), null, 1)], { type:"application/json" });
@@ -2131,17 +2112,7 @@ Stiff: Enough. I've decided.`;
     runIntro();
   }
 
-  // missions enregistrées dans le navigateur (localStorage) : { nom: mission }
-  const LS_KEY = "mgf_missions";
-  function savedMissions(){ try{ return JSON.parse(localStorage.getItem(LS_KEY) || "{}") || {}; }catch(e){ return {}; } }
-  function writeSaved(o){ try{ localStorage.setItem(LS_KEY, JSON.stringify(o)); return true; }catch(e){ alert("Sauvegarde impossible : " + e.message); return false; } }
-  function refreshSavedSelect(){
-    const sel = document.getElementById("ed-saved"); if (!sel) return;
-    const names = Object.keys(savedMissions());
-    sel.innerHTML = names.length ? names.map(n => `<option>${n}</option>`).join("") : `<option value="">(aucune)</option>`;
-  }
-
-  // menu « Missions » du jeu : missions du dépôt (missions/list.json) + missions locales
+  // menu « Missions » du jeu : missions du dépôt (missions/list.json)
   let repoMissions = [];
   async function fetchRepoMissions(){
     try{
@@ -2153,12 +2124,10 @@ Stiff: Enough. I've decided.`;
   function refreshMissionMenu(){
     const sel = document.getElementById("missionsel"), row = document.getElementById("missionrow");
     if (!sel) return;
-    const local = Object.keys(savedMissions());
     const opts = [`<option value="">— Missions —</option>`];
-    for (const it of repoMissions) opts.push(`<option value="repo:${it.file}">${it.name}</option>`);
-    for (const n of local) opts.push(`<option value="local:${n}">${n} (local)</option>`);
+    for (const it of repoMissions) opts.push(`<option value="${it.file}">${it.name}</option>`);
     sel.innerHTML = opts.join("");
-    if (row) row.style.display = (repoMissions.length || local.length) ? "" : "none";
+    if (row) row.style.display = repoMissions.length ? "" : "none";
   }
 
   // ---- Publication directe dans le dépôt via l'API GitHub (token local) ----
@@ -2218,10 +2187,8 @@ Stiff: Enough. I've decided.`;
   renderLog(); refreshAll();
   { const sel = document.getElementById("missionsel");
     if (sel) sel.addEventListener("change", async () => {
-      const v = sel.value; if (!v) return;
-      let m = null;
-      if (v.startsWith("local:")){ m = savedMissions()[v.slice(6)]; }
-      else if (v.startsWith("repo:")){ const f = v.slice(5); m = await loadMissionFromUrl(f.includes("/") ? f : "missions/" + f); }
+      const f = sel.value; if (!f) return;
+      const m = await loadMissionFromUrl(f.includes("/") ? f : "missions/" + f);
       if (m) startMission(m); else alert("Mission introuvable.");
     });
   }
