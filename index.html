@@ -56,9 +56,19 @@
   #info,#sel{color:var(--muted); min-height:2.6em}
   code{color:var(--ink)}
   .hint{font-size:.72rem; color:var(--muted); line-height:1.4; margin-top:4px}
+  #intro{position:fixed; inset:0; background:#000; color:#d8cdb4; z-index:50;
+    display:flex; flex-direction:column; align-items:center; justify-content:center;
+    padding:24px; text-align:center; font-family:Georgia,"Times New Roman",serif}
+  #introtext{max-width:640px; font-size:1.15rem; line-height:1.75; min-height:40vh;
+    display:flex; flex-direction:column; justify-content:center; white-space:pre-wrap}
+  #introbtn{margin-top:26px; background:#15110c; color:#d8cdb4; border:1px solid #5a4530;
+    border-radius:6px; padding:10px 24px; font-size:1rem; letter-spacing:3px; cursor:pointer; min-width:120px}
+  #introbtn:hover{background:#241a12}
 </style>
 </head>
 <body>
+  <div id="intro"><div id="introtext"></div><button id="introbtn">new game</button></div>
+
   <h1>Malazan game of the fallen</h1>
   <div class="sub">Tab = unité suivante · clique une action puis Tab pour changer de cible · Échap annule</div>
 
@@ -176,7 +186,8 @@
   let gameOver = null;       // null | "win" | "lose"
   let enemyPhase = false;    // true pendant la phase ennemie (entrées bloquées)
   let walls = new Set();     // murets : couvert partiel posé sur l'arête entre deux cases
-  const busy = () => anim || enemyPhase;
+  let introActive = true;    // true tant que l'écran d'ouverture est affiché (entrées bloquées)
+  const busy = () => anim || enemyPhase || introActive;
   const sleep = (ms) => new Promise(res => setTimeout(res, ms));
   function animateMoveP(u, pts){ return new Promise(res => animateMove(u, pts, res)); }
 
@@ -1590,10 +1601,84 @@
       else if (e.key === "Escape"){ cancelTargeting(); cancelThrow(); }
     });
 
+  // ---- Écran d'ouverture --------------------------------------------------
+  // Texte d'intro. Remplace librement le bloc ci-dessous par le contenu
+  // d'Opening.txt. Une ligne ne contenant que « _ » marque une coupure de
+  // page : l'écran s'efface et un bouton « ... » invite à continuer.
+  const INTRO_TEXT = `Il y avait jadis un empire...
+
+et il en reste des cendres, et des dieux qui s'en disputent les braises.
+_
+Sur les Plaines, le vent porte encore le nom des Tombés.
+
+On dit que rien ne meurt vraiment, ici...
+seulement ce qui attend de revenir.
+_
+Une escouade. Quelques lames, un peu de poudre.
+
+C'est peu, face à ce qui marche dans la poussière.
+
+Mais c'est tout ce que tu as.
+_
+Alors lève-toi, soldat.
+
+La chute a déjà commencé.`;
+
+  const introEl = document.getElementById("intro");
+  const introTextEl = document.getElementById("introtext");
+  const introBtn = document.getElementById("introbtn");
+  const sleepI = (ms) => new Promise(r => setTimeout(r, ms));
+
+  function waitBtn(label){
+    return new Promise(res => {
+      if (!introBtn || !introBtn.addEventListener){ res(); return; }
+      introBtn.textContent = label;
+      introBtn.style.visibility = "visible";
+      const h = () => { introBtn.removeEventListener("click", h); introBtn.style.visibility = "hidden"; res(); };
+      introBtn.addEventListener("click", h);
+    });
+  }
+
+  async function typeLine(line){
+    if (!introTextEl) return;
+    const base = introTextEl.textContent;
+    for (let i = 0; i < line.length; i++){
+      introTextEl.textContent = base + line.slice(0, i + 1);
+      const ch = line[i];
+      let d = 30;
+      if (ch === ".") d = 230;            // les « ... » s'égrènent plus lentement
+      else if (",;:!?".includes(ch)) d = 130;
+      else if (ch === " ") d = 20;
+      await sleepI(d);
+    }
+  }
+
+  async function runIntro(){
+    await waitBtn("new game");           // écran noir : un seul bouton
+    const pages = INTRO_TEXT.replace(/\r/g, "").split(/\n[ \t]*_[ \t]*\n/);
+    for (let p = 0; p < pages.length; p++){
+      if (introTextEl) introTextEl.textContent = "";
+      for (const ln of pages[p].split("\n")){
+        if (introTextEl && introTextEl.textContent) introTextEl.textContent += "\n";
+        await typeLine(ln);
+      }
+      await waitBtn(p < pages.length - 1 ? "..." : "...");
+    }
+    finishIntro();
+  }
+
+  function finishIntro(){
+    introActive = false;
+    if (introEl && introEl.style) introEl.style.display = "none";
+    selectUnit(units.find(u => u.team === "player" && u.hp > 0));
+    draw();
+  }
+
   // ---- Init ---------------------------------------------------------------
   setupCanvas(); generate(); placeUnits();
   selected = units.find(u => u.team === "player"); reach = selected ? computeReach(selected) : null;
   renderLog(); refreshAll();
+  runIntro();
 })();
 </script>
 </body>
