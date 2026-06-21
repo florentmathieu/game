@@ -49,7 +49,9 @@
   button:disabled{opacity:.4; cursor:default}
   button.armed{background:#5a3030; border-color:#a05050}
   #actions{display:flex; flex-direction:column; gap:4px; margin:6px 0}
-  #actions button{text-align:left}
+  #actions button{display:flex; justify-content:space-between; align-items:center; gap:10px; text-align:left}
+  .te{font-weight:bold; color:#caa86a; letter-spacing:-1px}
+  .te.end{color:#e0a060}
   #info,#sel{color:var(--muted); min-height:2.6em}
   code{color:var(--ink)}
   .hint{font-size:.72rem; color:var(--muted); line-height:1.4; margin-top:4px}
@@ -69,13 +71,13 @@
       <div id="turninfo" class="hint" style="margin-bottom:6px"></div>
       <div id="sel">Clique une unité bleue.</div>
       <div id="actions">
-        <button id="act-shoot">🏹 Tirer</button>
-        <button id="act-melee">⚔️ Épée</button>
-        <button id="act-ow-shoot">👁️ Vigilance — tir</button>
-        <button id="act-ow-melee">👁️ Vigilance — épée</button>
-        <button id="act-reload">🔄 Recharger</button>
-        <button id="act-brace">🛡️ Brace</button>
-        <button id="act-cracker">💣 Cracker</button>
+        <button id="act-shoot"><span>🏹 Tirer</span><span class="te end">&gt;|</span></button>
+        <button id="act-melee"><span>⚔️ Épée</span><span class="te end">&gt;|</span></button>
+        <button id="act-ow-shoot"><span>👁️ Vigilance — tir</span><span class="te end">&gt;|</span></button>
+        <button id="act-ow-melee"><span>👁️ Vigilance — épée</span><span class="te end">&gt;|</span></button>
+        <button id="act-reload"><span>🔄 Recharger</span><span class="te">&gt;</span></button>
+        <button id="act-brace"><span>🛡️ Brace</span><span class="te">&gt;</span></button>
+        <button id="act-cracker"><span>💣 Cracker</span><span class="te end">&gt;|</span></button>
       </div>
       <div class="row"><button id="endturn">Fin de tour ▶ (phase ennemie)</button></div>
 
@@ -282,8 +284,8 @@
       // Stiff (sergent) : épée + bouclier (mêlée, forte chance de blocage)
       mk({ col:3,  row:16, team:"player", name:"Stiff", role:"Sergent", maxMp:8, maxHp:10, shieldBlock:40,
            weapons:{ melee: sword(75,4,6) } }),
-      // Gizzard (sapeur) : arbalète (1 coup, à recharger) + épée + cracker (grenade)
-      mk({ col:5,  row:14, team:"player", name:"Gizzard", role:"Sapeur", maxMp:8, maxHp:7, crackers:2,
+      // Gizzard (sapeur) : arbalète (1 coup, à recharger) + épée + 1 cracker (grenade)
+      mk({ col:5,  row:14, team:"player", name:"Gizzard", role:"Sapeur", maxMp:8, maxHp:7, crackers:1,
            weapons:{ ranged: bow(65,3,4,6,1), melee: sword(70,3,5),
                      cracker:{ type:"throw", dmgMin:5, dmgMax:9, range:6, radius:2, scatter:2 } } }),
       // Garde : épée + bouclier
@@ -1434,11 +1436,10 @@
     let html = "";
     if (!selected){ html = "Clique une unité bleue."; }
     else {
-      const wn = selected.wtype === "ranged" ? "arbalète/arc" : "épée";
-      const dual = selected.weapons.ranged && selected.weapons.melee;
+      const wn = selected.wtype === "ranged" ? (selected.clip !== undefined ? "arbalète" : "arc") : "épée";
       html = `<code>${selected.name}</code> — PV <code>${Math.max(0,selected.hp)}/${selected.maxHp}</code>`
         + `<br>PA <code>${selected.ap}/${AP_MAX}</code> · mouvement libre <code>${freeOf(selected)}</code>${selected.ap>0?` (+${selected.ap}×${selected.mob} via PA)`:``}`
-        + `<br>arme : <code>${wn}</code>${dual ? ` <span style="color:#9a8a74">(commutable)</span>` : ``} · précision <code>${selected.aim}%</code>`
+        + `<br>arme : <code>${wn}</code> · précision <code>${selected.aim}%</code>`
         + `<br>portée <code>${selected.range}</code> · dégâts <code>${selected.dmgMin}–${selected.dmgMax}</code>`
         + (selected.clip !== undefined ? `<br>munitions : <code>${selected.ammo}/${selected.clip}</code>${selected.ammo<=0?` <span style="color:#e0a85f">(recharger)</span>`:``}` : ``)
         + (selected.weapons.cracker ? `<br>crackers : <code>${selected.crackers}</code>` : ``)
