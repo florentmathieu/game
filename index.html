@@ -318,9 +318,11 @@
   // Un rocher (couvert total) est le seul élément qui arrête la vue.
   const isOpaque = (c, r) => { const t = tileAt(c, r); return !!(t && t.obstacle && t.cover === "full"); };
 
-  // Champ de vision propagé : contigu, borné au rayon, la vue passe à travers une case
-  // sauf si c'est un rocher. Les murets et le relief ne gênent pas la visibilité.
+  // Champ de vision par secteurs d'ombre (shadowcasting angulaire) : du plus proche au
+  // plus loin, chaque rocher visible projette une ombre angulaire ; toute case dont l'angle
+  // tombe dans une ombre est cachée. Contigu, borné au rayon. Murets et relief n'ombragent pas.
   function fieldOfView(u){
+    const o = tileCenter(u.col, u.row);
     const src = offsetToCube(u.col, u.row);
     const vis = new Set([key(u.col, u.row)]);
     const within = [];
@@ -330,10 +332,24 @@
         if (d > 0 && d <= VISION) within.push([d, c, r]);
       }
     within.sort((a, b) => a[0] - b[0]);   // du plus proche au plus loin
+    const shadows = [];                   // secteurs [lo,hi] en radians (-π..π)
+    const TAU = Math.PI * 2;
+    const norm = a => { while (a <= -Math.PI) a += TAU; while (a > Math.PI) a -= TAU; return a; };
+    const inShadow = a => shadows.some(s => a >= s[0] && a <= s[1]);
+    const addSpan = (lo, hi) => {
+      if (hi - lo >= TAU){ shadows.push([-Math.PI, Math.PI]); return; }
+      lo = norm(lo); hi = norm(hi);
+      if (lo <= hi) shadows.push([lo, hi]);
+      else { shadows.push([lo, Math.PI]); shadows.push([-Math.PI, hi]); }   // chevauche ±π
+    };
     for (const [d, c, r] of within){
-      for (const [nc, nr] of neighbors(c, r)){
-        if (cubeDist(src, offsetToCube(nc, nr)) >= d) continue;   // voisin strictement plus proche
-        if (vis.has(key(nc, nr)) && !isOpaque(nc, nr)){ vis.add(key(c, r)); break; }
+      const p = tileCenter(c, r);
+      const ang = Math.atan2(p.y - o.y, p.x - o.x);
+      if (inShadow(ang)) continue;        // dans l'ombre d'un rocher plus proche
+      vis.add(key(c, r));
+      if (isOpaque(c, r)){
+        const sigma = Math.atan2(SIZE * 0.85, Math.hypot(p.x - o.x, p.y - o.y)); // demi-largeur angulaire
+        addSpan(ang - sigma, ang + sigma);
       }
     }
     return vis;
