@@ -49,8 +49,9 @@
       <h2>Unité</h2>
       <div id="turninfo" class="hint" style="margin-bottom:6px"></div>
       <div id="sel">Clique une unité bleue.</div>
+      <div class="row"><button id="overwatch">Vigilance (overwatch)</button></div>
       <div class="row"><button id="endturn">Fin de tour ▶ (phase ennemie)</button></div>
-      <div class="hint">PM = points de mouvement. Monter d'un niveau coûte +1 PM. Un dénivelé de 2 niveaux ou plus est une falaise infranchissable. Obstacles et cases occupées bloquent le passage. Rocher (sur une case) = couvert total, infranchissable, coupe la vue. Muret (sur une arête) = couvert partiel, franchissable, laisse voir ; s'il sépare deux hauteurs, il ne protège que la case basse (le bas est protégé du haut). Le côté protégé d'une unité est marqué : trait plein vert = total, pointillé jaune = partiel. Sélectionne une unité puis clique un ennemi cerclé de rouge pour l'attaquer : le couvert baisse la précision (max de face, nul de flanc), dominer en hauteur l'augmente (corps à corps inclus). « Fin de tour » fait jouer les ennemis.</div>
+      <div class="hint">PM = points de mouvement. Monter d'un niveau coûte +1 PM. Un dénivelé de 2 niveaux ou plus est une falaise infranchissable. Obstacles et cases occupées bloquent le passage. Rocher (sur une case) = couvert total, infranchissable, coupe la vue. Muret (sur une arête) = couvert partiel, franchissable, laisse voir ; s'il sépare deux hauteurs, il ne protège que la case basse (le bas est protégé du haut). Le côté protégé d'une unité est marqué : trait plein vert = total, pointillé jaune = partiel. Tu peux bouger PUIS tirer dans le même tour. « Vigilance » fait riposter l'unité sur le premier ennemi qui traverse sa ligne de tir pendant la phase adverse (anneau turquoise). « Fin de tour » fait jouer les ennemis.</div>
 
       <h2 style="margin-top:14px">Journal</h2>
       <div id="log" class="hint"></div>
@@ -138,6 +139,7 @@
   let explored = new Set();  // cases déjà vues au moins une fois (mémoire)
   let enemyVisible = new Set(); // cases vues par les ennemis (leur propre brouillard)
   let lastSeen = new Map();     // mémoire d'escouade : joueur -> {col,row} dernière position vue
+  let anim = null;              // animation de déplacement en cours (cosmétique)
   let log = [];              // journal des dernières actions
   let turn = 1;              // numéro du tour
   let gameOver = null;       // null | "win" | "lose"
@@ -224,13 +226,14 @@
 
   // ---- Unités -------------------------------------------------------------
   function placeUnits(){
-    const mk = (o) => Object.assign({ acted:false }, o, { hp:o.maxHp, mp:o.maxMp });
+    const mk = (o) => Object.assign({ acted:false, overwatch:false, reacted:false }, o, { hp:o.maxHp, mp:o.maxMp });
     units = [
       mk({ col:3,  row:16, team:"player", name:"Sergent", maxMp:8, maxHp:8,  aim:72, dmgMin:3, dmgMax:5, range:7 }),
       mk({ col:5,  row:14, team:"player", name:"Sapeur",  maxMp:8, maxHp:7,  aim:65, dmgMin:3, dmgMax:4, range:6 }),
       mk({ col:15, row:4,  team:"enemy",  name:"Garde",   maxMp:6, maxHp:8,  aim:60, dmgMin:3, dmgMax:4, range:6 }),
       mk({ col:12, row:8,  team:"enemy",  name:"Archer",  maxMp:6, maxHp:6,  aim:70, dmgMin:2, dmgMax:4, range:8 }),
-      mk({ col:16, row:12, team:"enemy",  name:"Brute",   maxMp:6, maxHp:11, aim:55, dmgMin:4, dmgMax:6, range:4 }),
+      // Brute : mêlée uniquement (portée 1) — fonce au contact, pas d'overwatch
+      mk({ col:16, row:12, team:"enemy",  name:"Brute",   maxMp:8, maxHp:13, aim:70, dmgMin:5, dmgMax:7, range:1 }),
     ];
     // les cases de départ ne doivent pas être des obstacles
     for (const u of units) tiles[u.row][u.col].obstacle = false;
@@ -408,20 +411,56 @@
     return lineOfFire(att, tgt);
   }
 
-  function doAttack(att, tgt){
+  function doAttack(att, tgt, reaction = false){
     const bd = hitBreakdown(att, tgt);
-    const hit = Math.random()*100 < bd.chance;
+    const chance = reaction ? Math.max(5, bd.chance - 15) : bd.chance; // riposte moins précise
+    const hit = Math.random()*100 < chance;
     let dmg = 0;
     if (hit){ dmg = att.dmgMin + Math.floor(Math.random()*(att.dmgMax-att.dmgMin+1)); tgt.hp -= dmg; }
     const dead = tgt.hp <= 0;
-    const verb = bd.melee ? "frappe" : "tire sur";
+    const verb = reaction ? "⚡ riposte sur" : (bd.melee ? "frappe" : "tire sur");
     const res = hit ? `touché ${dmg}${dead ? " ✝" : ""}` : "raté";
-    pushLog(`${att.team === "player" ? "▲" : "▼"} ${att.name} ${verb} ${tgt.name} (${bd.chance}%) : ${res}`, att.team);
-    att.acted = true; att.mp = 0;
+    pushLog(`${att.team === "player" ? "▲" : "▼"} ${att.name} ${verb} ${tgt.name} (${chance}%) : ${res}`, att.team);
+    if (!reaction){ att.acted = true; att.mp = 0; }   // une riposte n'épuise pas le tour
     if (dead){ units = units.filter(u => u !== tgt); if (selected === tgt) selected = null; }
     recomputeVision();
     reach = selected ? computeReach(selected) : null;
     checkEnd();
+  }
+
+  // ---- Overwatch : tir d'opportunité pendant le déplacement adverse -------
+  function canReact(w, tgt){
+    if (w.hp <= 0 || tgt.hp <= 0) return false;
+    if (cubeDist(offsetToCube(w.col, w.row), offsetToCube(tgt.col, tgt.row)) > VISION) return false;
+    if (hexDistUnits(w, tgt) > w.range) return false;
+    return lineOfFire(w, tgt);
+  }
+  function triggerReactions(mover){
+    for (const w of units){
+      if (w.team === mover.team || !w.overwatch || w.reacted || w.hp <= 0) continue;
+      if (!canReact(w, mover)) continue;
+      doAttack(w, mover, true);
+      w.reacted = true; w.overwatch = false;   // vigilance consommée
+      if (mover.hp <= 0) break;
+    }
+  }
+
+  function buildPath(prev, dc, dr){
+    const path = [[dc, dr]]; let cur = key(dc, dr);
+    while (prev[cur]){ const [pc, pr] = prev[cur]; path.unshift([pc, pr]); cur = key(pc, pr); }
+    return path;
+  }
+
+  // Avance une unité le long d'un chemin, case par case : la vision se met à jour
+  // et les guetteurs adverses peuvent riposter en chemin. Renvoie l'index d'arrêt.
+  function executeMove(unit, path){
+    for (let i = 1; i < path.length; i++){
+      unit.col = path[i][0]; unit.row = path[i][1];
+      recomputeVision();
+      triggerReactions(unit);
+      if (unit.hp <= 0) return i;   // abattu en chemin
+    }
+    return path.length - 1;
   }
 
   function checkEnd(){
@@ -486,7 +525,7 @@
   function searchAct(e){
     const goals = [];
     for (const [p, mem] of lastSeen) if (p.hp > 0) goals.push({ p, g: predictedGoal(mem) });
-    if (!goals.length){ e.acted = true; return; }     // rien à investiguer : tient sa position
+    if (!goals.length){ holdOrWatch(e); return; }     // rien à investiguer : tient sa position (vigilance)
 
     let pick = goals[0], gd = Infinity;
     for (const it of goals){
@@ -496,7 +535,7 @@
     const goal = pick.g;
     // déjà sur place et personne en vue : l'endroit est vide, on l'oublie
     if (cubeDist(offsetToCube(e.col, e.row), offsetToCube(goal.col, goal.row)) <= 1){
-      lastSeen.delete(pick.p); e.acted = true; return;
+      lastSeen.delete(pick.p); holdOrWatch(e); return;
     }
     // approche prudente vers le but
     const r = computeReach(e);
@@ -509,22 +548,30 @@
       if (score < bestScore){ bestScore = score; best = [c, row, r.dist[k]]; }
     }
     if (best[0] !== e.col || best[1] !== e.row){
-      e.col = best[0]; e.row = best[1]; e.mp -= best[2]; recomputeVision();
+      e.mp -= best[2];
+      executeMove(e, buildPath(r.prev, best[0], best[1]));   // peut subir l'overwatch joueur
+      if (e.hp <= 0) return;
     }
     // a-t-on repéré quelqu'un en chemin ?
     const t = bestTarget(e);
     if (t){ doAttack(e, t); return; }
-    e.acted = true;
+    holdOrWatch(e);
   }
 
   function enemyAct(e){
     if (e.hp <= 0) return;
+    e.overwatch = false;   // il recommence à agir : la vigilance précédente tombe
     // l'IA ne connaît que les joueurs que son camp voit (brouillard ennemi)
     const players = units.filter(u => u.team === "player" && u.hp > 0 && enemyVisible.has(key(u.col, u.row)));
     if (!players.length){ searchAct(e); return; }   // personne en vue : fouille la dernière position connue
 
-    // Évalue chaque case atteignable (+ rester sur place) : on veut un bon tir
-    // tout en étant le moins exposé possible, sinon avancer vers l'ennemi.
+    // cible de référence (la plus proche) pour le calcul d'angle d'encerclement
+    let primary = players[0], pd = Infinity;
+    for (const p of players){ const d = hexDistUnits(e, p); if (d < pd){ pd = d; primary = p; } }
+    const pc = tileCenter(primary.col, primary.row);
+    const allies = units.filter(o => o !== e && o.team === "enemy" && o.hp > 0);
+
+    // Évalue chaque case atteignable (+ rester sur place).
     const r = computeReach(e);
     const cands = [[e.col, e.row, 0]];
     for (const k in r.dist){ const [c, row] = k.split(",").map(Number); cands.push([c, row, r.dist[k]]); }
@@ -537,20 +584,36 @@
         threat  = Math.max(threat,  shotChanceFrom(p.col, p.row, p, c, row));   // ce que JE subirais
         nearest = Math.min(nearest, cubeDist(offsetToCube(c, row), offsetToCube(p.col, p.row)));
       }
-      // maximise le tir, pénalise l'exposition, récompense l'approche et la hauteur
-      const score = offense - 0.7*threat - 1.5*nearest + 0.5*tiles[row][c].elev;
+      // coordination : éviter de s'agglutiner, et préférer un angle différent des alliés
+      let clump = 0, spread = 0;
+      const me = tileCenter(c, row);
+      let mx = me.x-pc.x, my = me.y-pc.y; const ml = Math.hypot(mx,my)||1; mx/=ml; my/=ml;
+      let minDot = 1;
+      for (const o of allies){
+        if (cubeDist(offsetToCube(c,row), offsetToCube(o.col,o.row)) <= 1) clump += 6;
+        const oc = tileCenter(o.col, o.row); let ox = oc.x-pc.x, oy = oc.y-pc.y;
+        const ol = Math.hypot(ox,oy)||1; ox/=ol; oy/=ol; minDot = Math.min(minDot, mx*ox+my*oy);
+      }
+      if (allies.length && minDot < 0.5) spread = 4;   // > 60° d'écart avec tous les alliés : on encercle
+
+      const score = offense - 0.7*threat - 1.5*nearest + 0.5*tiles[row][c].elev - clump + spread;
       if (score > bestScore){ bestScore = score; best = [c, row, cost]; }
     }
 
     if (best[0] !== e.col || best[1] !== e.row){
-      e.col = best[0]; e.row = best[1]; e.mp -= best[2]; recomputeVision();
+      e.mp -= best[2];
+      executeMove(e, buildPath(r.prev, best[0], best[1]));   // peut subir l'overwatch joueur
+      if (e.hp <= 0) return;
     }
 
     // tir après s'être positionné
     const t = bestTarget(e);
     if (t){ doAttack(e, t); return; }
-    e.acted = true;
+    holdOrWatch(e);
   }
+
+  // tient la position ; les unités à distance passent en vigilance (overwatch)
+  function holdOrWatch(e){ if (e.range > 1) e.overwatch = true; e.acted = true; }
 
   // ---- Tours --------------------------------------------------------------
   function endPlayerTurn(){
@@ -564,7 +627,10 @@
     if (gameOver){ updateSel(); draw(); return; }
     // nouveau tour : on recharge tout le monde
     turn++;
-    for (const u of units){ u.mp = u.maxMp; u.acted = false; }
+    for (const u of units){
+      u.mp = u.maxMp; u.acted = false; u.reacted = false;
+      if (u.team === "player") u.overwatch = false;   // la vigilance joueur expire ; celle des ennemis (posée ce tour) reste active
+    }
     recomputeVision();
     updateSel(); draw();
   }
@@ -584,6 +650,31 @@
     ctx.beginPath(); ctx.moveTo(c[0][0], c[0][1]);
     for (let i = 1; i < 6; i++) ctx.lineTo(c[i][0], c[i][1]);
     ctx.closePath();
+  }
+
+  // Position pixel interpolée de l'unité en cours d'animation.
+  function animPos(){
+    const n = anim.pts.length - 1;
+    const seg = Math.min(n - 1e-9, anim.t * n);
+    const i = Math.max(0, Math.min(n - 1, Math.floor(seg)));
+    const f = seg - i;
+    const a = tileCenter(anim.pts[i][0], anim.pts[i][1]);
+    const b = tileCenter(anim.pts[i+1][0], anim.pts[i+1][1]);
+    return { x: a.x + (b.x - a.x) * f, y: a.y + (b.y - a.y) * f };
+  }
+  // Glisse l'unité le long du chemin (cosmétique ; la logique est déjà résolue).
+  function animateMove(mover, pts, onDone){
+    if (typeof requestAnimationFrame === "undefined" || typeof performance === "undefined" || pts.length < 2){
+      draw(); if (onDone) onDone(); return;
+    }
+    anim = { mover, pts, t: 0 };
+    const t0 = performance.now(), dur = 95 * (pts.length - 1);
+    (function tick(now){
+      anim.t = Math.min(1, (now - t0) / dur);
+      draw();
+      if (anim.t < 1) requestAnimationFrame(tick);
+      else { anim = null; draw(); if (onDone) onDone(); }
+    })(t0);
   }
 
   function drawRock(x, y){
@@ -731,7 +822,8 @@
     // 7) unités (les ennemis sous le brouillard sont cachés)
     for (const u of units){
       if (u.team === "enemy" && !isVisible(u.col, u.row)) continue;
-      const { x, y } = tileCenter(u.col, u.row);
+      let { x, y } = tileCenter(u.col, u.row);
+      if (anim && u === anim.mover){ const p = animPos(); x = p.x; y = p.y; }
 
       // halo "cible attaquable" si une unité joueur est sélectionnée
       if (selected && canAttack(selected, u)){
@@ -739,10 +831,16 @@
         ctx.lineWidth = 2; ctx.strokeStyle = "rgba(255,107,102,0.8)"; ctx.setLineDash([4,3]);
         ctx.stroke(); ctx.setLineDash([]);
       }
+      // anneau de vigilance (overwatch)
+      if (u.overwatch){
+        ctx.beginPath(); ctx.arc(x, y, SIZE*0.72, 0, Math.PI*2);
+        ctx.lineWidth = 2; ctx.strokeStyle = "#7fe0d0"; ctx.setLineDash([2,3]);
+        ctx.stroke(); ctx.setLineDash([]);
+      }
 
       ctx.beginPath(); ctx.arc(x, y, SIZE*0.55, 0, Math.PI*2);
       ctx.fillStyle = u.team === "player" ? "#5fb0d8" : "#d8635f";
-      ctx.globalAlpha = (u.team === "player" && u.acted) ? 0.5 : 1; ctx.fill(); ctx.globalAlpha = 1;
+      ctx.globalAlpha = (u.team === "player" && u.acted && !u.overwatch) ? 0.5 : 1; ctx.fill(); ctx.globalAlpha = 1;
       ctx.lineWidth = u === selected ? 3 : 1.5;
       ctx.strokeStyle = u === selected ? "#ffffff" : "rgba(0,0,0,0.5)"; ctx.stroke();
       ctx.fillStyle = "#10171c"; ctx.font = "bold 12px sans-serif";
@@ -756,7 +854,7 @@
       ctx.fillStyle = u.team === "player" ? "#6fd06f" : "#e06f6f";
       ctx.fillRect(bx, by, bw * Math.max(0, u.hp) / u.maxHp, bh);
 
-      drawCoverShields(u.col, u.row);
+      if (!(anim && u === anim.mover)) drawCoverShields(u.col, u.row);
     }
 
     // 8) bannière de fin de partie
@@ -832,7 +930,7 @@
   }
 
   function onClick(e){
-    if (gameOver) return;
+    if (gameOver || anim) return;
     const { mx, my } = evtPos(e);
     const t = pickTile(mx, my);
     if (!t) return;
@@ -846,12 +944,17 @@
     if (selected && u && canAttack(selected, u)){
       doAttack(selected, u); updateSel(); draw(); return;
     }
-    // clic sur une case atteignable -> déplacement
+    // clic sur une case atteignable -> déplacement (résolu, puis animé)
     if (selected && reach && reach.dist[key(t.col, t.row)] !== undefined){
-      selected.mp -= reach.dist[key(t.col, t.row)];
-      selected.col = t.col; selected.row = t.row;
-      recomputeVision();                       // la vision suit l'unité
-      reach = computeReach(selected); updateSel(); draw(); return;
+      const mover = selected;
+      const path = buildPath(reach.prev, t.col, t.row);
+      mover.mp -= reach.dist[key(t.col, t.row)];
+      const stop = executeMove(mover, path);              // vision + ripostes case par case
+      if (mover.hp <= 0){ if (selected === mover) selected = null; updateSel(); draw(); return; }
+      reach = computeReach(mover);
+      updateSel();
+      animateMove(mover, path.slice(0, stop + 1));        // glissement visuel
+      return;
     }
     // sinon -> désélection
     selected = null; reach = null; updateSel(); draw();
@@ -866,7 +969,9 @@
         + `<br>PM <code>${selected.mp}/${selected.maxMp}</code> · précision <code>${selected.aim}%</code>`
         + `<br>portée <code>${selected.range}</code> · dégâts <code>${selected.dmgMin}–${selected.dmgMax}</code>`
         + `<br>position <code>(${selected.col}, ${selected.row})</code> · altitude <code>${elevOf(selected)}</code>`
-        + (selected.acted ? `<br><span style="color:#c98f3c">A déjà agi ce tour.</span>` : ``);
+        + (selected.range === 1 ? `<br><span style="color:#9a8a74">mêlée uniquement</span>` : ``)
+        + (selected.overwatch ? `<br><span style="color:#7fe0d0">En vigilance.</span>`
+           : selected.acted ? `<br><span style="color:#c98f3c">A déjà agi ce tour.</span>` : ``);
     }
     el.innerHTML = html;
     document.getElementById("turninfo").textContent =
@@ -882,8 +987,14 @@
   canvas.addEventListener("click", onClick);
   canvas.addEventListener("touchstart", (e) => { e.preventDefault(); onMove(e); onClick(e); }, { passive:false });
 
-  document.getElementById("regen").addEventListener("click", () => { generate(); placeUnits(); updateSel(); renderLog(); draw(); });
-  document.getElementById("endturn").addEventListener("click", endPlayerTurn);
+  document.getElementById("regen").addEventListener("click", () => { if (anim) return; generate(); placeUnits(); updateSel(); renderLog(); draw(); });
+  document.getElementById("endturn").addEventListener("click", () => { if (!anim) endPlayerTurn(); });
+  document.getElementById("overwatch").addEventListener("click", () => {
+    if (anim || gameOver || !selected || selected.acted) return;
+    selected.overwatch = true; selected.acted = true; selected.mp = 0; reach = null;
+    pushLog(`▲ ${selected.name} se met en vigilance`, "player");
+    updateSel(); draw();
+  });
   document.getElementById("toggleFog").addEventListener("change", e => { opts.fog = e.target.checked; draw(); });
   document.getElementById("toggleLevels").addEventListener("change", e => { opts.showLevels = e.target.checked; draw(); });
   document.getElementById("toggleGrid").addEventListener("change", e => { opts.showGrid = e.target.checked; draw(); });
