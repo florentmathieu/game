@@ -182,10 +182,6 @@
       <div class="erow"><button id="ed-publish">💾 Enregistrer dans le dépôt</button></div>
       <div id="gh-status" class="hint"></div>
       <div class="hint">Enregistre la mission dans le dépôt (et le menu « Missions »). Le token ne quitte pas ce navigateur ; crée un fine-grained PAT limité à ce dépôt avec <code>Contents: write</code>.</div>
-
-      <h2 style="margin-top:12px">Export fichier (option)</h2>
-      <div class="erow"><button id="ed-download">⬇ Télécharger</button> <button id="ed-copy">Copier</button> <button id="ed-load">Charger ↑</button></div>
-      <textarea id="missionjson" class="hint" spellcheck="false" rows="3" style="width:100%"></textarea>
     </div>
   </div>
 
@@ -1925,19 +1921,6 @@
     const ci = document.getElementById("ed-cols"), ri = document.getElementById("ed-rows"), ni = document.getElementById("ed-name");
     if (ci) ci.value = COLS; if (ri) ri.value = ROWS; if (ni) ni.value = editorName;
     updateExport(); draw();
-  });
-  onEd("ed-download", () => {
-    const blob = new Blob([JSON.stringify(serializeMission(editorName), null, 1)], { type:"application/json" });
-    const a = document.createElement("a"); a.href = URL.createObjectURL(blob);
-    a.download = (editorName || "mission").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "") + ".json";
-    a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 2000);
-  });
-  onEd("ed-copy", () => { const ta = document.getElementById("missionjson"); if (ta && navigator.clipboard) navigator.clipboard.writeText(ta.value); });
-  onEd("ed-load", () => {
-    try{ const m = JSON.parse(document.getElementById("missionjson").value); applyMission(m);
-         const ci = document.getElementById("ed-cols"), ri = document.getElementById("ed-rows");
-         if (ci) ci.value = COLS; if (ri) ri.value = ROWS; updateExport(); draw(); }
-    catch(e){ alert("JSON invalide : " + e.message); }
   });
   { const fi = document.getElementById("ed-file"); if (fi) fi.addEventListener("change", (e) => {
       const f = e.target.files[0]; if (!f) return; const rd = new FileReader();
