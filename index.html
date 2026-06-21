@@ -49,10 +49,11 @@
       <h2>Unité</h2>
       <div id="sel">Clique une unité bleue.</div>
       <div class="row"><button id="endturn">Réinitialiser les PM</button></div>
-      <div class="hint">PM = points de mouvement. Monter d'un niveau coûte +1 PM. Un dénivelé de 2 niveaux ou plus est une falaise infranchissable. Les cases occupées bloquent.</div>
+      <div class="hint">PM = points de mouvement. Monter d'un niveau coûte +1 PM. Un dénivelé de 2 niveaux ou plus est une falaise infranchissable. Rochers et cases occupées bloquent. Le brouillard masque ce que tes unités ne voient pas (rochers et reliefs coupent la vue).</div>
 
       <h2 style="margin-top:14px">Carte</h2>
       <div class="row"><button id="regen">Régénérer la carte</button></div>
+      <div class="row"><label><input type="checkbox" id="toggleFog" checked> Brouillard de guerre</label></div>
       <div class="row"><label><input type="checkbox" id="toggleLevels"> Afficher les niveaux</label></div>
       <div class="row"><label><input type="checkbox" id="toggleGrid" checked> Contour des hexagones</label></div>
 
@@ -70,6 +71,8 @@
 
   // ---- Paramètres de la grille --------------------------------------------
   const COLS = 20, ROWS = 20, SIZE = 17, LEVELS = 7, MARGIN = 14;
+  const VISION = 5;          // rayon de vision (en cases) des unités joueur
+  const OBSTACLE_RATE = 0.12; // proportion de cases occupées par un obstacle
   const SQRT3 = Math.sqrt(3);
   const HEX_W = SQRT3 * SIZE;   // largeur d'un hexagone (pointy-top)
   const HEX_V = 1.5 * SIZE;     // pas vertical entre deux lignes
@@ -119,16 +122,32 @@
   }
 
   // ---- État ---------------------------------------------------------------
-  let tiles = [];   // tiles[row][col] = { col, row, elev }
+  let tiles = [];   // tiles[row][col] = { col, row, elev, obstacle }
   let units = [];   // { col, row, team, name, mp, maxMp }
   let selected = null;
   let reach = null; // { dist:{key:cost}, prev:{key:[c,r]} } pour l'unité sélectionnée
   let hover = null;
-  const opts = { showLevels: false, showGrid: true };
+  let visible = new Set();   // cases actuellement vues par le joueur
+  let explored = new Set();  // cases déjà vues au moins une fois (mémoire)
+  const opts = { showLevels: false, showGrid: true, fog: true };
 
   const tileAt = (c, r) => (r>=0&&r<ROWS&&c>=0&&c<COLS) ? tiles[r][c] : null;
   const unitAt = (c, r) => units.find(u => u.col === c && u.row === r) || null;
   const key = (c, r) => c + "," + r;
+  const isVisible  = (c, r) => !opts.fog || visible.has(key(c, r));
+  const isExplored = (c, r) => !opts.fog || explored.has(key(c, r));
+
+  // ---- Coordonnées cube (pour distances et lignes de vue) ------------------
+  function offsetToCube(col, row){ const x = col-(row-(row&1))/2, z = row; return { x, z, y:-x-z }; }
+  function cubeToOffset(x, z){ return { col: x+(z-(z&1))/2, row: z }; }
+  function cubeDist(a, b){ return (Math.abs(a.x-b.x)+Math.abs(a.y-b.y)+Math.abs(a.z-b.z))/2; }
+  function cubeLerp(a, b, t){ return { x:a.x+(b.x-a.x)*t, y:a.y+(b.y-a.y)*t, z:a.z+(b.z-a.z)*t }; }
+  function cubeRound(c){
+    let rx=Math.round(c.x), ry=Math.round(c.y), rz=Math.round(c.z);
+    const dx=Math.abs(rx-c.x), dy=Math.abs(ry-c.y), dz=Math.abs(rz-c.z);
+    if (dx>dy && dx>dz) rx=-ry-rz; else if (dy>dz) ry=-rx-rz; else rz=-rx-ry;
+    return { x:rx, y:ry, z:rz };
+  }
 
   // ---- Génération de l'altitude -------------------------------------------
   function generate(){
@@ -159,8 +178,14 @@
       tiles[row] = [];
       for (let col = 0; col < COLS; col++){
         let e = Math.round((raw[row][col]-min)/span*(LEVELS-1));
-        tiles[row][col] = { col, row, elev: Math.max(0, Math.min(LEVELS-1, e)) };
+        tiles[row][col] = { col, row, elev: Math.max(0, Math.min(LEVELS-1, e)), obstacle: false };
       }
+    }
+    // sème des obstacles (rochers) sur une partie des cases
+    let toPlace = Math.round(COLS*ROWS*OBSTACLE_RATE), guard = 0;
+    while (toPlace > 0 && guard++ < 4000){
+      const c = Math.floor(Math.random()*COLS), r = Math.floor(Math.random()*ROWS);
+      if (!tiles[r][c].obstacle){ tiles[r][c].obstacle = true; toPlace--; }
     }
   }
 
@@ -173,7 +198,46 @@
       { col:12, row:8,  team:"enemy",  name:"Archer",   mp:6, maxMp:6 },
       { col:16, row:12, team:"enemy",  name:"Brute",    mp:6, maxMp:6 },
     ];
+    // les cases de départ ne doivent pas être des obstacles
+    for (const u of units) tiles[u.row][u.col].obstacle = false;
     selected = null; reach = null;
+    explored = new Set();
+    recomputeVision();
+  }
+
+  // ---- Brouillard de guerre : vision des unités joueur --------------------
+  // Une case est visible si une unité joueur l'a à portée (VISION) ET avec une
+  // ligne de vue dégagée : ni obstacle, ni relief plus haut, sur le trajet.
+  function hasLOS(c0, r0, c1, r1, elev0, elev1){
+    const a = offsetToCube(c0, r0), b = offsetToCube(c1, r1);
+    const N = cubeDist(a, b);
+    if (N === 0) return true;
+    for (let i = 1; i < N; i++){
+      const cb = cubeRound(cubeLerp(a, b, i / N));
+      const off = cubeToOffset(cb.x, cb.z);
+      const t = tileAt(off.col, off.row);
+      if (!t) continue;
+      if (t.obstacle) return false;
+      if (t.elev > Math.max(elev0, elev1)) return false;
+    }
+    return true;
+  }
+
+  function recomputeVision(){
+    visible = new Set();
+    for (const u of units){
+      if (u.team !== "player") continue;
+      const src = offsetToCube(u.col, u.row);
+      const e0 = tiles[u.row][u.col].elev;
+      for (let r = 0; r < ROWS; r++){
+        for (let c = 0; c < COLS; c++){
+          if (cubeDist(src, offsetToCube(c, r)) > VISION) continue;
+          if (hasLOS(u.col, u.row, c, r, e0, tiles[r][c].elev)){
+            visible.add(key(c, r)); explored.add(key(c, r));
+          }
+        }
+      }
+    }
   }
 
   // ---- Coût de déplacement & portée (Dijkstra) ----------------------------
@@ -196,6 +260,7 @@
       if (d > dist[key(c, r)]) continue;
       const cur = tiles[r][c];
       for (const [nc, nr] of neighbors(c, r)){
+        if (tiles[nr][nc].obstacle) continue;  // rocher : infranchissable
         if (unitAt(nc, nr)) continue;          // case occupée : on ne traverse pas
         const cost = moveCost(cur, tiles[nr][nc]);
         if (cost === null) continue;           // falaise
@@ -237,15 +302,37 @@
     ctx.closePath();
   }
 
+  function drawRocks(x, y){
+    // petit tas de rochers (3 disques gris)
+    const spots = [[-5,3,5],[5,4,4.5],[0,-4,5]];
+    for (const [dx, dy, r] of spots){
+      ctx.beginPath(); ctx.arc(x+dx, y+dy, r, 0, Math.PI*2);
+      ctx.fillStyle = "#564b3f"; ctx.fill();
+      ctx.lineWidth = 1; ctx.strokeStyle = "#2b241d"; ctx.stroke();
+    }
+  }
+
   function draw(){
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-    // 1) sol
+    // 1) sol (avec brouillard de guerre et obstacles)
     for (let row = 0; row < ROWS; row++){
       for (let col = 0; col < COLS; col++){
         const { x, y } = tileCenter(col, row);
+        const tile = tiles[row][col];
         fillHex(x, y, SIZE);
-        ctx.fillStyle = elevColor(tiles[row][col].elev); ctx.fill();
+        if (!isExplored(col, row)){
+          // jamais vue : masquée
+          ctx.fillStyle = "#0c0a06"; ctx.fill();
+          if (opts.showGrid){ ctx.lineWidth = 1; ctx.strokeStyle = "rgba(0,0,0,0.4)"; ctx.stroke(); }
+          continue;
+        }
+        ctx.fillStyle = elevColor(tile.elev); ctx.fill();
+        if (tile.obstacle) drawRocks(x, y);
+        if (!isVisible(col, row)){
+          // explorée mais hors de vue : assombrie (mémoire)
+          fillHex(x, y, SIZE); ctx.fillStyle = "rgba(0,0,0,0.55)"; ctx.fill();
+        }
         if (opts.showGrid){ ctx.lineWidth = 1; ctx.strokeStyle = "rgba(0,0,0,0.28)"; ctx.stroke(); }
       }
     }
@@ -281,6 +368,7 @@
     if (opts.showLevels){
       ctx.font = "10px monospace"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
       for (let row = 0; row < ROWS; row++) for (let col = 0; col < COLS; col++){
+        if (!isExplored(col, row)) continue;
         const { x, y } = tileCenter(col, row);
         ctx.fillStyle = tiles[row][col].elev > LEVELS/2 ? "#2b1c0e" : "#e8d4a0";
         ctx.fillText(String(tiles[row][col].elev), x, y);
@@ -293,8 +381,9 @@
       fillHex(x, y, SIZE); ctx.lineWidth = 2; ctx.strokeStyle = "#ffd479"; ctx.stroke();
     }
 
-    // 6) unités
+    // 6) unités (les ennemis sous le brouillard sont cachés)
     for (const u of units){
+      if (u.team === "enemy" && !isVisible(u.col, u.row)) continue;
       const { x, y } = tileCenter(u.col, u.row);
       ctx.beginPath(); ctx.arc(x, y, SIZE*0.55, 0, Math.PI*2);
       ctx.fillStyle = u.team === "player" ? "#5fb0d8" : "#d8635f"; ctx.fill();
@@ -332,12 +421,18 @@
     hover = pickTile(mx, my);
     const info = document.getElementById("info");
     if (hover){
-      const t = tiles[hover.row][hover.col]; const u = unitAt(hover.col, hover.row);
-      let s = `Tuile <code>(${hover.col}, ${hover.row})</code><br>Altitude : <code>${t.elev}</code> / ${LEVELS-1}`;
-      if (u) s += `<br>Occupée par : <code>${u.name}</code>`;
-      if (selected && reach && reach.dist[key(hover.col,hover.row)] !== undefined)
-        s += `<br>Coût du trajet : <code>${reach.dist[key(hover.col,hover.row)]}</code> PM`;
-      info.innerHTML = s;
+      if (!isExplored(hover.col, hover.row)){
+        info.innerHTML = `Tuile <code>(${hover.col}, ${hover.row})</code><br><span style="color:#7a6c58">Zone inexplorée</span>`;
+      } else {
+        const t = tiles[hover.row][hover.col];
+        const u = unitAt(hover.col, hover.row);
+        let s = `Tuile <code>(${hover.col}, ${hover.row})</code><br>Altitude : <code>${t.elev}</code> / ${LEVELS-1}`;
+        if (t.obstacle) s += `<br><code>Rocher</code> (infranchissable)`;
+        if (u && isVisible(hover.col, hover.row)) s += `<br>Occupée par : <code>${u.name}</code>`;
+        if (selected && reach && reach.dist[key(hover.col,hover.row)] !== undefined)
+          s += `<br>Coût du trajet : <code>${reach.dist[key(hover.col,hover.row)]}</code> PM`;
+        info.innerHTML = s;
+      }
     } else info.textContent = "Passe la souris sur la carte.";
     draw();
   }
@@ -356,6 +451,7 @@
     if (selected && reach && reach.dist[key(t.col, t.row)] !== undefined){
       selected.mp -= reach.dist[key(t.col, t.row)];
       selected.col = t.col; selected.row = t.row;
+      recomputeVision();                       // la vision suit l'unité
       reach = computeReach(selected); updateSel(); draw(); return;
     }
     // sinon -> désélection
@@ -383,6 +479,7 @@
     if (selected) reach = computeReach(selected);
     updateSel(); draw();
   });
+  document.getElementById("toggleFog").addEventListener("change", e => { opts.fog = e.target.checked; draw(); });
   document.getElementById("toggleLevels").addEventListener("change", e => { opts.showLevels = e.target.checked; draw(); });
   document.getElementById("toggleGrid").addEventListener("change", e => { opts.showGrid = e.target.checked; draw(); });
 
