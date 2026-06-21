@@ -537,13 +537,13 @@
     }
   }
 
-  // Indicateurs de couvert autour d'une unité (côté protégé : plein vert=total, pointillé jaune=partiel).
-  function drawCoverShields(u){
-    const a = tileCenter(u.col, u.row);
-    for (const [dc, dr] of NEI[u.row & 1]){
-      const nc = u.col + dc, nr = u.row + dr;
-      if (!isVisible(nc, nr)) continue;
-      const base = coverInDir(u.col, u.row, nc, nr);   // respecte la règle de hauteur des murets
+  // Indicateurs de couvert sur les arêtes d'une case (plein vert=total, pointillé jaune=partiel).
+  function drawCoverShields(col, row){
+    const a = tileCenter(col, row);
+    for (const [dc, dr] of NEI[row & 1]){
+      const nc = col + dc, nr = row + dr;
+      if (!isExplored(nc, nr)) continue;
+      const base = coverInDir(col, row, nc, nr);   // respecte la règle de hauteur des murets
       if (!base) continue;
       const b = tileCenter(nc, nr);
       const px = a.x + (b.x - a.x) * 0.6, py = a.y + (b.y - a.y) * 0.6;
@@ -624,10 +624,11 @@
       }
     }
 
-    // 5) survol
+    // 5) survol : contour + couvert qu'offrirait la case
     if (hover){
       const { x, y } = tileCenter(hover.col, hover.row);
       fillHex(x, y, SIZE); ctx.lineWidth = 2; ctx.strokeStyle = "#ffd479"; ctx.stroke();
+      if (isExplored(hover.col, hover.row)) drawCoverShields(hover.col, hover.row);
     }
 
     // 6) ligne de tir vers la cible survolée
@@ -670,7 +671,7 @@
       ctx.fillStyle = u.team === "player" ? "#6fd06f" : "#e06f6f";
       ctx.fillRect(bx, by, bw * Math.max(0, u.hp) / u.maxHp, bh);
 
-      drawCoverShields(u);
+      drawCoverShields(u.col, u.row);
     }
   }
 
