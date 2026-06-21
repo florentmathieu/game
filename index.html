@@ -48,8 +48,8 @@
     <div class="panel">
       <h2>Unité</h2>
       <div id="sel">Clique une unité bleue.</div>
-      <div class="row"><button id="endturn">Réinitialiser les PM</button></div>
-      <div class="hint">PM = points de mouvement. Monter d'un niveau coûte +1 PM. Un dénivelé de 2 niveaux ou plus est une falaise infranchissable. Obstacles et cases occupées bloquent le passage. Rocher = couvert total (coupe la vue) ; muret = couvert partiel (laisse voir). Le côté protégé d'une unité est marqué : trait plein vert = total, pointillé jaune = partiel.</div>
+      <div class="row"><button id="endturn">Nouveau tour (PM + actions)</button></div>
+      <div class="hint">PM = points de mouvement. Monter d'un niveau coûte +1 PM. Un dénivelé de 2 niveaux ou plus est une falaise infranchissable. Obstacles et cases occupées bloquent le passage. Rocher = couvert total (coupe la vue) ; muret = couvert partiel (laisse voir). Le côté protégé d'une unité est marqué : trait plein vert = total, pointillé jaune = partiel. Sélectionne une unité puis clique un ennemi cerclé de rouge pour l'attaquer : le couvert (du bon côté) baisse la précision, dominer en hauteur l'augmente (corps à corps inclus), et l'attaque consomme le tour de l'unité.</div>
 
       <h2 style="margin-top:14px">Carte</h2>
       <div class="row"><button id="regen">Régénérer la carte</button></div>
@@ -73,6 +73,8 @@
   const COLS = 20, ROWS = 20, SIZE = 17, LEVELS = 7, MARGIN = 14;
   const VISION = 5;          // rayon de vision (en cases) des unités joueur
   const OBSTACLE_RATE = 0.12; // proportion de cases occupées par un obstacle
+  const HEIGHT_BONUS = 12;   // % de précision gagné par niveau d'écart de hauteur
+  const COVER_HALF = 20, COVER_FULL = 40; // % de défense procurés par le couvert
   const SQRT3 = Math.sqrt(3);
   const HEX_W = SQRT3 * SIZE;   // largeur d'un hexagone (pointy-top)
   const HEX_V = 1.5 * SIZE;     // pas vertical entre deux lignes
@@ -129,6 +131,7 @@
   let hover = null;
   let visible = new Set();   // cases actuellement vues par le joueur
   let explored = new Set();  // cases déjà vues au moins une fois (mémoire)
+  let lastAttack = null;     // résumé du dernier tir pour le panneau
   const opts = { showLevels: false, showGrid: true, fog: true };
 
   const tileAt = (c, r) => (r>=0&&r<ROWS&&c>=0&&c<COLS) ? tiles[r][c] : null;
@@ -196,16 +199,17 @@
 
   // ---- Unités -------------------------------------------------------------
   function placeUnits(){
+    const mk = (o) => Object.assign({ acted:false }, o, { hp:o.maxHp, mp:o.maxMp });
     units = [
-      { col:3,  row:16, team:"player", name:"Sergent",  mp:8, maxMp:8 },
-      { col:5,  row:14, team:"player", name:"Sapeur",   mp:8, maxMp:8 },
-      { col:15, row:4,  team:"enemy",  name:"Garde",    mp:6, maxMp:6 },
-      { col:12, row:8,  team:"enemy",  name:"Archer",   mp:6, maxMp:6 },
-      { col:16, row:12, team:"enemy",  name:"Brute",    mp:6, maxMp:6 },
+      mk({ col:3,  row:16, team:"player", name:"Sergent", maxMp:8, maxHp:8,  aim:72, dmgMin:3, dmgMax:5, range:7 }),
+      mk({ col:5,  row:14, team:"player", name:"Sapeur",  maxMp:8, maxHp:7,  aim:65, dmgMin:3, dmgMax:4, range:6 }),
+      mk({ col:15, row:4,  team:"enemy",  name:"Garde",   maxMp:6, maxHp:8,  aim:60, dmgMin:3, dmgMax:4, range:6 }),
+      mk({ col:12, row:8,  team:"enemy",  name:"Archer",  maxMp:6, maxHp:6,  aim:70, dmgMin:2, dmgMax:4, range:8 }),
+      mk({ col:16, row:12, team:"enemy",  name:"Brute",   maxMp:6, maxHp:11, aim:55, dmgMin:4, dmgMax:6, range:4 }),
     ];
     // les cases de départ ne doivent pas être des obstacles
     for (const u of units) tiles[u.row][u.col].obstacle = false;
-    selected = null; reach = null;
+    selected = null; reach = null; lastAttack = null;
     explored = new Set();
     recomputeVision();
   }
@@ -288,6 +292,77 @@
       path.unshift([pc, pr]); cur = key(pc, pr);
     }
     return path; // inclut la case de départ
+  }
+
+  // ---- Combat -------------------------------------------------------------
+  const elevOf = (u) => tiles[u.row][u.col].elev;
+  function hexDistUnits(a, b){ return cubeDist(offsetToCube(a.col,a.row), offsetToCube(b.col,b.row)); }
+
+  // Couvert directionnel : on retient le meilleur couvert situé du côté de l'attaquant.
+  function coverPenalty(target, fromCol, fromRow){
+    const a = tileCenter(target.col, target.row), b = tileCenter(fromCol, fromRow);
+    let ax = b.x-a.x, ay = b.y-a.y; const al = Math.hypot(ax,ay) || 1; ax/=al; ay/=al;
+    let best = 0;
+    for (const [dc, dr] of NEI[target.row & 1]){
+      const nc = target.col+dc, nr = target.row+dr;
+      const t = tileAt(nc, nr);
+      if (!t || !t.obstacle) continue;
+      const c = tileCenter(nc, nr);
+      let dx = c.x-a.x, dy = c.y-a.y; const dl = Math.hypot(dx,dy) || 1; dx/=dl; dy/=dl;
+      if (ax*dx + ay*dy > 0.35){            // le couvert fait face à l'attaquant
+        best = Math.max(best, t.cover === "full" ? COVER_FULL : COVER_HALF);
+      }
+    }
+    return best;
+  }
+
+  // Ligne de tir : un relief plus haut ou un couvert total NON adjacent à la cible bloque le tir.
+  function lineOfFire(att, tgt){
+    const a = offsetToCube(att.col, att.row), b = offsetToCube(tgt.col, tgt.row);
+    const N = cubeDist(a, b);
+    if (N <= 1) return true;
+    for (let i = 1; i < N; i++){
+      const cb = cubeRound(cubeLerp(a, b, i / N));
+      const o = cubeToOffset(cb.x, cb.z);
+      const t = tileAt(o.col, o.row);
+      if (!t) continue;
+      if (t.elev > Math.max(elevOf(att), elevOf(tgt))) return false;
+      if (t.obstacle && t.cover === "full" && cubeDist(offsetToCube(o.col,o.row), b) > 1) return false;
+    }
+    return true;
+  }
+
+  function isMelee(att, tgt){ return hexDistUnits(att, tgt) === 1; }
+
+  // Détail de la précision, pour l'affichage comme pour le tir.
+  function hitBreakdown(att, tgt){
+    const melee = isMelee(att, tgt);
+    const cover = melee ? 0 : coverPenalty(tgt, att.col, att.row);   // le corps à corps ignore le couvert
+    const dh = elevOf(att) - elevOf(tgt);
+    const height = dh * HEIGHT_BONUS;                                // avantage proportionnel à l'écart
+    const chance = Math.max(5, Math.min(95, Math.round(att.aim - cover + height)));
+    return { melee, base: att.aim, cover, height, dh, chance };
+  }
+
+  function canAttack(att, tgt){
+    if (!att || att.team !== "player" || att.acted) return false;
+    if (!tgt || tgt.team === att.team || tgt.hp <= 0) return false;
+    if (!isVisible(tgt.col, tgt.row)) return false;
+    if (hexDistUnits(att, tgt) > att.range) return false;
+    return lineOfFire(att, tgt);
+  }
+
+  function doAttack(att, tgt){
+    const bd = hitBreakdown(att, tgt);
+    const hit = Math.random()*100 < bd.chance;
+    let dmg = 0;
+    if (hit){ dmg = att.dmgMin + Math.floor(Math.random()*(att.dmgMax-att.dmgMin+1)); tgt.hp -= dmg; }
+    const dead = tgt.hp <= 0;
+    lastAttack = { from: att.name, to: tgt.name, melee: bd.melee, chance: bd.chance, hit, dmg, dead };
+    att.acted = true; att.mp = 0;
+    if (dead){ units = units.filter(u => u !== tgt); }
+    recomputeVision();
+    reach = selected ? computeReach(selected) : null;
   }
 
   // ---- Rendu --------------------------------------------------------------
@@ -431,17 +506,46 @@
       fillHex(x, y, SIZE); ctx.lineWidth = 2; ctx.strokeStyle = "#ffd479"; ctx.stroke();
     }
 
-    // 6) unités (les ennemis sous le brouillard sont cachés)
+    // 6) ligne de tir vers la cible survolée
+    if (selected){
+      const tgt = hover && unitAt(hover.col, hover.row);
+      if (tgt && canAttack(selected, tgt)){
+        const a = tileCenter(selected.col, selected.row), b = tileCenter(tgt.col, tgt.row);
+        ctx.lineWidth = 2; ctx.strokeStyle = "rgba(216,99,95,0.9)"; ctx.setLineDash([5,4]);
+        ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke(); ctx.setLineDash([]);
+        ctx.lineWidth = 2.5; ctx.strokeStyle = "#ff6b66";
+        ctx.beginPath(); ctx.arc(b.x, b.y, SIZE*0.7, 0, Math.PI*2); ctx.stroke();
+      }
+    }
+
+    // 7) unités (les ennemis sous le brouillard sont cachés)
     for (const u of units){
       if (u.team === "enemy" && !isVisible(u.col, u.row)) continue;
       const { x, y } = tileCenter(u.col, u.row);
+
+      // halo "cible attaquable" si une unité joueur est sélectionnée
+      if (selected && canAttack(selected, u)){
+        ctx.beginPath(); ctx.arc(x, y, SIZE*0.78, 0, Math.PI*2);
+        ctx.lineWidth = 2; ctx.strokeStyle = "rgba(255,107,102,0.8)"; ctx.setLineDash([4,3]);
+        ctx.stroke(); ctx.setLineDash([]);
+      }
+
       ctx.beginPath(); ctx.arc(x, y, SIZE*0.55, 0, Math.PI*2);
-      ctx.fillStyle = u.team === "player" ? "#5fb0d8" : "#d8635f"; ctx.fill();
+      ctx.fillStyle = u.team === "player" ? "#5fb0d8" : "#d8635f";
+      ctx.globalAlpha = (u.team === "player" && u.acted) ? 0.5 : 1; ctx.fill(); ctx.globalAlpha = 1;
       ctx.lineWidth = u === selected ? 3 : 1.5;
       ctx.strokeStyle = u === selected ? "#ffffff" : "rgba(0,0,0,0.5)"; ctx.stroke();
       ctx.fillStyle = "#10171c"; ctx.font = "bold 12px sans-serif";
       ctx.textAlign = "center"; ctx.textBaseline = "middle";
       ctx.fillText(u.name[0], x, y);
+
+      // barre de PV
+      const bw = SIZE*1.0, bh = 4, bx = x - bw/2, by = y - SIZE*0.55 - 8;
+      ctx.fillStyle = "rgba(0,0,0,0.6)"; ctx.fillRect(bx-1, by-1, bw+2, bh+2);
+      ctx.fillStyle = "#3a3128"; ctx.fillRect(bx, by, bw, bh);
+      ctx.fillStyle = u.team === "player" ? "#6fd06f" : "#e06f6f";
+      ctx.fillRect(bx, by, bw * Math.max(0, u.hp) / u.maxHp, bh);
+
       drawCoverShields(u);
     }
   }
@@ -481,7 +585,19 @@
         if (t.obstacle) s += t.cover === "full"
           ? `<br><code>Rocher</code> — couvert total, bloque la vue`
           : `<br><code>Muret</code> — couvert partiel, n'arrête pas la vue`;
-        if (u && isVisible(hover.col, hover.row)) s += `<br>Occupée par : <code>${u.name}</code>`;
+        if (u && isVisible(hover.col, hover.row)){
+          s += `<br>Occupée par : <code>${u.name}</code> (PV ${Math.max(0,u.hp)}/${u.maxHp})`;
+          if (selected && canAttack(selected, u)){
+            const bd = hitBreakdown(selected, u);
+            const hsign = bd.height >= 0 ? "+" : "";
+            s += `<br><b style="color:#ff8b86">Tir : ${bd.chance}% de toucher</b>`
+               + `<br><span style="color:#9a8a74">base ${bd.base}`
+               + (bd.cover ? ` · couvert −${bd.cover}` : ``)
+               + (bd.dh ? ` · hauteur ${hsign}${bd.height} (Δ${bd.dh})` : ``)
+               + (bd.melee ? ` · corps à corps` : ``) + `</span>`
+               + `<br><span style="color:#9a8a74">dégâts ${selected.dmgMin}–${selected.dmgMax} · clic pour tirer</span>`;
+          }
+        }
         if (selected && reach && reach.dist[key(hover.col,hover.row)] !== undefined)
           s += `<br>Coût du trajet : <code>${reach.dist[key(hover.col,hover.row)]}</code> PM`;
         info.innerHTML = s;
@@ -500,6 +616,10 @@
     if (u && u.team === "player"){
       selected = u; reach = computeReach(u); updateSel(); draw(); return;
     }
+    // clic sur un ennemi attaquable -> tir / corps à corps
+    if (selected && u && canAttack(selected, u)){
+      doAttack(selected, u); updateSel(); draw(); return;
+    }
     // clic sur une case atteignable -> déplacement
     if (selected && reach && reach.dist[key(t.col, t.row)] !== undefined){
       selected.mp -= reach.dist[key(t.col, t.row)];
@@ -513,10 +633,23 @@
 
   function updateSel(){
     const el = document.getElementById("sel");
-    if (!selected){ el.textContent = "Clique une unité bleue."; return; }
-    el.innerHTML = `<code>${selected.name}</code> — PM : <code>${selected.mp}</code> / ${selected.maxMp}`
-      + `<br>Position : <code>(${selected.col}, ${selected.row})</code>`
-      + `<br>Altitude : <code>${tiles[selected.row][selected.col].elev}</code>`;
+    let html = "";
+    if (!selected){ html = "Clique une unité bleue."; }
+    else {
+      html = `<code>${selected.name}</code> — PV <code>${Math.max(0,selected.hp)}/${selected.maxHp}</code>`
+        + `<br>PM <code>${selected.mp}/${selected.maxMp}</code> · précision <code>${selected.aim}%</code>`
+        + `<br>portée <code>${selected.range}</code> · dégâts <code>${selected.dmgMin}–${selected.dmgMax}</code>`
+        + `<br>position <code>(${selected.col}, ${selected.row})</code> · altitude <code>${elevOf(selected)}</code>`
+        + (selected.acted ? `<br><span style="color:#c98f3c">A déjà agi ce tour.</span>` : ``);
+    }
+    if (lastAttack){
+      const r = lastAttack;
+      html += `<hr style="border-color:#3a2c1c;margin:8px 0">`
+        + `<b>${r.from}</b> ${r.melee ? "frappe" : "tire sur"} <b>${r.to}</b> (${r.chance}%) : `
+        + (r.hit ? `<span style="color:#79e08a">touché, ${r.dmg} dégâts${r.dead ? " — éliminé !" : ""}</span>`
+                 : `<span style="color:#ff8b86">raté</span>`);
+    }
+    el.innerHTML = html;
   }
 
   // ---- Contrôles ----------------------------------------------------------
@@ -528,7 +661,8 @@
 
   document.getElementById("regen").addEventListener("click", () => { generate(); placeUnits(); updateSel(); draw(); });
   document.getElementById("endturn").addEventListener("click", () => {
-    for (const u of units) u.mp = u.maxMp;
+    for (const u of units){ u.mp = u.maxMp; u.acted = false; }
+    lastAttack = null;
     if (selected) reach = computeReach(selected);
     updateSel(); draw();
   });
