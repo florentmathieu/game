@@ -173,9 +173,14 @@
 
       <h2 style="margin-top:12px">Mission</h2>
       <div class="erow"><button id="ed-play">▶ Tester</button> <button id="ed-quit">Quitter</button></div>
+      <div class="erow"><button id="ed-save">💾 Enregistrer</button> <select id="ed-saved"></select></div>
+      <div class="erow"><button id="ed-loadsaved">Charger</button> <button id="ed-delsaved">Supprimer</button></div>
+      <div class="hint">Enregistrées dans ce navigateur — elles apparaissent dans le menu « Missions » du jeu.</div>
+
+      <h2 style="margin-top:12px">Publier (fichier)</h2>
       <div class="erow"><button id="ed-download">⬇ Télécharger</button> <button id="ed-copy">Copier</button> <button id="ed-load">Charger ↑</button></div>
       <textarea id="missionjson" class="hint" spellcheck="false" rows="4" style="width:100%"></textarea>
-      <div class="hint" style="margin-top:4px">Astuce : « Télécharger » puis pousse le fichier dans <code>missions/</code>, et ajoute-le à <code>missions/list.json</code> pour qu'il apparaisse dans le menu.</div>
+      <div class="hint" style="margin-top:4px">Pour rendre une mission permanente / partagée : « Télécharger », pousse le fichier dans <code>missions/</code> et ajoute-le à <code>missions/list.json</code>.</div>
     </div>
   </div>
 
@@ -1786,6 +1791,7 @@
       return;
     }
     if (TEMPLATES[editTool]){ if (isDown) placeEditUnit(editTool, c, r); return; }
+    if (editTool === "erase" && editHoverEdge){ const w = wallKey(...editHoverEdge); if (walls.has(w)) walls.delete(w); }  // la gomme efface aussi les murets
     if (!isDown && lastPaint === k) return;     // une seule application par case pendant un glisser
     lastPaint = k;
     switch (editTool){
@@ -1828,7 +1834,7 @@
     document.body.classList.add("editing");
     const ci = document.getElementById("ed-cols"), ri = document.getElementById("ed-rows"), ni = document.getElementById("ed-name");
     if (ci) ci.value = COLS; if (ri) ri.value = ROWS; if (ni) ni.value = editorName;
-    setTool(editTool); updateExport(); draw();
+    refreshSavedSelect(); setTool(editTool); updateExport(); draw();
   }
   function leaveEditor(){
     editMode = false; painting = false;
@@ -1896,6 +1902,21 @@
   onEd("ed-clearunits", () => { units = []; updateExport(); draw(); });
   { const ni = document.getElementById("ed-name"); if (ni) ni.addEventListener("input", () => { editorName = ni.value || "Mission"; updateExport(); }); }
   for (const b of document.querySelectorAll(".etool")) b.addEventListener("click", () => setTool(b.dataset.tool));
+  onEd("ed-save", () => {
+    const o = savedMissions(); o[editorName] = serializeMission(editorName);
+    if (writeSaved(o)){ refreshSavedSelect(); refreshMissionMenu();
+      const el = document.getElementById("editinfo"); if (el) el.textContent = "Enregistrée : " + editorName; }
+  });
+  onEd("ed-loadsaved", () => {
+    const n = document.getElementById("ed-saved").value; const o = savedMissions();
+    if (o[n]){ applyMission(o[n]); editorName = n;
+      const ci=document.getElementById("ed-cols"),ri=document.getElementById("ed-rows"),ni=document.getElementById("ed-name");
+      if(ci)ci.value=COLS; if(ri)ri.value=ROWS; if(ni)ni.value=editorName; updateExport(); draw(); }
+  });
+  onEd("ed-delsaved", () => {
+    const n = document.getElementById("ed-saved").value; const o = savedMissions();
+    if (o[n]){ delete o[n]; writeSaved(o); refreshSavedSelect(); refreshMissionMenu(); }
+  });
   onEd("ed-download", () => {
     const blob = new Blob([JSON.stringify(serializeMission(editorName), null, 1)], { type:"application/json" });
     const a = document.createElement("a"); a.href = URL.createObjectURL(blob);
@@ -2093,29 +2114,51 @@ Stiff: Enough. I've decided.`;
     runIntro();
   }
 
-  // menu des missions : alimenté par missions/list.json (liste de fichiers ou d'objets {file,name})
-  async function loadMissionList(){
+  // missions enregistrées dans le navigateur (localStorage) : { nom: mission }
+  const LS_KEY = "mgf_missions";
+  function savedMissions(){ try{ return JSON.parse(localStorage.getItem(LS_KEY) || "{}") || {}; }catch(e){ return {}; } }
+  function writeSaved(o){ try{ localStorage.setItem(LS_KEY, JSON.stringify(o)); return true; }catch(e){ alert("Sauvegarde impossible : " + e.message); return false; } }
+  function refreshSavedSelect(){
+    const sel = document.getElementById("ed-saved"); if (!sel) return;
+    const names = Object.keys(savedMissions());
+    sel.innerHTML = names.length ? names.map(n => `<option>${n}</option>`).join("") : `<option value="">(aucune)</option>`;
+  }
+
+  // menu « Missions » du jeu : missions du dépôt (missions/list.json) + missions locales
+  let repoMissions = [];
+  async function fetchRepoMissions(){
+    try{
+      const r = await fetch("missions/list.json?_=" + Date.now(), { cache:"no-store" });
+      if (r.ok){ const l = await r.json(); if (Array.isArray(l))
+        repoMissions = l.map(x => typeof x === "string" ? { file:x, name:x.split("/").pop().replace(/\.json$/,"") } : x); }
+    }catch(e){}
+  }
+  function refreshMissionMenu(){
     const sel = document.getElementById("missionsel"), row = document.getElementById("missionrow");
     if (!sel) return;
-    let list = null;
-    try{ const r = await fetch("missions/list.json?_=" + Date.now(), { cache:"no-store" }); if (r.ok) list = await r.json(); }catch(e){}
-    if (!Array.isArray(list) || !list.length) return;
-    const items = list.map(x => typeof x === "string" ? { file:x, name:x.split("/").pop().replace(/\.json$/,"") } : x);
-    sel.innerHTML = `<option value="">— Missions —</option>` + items.map(it => `<option value="${it.file}">${it.name}</option>`).join("");
-    if (row) row.style.display = "";
-    sel.addEventListener("change", async () => {
-      if (!sel.value) return;
-      const url = sel.value.includes("/") ? sel.value : "missions/" + sel.value;
-      const m = await loadMissionFromUrl(url);
-      if (m) startMission(m); else alert("Mission introuvable : " + url);
-    });
+    const local = Object.keys(savedMissions());
+    const opts = [`<option value="">— Missions —</option>`];
+    for (const it of repoMissions) opts.push(`<option value="repo:${it.file}">${it.name}</option>`);
+    for (const n of local) opts.push(`<option value="local:${n}">${n} (local)</option>`);
+    sel.innerHTML = opts.join("");
+    if (row) row.style.display = (repoMissions.length || local.length) ? "" : "none";
   }
 
   // ---- Init ---------------------------------------------------------------
   setupCanvas(); generate(); placeUnits();
   selected = units.find(u => u.team === "player"); reach = selected ? computeReach(selected) : null;
   renderLog(); refreshAll();
-  loadMissionList();
+  { const sel = document.getElementById("missionsel");
+    if (sel) sel.addEventListener("change", async () => {
+      const v = sel.value; if (!v) return;
+      let m = null;
+      if (v.startsWith("local:")){ m = savedMissions()[v.slice(6)]; }
+      else if (v.startsWith("repo:")){ const f = v.slice(5); m = await loadMissionFromUrl(f.includes("/") ? f : "missions/" + f); }
+      if (m) startMission(m); else alert("Mission introuvable.");
+    });
+  }
+  refreshMissionMenu();
+  fetchRepoMissions().then(refreshMissionMenu);
 
   const params = new URLSearchParams(location.search);
   if (params.get("edit") !== null){ enterEditor(); }
