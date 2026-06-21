@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>POC tactique — carte hexagonale</title>
+<title>Malazan game of the fallen</title>
 <style>
   :root{
     --bg:#15110c; --panel:#221a12; --ink:#e8ddc8; --accent:#c98f3c; --muted:#8a7a64;
@@ -54,8 +54,8 @@
 </style>
 </head>
 <body>
-  <h1>Carte hexagonale — POC</h1>
-  <div class="sub">Grille 20×20 · Tab = unité suivante · clique une action puis Tab pour changer de cible · Échap annule</div>
+  <h1>Malazan game of the fallen</h1>
+  <div class="sub">Tab = unité suivante · clique une action puis Tab pour changer de cible · Échap annule</div>
 
   <div id="roster"></div>
 
@@ -67,8 +67,9 @@
       <div id="turninfo" class="hint" style="margin-bottom:6px"></div>
       <div id="sel">Clique une unité bleue.</div>
       <div class="row"><button id="act-shoot">Tirer</button><button id="act-melee">Épée</button></div>
-      <div class="row"><button id="act-overwatch">Vigilance</button><button id="act-reload">Recharger</button></div>
-      <div class="row"><button id="act-brace">Brace (+déf.)</button><button id="act-cracker">Cracker</button></div>
+      <div class="row"><button id="act-ow-shoot">Vig. tir</button><button id="act-ow-melee">Vig. épée</button></div>
+      <div class="row"><button id="act-reload">Recharger</button><button id="act-brace">Brace</button></div>
+      <div class="row"><button id="act-cracker">Cracker</button></div>
       <div class="row"><button id="endturn">Fin de tour ▶ (phase ennemie)</button></div>
 
       <h2 style="margin-top:14px">Journal</h2>
@@ -163,7 +164,11 @@
   let log = [];              // journal des dernières actions
   let turn = 1;              // numéro du tour
   let gameOver = null;       // null | "win" | "lose"
+  let enemyPhase = false;    // true pendant la phase ennemie (entrées bloquées)
   let walls = new Set();     // murets : couvert partiel posé sur l'arête entre deux cases
+  const busy = () => anim || enemyPhase;
+  const sleep = (ms) => new Promise(res => setTimeout(res, ms));
+  function animateMoveP(u, pts){ return new Promise(res => animateMove(u, pts, res)); }
 
   // Clé canonique d'une arête entre deux cases adjacentes.
   function wallKey(c1, r1, c2, r2){
@@ -376,6 +381,7 @@
       for (const [nc, nr] of neighbors(c, r)){
         if (tiles[nr][nc].obstacle) continue;  // rocher : infranchissable
         if (unitAt(nc, nr)) continue;          // case occupée : on ne traverse pas
+        if (unit.team === "player" && !visible.has(key(nc, nr))) continue; // on ne court pas dans le brouillard
         const cost = moveCost(cur, tiles[nr][nc]);
         if (cost === null) continue;           // falaise
         const nd = d + cost;
@@ -593,7 +599,7 @@
 
   // Recherche : aucun joueur en vue. On fouille la position extrapolée la plus proche,
   // en approchant prudemment (on préfère un couvert face à la zone suspecte).
-  function searchAct(e){
+  async function searchAct(e){
     const goals = [];
     for (const [p, mem] of lastSeen) if (p.hp > 0) goals.push({ p, g: predictedGoal(mem) });
     if (!goals.length){ holdOrWatch(e); return; }     // rien à investiguer : tient sa position (vigilance)
@@ -619,27 +625,30 @@
       if (score < bestScore){ bestScore = score; best = [c, row, r.dist[k]]; }
     }
     if (best[0] !== e.col || best[1] !== e.row){
+      const path = buildPath(r.prev, best[0], best[1]);
       spendMove(e, best[2]);
-      executeMove(e, buildPath(r.prev, best[0], best[1]));   // peut subir l'overwatch joueur
+      const stop = executeMove(e, path);
+      await animateMoveP(e, path.slice(0, stop + 1));
+      await sleep(100);
       if (e.hp <= 0) return;
     }
     // a-t-on repéré quelqu'un en chemin ?
     const t = bestTarget(e);
-    if (t){ doAttack(e, t); return; }
+    if (t){ doAttack(e, t); await sleep(380); return; }
     holdOrWatch(e);
   }
 
-  function enemyAct(e){
+  async function enemyAct(e){
     if (e.hp <= 0) return;
     e.overwatch = false;   // il recommence à agir : la vigilance précédente tombe
     // l'IA ne connaît que les joueurs que son camp voit (brouillard ennemi)
     const players = units.filter(u => u.team === "player" && u.hp > 0 && enemyVisible.has(key(u.col, u.row)));
-    if (!players.length){ searchAct(e); return; }   // personne en vue : fouille la dernière position connue
+    if (!players.length){ await searchAct(e); return; }   // personne en vue : fouille la dernière position connue
 
     // cracker : si une case de jet touche un bon groupe (ou une cible bien à couvert), on lance
     if (e.weapons.cracker && e.crackers > 0 && e.ap > 0){
       const g = bestGrenade(e, players);
-      if (g) { resolveThrow(e, g.col, g.row); return; }
+      if (g) { resolveThrow(e, g.col, g.row); await sleep(450); return; }
     }
 
     // cible de référence (la plus proche) pour le calcul d'angle d'encerclement
@@ -680,18 +689,21 @@
     }
 
     if (best[0] !== e.col || best[1] !== e.row){
+      const path = buildPath(r.prev, best[0], best[1]);
       spendMove(e, best[2]);
-      executeMove(e, buildPath(r.prev, best[0], best[1]));   // peut subir l'overwatch joueur
+      const stop = executeMove(e, path);                 // logique (peut subir l'overwatch joueur)
+      await animateMoveP(e, path.slice(0, stop + 1));     // glissement visible
+      await sleep(100);
       if (e.hp <= 0) return;
     }
 
     // recharge si l'arme à chargeur est vide mais qu'une cible serait à portée
     if (e.wtype === "ranged" && e.clip !== undefined && e.ammo <= 0 && e.ap > 0 && hasPotentialShot(e)){
-      e.ap -= 1; e.ammo = e.clip; pushLog(`▼ ${e.name} recharge`, "enemy");
+      e.ap -= 1; e.ammo = e.clip; pushLog(`▼ ${e.name} recharge`, "enemy"); draw(); await sleep(250);
     }
     // tir après s'être positionné
     const t = bestTarget(e);
-    if (t){ doAttack(e, t); return; }
+    if (t){ doAttack(e, t); await sleep(380); return; }
     // se mettre en garde si on a un bouclier et qu'on est exposé au feu
     if (e.shieldBlock > 0 && e.ap > 0 && !e.bracing &&
         players.some(p => shotChanceFrom(p.col, p.row, p, e.col, e.row) > 0)){
@@ -728,17 +740,29 @@
   }
 
   // tient la position ; les unités à distance passent en vigilance (overwatch)
-  function holdOrWatch(e){ if (e.range > 1 && (e.clip === undefined || e.ammo > 0)) e.overwatch = true; e.ap = 0; }
+  // un ennemi ne se met en vigilance que s'il sait que des joueurs sont là (vus maintenant ou mémorisés)
+  function enemyKnowsPlayers(){
+    if (lastSeen.size > 0) return true;
+    return units.some(u => u.team === "player" && u.hp > 0 && enemyVisible.has(key(u.col, u.row)));
+  }
+  function holdOrWatch(e){
+    if (e.range > 1 && (e.clip === undefined || e.ammo > 0) && enemyKnowsPlayers()) e.overwatch = true;
+    e.ap = 0;
+  }
 
   // ---- Tours --------------------------------------------------------------
-  function endPlayerTurn(){
-    if (gameOver) return;
-    selected = null; reach = null;
+  async function endPlayerTurn(){
+    if (gameOver || enemyPhase) return;
+    enemyPhase = true;
+    selected = null; reach = null; targeting = null; throwing = false;
     pushLog(`— Tour ${turn} : phase ennemie —`, "enemy");
+    refreshAll();
     for (const e of units.filter(u => u.team === "enemy")){
       if (gameOver) break;
-      enemyAct(e);
+      await enemyAct(e);
+      await sleep(160);            // petite pause entre ennemis
     }
+    enemyPhase = false;
     if (gameOver){ updateSel(); renderRoster(); draw(); return; }
     // nouveau tour : on recharge tout le monde
     turn++;
@@ -880,6 +904,35 @@
     }
   }
 
+  // Contour des zones de déplacement (sans remplir) : on trace l'arête entre une case
+  // de la zone et une case d'un coût en PA supérieur (ou hors de portée).
+  function zoneAt(u, c, r){
+    if (c === u.col && r === u.row) return 0;
+    const d = reach.dist[key(c, r)];
+    return d === undefined ? Infinity : apForMove(u, d);
+  }
+  function drawReachOutline(){
+    const u = selected;
+    const COL = ["rgba(120,200,255,0.95)", "rgba(232,178,96,0.95)", "rgba(235,120,95,0.95)"];
+    const cells = [[u.col, u.row]];
+    for (const k in reach.dist){ const [c, r] = k.split(",").map(Number); cells.push([c, r]); }
+    ctx.lineCap = "round";
+    for (const [c, r] of cells){
+      const z = zoneAt(u, c, r); if (z === Infinity) continue;
+      for (const [dc, dr] of NEI[r & 1]){
+        const nc = c + dc, nr = r + dr;
+        if (zoneAt(u, nc, nr) <= z) continue;          // bord seulement vers une zone plus coûteuse / l'extérieur
+        const a = tileCenter(c, r), b = tileCenter(nc, nr);
+        const mx = (a.x+b.x)/2, my = (a.y+b.y)/2, ang = Math.atan2(b.y-a.y, b.x-a.x) + Math.PI/2, len = SIZE;
+        ctx.lineWidth = z === 0 ? 2.6 : 2; ctx.strokeStyle = COL[Math.min(2, z)];
+        ctx.beginPath();
+        ctx.moveTo(mx - Math.cos(ang)*len/2, my - Math.sin(ang)*len/2);
+        ctx.lineTo(mx + Math.cos(ang)*len/2, my + Math.sin(ang)*len/2);
+        ctx.stroke();
+      }
+    }
+  }
+
   // Indicateurs de couvert sur les arêtes d'une case (plein vert=total, pointillé jaune=partiel).
   function drawCoverShields(col, row){
     const a = tileCenter(col, row);
@@ -929,18 +982,8 @@
     }
     drawWalls();   // murets sur les arêtes (par-dessus le sol)
 
-    // 2) portée de déplacement : bleu = gratuit (0 PA), orangé = coûte des PA
-    if (reach && selected){
-      for (const k in reach.dist){
-        const [c, r] = k.split(",").map(Number);
-        const { x, y } = tileCenter(c, r);
-        const ap = apForMove(selected, reach.dist[k]);
-        fillHex(x, y, SIZE);
-        ctx.fillStyle = ap === 0 ? "rgba(95,176,216,0.30)" : ap === 1 ? "rgba(216,160,95,0.26)" : "rgba(216,110,95,0.26)";
-        ctx.fill();
-        ctx.lineWidth = 1.2; ctx.strokeStyle = ap === 0 ? "rgba(120,200,255,0.5)" : "rgba(230,170,110,0.5)"; ctx.stroke();
-      }
-    }
+    // 2) portée de déplacement : seulement le CONTOUR de chaque zone de PA
+    if (reach && selected) drawReachOutline();
 
     // 3) aperçu du chemin au survol
     if (selected && hover){
@@ -1168,7 +1211,7 @@
   }
 
   function enterTargeting(weaponMode){
-    if (!selected || selected.ap <= 0 || gameOver || anim) return;
+    if (!selected || selected.ap <= 0 || gameOver || busy()) return;
     if (!selected.weapons[weaponMode]) return;
     throwing = false;
     setMode(selected, weaponMode);
@@ -1192,22 +1235,25 @@
   }
   function cancelTargeting(){ if (targeting){ targeting = null; refreshAll(); } }
 
-  function doOverwatch(){
-    if (!selected || selected.ap <= 0 || gameOver || anim) return;
-    selected.overwatch = true; selected.ap = 0; reach = computeReach(selected); targeting = null;
-    pushLog(`▲ ${selected.name} se met en vigilance`, "player");
+  function doOverwatch(mode){
+    if (!selected || selected.ap <= 0 || gameOver || busy()) return;
+    if (!selected.weapons[mode]) return;
+    if (mode === "ranged" && selected.clip !== undefined && selected.ammo <= 0) return;  // arbalète vide
+    setMode(selected, mode);                       // l'arme choisie servira à la riposte
+    selected.overwatch = true; selected.ap = 0; reach = computeReach(selected); targeting = null; throwing = false;
+    pushLog(`▲ ${selected.name} en vigilance (${mode === "ranged" ? "tir" : "épée"})`, "player");
     refreshAll(); maybeAutoEnd();
   }
   // actions du 1er PA (coûtent 1 PA, pas tous)
   function doBrace(){
-    if (!selected || selected.ap <= 0 || gameOver || anim) return;
+    if (!selected || selected.ap <= 0 || gameOver || busy()) return;
     if (!selected.shieldBlock || selected.bracing) return;
     selected.ap -= 1; selected.bracing = true; targeting = null; reach = computeReach(selected);
     pushLog(`▲ ${selected.name} se met en garde (+${DEF_BRACE} défense)`, "player");
     refreshAll(); maybeAutoEnd();
   }
   function doReload(){
-    if (!selected || selected.ap <= 0 || gameOver || anim) return;
+    if (!selected || selected.ap <= 0 || gameOver || busy()) return;
     if (selected.clip === undefined || selected.ammo >= selected.clip) return;
     selected.ap -= 1; selected.ammo = selected.clip; targeting = null; reach = computeReach(selected);
     pushLog(`▲ ${selected.name} recharge`, "player");
@@ -1216,7 +1262,7 @@
 
   // ---- Cracker (grenade) : vise une case, dispersion ±scatter, dégâts en rayon ----
   function enterThrow(){
-    if (!selected || selected.ap <= 0 || gameOver || anim) return;
+    if (!selected || selected.ap <= 0 || gameOver || busy()) return;
     if (!selected.weapons.cracker || selected.crackers <= 0) return;
     throwing = true; targeting = null; refreshAll();
   }
@@ -1272,7 +1318,7 @@
   function flash(m){ flashMsg = m; setTimeout(() => { flashMsg = ""; const el = document.getElementById("info"); if (el && el.textContent === m) el.textContent = "Passe la souris sur la carte."; }, 1500); const el = document.getElementById("info"); if (el) el.textContent = m; }
 
   function onClick(e){
-    if (gameOver || anim) return;
+    if (gameOver || busy()) return;
     const { mx, my } = evtPos(e);
     const t = pickTile(mx, my);
     if (!t) return;
@@ -1347,16 +1393,19 @@
   function refreshButtons(){
     const shoot = document.getElementById("act-shoot");
     const melee = document.getElementById("act-melee");
-    const ow = document.getElementById("act-overwatch");
+    const owS = document.getElementById("act-ow-shoot");
+    const owM = document.getElementById("act-ow-melee");
     const reload = document.getElementById("act-reload");
     const brace = document.getElementById("act-brace");
     const cracker = document.getElementById("act-cracker");
     if (!shoot) return;
-    const ready = selected && selected.ap > 0 && !gameOver && !anim;
+    const ready = selected && selected.ap > 0 && !gameOver && !busy();
     const w = selected && selected.weapons;
-    shoot.disabled   = !(ready && w.ranged && (selected.clip === undefined || selected.ammo > 0));
+    const ammoOk = selected && (selected.clip === undefined || selected.ammo > 0);
+    shoot.disabled   = !(ready && w.ranged && ammoOk);
     melee.disabled   = !(ready && w.melee);
-    ow.disabled      = !ready;
+    owS.disabled     = !(ready && w.ranged && ammoOk);
+    owM.disabled     = !(ready && w.melee);
     reload.disabled  = !(ready && selected.clip !== undefined && selected.ammo < selected.clip);
     brace.disabled   = !(ready && selected.shieldBlock > 0 && !selected.bracing);
     cracker.disabled = !(ready && w.cracker && selected.crackers > 0);
@@ -1391,18 +1440,19 @@
   canvas.addEventListener("click", onClick);
   canvas.addEventListener("touchstart", (e) => { e.preventDefault(); onMove(e); onClick(e); }, { passive:false });
 
-  document.getElementById("regen").addEventListener("click", () => { if (anim) return; generate(); placeUnits(); selectUnit(units.find(u => u.team === "player")); renderLog(); });
-  document.getElementById("endturn").addEventListener("click", () => { if (!anim) endPlayerTurn(); });
+  document.getElementById("regen").addEventListener("click", () => { if (busy()) return; generate(); placeUnits(); selectUnit(units.find(u => u.team === "player")); renderLog(); });
+  document.getElementById("endturn").addEventListener("click", () => { if (!busy()) endPlayerTurn(); });
   document.getElementById("act-shoot").addEventListener("click", () => enterTargeting("ranged"));
   document.getElementById("act-melee").addEventListener("click", () => enterTargeting("melee"));
-  document.getElementById("act-overwatch").addEventListener("click", doOverwatch);
+  document.getElementById("act-ow-shoot").addEventListener("click", () => doOverwatch("ranged"));
+  document.getElementById("act-ow-melee").addEventListener("click", () => doOverwatch("melee"));
   document.getElementById("act-reload").addEventListener("click", doReload);
   document.getElementById("act-brace").addEventListener("click", doBrace);
   document.getElementById("act-cracker").addEventListener("click", enterThrow);
 
   if (typeof window !== "undefined" && window.addEventListener)
     window.addEventListener("keydown", (e) => {
-      if (e.key === "Tab"){ e.preventDefault(); if (anim) return; targeting ? cycleTarget(e.shiftKey ? -1 : 1) : cycleUnit(e.shiftKey ? -1 : 1); }
+      if (e.key === "Tab"){ e.preventDefault(); if (busy()) return; targeting ? cycleTarget(e.shiftKey ? -1 : 1) : cycleUnit(e.shiftKey ? -1 : 1); }
       else if (e.key === "Enter"){ if (targeting) confirmTarget(); }
       else if (e.key === "Escape"){ cancelTargeting(); cancelThrow(); }
     });
