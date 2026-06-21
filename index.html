@@ -67,24 +67,18 @@
       <div id="turninfo" class="hint" style="margin-bottom:6px"></div>
       <div id="sel">Clique une unité bleue.</div>
       <div class="row"><button id="act-shoot">Tirer</button><button id="act-melee">Épée</button></div>
-      <div class="row"><button id="act-overwatch">Vigilance</button></div>
+      <div class="row"><button id="act-overwatch">Vigilance</button><button id="act-reload">Recharger</button></div>
+      <div class="row"><button id="act-brace">Brace (+déf.)</button><button id="act-cracker">Cracker</button></div>
       <div class="row"><button id="endturn">Fin de tour ▶ (phase ennemie)</button></div>
-      <div class="hint">Tab = unité suivante. Clique une action (Tirer / Épée / Vigilance) : les cibles valides se surlignent, Tab passe de l'une à l'autre, Entrée ou clic valide, Échap annule. Tu peux bouger (clic sur une case mauve) PUIS attaquer dans le même tour. Monter coûte +1 PM, dénivelé ≥ 2 = falaise. Rocher = couvert total + bloque la vue ; muret (arête) = couvert partiel, protège la case basse. L'épée ignore le couvert ; la hauteur augmente la précision. Le bouclier annule parfois un coup.</div>
 
       <h2 style="margin-top:14px">Journal</h2>
       <div id="log" class="hint"></div>
 
       <h2 style="margin-top:14px">Carte</h2>
       <div class="row"><button id="regen">Régénérer la carte</button></div>
-      <div class="row"><label><input type="checkbox" id="toggleFog" checked> Brouillard de guerre</label></div>
-      <div class="row"><label><input type="checkbox" id="toggleLevels"> Afficher les niveaux</label></div>
-      <div class="row"><label><input type="checkbox" id="toggleGrid" checked> Contour des hexagones</label></div>
 
       <h2 style="margin-top:14px">Survol</h2>
       <div id="info">Passe la souris sur la carte.</div>
-
-      <h2 style="margin-top:14px">Altitude</h2>
-      <div class="legend" id="legend"></div>
     </div>
   </div>
 
@@ -164,6 +158,7 @@
   let fx = [];                  // effets d'attaque éphémères (projectiles, coups d'épée)
   let fxRunning = false;
   let targeting = null;         // mode ciblage : { targets:[unités], idx }
+  let throwing = false;         // mode lancer de cracker (vise une case)
   const FX_DUR = 280;
   let log = [];              // journal des dernières actions
   let turn = 1;              // numéro du tour
@@ -176,7 +171,7 @@
       ? `${c1},${r1}|${c2},${r2}` : `${c2},${r2}|${c1},${r1}`;
   }
   const hasWall = (c1, r1, c2, r2) => walls.has(wallKey(c1, r1, c2, r2));
-  const opts = { showLevels: false, showGrid: true, fog: true };
+  const opts = { showLevels: false, showGrid: false, fog: true };
 
   const tileAt = (c, r) => (r>=0&&r<ROWS&&c>=0&&c<COLS) ? tiles[r][c] : null;
   const unitAt = (c, r) => units.find(u => u.col === c && u.row === r) || null;
@@ -262,26 +257,29 @@
       const u = Object.assign({ acted:false, overwatch:false, reacted:false, shieldBlock:0 }, o);
       u.mode = o.weapons.ranged ? "ranged" : "melee";   // par défaut on tire si on a une arme à distance
       applyWeapon(u);
-      u.hp = o.maxHp;
-      if (u.team === "player"){ u.mob = MOB_AP; u.freeMp = FREE_MP; u.ap = AP_MAX; u.mpLeft = FREE_MP; }
-      else u.mp = o.maxMp;
+      u.hp = o.maxHp; u.bracing = false;
+      if (o.weapons.ranged && o.weapons.ranged.clip){ u.clip = o.weapons.ranged.clip; u.ammo = u.clip; } // chargeur (sinon arme illimitée, ex. arc)
+      if (o.weapons.cracker){ u.crackers = o.crackers || 2; }
+      // mêmes limites pour tout le monde : 2 cases gratuites + 2 PA convertibles
+      u.mob = MOB_AP; u.freeMp = FREE_MP; u.ap = AP_MAX; u.mpLeft = FREE_MP;
       return u;
     };
     const sword = (aim, lo, hi) => ({ type:"melee", aim, dmgMin:lo, dmgMax:hi });
-    const bow   = (aim, lo, hi, rng) => ({ type:"ranged", aim, dmgMin:lo, dmgMax:hi, range:rng });
+    const bow   = (aim, lo, hi, rng, clip) => ({ type:"ranged", aim, dmgMin:lo, dmgMax:hi, range:rng, clip });
     units = [
       // Stiff (sergent) : épée + bouclier (mêlée, forte chance de blocage)
       mk({ col:3,  row:16, team:"player", name:"Stiff", role:"Sergent", maxMp:8, maxHp:10, shieldBlock:40,
            weapons:{ melee: sword(75,4,6) } }),
-      // Gizzard (sapeur) : arbalète (défaut) + épée
-      mk({ col:5,  row:14, team:"player", name:"Gizzard", role:"Sapeur", maxMp:8, maxHp:7,
-           weapons:{ ranged: bow(65,3,4,6), melee: sword(70,3,5) } }),
+      // Gizzard (sapeur) : arbalète (1 coup, à recharger) + épée + cracker (grenade)
+      mk({ col:5,  row:14, team:"player", name:"Gizzard", role:"Sapeur", maxMp:8, maxHp:7, crackers:2,
+           weapons:{ ranged: bow(65,3,4,6,1), melee: sword(70,3,5),
+                     cracker:{ type:"throw", dmgMin:5, dmgMax:9, range:6, radius:2, scatter:2 } } }),
       // Garde : épée + bouclier
       mk({ col:15, row:4,  team:"enemy",  name:"Garde",   maxMp:6, maxHp:8, shieldBlock:30,
            weapons:{ melee: sword(65,3,4) } }),
-      // Archer : arc (distance), pas de bouclier
+      // Archer : arc (distance) — pas de rechargement, mais dégâts plus faibles
       mk({ col:12, row:8,  team:"enemy",  name:"Archer",  maxMp:6, maxHp:6,
-           weapons:{ ranged: bow(70,2,4,8) } }),
+           weapons:{ ranged: bow(70,2,3,8) } }),
       // Brute : épée (mêlée), grosse frappe
       mk({ col:16, row:12, team:"enemy",  name:"Brute",   maxMp:8, maxHp:13,
            weapons:{ melee: sword(70,5,7) } }),
@@ -352,13 +350,12 @@
     return 1 + Math.max(0, climb);
   }
 
-  // Budget de mouvement total disponible ce tour (joueur : mouvement libre restant + PA convertibles).
-  function budgetOf(u){ return u.team === "player" ? (u.mpLeft + u.ap * u.mob) : u.mp; }
-  // PA qu'un trajet de coût `cost` consommera (joueur) : nb de blocs à ouvrir au-delà du restant.
-  function apForMove(u, cost){ return u.team === "player" ? Math.max(0, Math.ceil((cost - u.mpLeft) / u.mob)) : 0; }
+  // Budget de mouvement total disponible ce tour : mouvement libre restant + PA convertibles.
+  function budgetOf(u){ return u.mpLeft + u.ap * u.mob; }
+  // PA qu'un trajet de coût `cost` consommera : nb de blocs à ouvrir au-delà du restant.
+  function apForMove(u, cost){ return Math.max(0, Math.ceil((cost - u.mpLeft) / u.mob)); }
   // Dépense le mouvement : ouvre des blocs (consomme des PA) au besoin, puis retire le coût.
   function spendMove(u, cost){
-    if (u.team !== "player"){ u.mp -= cost; return; }
     while (cost > u.mpLeft && u.ap > 0){ u.ap--; u.mpLeft += u.mob; }
     u.mpLeft -= cost;
   }
@@ -454,18 +451,22 @@
 
   // Détail de la précision, pour l'affichage comme pour le tir.
   // Le type d'arme (et non la distance) décide si le couvert s'applique : l'épée (mêlée) l'ignore.
+  const DEF_BRACE = 20;                                  // défense gagnée en se mettant en garde
+  function defenseOf(u){ return u && u.bracing ? DEF_BRACE : 0; }
   function hitBreakdown(att, tgt){
     const melee = att.wtype === "melee";
     const cover = melee ? 0 : coverPenalty(tgt, att.col, att.row);   // le corps à corps ignore le couvert
     const dh = elevOf(att) - elevOf(tgt);
     const height = dh * HEIGHT_BONUS;                                // avantage proportionnel à l'écart
-    const chance = Math.max(5, Math.min(95, Math.round(att.aim - cover + height)));
-    return { melee, base: att.aim, cover, height, dh, chance };
+    const def = defenseOf(tgt);                                      // cible en garde (brace)
+    const chance = Math.max(5, Math.min(95, Math.round(att.aim - cover + height - def)));
+    return { melee, base: att.aim, cover, height, dh, def, chance };
   }
 
   function canAttack(att, tgt){
     if (!att || att.hp <= 0) return false;
-    if (att.team === "player" ? att.ap <= 0 : att.acted) return false;  // joueur : besoin d'un PA
+    if (att.ap <= 0) return false;                                      // besoin d'un PA (les deux camps)
+    if (att.wtype === "ranged" && att.clip !== undefined && att.ammo <= 0) return false; // arme à chargeur vide
     if (!tgt || tgt.team === att.team || tgt.hp <= 0) return false;
     // chaque camp ne peut viser que ce que son équipe voit
     const seen = att.team === "player" ? isVisible(tgt.col, tgt.row) : enemyVisible.has(key(tgt.col, tgt.row));
@@ -477,6 +478,7 @@
   function doAttack(att, tgt, reaction = false){
     const bd = hitBreakdown(att, tgt);
     pushFx(att, tgt, bd.melee);                                        // effet visuel (projectile / épée)
+    if (att.wtype === "ranged" && att.clip !== undefined) att.ammo--;  // un coup consommé (arme à chargeur)
     const chance = reaction ? Math.max(5, bd.chance - 15) : bd.chance; // riposte moins précise
     const hit = Math.random()*100 < chance;
     let dmg = 0, blocked = false;
@@ -488,10 +490,7 @@
     const verb = reaction ? "⚡ riposte sur" : (bd.melee ? "frappe" : "tire sur");
     const res = !hit ? "raté" : blocked ? "bloqué 🛡" : `touché ${dmg}${dead ? " ✝" : ""}`;
     pushLog(`${att.team === "player" ? "▲" : "▼"} ${att.name} ${verb} ${tgt.name} (${chance}%) : ${res}`, att.team);
-    if (!reaction){                                   // une riposte n'épuise rien
-      if (att.team === "player") att.ap = 0;          // une attaque consomme tous les PA
-      else { att.acted = true; att.mp = 0; }
-    }
+    if (!reaction) att.ap = 0;                        // une attaque consomme tous les PA (une riposte n'épuise rien)
     if (dead){ units = units.filter(u => u !== tgt); if (selected === tgt) selected = null; }
     recomputeVision();
     reach = selected ? computeReach(selected) : null;
@@ -501,6 +500,7 @@
   // ---- Overwatch : tir d'opportunité pendant le déplacement adverse -------
   function canReact(w, tgt){
     if (w.hp <= 0 || tgt.hp <= 0) return false;
+    if (w.wtype === "ranged" && w.clip !== undefined && w.ammo <= 0) return false;   // chargeur vide : pas de riposte
     if (cubeDist(offsetToCube(w.col, w.row), offsetToCube(tgt.col, tgt.row)) > VISION) return false;
     if (hexDistUnits(w, tgt) > w.range) return false;
     return lineOfFire(w, tgt);
@@ -618,7 +618,7 @@
       if (score < bestScore){ bestScore = score; best = [c, row, r.dist[k]]; }
     }
     if (best[0] !== e.col || best[1] !== e.row){
-      e.mp -= best[2];
+      spendMove(e, best[2]);
       executeMove(e, buildPath(r.prev, best[0], best[1]));   // peut subir l'overwatch joueur
       if (e.hp <= 0) return;
     }
@@ -654,6 +654,8 @@
         threat  = Math.max(threat,  shotChanceFrom(p.col, p.row, p, c, row));   // ce que JE subirais
         nearest = Math.min(nearest, cubeDist(offsetToCube(c, row), offsetToCube(p.col, p.row)));
       }
+      // il faut garder un PA pour tirer : si le trajet coûte 2 PA, on ne pourra pas attaquer
+      if (apForMove(e, cost) > 1 || (e.wtype === "ranged" && e.clip !== undefined && e.ammo <= 0)) offense = 0;
       // coordination : éviter de s'agglutiner, et préférer un angle différent des alliés
       let clump = 0, spread = 0;
       const me = tileCenter(c, row);
@@ -671,19 +673,29 @@
     }
 
     if (best[0] !== e.col || best[1] !== e.row){
-      e.mp -= best[2];
+      spendMove(e, best[2]);
       executeMove(e, buildPath(r.prev, best[0], best[1]));   // peut subir l'overwatch joueur
       if (e.hp <= 0) return;
     }
 
+    // recharge si l'arme à chargeur est vide mais qu'une cible serait à portée
+    if (e.wtype === "ranged" && e.clip !== undefined && e.ammo <= 0 && e.ap > 0 && hasPotentialShot(e)){
+      e.ap -= 1; e.ammo = e.clip; pushLog(`▼ ${e.name} recharge`, "enemy");
+    }
     // tir après s'être positionné
     const t = bestTarget(e);
     if (t){ doAttack(e, t); return; }
     holdOrWatch(e);
   }
 
+  // une cible serait-elle à portée et à vue si l'arme était chargée ?
+  function hasPotentialShot(e){
+    return units.some(p => p.team === "player" && p.hp > 0 && enemyVisible.has(key(p.col, p.row))
+      && hexDistUnits(e, p) <= e.range && lineOfFire(e, p));
+  }
+
   // tient la position ; les unités à distance passent en vigilance (overwatch)
-  function holdOrWatch(e){ if (e.range > 1) e.overwatch = true; e.acted = true; }
+  function holdOrWatch(e){ if (e.range > 1 && (e.clip === undefined || e.ammo > 0)) e.overwatch = true; e.ap = 0; }
 
   // ---- Tours --------------------------------------------------------------
   function endPlayerTurn(){
@@ -698,9 +710,8 @@
     // nouveau tour : on recharge tout le monde
     turn++;
     for (const u of units){
-      u.reacted = false;
-      if (u.team === "player"){ u.ap = AP_MAX; u.mpLeft = FREE_MP; u.overwatch = false; }
-      else { u.mp = u.maxMp; u.acted = false; }   // la vigilance ennemie (posée ce tour) reste active
+      u.reacted = false; u.ap = AP_MAX; u.mpLeft = FREE_MP; u.bracing = false;
+      if (u.team === "player") u.overwatch = false;   // la vigilance joueur expire ; celle des ennemis (posée ce tour) reste active
     }
     if (selected) reach = computeReach(selected);
     recomputeVision();
@@ -756,6 +767,11 @@
     if (fx.length > 24) fx.shift();
     ensureFxLoop();
   }
+  function pushBlast(c, r, radius){
+    const a = tileCenter(c, r);
+    fx.push({ blast:true, bx:a.x, by:a.y, rad:(radius+0.5)*HEX_W, t0:(typeof performance!=="undefined"?performance.now():0) });
+    ensureFxLoop();
+  }
   function ensureFxLoop(){
     if (typeof requestAnimationFrame === "undefined" || typeof performance === "undefined"){ fx = []; return; }
     if (fxRunning) return;
@@ -771,7 +787,13 @@
     for (const f of fx){
       const p = Math.min(1, (now - f.t0) / FX_DUR);
       ctx.save();
-      if (f.melee){
+      if (f.blast){
+        // explosion : disque + onde qui s'étend
+        ctx.globalAlpha = (1 - p) * 0.5; ctx.fillStyle = "#ff9b4a";
+        ctx.beginPath(); ctx.arc(f.bx, f.by, f.rad * (0.4 + 0.6*p), 0, Math.PI*2); ctx.fill();
+        ctx.globalAlpha = 1 - p; ctx.lineWidth = 3; ctx.strokeStyle = "#ffd479";
+        ctx.beginPath(); ctx.arc(f.bx, f.by, f.rad * (0.4 + 0.6*p), 0, Math.PI*2); ctx.stroke();
+      } else if (f.melee){
         // arc de lame près de la cible
         ctx.globalAlpha = 1 - p; ctx.strokeStyle = "#fff0c0"; ctx.lineWidth = 3;
         const ang = Math.atan2(f.by - f.ay, f.bx - f.ax);
@@ -951,10 +973,15 @@
         ctx.lineWidth = 2; ctx.strokeStyle = "#7fe0d0"; ctx.setLineDash([2,3]);
         ctx.stroke(); ctx.setLineDash([]);
       }
+      // anneau "en garde" (brace)
+      if (u.bracing){
+        ctx.beginPath(); ctx.arc(x, y, SIZE*0.66, 0, Math.PI*2);
+        ctx.lineWidth = 3; ctx.strokeStyle = "#8fd3ff"; ctx.stroke();
+      }
 
       ctx.beginPath(); ctx.arc(x, y, SIZE*0.55, 0, Math.PI*2);
       ctx.fillStyle = u.team === "player" ? "#5fb0d8" : "#d8635f";
-      ctx.globalAlpha = (u.team === "player" && u.ap <= 0 && !u.overwatch) ? 0.5 : 1; ctx.fill(); ctx.globalAlpha = 1;
+      ctx.globalAlpha = (u.team === "player" && u.ap <= 0 && !u.overwatch && !u.bracing) ? 0.5 : 1; ctx.fill(); ctx.globalAlpha = 1;
       ctx.lineWidth = u === selected ? 3 : 1.5;
       ctx.strokeStyle = u === selected ? "#ffffff" : "rgba(0,0,0,0.5)"; ctx.stroke();
       ctx.fillStyle = "#10171c"; ctx.font = "bold 12px sans-serif";
@@ -969,6 +996,32 @@
       ctx.fillRect(bx, by, bw * Math.max(0, u.hp) / u.maxHp, bh);
 
       if (!(anim && u === anim.mover)) drawCoverShields(u.col, u.row);
+    }
+
+    // mode cracker : portée de jet + zone d'effet probable au survol
+    if (throwing && selected){
+      const cr = selected.weapons.cracker;
+      const src = offsetToCube(selected.col, selected.row);
+      for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++){
+        if (!isVisible(c, r) || cubeDist(src, offsetToCube(c, r)) > cr.range) continue;
+        const { x, y } = tileCenter(c, r);
+        fillHex(x, y, SIZE); ctx.fillStyle = "rgba(255,155,74,0.12)"; ctx.fill();
+      }
+      if (hover){
+        const hc = offsetToCube(hover.col, hover.row);
+        if (cubeDist(src, hc) <= cr.range){
+          for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++){
+            if (cubeDist(offsetToCube(c, r), hc) <= cr.radius){
+              const { x, y } = tileCenter(c, r); fillHex(x, y, SIZE);
+              ctx.fillStyle = "rgba(255,107,74,0.30)"; ctx.fill();
+              ctx.lineWidth = 1.2; ctx.strokeStyle = "rgba(255,140,90,0.6)"; ctx.stroke();
+            }
+          }
+          const ctr = tileCenter(hover.col, hover.row);
+          ctx.lineWidth = 2; ctx.strokeStyle = "#ff6b4a"; ctx.setLineDash([4,3]);
+          ctx.beginPath(); ctx.arc(ctr.x, ctr.y, SIZE*0.5, 0, Math.PI*2); ctx.stroke(); ctx.setLineDash([]);
+        }
+      }
     }
 
     // ciblage actif : ligne, réticule sur la cible courante, % de réussite
@@ -1048,6 +1101,7 @@
                + `<br><span style="color:#9a8a74">base ${bd.base}`
                + (bd.cover ? ` · couvert −${bd.cover}` : ``)
                + (bd.dh ? ` · hauteur ${hsign}${bd.height} (Δ${bd.dh})` : ``)
+               + (bd.def ? ` · garde −${bd.def}` : ``)
                + (bd.melee ? ` · corps à corps` : ``) + `</span>`
                + (u.shieldBlock ? `<br><span style="color:#9a8a74">cible : bouclier ${u.shieldBlock}% de blocage</span>` : ``)
                + `<br><span style="color:#9a8a74">dégâts ${selected.dmgMin}–${selected.dmgMax} · clic pour ${bd.melee ? "frapper" : "tirer"}</span>`;
@@ -1068,7 +1122,7 @@
   function refreshAll(){ updateSel(); renderRoster(); draw(); }
 
   function selectUnit(u){
-    selected = u; targeting = null;
+    selected = u; targeting = null; throwing = false;
     reach = u ? computeReach(u) : null;
     refreshAll();
   }
@@ -1083,6 +1137,7 @@
   function enterTargeting(weaponMode){
     if (!selected || selected.ap <= 0 || gameOver || anim) return;
     if (!selected.weapons[weaponMode]) return;
+    throwing = false;
     setMode(selected, weaponMode);
     const targets = units.filter(u => u.team === "enemy" && u.hp > 0 && canAttack(selected, u));
     if (!targets.length){ targeting = null; flash("Aucune cible à portée"); refreshAll(); return; }
@@ -1110,6 +1165,63 @@
     pushLog(`▲ ${selected.name} se met en vigilance`, "player");
     refreshAll(); maybeAutoEnd();
   }
+  // actions du 1er PA (coûtent 1 PA, pas tous)
+  function doBrace(){
+    if (!selected || selected.ap <= 0 || gameOver || anim) return;
+    if (!selected.shieldBlock || selected.bracing) return;
+    selected.ap -= 1; selected.bracing = true; targeting = null; reach = computeReach(selected);
+    pushLog(`▲ ${selected.name} se met en garde (+${DEF_BRACE} défense)`, "player");
+    refreshAll(); maybeAutoEnd();
+  }
+  function doReload(){
+    if (!selected || selected.ap <= 0 || gameOver || anim) return;
+    if (selected.clip === undefined || selected.ammo >= selected.clip) return;
+    selected.ap -= 1; selected.ammo = selected.clip; targeting = null; reach = computeReach(selected);
+    pushLog(`▲ ${selected.name} recharge`, "player");
+    refreshAll(); maybeAutoEnd();
+  }
+
+  // ---- Cracker (grenade) : vise une case, dispersion ±scatter, dégâts en rayon ----
+  function enterThrow(){
+    if (!selected || selected.ap <= 0 || gameOver || anim) return;
+    if (!selected.weapons.cracker || selected.crackers <= 0) return;
+    throwing = true; targeting = null; refreshAll();
+  }
+  function cancelThrow(){ if (throwing){ throwing = false; refreshAll(); } }
+  function throwTiles(){
+    // cases visées possibles : à portée, vues
+    const cr = selected.weapons.cracker, out = [];
+    for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++){
+      if (!isVisible(c, r)) continue;
+      if (cubeDist(offsetToCube(selected.col, selected.row), offsetToCube(c, r)) <= cr.range) out.push([c, r]);
+    }
+    return out;
+  }
+  function doThrow(tc, tr){
+    const thrower = selected, cr = thrower.weapons.cracker;
+    thrower.crackers -= 1; thrower.ap = 0; throwing = false;     // l'action est faite (consomme tous les PA)
+    // dispersion : impact tiré au hasard dans un rayon `scatter` autour de la case visée
+    const cands = [];
+    for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++)
+      if (cubeDist(offsetToCube(tc, tr), offsetToCube(c, r)) <= cr.scatter && !tiles[r][c].obstacle) cands.push([c, r]);
+    const [ic, ir] = cands.length ? cands[Math.floor(Math.random()*cands.length)] : [tc, tr];
+    pushBlast(ic, ir, cr.radius);
+    pushLog(`▲ ${thrower.name} lance un cracker en (${ic},${ir})`, "player");
+    // dégâts en rayon (ignore couvert et bouclier), tir ami compris
+    for (const u of units){
+      if (u.hp <= 0) continue;
+      if (cubeDist(offsetToCube(ic, ir), offsetToCube(u.col, u.row)) <= cr.radius){
+        const dmg = cr.dmgMin + Math.floor(Math.random()*(cr.dmgMax-cr.dmgMin+1));
+        u.hp -= dmg;
+        pushLog(`   💥 ${u.name} : ${dmg} dégâts${u.hp<=0?" ✝":""}`, u.team === "player" ? "player" : "enemy");
+      }
+    }
+    units = units.filter(u => u.hp > 0);
+    if (!units.includes(thrower)) selected = null;
+    recomputeVision(); checkEnd();
+    if (selected) reach = computeReach(selected);
+    refreshAll(); maybeAutoEnd();
+  }
 
   function maybeAutoEnd(){
     if (gameOver) return false;
@@ -1128,6 +1240,14 @@
     if (!t) return;
     const u = unitAt(t.col, t.row);
 
+    // mode lancer de cracker : clic sur une case à portée et vue -> on lance
+    if (throwing){
+      if (selected && isVisible(t.col, t.row) &&
+          cubeDist(offsetToCube(selected.col, selected.row), offsetToCube(t.col, t.row)) <= selected.weapons.cracker.range){
+        doThrow(t.col, t.row); return;
+      }
+      throwing = false; refreshAll(); return;
+    }
     // en mode ciblage : clic sur une cible valide -> attaque ; sinon on annule et on continue
     if (targeting){
       if (u && targeting.targets.includes(u)){ targeting.idx = targeting.targets.indexOf(u); confirmTarget(); return; }
@@ -1164,8 +1284,11 @@
         + `<br>PA <code>${selected.ap}/${AP_MAX}</code> · mouvement <code>${selected.mpLeft}</code>${selected.ap>0?` (+${selected.ap}×${selected.mob} via PA)`:``}`
         + `<br>arme : <code>${wn}</code>${dual ? ` <span style="color:#9a8a74">(commutable)</span>` : ``} · précision <code>${selected.aim}%</code>`
         + `<br>portée <code>${selected.range}</code> · dégâts <code>${selected.dmgMin}–${selected.dmgMax}</code>`
+        + (selected.clip !== undefined ? `<br>munitions : <code>${selected.ammo}/${selected.clip}</code>${selected.ammo<=0?` <span style="color:#e0a85f">(recharger)</span>`:``}` : ``)
+        + (selected.weapons.cracker ? `<br>crackers : <code>${selected.crackers}</code>` : ``)
         + (selected.shieldBlock ? `<br>bouclier : <code>${selected.shieldBlock}%</code> de blocage` : ``)
         + `<br>position <code>(${selected.col}, ${selected.row})</code> · altitude <code>${elevOf(selected)}</code>`
+        + (selected.bracing ? `<br><span style="color:#8fd3ff">En garde (+${DEF_BRACE} défense).</span>` : ``)
         + (selected.overwatch ? `<br><span style="color:#7fe0d0">En vigilance.</span>`
            : selected.ap <= 0 ? `<br><span style="color:#c98f3c">Plus de PA ce tour.</span>` : ``);
       if (targeting && targeting.targets.length){
@@ -1187,14 +1310,22 @@
     const shoot = document.getElementById("act-shoot");
     const melee = document.getElementById("act-melee");
     const ow = document.getElementById("act-overwatch");
+    const reload = document.getElementById("act-reload");
+    const brace = document.getElementById("act-brace");
+    const cracker = document.getElementById("act-cracker");
     if (!shoot) return;
-    const ready = selected && selected.ap > 0 && !gameOver;
-    shoot.disabled = !(ready && selected.weapons.ranged);
-    melee.disabled = !(ready && selected.weapons.melee);
-    ow.disabled = !ready;
+    const ready = selected && selected.ap > 0 && !gameOver && !anim;
+    const w = selected && selected.weapons;
+    shoot.disabled   = !(ready && w.ranged && (selected.clip === undefined || selected.ammo > 0));
+    melee.disabled   = !(ready && w.melee);
+    ow.disabled      = !ready;
+    reload.disabled  = !(ready && selected.clip !== undefined && selected.ammo < selected.clip);
+    brace.disabled   = !(ready && selected.shieldBlock > 0 && !selected.bracing);
+    cracker.disabled = !(ready && w.cracker && selected.crackers > 0);
     const armedMode = targeting ? selected.mode : null;
     shoot.classList.toggle("armed", armedMode === "ranged");
     melee.classList.toggle("armed", armedMode === "melee");
+    cracker.classList.toggle("armed", !!throwing);
   }
 
   function renderRoster(){
@@ -1203,7 +1334,7 @@
     const ps = units.filter(u => u.team === "player");
     el.innerHTML = ps.map((u, i) => {
       const cls = "chip" + (u === selected ? " active" : "") + (u.hp <= 0 ? " dead" : (u.ap <= 0 && !u.overwatch ? " acted" : ""));
-      const tag = u.hp <= 0 ? "tombé" : u.overwatch ? "vigilance" : `PA ${u.ap}/${AP_MAX}`;
+      const tag = u.hp <= 0 ? "tombé" : u.overwatch ? "vigilance" : u.bracing ? "en garde" : `PA ${u.ap}/${AP_MAX}`;
       return `<div class="${cls}" data-i="${i}">`
         + `<div class="nm"><span>${u.name}</span><span>${Math.max(0,u.hp)}/${u.maxHp}</span></div>`
         + `<div class="role">${u.role || ""} · ${u.weapons.ranged ? "arbalète" : "épée"}${u.shieldBlock ? " + bouclier" : ""}</div>`
@@ -1227,31 +1358,19 @@
   document.getElementById("act-shoot").addEventListener("click", () => enterTargeting("ranged"));
   document.getElementById("act-melee").addEventListener("click", () => enterTargeting("melee"));
   document.getElementById("act-overwatch").addEventListener("click", doOverwatch);
+  document.getElementById("act-reload").addEventListener("click", doReload);
+  document.getElementById("act-brace").addEventListener("click", doBrace);
+  document.getElementById("act-cracker").addEventListener("click", enterThrow);
 
   if (typeof window !== "undefined" && window.addEventListener)
     window.addEventListener("keydown", (e) => {
       if (e.key === "Tab"){ e.preventDefault(); if (anim) return; targeting ? cycleTarget(e.shiftKey ? -1 : 1) : cycleUnit(e.shiftKey ? -1 : 1); }
       else if (e.key === "Enter"){ if (targeting) confirmTarget(); }
-      else if (e.key === "Escape"){ cancelTargeting(); }
+      else if (e.key === "Escape"){ cancelTargeting(); cancelThrow(); }
     });
 
-  document.getElementById("toggleFog").addEventListener("change", e => { opts.fog = e.target.checked; draw(); });
-  document.getElementById("toggleLevels").addEventListener("change", e => { opts.showLevels = e.target.checked; draw(); });
-  document.getElementById("toggleGrid").addEventListener("change", e => { opts.showGrid = e.target.checked; draw(); });
-
-  // ---- Légende ------------------------------------------------------------
-  function buildLegend(){
-    const el = document.getElementById("legend"); el.innerHTML = "";
-    for (let lvl = LEVELS-1; lvl >= 0; lvl--){
-      const item = document.createElement("div"); item.className = "item";
-      const tag = lvl === LEVELS-1 ? " (haut)" : lvl === 0 ? " (bas)" : "";
-      item.innerHTML = `<span class="swatch" style="background:${elevColor(lvl)}"></span> niveau ${lvl}${tag}`;
-      el.appendChild(item);
-    }
-  }
-
   // ---- Init ---------------------------------------------------------------
-  setupCanvas(); buildLegend(); generate(); placeUnits();
+  setupCanvas(); generate(); placeUnits();
   selected = units.find(u => u.team === "player"); reach = selected ? computeReach(selected) : null;
   renderLog(); refreshAll();
 })();
