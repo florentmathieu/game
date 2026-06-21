@@ -71,7 +71,7 @@
   .etool.on{background:#5a4a20; border-color:#caa24a; box-shadow:0 0 0 1px #caa24a}
   .filelbl{display:inline-flex; justify-content:center; background:#3a2c1c; border:1px solid #5a4530; border-radius:6px; padding:7px 10px; width:100%; font-size:.82rem}
   .filelbl:hover{background:#4a3826}
-  #missionsel{width:100%; background:#1c150e; color:var(--ink); border:1px solid #5a4530; border-radius:6px; padding:6px}
+  #missionsel,#ed-missions{width:100%; background:#1c150e; color:var(--ink); border:1px solid #5a4530; border-radius:6px; padding:6px}
   #missionjson{background:#1c150e; color:#bdae93; border:1px solid #5a4530; border-radius:6px; margin-top:6px; font-family:monospace; font-size:.68rem; resize:vertical}
   #actions{display:flex; flex-direction:column; gap:4px; margin:6px 0}
   #actions button{display:flex; justify-content:space-between; align-items:center; gap:10px; text-align:left}
@@ -173,6 +173,7 @@
 
       <h2 style="margin-top:12px">Mission</h2>
       <div class="erow"><button id="ed-play">▶ Tester</button> <button id="ed-quit">Quitter</button></div>
+      <div class="erow"><select id="ed-missions" style="flex:1"></select> <button id="ed-loadmission" style="flex:0 0 auto;width:auto">Charger</button></div>
 
       <h2 style="margin-top:12px">Enregistrer (dépôt)</h2>
       <div class="erow"><input id="gh-token" type="password" placeholder="token GitHub (fine-grained, Contents: write)" style="flex:1"></div>
@@ -1846,6 +1847,7 @@
       if (rf && cfg.repo) rf.value = cfg.repo;
       if (bf) bf.value = cfg.branch || "claude/intelligent-hypatia-nojupi";
     }catch(e){}
+    refreshMissionMenu(); fetchRepoMissions().then(refreshMissionMenu);   // liste des missions chargeable
     setTool(editTool); updateExport(); draw();
   }
   function leaveEditor(){
@@ -1915,6 +1917,15 @@
   { const ni = document.getElementById("ed-name"); if (ni) ni.addEventListener("input", () => { editorName = ni.value || "Mission"; updateExport(); }); }
   for (const b of document.querySelectorAll(".etool")) b.addEventListener("click", () => setTool(b.dataset.tool));
   onEd("ed-publish", () => publishToRepo());
+  onEd("ed-loadmission", async () => {
+    const f = document.getElementById("ed-missions").value; if (!f) return;
+    const m = await loadMissionFromUrl(f.includes("/") ? f : "missions/" + f);
+    if (!m){ alert("Mission introuvable : " + f); return; }
+    applyMission(m); editorName = m.name || editorName;
+    const ci = document.getElementById("ed-cols"), ri = document.getElementById("ed-rows"), ni = document.getElementById("ed-name");
+    if (ci) ci.value = COLS; if (ri) ri.value = ROWS; if (ni) ni.value = editorName;
+    updateExport(); draw();
+  });
   onEd("ed-download", () => {
     const blob = new Blob([JSON.stringify(serializeMission(editorName), null, 1)], { type:"application/json" });
     const a = document.createElement("a"); a.href = URL.createObjectURL(blob);
@@ -2128,6 +2139,11 @@ Stiff: Enough. I've decided.`;
     for (const it of repoMissions) opts.push(`<option value="${it.file}">${it.name}</option>`);
     sel.innerHTML = opts.join("");
     if (row) row.style.display = repoMissions.length ? "" : "none";
+    // menu de chargement de l'éditeur
+    const esel = document.getElementById("ed-missions");
+    if (esel) esel.innerHTML = repoMissions.length
+      ? `<option value="">— charger une mission —</option>` + repoMissions.map(it => `<option value="${it.file}">${it.name}</option>`).join("")
+      : `<option value="">(aucune mission dans le dépôt)</option>`;
   }
 
   // ---- Publication directe dans le dépôt via l'API GitHub (token local) ----
