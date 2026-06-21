@@ -50,7 +50,7 @@
       <div id="turninfo" class="hint" style="margin-bottom:6px"></div>
       <div id="sel">Clique une unité bleue.</div>
       <div class="row"><button id="endturn">Fin de tour ▶ (phase ennemie)</button></div>
-      <div class="hint">PM = points de mouvement. Monter d'un niveau coûte +1 PM. Un dénivelé de 2 niveaux ou plus est une falaise infranchissable. Obstacles et cases occupées bloquent le passage. Rocher = couvert total (coupe la vue) ; muret = couvert partiel (laisse voir). Le côté protégé d'une unité est marqué : trait plein vert = total, pointillé jaune = partiel. Sélectionne une unité puis clique un ennemi cerclé de rouge pour l'attaquer : le couvert baisse la précision (max de face, nul de flanc), dominer en hauteur l'augmente (corps à corps inclus). « Fin de tour » fait jouer les ennemis.</div>
+      <div class="hint">PM = points de mouvement. Monter d'un niveau coûte +1 PM. Un dénivelé de 2 niveaux ou plus est une falaise infranchissable. Obstacles et cases occupées bloquent le passage. Rocher (sur une case) = couvert total, infranchissable, coupe la vue. Muret (sur une arête) = couvert partiel, franchissable, laisse voir ; s'il sépare deux hauteurs, il ne protège que la case basse (le bas est protégé du haut). Le côté protégé d'une unité est marqué : trait plein vert = total, pointillé jaune = partiel. Sélectionne une unité puis clique un ennemi cerclé de rouge pour l'attaquer : le couvert baisse la précision (max de face, nul de flanc), dominer en hauteur l'augmente (corps à corps inclus). « Fin de tour » fait jouer les ennemis.</div>
 
       <h2 style="margin-top:14px">Journal</h2>
       <div id="log" class="hint"></div>
@@ -76,7 +76,8 @@
   // ---- Paramètres de la grille --------------------------------------------
   const COLS = 20, ROWS = 20, SIZE = 17, LEVELS = 7, MARGIN = 14;
   const VISION = 5;          // rayon de vision (en cases) des unités joueur
-  const OBSTACLE_RATE = 0.12; // proportion de cases occupées par un obstacle
+  const ROCK_RATE = 0.07;    // proportion de cases occupées par un rocher (couvert total)
+  const WALL_RATE = 0.16;    // densité de murets (couvert partiel) posés sur les arêtes
   const HEIGHT_BONUS = 12;   // % de précision gagné par niveau d'écart de hauteur
   const COVER_HALF = 20, COVER_FULL = 40; // % de défense procurés par le couvert
   const SQRT3 = Math.sqrt(3);
@@ -137,6 +138,14 @@
   let explored = new Set();  // cases déjà vues au moins une fois (mémoire)
   let log = [];              // journal des dernières actions
   let turn = 1;              // numéro du tour
+  let walls = new Set();     // murets : couvert partiel posé sur l'arête entre deux cases
+
+  // Clé canonique d'une arête entre deux cases adjacentes.
+  function wallKey(c1, r1, c2, r2){
+    return (c1 < c2 || (c1 === c2 && r1 <= r2))
+      ? `${c1},${r1}|${c2},${r2}` : `${c2},${r2}|${c1},${r1}`;
+  }
+  const hasWall = (c1, r1, c2, r2) => walls.has(wallKey(c1, r1, c2, r2));
   const opts = { showLevels: false, showGrid: true, fog: true };
 
   const tileAt = (c, r) => (r>=0&&r<ROWS&&c>=0&&c<COLS) ? tiles[r][c] : null;
@@ -189,16 +198,24 @@
         tiles[row][col] = { col, row, elev: Math.max(0, Math.min(LEVELS-1, e)), obstacle: false };
       }
     }
-    // sème des obstacles sur une partie des cases.
-    // cover "full" = rocher haut (bloque la vue) ; "half" = muret bas (n'arrête pas la vue)
-    let toPlace = Math.round(COLS*ROWS*OBSTACLE_RATE), guard = 0;
+    // rochers (couvert total) : occupent une case, infranchissables, coupent la vue
+    let toPlace = Math.round(COLS*ROWS*ROCK_RATE), guard = 0;
     while (toPlace > 0 && guard++ < 4000){
       const c = Math.floor(Math.random()*COLS), r = Math.floor(Math.random()*ROWS);
-      if (!tiles[r][c].obstacle){
-        tiles[r][c].obstacle = true;
-        tiles[r][c].cover = Math.random() < 0.5 ? "full" : "half";
-        toPlace--;
-      }
+      if (!tiles[r][c].obstacle){ tiles[r][c].obstacle = true; tiles[r][c].cover = "full"; toPlace--; }
+    }
+    // murets (couvert partiel) : posés sur l'arête entre deux cases libres
+    walls = new Set();
+    let toWall = Math.round(COLS*ROWS*WALL_RATE); guard = 0;
+    while (toWall > 0 && guard++ < 6000){
+      const c = Math.floor(Math.random()*COLS), r = Math.floor(Math.random()*ROWS);
+      const dirs = NEI[r & 1];
+      const [dc, dr] = dirs[Math.floor(Math.random()*dirs.length)];
+      const nc = c+dc, nr = r+dr;
+      if (nc < 0 || nc >= COLS || nr < 0 || nr >= ROWS) continue;
+      if (tiles[r][c].obstacle || tiles[nr][nc].obstacle) continue; // pas de muret contre un rocher
+      const k = wallKey(c, r, nc, nr);
+      if (!walls.has(k)){ walls.add(k); toWall--; }
     }
   }
 
@@ -303,6 +320,18 @@
   const elevOf = (u) => tiles[u.row][u.col].elev;
   function hexDistUnits(a, b){ return cubeDist(offsetToCube(a.col,a.row), offsetToCube(b.col,b.row)); }
 
+  // Valeur de couvert que protège la case (col,row) dans la direction du voisin (nc,nr).
+  //  - rocher sur la case voisine  -> couvert total
+  //  - muret sur l'arête           -> couvert partiel, MAIS seulement si la case protégée
+  //    est plus basse ou à même hauteur que la case d'en face (le bas est protégé du haut).
+  function coverInDir(col, row, nc, nr){
+    const N = tileAt(nc, nr);
+    if (!N) return 0;
+    if (N.obstacle && N.cover === "full") return COVER_FULL;
+    if (hasWall(col, row, nc, nr)) return tiles[row][col].elev <= N.elev ? COVER_HALF : 0;
+    return 0;
+  }
+
   // Couvert directionnel, dépendant de l'angle : pleine valeur quand l'attaquant
   // est pile dans l'axe du couvert, décroît en cos(angle), nulle dès 90° (flanking).
   function coverPenalty(target, fromCol, fromRow){
@@ -311,13 +340,12 @@
     let best = 0;
     for (const [dc, dr] of NEI[target.row & 1]){
       const nc = target.col+dc, nr = target.row+dr;
-      const t = tileAt(nc, nr);
-      if (!t || !t.obstacle) continue;
+      const base = coverInDir(target.col, target.row, nc, nr);
+      if (!base) continue;
       const c = tileCenter(nc, nr);
       let dx = c.x-a.x, dy = c.y-a.y; const dl = Math.hypot(dx,dy) || 1; dx/=dl; dy/=dl;
       const align = ax*dx + ay*dy;          // cos de l'angle entre l'axe du couvert et l'attaquant
       if (align <= 0) continue;             // 90° ou plus : pris de flanc, aucune protection
-      const base = t.cover === "full" ? COVER_FULL : COVER_HALF;
       best = Math.max(best, base * align);  // réduit par l'angle (max de face)
     }
     return Math.round(best);
@@ -459,46 +487,50 @@
     ctx.closePath();
   }
 
-  function drawObstacle(x, y, cover){
-    if (cover === "full"){
-      // rocher haut : gros tas de blocs sombres (bloque la vue)
-      const spots = [[-5,3,6],[5,4,5.5],[0,-4,6],[0,2,4]];
-      for (const [dx, dy, r] of spots){
-        ctx.beginPath(); ctx.arc(x+dx, y+dy, r, 0, Math.PI*2);
-        ctx.fillStyle = "#4a4036"; ctx.fill();
-        ctx.lineWidth = 1; ctx.strokeStyle = "#241e18"; ctx.stroke();
-      }
-    } else {
-      // muret bas : barre plate claire (n'arrête pas la vue)
-      ctx.save();
-      ctx.beginPath();
-      const w = SIZE*0.78, h = SIZE*0.34;
-      ctx.fillStyle = "#8a7a64";
-      roundRect(x - w/2, y + SIZE*0.12, w, h, 3); ctx.fill();
-      ctx.lineWidth = 1; ctx.strokeStyle = "#3a3128"; ctx.stroke();
-      // quelques joints
-      ctx.beginPath();
-      ctx.moveTo(x, y + SIZE*0.12); ctx.lineTo(x, y + SIZE*0.12 + h);
-      ctx.moveTo(x - w/4, y + SIZE*0.12); ctx.lineTo(x - w/4, y + SIZE*0.12 + h);
-      ctx.moveTo(x + w/4, y + SIZE*0.12); ctx.lineTo(x + w/4, y + SIZE*0.12 + h);
-      ctx.strokeStyle = "#3a3128"; ctx.stroke();
-      ctx.restore();
+  function drawRock(x, y){
+    // rocher : gros tas de blocs sombres (couvert total, bloque la vue)
+    const spots = [[-5,3,6],[5,4,5.5],[0,-4,6],[0,2,4]];
+    for (const [dx, dy, r] of spots){
+      ctx.beginPath(); ctx.arc(x+dx, y+dy, r, 0, Math.PI*2);
+      ctx.fillStyle = "#4a4036"; ctx.fill();
+      ctx.lineWidth = 1; ctx.strokeStyle = "#241e18"; ctx.stroke();
     }
   }
-  function roundRect(x, y, w, h, r){
+
+  // Muret posé sur l'arête entre deux cases (segment perpendiculaire à l'axe des centres).
+  function drawWall(c1, r1, c2, r2, dim){
+    const a = tileCenter(c1, r1), b = tileCenter(c2, r2);
+    const mx = (a.x+b.x)/2, my = (a.y+b.y)/2;
+    const ang = Math.atan2(b.y-a.y, b.x-a.x) + Math.PI/2;
+    const len = SIZE * 0.9;
+    ctx.lineCap = "round";
+    ctx.lineWidth = 6; ctx.strokeStyle = dim ? "#3a342b" : "#241e18";
     ctx.beginPath();
-    ctx.moveTo(x+r, y); ctx.arcTo(x+w, y, x+w, y+h, r); ctx.arcTo(x+w, y+h, x, y+h, r);
-    ctx.arcTo(x, y+h, x, y, r); ctx.arcTo(x, y, x+w, y, r); ctx.closePath();
+    ctx.moveTo(mx - Math.cos(ang)*len/2, my - Math.sin(ang)*len/2);
+    ctx.lineTo(mx + Math.cos(ang)*len/2, my + Math.sin(ang)*len/2);
+    ctx.stroke();
+    ctx.lineWidth = 4; ctx.strokeStyle = dim ? "#5a4f42" : "#9a8a70";
+    ctx.stroke();
   }
 
-  // Indicateurs de couvert autour d'une unité (côté protégé : plein=total, pointillé=partiel)
+  function drawWalls(){
+    for (const k of walls){
+      const [p, q] = k.split("|");
+      const [c1, r1] = p.split(",").map(Number);
+      const [c2, r2] = q.split(",").map(Number);
+      if (!(isExplored(c1,r1) || isExplored(c2,r2))) continue;
+      drawWall(c1, r1, c2, r2, !(isVisible(c1,r1) || isVisible(c2,r2)));
+    }
+  }
+
+  // Indicateurs de couvert autour d'une unité (côté protégé : plein vert=total, pointillé jaune=partiel).
   function drawCoverShields(u){
     const a = tileCenter(u.col, u.row);
     for (const [dc, dr] of NEI[u.row & 1]){
       const nc = u.col + dc, nr = u.row + dr;
-      const t = tileAt(nc, nr);
-      if (!t || !t.obstacle) continue;
       if (!isVisible(nc, nr)) continue;
+      const base = coverInDir(u.col, u.row, nc, nr);   // respecte la règle de hauteur des murets
+      if (!base) continue;
       const b = tileCenter(nc, nr);
       const px = a.x + (b.x - a.x) * 0.6, py = a.y + (b.y - a.y) * 0.6;
       const ang = Math.atan2(b.y - a.y, b.x - a.x) + Math.PI/2;
@@ -507,7 +539,7 @@
       ctx.moveTo(px - Math.cos(ang)*len, py - Math.sin(ang)*len);
       ctx.lineTo(px + Math.cos(ang)*len, py + Math.sin(ang)*len);
       ctx.lineCap = "round";
-      if (t.cover === "full"){ ctx.lineWidth = 5; ctx.strokeStyle = "#79e08a"; ctx.setLineDash([]); }
+      if (base === COVER_FULL){ ctx.lineWidth = 5; ctx.strokeStyle = "#79e08a"; ctx.setLineDash([]); }
       else { ctx.lineWidth = 4; ctx.strokeStyle = "#f2c14e"; ctx.setLineDash([3, 3]); }
       ctx.stroke();
     }
@@ -530,7 +562,7 @@
           continue;
         }
         ctx.fillStyle = elevColor(tile.elev); ctx.fill();
-        if (tile.obstacle) drawObstacle(x, y, tile.cover);
+        if (tile.obstacle) drawRock(x, y);
         if (!isVisible(col, row)){
           // explorée mais hors de vue : assombrie (mémoire)
           fillHex(x, y, SIZE); ctx.fillStyle = "rgba(0,0,0,0.55)"; ctx.fill();
@@ -538,6 +570,7 @@
         if (opts.showGrid){ ctx.lineWidth = 1; ctx.strokeStyle = "rgba(0,0,0,0.28)"; ctx.stroke(); }
       }
     }
+    drawWalls();   // murets sur les arêtes (par-dessus le sol)
 
     // 2) portée de déplacement de l'unité sélectionnée
     if (reach){
@@ -659,9 +692,11 @@
         const t = tiles[hover.row][hover.col];
         const u = unitAt(hover.col, hover.row);
         let s = `Tuile <code>(${hover.col}, ${hover.row})</code><br>Altitude : <code>${t.elev}</code> / ${LEVELS-1}`;
-        if (t.obstacle) s += t.cover === "full"
-          ? `<br><code>Rocher</code> — couvert total, bloque la vue`
-          : `<br><code>Muret</code> — couvert partiel, n'arrête pas la vue`;
+        if (t.obstacle) s += `<br><code>Rocher</code> — couvert total, bloque la vue`;
+        let nWalls = 0;
+        for (const [dc, dr] of NEI[hover.row & 1])
+          if (hasWall(hover.col, hover.row, hover.col+dc, hover.row+dr)) nWalls++;
+        if (nWalls) s += `<br><code>Muret</code> ×${nWalls} — couvert partiel (protège le côté bas)`;
         if (u && isVisible(hover.col, hover.row)){
           s += `<br>Occupée par : <code>${u.name}</code> (PV ${Math.max(0,u.hp)}/${u.maxHp})`;
           if (selected && canAttack(selected, u)){
