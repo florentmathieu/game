@@ -67,6 +67,18 @@
   body.editing #editor,body.editing #editorEvents{display:block}
   body.editing .panel:not(#editor):not(#editorEvents){display:none}
   body.editing #roster{display:none}
+  /* éditeur de campagne */
+  #campeditor{display:none}
+  body.campediting #campeditor{display:block}
+  body.campediting .panel:not(#campeditor){display:none}
+  body.campediting #roster{display:none}
+  #campcont{position:absolute; inset:0; display:none; flex-direction:column; align-items:center;
+    justify-content:center; gap:18px; background:rgba(8,6,3,.78); color:#e8ddc8; z-index:30;
+    font-family:Georgia,"Times New Roman",serif; text-align:center; padding:24px}
+  #campcont-msg{font-size:1.3rem; max-width:520px; line-height:1.6}
+  #campcont button{background:#15110c; color:#e8ddc8; border:1px solid #5a4530; border-radius:6px;
+    padding:10px 24px; font-size:1rem; letter-spacing:2px; cursor:pointer; width:auto}
+  #campcont button:hover{background:#241a12}
   .erow{display:flex; align-items:center; gap:6px; margin:6px 0; flex-wrap:wrap}
   .erow input[type=text]{flex:1}
   .erow input[type=number]{width:54px}
@@ -115,6 +127,7 @@
       <canvas id="board"></canvas>
       <div id="scene"><div id="scenetext"></div><button id="scenebtn">...</button></div>
       <div id="combatline"></div>
+      <div id="campcont"><div id="campcont-msg"></div><button id="campcont-btn">Continuer ▶</button></div>
     </div>
 
     <div class="panel">
@@ -139,6 +152,8 @@
       <div class="row"><button id="regen">Régénérer la carte</button></div>
       <div class="row"><label><input type="checkbox" id="togglefog" checked> Brouillard de guerre</label></div>
       <div class="row" id="missionrow" style="display:none"><select id="missionsel" style="flex:1"></select> <button id="loadsel" style="width:auto;flex:0 0 auto">Charger</button></div>
+      <div class="row" id="camprow" style="display:none"><select id="campsel" style="flex:1"></select> <button id="campplay" style="width:auto;flex:0 0 auto">▶ Jouer</button></div>
+      <div class="row"><button id="opencamp">🎬 Éditeur de campagne</button></div>
 
       <h2 style="margin-top:14px">Survol</h2>
       <div id="info">Passe la souris sur la carte.</div>
@@ -244,6 +259,30 @@
       <datalist id="ed-names"></datalist>
       <datalist id="ed-trigids"></datalist>
     </div>
+
+    <!-- Éditeur de campagne : enchaînement visuel textes ↔ missions -->
+    <div class="panel" id="campeditor">
+      <h2>Campagne</h2>
+      <div class="erow"><button id="camp-test">▶ Tester</button> <button id="camp-quit">Quitter</button></div>
+      <div class="erow"><select id="camp-load" style="flex:1"></select> <button id="camp-loadbtn" style="flex:0 0 auto;width:auto">Charger</button></div>
+      <div class="erow"><label>Nom <input id="camp-name" type="text" placeholder="nom de la campagne…"></label></div>
+
+      <h2 style="margin-top:12px">Nœuds</h2>
+      <div class="erow"><button id="camp-addtext">＋ Texte</button> <button id="camp-addmission">＋ Mission</button></div>
+      <div class="hint">Glisse les nœuds pour les ranger. Tire un fil depuis la pastille du bas
+        (<span style="color:#7fb0e0">→</span> suite, <span style="color:#5fd07f">✓</span> victoire,
+        <span style="color:#e0705f">✕</span> défaite) vers un autre nœud pour l'enchaîner. Lâche dans le vide pour couper le lien.</div>
+
+      <h2 style="margin-top:12px">Nœud sélectionné</h2>
+      <div id="camp-node" class="hint">Clique un nœud pour l'éditer.</div>
+
+      <h2 style="margin-top:12px">Enregistrer (dépôt)</h2>
+      <div class="erow"><input id="gh-token2" type="password" placeholder="token GitHub (Contents: write)" style="flex:1"></div>
+      <div class="erow"><input id="gh-repo2" type="text" value="florentmathieu/game" style="flex:1"></div>
+      <div class="erow"><input id="gh-branch2" type="text" placeholder="branche" style="flex:1"></div>
+      <div class="erow"><button id="camp-publish">💾 Enregistrer dans le dépôt</button></div>
+      <div id="camp-status" class="hint"></div>
+    </div>
   </div>
 
 <script>
@@ -342,6 +381,32 @@
   let log = [];              // journal des dernières actions
   let turn = 1;              // numéro du tour
   let gameOver = null;       // null | "win" | "lose"
+  // persistance des PV (et munitions) de l'escouade d'une mission à l'autre
+  let carryHP = {};          // clé unité joueur → { hp, ammo, crackers }
+  const carryKey = (u) => u.named ? u.name : u.cls;
+  function saveCarry(){      // mémorise les PV des joueurs (appelé à la victoire)
+    for (const u of units) if (u.team === "player")
+      carryHP[carryKey(u)] = { hp: Math.max(0, u.hp) };
+    try{ localStorage.setItem("mgf_carry", JSON.stringify(carryHP)); }catch(e){}
+  }
+  function applyCarry(){     // restaure les PV mémorisés sur les joueurs de la mission courante
+    for (const u of units) if (u.team === "player"){
+      const s = carryHP[carryKey(u)]; if (!s) continue;
+      u.hp = Math.max(0, Math.min(u.maxHp, s.hp));
+      if (u.hp <= 0) u.dead = true;
+    }
+  }
+  function resetCarry(){ carryHP = {}; try{ localStorage.removeItem("mgf_carry"); }catch(e){} }
+  // ---- Campagne : enchaînement de nœuds « texte » et « mission » -----------
+  let campMode = false;          // éditeur de campagne actif
+  let campaign = { name:"", start:null, nodes:[] };
+  let campSel = null;            // nœud sélectionné dans l'éditeur
+  let campDrag = null;           // { node, dx, dy } déplacement d'un nœud
+  let campLink = null;           // { node, key, x, y } fil de liaison en cours
+  let campHover = null;          // nœud survolé pendant un drag de fil
+  let campRun = null;            // exécution en cours : { camp, nodeId } ou null
+  let campEnded = false;         // évite de relancer l'enchaînement plusieurs fois
+  const CAMP_W = 168, CAMP_H = 58;
   let enemyPhase = false;    // true pendant la phase ennemie (entrées bloquées)
   let walls = new Set();     // murets : couvert partiel posé sur l'arête entre deux cases
   let podAlerted = new Set();// pods ennemis ayant pris conscience du joueur (éveil par groupe)
@@ -607,6 +672,7 @@
     zones = Array.isArray(m.zones) ? m.zones.map(z => ({ name:z.name, tiles:(z.tiles||[]).map(t => [t[0], t[1]]) })) : [];
     editZone = zones.length ? zones[0].name : null;
     placeUnitsFrom(m.units || []);   // resolveCls gère cls et anciens « type »
+    if (campRun){ applyCarry(); recomputeVision(); }   // persistance des PV en campagne
   }
 
   // ---- Brouillard de guerre : vision des unités joueur --------------------
@@ -1026,8 +1092,8 @@
   function checkEnd(){
     const players = units.some(u => u.team === "player" && u.hp > 0);
     const enemies = units.some(u => u.team === "enemy" && u.hp > 0);
-    if (!enemies){ gameOver = "win"; pushLog("— Victoire : tous les ennemis sont éliminés —", "player"); emit("win", {}); }
-    else if (!players){ gameOver = "lose"; pushLog("— Défaite : toute l'escouade est tombée —", "enemy"); emit("lose", {}); }
+    if (!enemies){ gameOver = "win"; pushLog("— Victoire : tous les ennemis sont éliminés —", "player"); emit("win", {}); if (campRun && !campEnded){ campEnded = true; saveCarry(); campMissionEnd("win"); } }
+    else if (!players){ gameOver = "lose"; pushLog("— Défaite : toute l'escouade est tombée —", "enemy"); emit("lose", {}); if (campRun && !campEnded){ campEnded = true; campMissionEnd("lose"); } }
   }
 
   // ====================== ÉVÈNEMENTS / TRIGGERS ============================
@@ -1580,6 +1646,7 @@
   }
 
   function draw(){
+    if (campMode){ drawCampaign(); return; }
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     let shaken = false;
     if (typeof performance !== "undefined" && performance.now() < shakeUntil){
@@ -1866,7 +1933,7 @@
 
   // ---- Interactions -------------------------------------------------------
   function onMove(e){
-    if (editMode) return;                       // l'éditeur gère son propre survol (pointer events)
+    if (editMode || campMode) return;           // l'éditeur gère son propre survol (pointer events)
     const { mx, my } = evtPos(e);
     hover = pickTile(mx, my);
     const info = document.getElementById("info");
@@ -2065,7 +2132,7 @@
   function flash(m){ flashMsg = m; setTimeout(() => { flashMsg = ""; const el = document.getElementById("info"); if (el && el.textContent === m) el.textContent = "Passe la souris sur la carte."; }, 1500); const el = document.getElementById("info"); if (el) el.textContent = m; }
 
   function onClick(e){
-    if (editMode || gameOver || busy()) return;
+    if (editMode || campMode || gameOver || busy()) return;
     const { mx, my } = evtPos(e);
     const t = pickTile(mx, my);
     if (!t) return;
@@ -2711,16 +2778,16 @@ Stiff: Enough. I've decided.`;
     token: (document.getElementById("gh-token").value || "").trim(),
     branch: (document.getElementById("gh-branch").value || "").trim(),
   });
-  async function ghGetFile(path, ref){
-    const { repo, token } = ghCfg();
+  async function ghGetFile(path, ref, cfg){
+    const { repo, token } = cfg || ghCfg();
     const r = await fetch(`https://api.github.com/repos/${repo}/contents/${path}?ref=${encodeURIComponent(ref)}&_=${Date.now()}`,
       { headers:{ Authorization:"Bearer "+token, Accept:"application/vnd.github+json" }, cache:"no-store" });
     if (r.status === 200){ const j = await r.json(); return { sha:j.sha, text:b64dec(j.content) }; }
     return null;
   }
-  async function ghPutFile(path, contentStr, message, branch){
-    const { repo, token } = ghCfg();
-    const prev = await ghGetFile(path, branch);
+  async function ghPutFile(path, contentStr, message, branch, cfg){
+    const c = cfg || ghCfg(); const { repo, token } = c;
+    const prev = await ghGetFile(path, branch, c);
     const body = { message, content:b64enc(contentStr), branch };
     if (prev) body.sha = prev.sha;
     const r = await fetch(`https://api.github.com/repos/${repo}/contents/${path}`,
@@ -2767,6 +2834,312 @@ Stiff: Enough. I've decided.`;
     say, emit,
   };
 
+  // ====================== CAMPAGNE : éditeur visuel + exécution ============
+  const campCanvasW = 920, campCanvasH = 620;
+  const uid = () => "n" + Math.random().toString(36).slice(2, 7);
+  const campNodeById = (id) => campaign.nodes.find(n => n.id === id) || null;
+  const campLabel = (n) => !n ? "?" :
+    n.type === "text" ? (n.title || (n.text || "").split("\n")[0] || "Texte").slice(0, 22)
+                      : (n.name || n.mission || "Mission").slice(0, 22);
+  function campPorts(n){
+    const by = n.y + CAMP_H;
+    if (n.type === "mission") return [
+      { key:"win",  x:n.x + CAMP_W*0.30, y:by, color:"#5fd07f", sym:"✓" },
+      { key:"lose", x:n.x + CAMP_W*0.70, y:by, color:"#e0705f", sym:"✕" },
+    ];
+    return [{ key:"next", x:n.x + CAMP_W*0.5, y:by, color:"#7fb0e0", sym:"→" }];
+  }
+  const campInPoint = (n) => ({ x:n.x + CAMP_W/2, y:n.y });
+  function campNodeAt(mx, my){
+    for (let i = campaign.nodes.length - 1; i >= 0; i--){ const n = campaign.nodes[i];
+      if (mx >= n.x && mx <= n.x + CAMP_W && my >= n.y && my <= n.y + CAMP_H) return n; }
+    return null;
+  }
+  function campPortAt(mx, my){
+    for (const n of campaign.nodes) for (const p of campPorts(n))
+      if (Math.hypot(mx - p.x, my - p.y) <= 9) return { node:n, port:p };
+    return null;
+  }
+  function rrect(x, y, w, h, r){
+    ctx.beginPath(); ctx.moveTo(x+r, y);
+    ctx.arcTo(x+w, y, x+w, y+h, r); ctx.arcTo(x+w, y+h, x, y+h, r);
+    ctx.arcTo(x, y+h, x, y, r); ctx.arcTo(x, y, x+w, y, r); ctx.closePath();
+  }
+  function drawCampLink(x1, y1, x2, y2, color, dashed){
+    ctx.save(); ctx.strokeStyle = color; ctx.lineWidth = 2;
+    if (dashed) ctx.setLineDash([6, 5]);
+    ctx.beginPath(); ctx.moveTo(x1, y1);
+    ctx.bezierCurveTo(x1, y1 + 42, x2, y2 - 42, x2, y2); ctx.stroke();
+    ctx.setLineDash([]);
+    const ah = 7;                            // pointe de flèche (vers le haut du nœud cible)
+    ctx.beginPath(); ctx.moveTo(x2, y2);
+    ctx.lineTo(x2 - ah*0.6, y2 - ah); ctx.lineTo(x2 + ah*0.6, y2 - ah);
+    ctx.closePath(); ctx.fillStyle = color; ctx.fill();
+    ctx.restore();
+  }
+  function drawCampaign(){
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.fillStyle = "#14100b"; ctx.fillRect(0, 0, campCanvasW, campCanvasH);
+    ctx.fillStyle = "#1d160e";                                   // pointillé de fond
+    for (let y = 20; y < campCanvasH; y += 28) for (let x = 20; x < campCanvasW; x += 28){
+      ctx.beginPath(); ctx.arc(x, y, 1, 0, Math.PI*2); ctx.fill(); }
+    for (const n of campaign.nodes) for (const p of campPorts(n)){
+      const t = campNodeById(n[p.key]); if (t) drawCampLink(p.x, p.y, campInPoint(t).x, campInPoint(t).y, p.color, false);
+    }
+    if (campLink){
+      const p = campPorts(campLink.node).find(q => q.key === campLink.key);
+      if (p) drawCampLink(p.x, p.y, campLink.x, campLink.y, p.color, true);
+    }
+    for (const n of campaign.nodes){
+      const isStart = campaign.start === n.id, isSel = campSel === n, isHover = campHover === n && campLink;
+      ctx.save();
+      rrect(n.x, n.y, CAMP_W, CAMP_H, 9);
+      ctx.fillStyle = n.type === "text" ? "#1c2740" : "#2a2113"; ctx.fill();
+      ctx.lineWidth = isSel ? 3 : 2;
+      ctx.strokeStyle = isHover ? "#ffd479" : isStart ? "#caa24a" : isSel ? "#e8ddc8" : "#5a4530";
+      ctx.stroke();
+      // bandeau de type
+      ctx.fillStyle = n.type === "text" ? "#6f9fd0" : "#caa86a";
+      ctx.font = "bold 10px 'Trebuchet MS',sans-serif"; ctx.textAlign = "left"; ctx.textBaseline = "top";
+      ctx.fillText(n.type === "text" ? "TEXTE" : "MISSION", n.x + 10, n.y + 7);
+      if (isStart){ ctx.fillStyle = "#caa24a"; ctx.textAlign = "right"; ctx.fillText("★ départ", n.x + CAMP_W - 10, n.y + 7); }
+      // libellé
+      ctx.fillStyle = "#e8ddc8"; ctx.font = "13px 'Trebuchet MS',sans-serif"; ctx.textAlign = "left";
+      ctx.fillText(campLabel(n), n.x + 10, n.y + 24);
+      // pastilles de sortie
+      for (const p of campPorts(n)){
+        ctx.beginPath(); ctx.arc(p.x, p.y, 7, 0, Math.PI*2); ctx.fillStyle = p.color; ctx.fill();
+        ctx.fillStyle = "#0b0905"; ctx.font = "bold 9px sans-serif"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+        ctx.fillText(p.sym, p.x, p.y + 0.5);
+      }
+      ctx.restore();
+    }
+    if (!campaign.nodes.length){
+      ctx.fillStyle = "#7a6c58"; ctx.font = "15px 'Trebuchet MS',sans-serif"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+      ctx.fillText("« ＋ Texte » ou « ＋ Mission » pour commencer.", campCanvasW/2, campCanvasH/2);
+    }
+  }
+  function setupCampCanvas(){
+    const dpr = window.devicePixelRatio || 1;
+    canvas.style.width = campCanvasW + "px"; canvas.style.height = campCanvasH + "px";
+    canvas.width = Math.round(campCanvasW*dpr); canvas.height = Math.round(campCanvasH*dpr);
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  }
+  // pointer (création/déplacement de nœuds et de liens)
+  canvas.addEventListener("pointerdown", (e) => {
+    if (!campMode || (e.button !== undefined && e.button !== 0)) return;
+    e.preventDefault(); const { mx, my } = evtPos(e);
+    const ph = campPortAt(mx, my);
+    if (ph){ campLink = { node:ph.node, key:ph.port.key, x:mx, y:my }; return; }
+    const n = campNodeAt(mx, my);
+    if (n){ campSel = n; campDrag = { node:n, dx:mx - n.x, dy:my - n.y }; renderCampForm(); draw(); return; }
+    campSel = null; campDrag = null; renderCampForm(); draw();
+  });
+  canvas.addEventListener("pointermove", (e) => {
+    if (!campMode) return; const { mx, my } = evtPos(e);
+    if (campDrag){ campDrag.node.x = Math.round(mx - campDrag.dx); campDrag.node.y = Math.round(my - campDrag.dy); draw(); return; }
+    if (campLink){ campLink.x = mx; campLink.y = my; campHover = campNodeAt(mx, my); draw(); }
+  });
+  window.addEventListener("pointerup", (e) => {
+    if (!campMode) return;
+    if (campLink){
+      const { mx, my } = evtPos(e); const t = campNodeAt(mx, my);
+      if (t && t.id !== campLink.node.id) campLink.node[campLink.key] = t.id;
+      else if (!t) campLink.node[campLink.key] = null;     // lâché dans le vide : coupe le lien
+      campLink = null; campHover = null; renderCampForm(); draw();
+    }
+    campDrag = null;
+  });
+
+  function addCampNode(type){
+    const i = campaign.nodes.length;
+    const n = { id:uid(), type, x: 40 + (i % 4)*210, y: 40 + Math.floor(i / 4)*110 };
+    if (type === "text"){ n.title = "Texte"; n.text = "Stiff: …"; n.next = null; }
+    else { n.mission = repoMissions[0] ? repoMissions[0].file : ""; n.name = repoMissions[0] ? repoMissions[0].name : "Mission"; n.win = null; n.lose = null; }
+    if (!campaign.start) campaign.start = n.id;
+    campaign.nodes.push(n); campSel = n; renderCampForm(); draw();
+  }
+  function deleteCampNode(n){
+    campaign.nodes = campaign.nodes.filter(x => x !== n);
+    for (const o of campaign.nodes){ for (const k of ["next","win","lose"]) if (o[k] === n.id) o[k] = null; }
+    if (campaign.start === n.id) campaign.start = campaign.nodes[0] ? campaign.nodes[0].id : null;
+    if (campSel === n) campSel = null;
+    renderCampForm(); draw();
+  }
+  // formulaire d'édition du nœud sélectionné
+  function renderCampForm(){
+    const box = document.getElementById("camp-node"); if (!box) return;
+    const n = campSel;
+    if (!n){ box.innerHTML = "Clique un nœud pour l'éditer."; return; }
+    const others = campaign.nodes.filter(x => x !== n);
+    const optList = (sel) => `<option value="">— aucun —</option>` +
+      others.map(o => `<option value="${o.id}" ${o.id === sel ? "selected" : ""}>${escHTML(campLabel(o))}</option>`).join("");
+    const missOpts = repoMissions.map(m => `<option value="${m.file}" ${m.file === n.mission ? "selected" : ""}>${escHTML(m.name)}</option>`).join("");
+    let h = "";
+    if (n.type === "text"){
+      h += `<div class="erow"><label style="flex:1">Titre <input id="cn-title" type="text" value="${escHTML(n.title || "")}"></label></div>`;
+      h += `<div class="erow"><textarea id="cn-text" style="flex:1;min-height:120px;background:#1c150e;color:#e8ddc8;border:1px solid #5a4530;border-radius:6px;padding:6px;font-family:Georgia,serif;font-size:.82rem" placeholder="Stiff: réplique…&#10;Merry: …&#10;_  (sépare les pages)">${escHTML(n.text || "")}</textarea></div>`;
+      h += `<div class="hint">Format « Nom: réplique ». Une ligne <code>_</code> seule sépare deux pages.</div>`;
+      h += `<div class="erow"><label style="flex:1">Suite → <select id="cn-next">${optList(n.next)}</select></label></div>`;
+    } else {
+      h += `<div class="erow"><label style="flex:1">Mission <select id="cn-mission">${missOpts || `<option value="">(aucune)</option>`}</select></label></div>`;
+      h += `<div class="erow"><label style="flex:1">Étiquette <input id="cn-name" type="text" value="${escHTML(n.name || "")}"></label></div>`;
+      h += `<div class="erow"><label style="flex:1"><span style="color:#5fd07f">✓</span> Victoire → <select id="cn-win">${optList(n.win)}</select></label></div>`;
+      h += `<div class="erow"><label style="flex:1"><span style="color:#e0705f">✕</span> Défaite → <select id="cn-lose">${optList(n.lose)}</select></label></div>`;
+      h += `<div class="hint">Défaite sans cible = on rejoue la mission.</div>`;
+    }
+    h += `<div class="erow"><button id="cn-start" ${campaign.start === n.id ? "disabled" : ""}>★ Définir comme départ</button> <button id="cn-del">🗑 Supprimer</button></div>`;
+    box.innerHTML = h;
+    const on = (id, ev, fn) => { const el = document.getElementById(id); if (el) el.addEventListener(ev, fn); };
+    on("cn-title", "input", e => { n.title = e.target.value; draw(); });
+    on("cn-text", "input", e => { n.text = e.target.value; });
+    on("cn-next", "change", e => { n.next = e.target.value || null; draw(); });
+    on("cn-mission", "change", e => { n.mission = e.target.value; const m = repoMissions.find(x => x.file === n.mission); if (m && (!n.name || n.name === "Mission")) n.name = m.name; renderCampForm(); draw(); });
+    on("cn-name", "input", e => { n.name = e.target.value; draw(); });
+    on("cn-win", "change", e => { n.win = e.target.value || null; draw(); });
+    on("cn-lose", "change", e => { n.lose = e.target.value || null; draw(); });
+    on("cn-start", "click", () => { campaign.start = n.id; renderCampForm(); draw(); });
+    on("cn-del", "click", () => deleteCampNode(n));
+  }
+
+  // ---- sauvegarde / chargement des campagnes (dépôt) ----------------------
+  const ghCfg2 = () => ({
+    repo:  (document.getElementById("gh-repo2").value || "").trim(),
+    token: (document.getElementById("gh-token2").value || "").trim(),
+    branch:(document.getElementById("gh-branch2").value || "").trim(),
+  });
+  let repoCampaigns = [];
+  async function fetchCampaigns(){
+    try{
+      const r = await fetch("campaigns/list.json?_=" + Date.now(), { cache:"no-store" });
+      if (r.ok){ const l = await r.json(); if (Array.isArray(l))
+        repoCampaigns = l.map(x => typeof x === "string" ? { file:x, name:x.replace(/\.json$/,"") } : x); }
+    }catch(e){}
+  }
+  function refreshCampaignMenu(){
+    const sel = document.getElementById("campsel"), row = document.getElementById("camprow");
+    if (sel){ sel.innerHTML = `<option value="">— Campagnes —</option>` +
+      repoCampaigns.map(c => `<option value="${c.file}">${escHTML(c.name)}</option>`).join(""); }
+    if (row) row.style.display = repoCampaigns.length ? "" : "none";
+    const ld = document.getElementById("camp-load");
+    if (ld) ld.innerHTML = repoCampaigns.length
+      ? `<option value="">— charger une campagne —</option>` + repoCampaigns.map(c => `<option value="${c.file}">${escHTML(c.name)}</option>`).join("")
+      : `<option value="">(aucune campagne)</option>`;
+  }
+  async function loadCampaignFile(file){
+    try{ const r = await fetch("campaigns/" + file + "?_=" + Date.now(), { cache:"no-store" });
+      if (r.ok) return await r.json(); }catch(e){}
+    return null;
+  }
+  async function saveCampaign(){
+    const status = document.getElementById("camp-status"); const set = m => { if (status) status.textContent = m; };
+    const cfg = ghCfg2();
+    if (!cfg.token){ set("Renseigne ton token GitHub."); return false; }
+    if (!cfg.repo){ set("Renseigne le dépôt."); return false; }
+    if (!cfg.branch){ set("Renseigne la branche."); return false; }
+    const name = (campaign.name || "").trim();
+    if (!name){ set("Donne un nom à la campagne."); return false; }
+    if (!campaign.start){ set("Définis un nœud de départ."); return false; }
+    try{ localStorage.setItem("mgf_gh", JSON.stringify({ repo:cfg.repo, branch:cfg.branch })); localStorage.setItem("mgf_gh_token", cfg.token); }catch(e){}
+    const file = (name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "") || "campagne") + ".json";
+    try{
+      set("Publication de " + file + "…");
+      await ghPutFile("campaigns/" + file, JSON.stringify(campaign, null, 1), "Campagne : " + name, cfg.branch, cfg);
+      const cur = await ghGetFile("campaigns/list.json", cfg.branch, cfg);
+      let list = [];
+      if (cur){ try{ const p = JSON.parse(cur.text); if (Array.isArray(p)) list = p; }catch(e){} }
+      list = list.map(x => typeof x === "string" ? { file:x, name:x.replace(/\.json$/, "") } : x);
+      const entry = { file, name }, i = list.findIndex(it => it.file === file);
+      if (i >= 0) list[i] = entry; else list.push(entry);
+      await ghPutFile("campaigns/list.json", JSON.stringify(list, null, 1), "campaigns/list.json : " + name, cfg.branch, cfg);
+      if (!repoCampaigns.some(c => c.file === file)) repoCampaigns.push(entry);
+      refreshCampaignMenu();
+      set("✓ Publié : " + name + " (" + file + "). Dispo dans le menu après le rebuild Pages (~1 min).");
+      return true;
+    }catch(e){ set("Échec : " + e.message); return false; }
+  }
+
+  // ---- exécution d'une campagne -------------------------------------------
+  function hideCampCont(){ const c = document.getElementById("campcont"); if (c) c.style.display = "none"; }
+  function showCampCont(msg, label, fn){
+    const c = document.getElementById("campcont"), m = document.getElementById("campcont-msg"), b = document.getElementById("campcont-btn");
+    if (!c) { fn(); return; }
+    m.textContent = msg; b.textContent = label; b.onclick = () => { hideCampCont(); fn(); };
+    c.style.display = "flex";
+  }
+  async function campPlayText(node){
+    introActive = true; skipReq = false;
+    if (panelEl) panelEl.style.display = "none";
+    if (introEl) introEl.style.display = "";
+    if (introTextEl) introTextEl.innerHTML = "";
+    if (skipBtn) skipBtn.style.display = "none";
+    await playDialogue(node.text || "", introTextEl, waitBtn);
+    if (introEl) introEl.style.display = "none";
+    introActive = false;
+  }
+  async function runCampNode(id){
+    hideCampCont();
+    const n = campNodeById(id);
+    if (!n){ endCampaign(true); return; }
+    if (n.type === "text"){ await campPlayText(n); runCampNode(n.next); return; }
+    // nœud mission
+    campRun.nodeId = n.id; campEnded = false;
+    const m = await loadMissionFromUrl(n.mission && n.mission.includes("/") ? n.mission : "missions/" + n.mission);
+    if (!m){ alert("Mission introuvable : " + n.mission); endCampaign(false); return; }
+    startMission(m);
+  }
+  function campMissionEnd(result){
+    const node = campNodeById(campRun.nodeId);
+    const nextId = node ? node[result] : null;
+    if (result === "win"){
+      if (nextId) showCampCont("Mission accomplie.", "Continuer ▶", () => runCampNode(nextId));
+      else showCampCont("Campagne terminée — victoire !", "Retour au menu", () => endCampaign(true));
+    } else {
+      if (nextId) showCampCont("Mission échouée…", "Continuer ▶", () => runCampNode(nextId));
+      else showCampCont("Mission échouée…", "↻ Réessayer", () => runCampNode(campRun.nodeId));
+    }
+  }
+  function startCampaign(camp){
+    if (!camp || !camp.nodes || !camp.nodes.length){ alert("Campagne vide."); return; }
+    campaign = camp; campRun = { camp, nodeId:null }; campEnded = false;
+    resetCarry();                                   // nouvelle campagne : escouade au complet
+    if (campMode) leaveCampEditor();
+    hideCampCont();
+    runCampNode(camp.start);
+  }
+  function endCampaign(){
+    campRun = null; campEnded = false; hideCampCont();
+    introActive = false;
+    if (panelEl) panelEl.style.display = "";
+    generate(); placeUnits();
+    selectUnit(units.find(u => u.team === "player")); renderLog(); refreshAll();
+  }
+
+  function enterCampEditor(){
+    campMode = true; introActive = false; skipReq = true;
+    if (introEl) introEl.style.display = "none";
+    if (sceneEl) sceneEl.style.display = "none";
+    if (skipBtn) skipBtn.style.display = "none";
+    document.body.classList.add("campediting");
+    setupCampCanvas();
+    try{
+      const tok = localStorage.getItem("mgf_gh_token"); if (tok){ const tf = document.getElementById("gh-token2"); if (tf) tf.value = tok; }
+      const cfg = JSON.parse(localStorage.getItem("mgf_gh") || "{}");
+      const rf = document.getElementById("gh-repo2"), bf = document.getElementById("gh-branch2");
+      if (rf && cfg.repo) rf.value = cfg.repo;
+      if (bf) bf.value = cfg.branch || "claude/intelligent-hypatia-nojupi";
+    }catch(e){}
+    const ni = document.getElementById("camp-name"); if (ni) ni.value = campaign.name || "";
+    fetchRepoMissions().then(() => { renderCampForm(); draw(); });
+    fetchCampaigns().then(refreshCampaignMenu);
+    renderCampForm(); draw();
+  }
+  function leaveCampEditor(){
+    campMode = false;
+    document.body.classList.remove("campediting");
+    setupCanvas();
+  }
+
   // ---- Init ---------------------------------------------------------------
   setupCanvas(); generate(); placeUnits();
   selected = units.find(u => u.team === "player"); reach = selected ? computeReach(selected) : null;
@@ -2781,8 +3154,33 @@ Stiff: Enough. I've decided.`;
   refreshMissionMenu();
   fetchRepoMissions().then(refreshMissionMenu);
 
+  // ---- branchements campagne ----
+  onEd("opencamp", () => enterCampEditor());
+  onEd("camp-quit", () => { leaveCampEditor(); selectUnit(units.find(u => u.team === "player")); refreshAll(); });
+  onEd("camp-addtext", () => addCampNode("text"));
+  onEd("camp-addmission", () => addCampNode("mission"));
+  onEd("camp-test", () => startCampaign(campaign));
+  onEd("camp-publish", () => saveCampaign());
+  { const ni = document.getElementById("camp-name"); if (ni) ni.addEventListener("input", () => { campaign.name = ni.value.trim(); }); }
+  onEd("camp-loadbtn", async () => {
+    const f = document.getElementById("camp-load").value; if (!f) return;
+    const c = await loadCampaignFile(f);
+    if (c){ campaign = { name:c.name || "", start:c.start || null, nodes:Array.isArray(c.nodes) ? c.nodes : [] };
+      campSel = null; const ni = document.getElementById("camp-name"); if (ni) ni.value = campaign.name;
+      renderCampForm(); draw(); }
+    else alert("Campagne introuvable.");
+  });
+  onEd("campplay", async () => {
+    const f = document.getElementById("campsel").value; if (!f) return;
+    const c = await loadCampaignFile(f);
+    if (c) startCampaign(c); else alert("Campagne introuvable.");
+  });
+  fetchCampaigns().then(refreshCampaignMenu);
+
   const params = new URLSearchParams(location.search);
   if (params.get("edit") !== null){ enterEditor(); }
+  else if (params.get("campaign") !== null){ enterCampEditor(); }
+  else if (params.get("playcampaign")){ loadCampaignFile(params.get("playcampaign")).then(c => c ? startCampaign(c) : startSequence()); }
   else if (params.get("mission")){ loadMissionFromUrl(params.get("mission")).then(m => m ? startMission(m) : startSequence()); }
   else { startSequence(); }
 })();

@@ -1,0 +1,53 @@
+{
+ "name": "Campagne — démo",
+ "start": "intro",
+ "nodes": [
+  {
+   "id": "intro",
+   "type": "text",
+   "title": "Ouverture",
+   "text": "Merry: So it WAS bandits! I knew it.\nStiff: See, you're not such a no-good.\n_\nStiff: Anyway, let's get this going. They should be close now.",
+   "next": "m1",
+   "x": 40,
+   "y": 40
+  },
+  {
+   "id": "m1",
+   "type": "mission",
+   "mission": "mission-1.json",
+   "name": "Mission 1",
+   "win": "between",
+   "lose": null,
+   "x": 40,
+   "y": 160
+  },
+  {
+   "id": "between",
+   "type": "text",
+   "title": "Interlude",
+   "text": "Gizzard: Told you it was bandits.\nMerry: You said undead. And animals. And kids.\nGizzard: … One of those was bound to land.",
+   "next": "m2",
+   "x": 300,
+   "y": 160
+  },
+  {
+   "id": "m2",
+   "type": "mission",
+   "mission": "mission-2.json",
+   "name": "Infiltration 2",
+   "win": "end",
+   "lose": null,
+   "x": 300,
+   "y": 280
+  },
+  {
+   "id": "end",
+   "type": "text",
+   "title": "Fin",
+   "text": "Stiff: That's the lot of them.\nMerry: Same time tomorrow, Sarge?\nStiff: …\nGizzard: He means yes.",
+   "next": null,
+   "x": 560,
+   "y": 280
+  }
+ ]
+}
