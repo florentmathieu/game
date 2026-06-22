@@ -185,6 +185,35 @@
       <div class="erow"><button id="ed-play">💾 Enregistrer &amp; tester</button> <button id="ed-quit">Quitter</button></div>
       <div class="erow"><select id="ed-missions" style="flex:1"></select> <button id="ed-loadmission" style="flex:0 0 auto;width:auto">Charger</button></div>
 
+      <h2 style="margin-top:12px">Évènements (dialogues)</h2>
+      <div id="triglist" class="hint"></div>
+      <div class="erow"><label style="flex:1">Quand <select id="trig-on">
+        <option value="start">Début de bataille</option>
+        <option value="turn">Début du tour N</option>
+        <option value="attack">Attaque</option>
+        <option value="kill">Mise à mort</option>
+        <option value="wounded">Unité blessée</option>
+        <option value="cracker">Cracker</option>
+        <option value="move">Déplacement</option>
+        <option value="spotted">Pod repéré</option>
+        <option value="win">Victoire</option>
+        <option value="lose">Défaite</option>
+      </select></label></div>
+      <div class="erow tc" data-for="attack kill wounded move cracker"><input id="trig-actor" placeholder="acteur (nom/classe)" list="ed-names" style="flex:1"></div>
+      <div class="erow tc" data-for="attack kill wounded"><input id="trig-target" placeholder="cible (nom/classe)" list="ed-names" style="flex:1"></div>
+      <div class="erow tc" data-for="attack"><label style="flex:1">résultat <select id="trig-result"><option value="">—</option><option>hit</option><option>miss</option><option>blocked</option></select></label></div>
+      <div class="erow tc" data-for="attack kill"><label style="flex:1">arme <select id="trig-weapon"><option value="">—</option><option>épée</option><option>dagues</option><option>arbalète</option><option>arc</option><option>cracker</option></select></label></div>
+      <div class="erow tc" data-for="attack"><label style="flex:1">tue ? <select id="trig-killed"><option value="">—</option><option value="true">oui</option><option value="false">non</option></select></label></div>
+      <div class="erow tc" data-for="attack cracker"><label><input type="checkbox" id="trig-first"> 1re action de la bataille</label></div>
+      <div class="erow tc" data-for="cracker"><label style="flex:1">ennemis touchés = <input id="trig-enemiesHit" type="number" min="0" style="width:56px"></label></div>
+      <div class="erow tc" data-for="wounded"><label style="flex:1">PV cible ≤ <input id="trig-hppct" type="number" min="0" max="100" style="width:56px"> %</label></div>
+      <div class="erow tc" data-for="turn"><label style="flex:1">tour n° <input id="trig-turn" type="number" min="1" style="width:56px"></label></div>
+      <div class="erow tc" data-for="spotted"><label style="flex:1">pod n° <input id="trig-pod" type="number" min="0" style="width:56px"></label></div>
+      <div class="erow"><input id="trig-who" placeholder="qui parle (défaut : acteur)" list="ed-names" style="flex:1"></div>
+      <div class="erow"><input id="trig-text" placeholder="réplique…" style="flex:1"></div>
+      <div class="erow"><label><input type="checkbox" id="trig-once" checked> une fois</label> <label>prio <input id="trig-prio" type="number" value="0" style="width:46px"></label> <button id="trig-add" style="flex:1">+ Ajouter</button></div>
+      <datalist id="ed-names"></datalist>
+
       <h2 style="margin-top:12px">Enregistrer (dépôt)</h2>
       <div class="erow"><input id="gh-token" type="password" placeholder="token GitHub (fine-grained, Contents: write)" style="flex:1"></div>
       <div class="erow"><input id="gh-repo" type="text" value="florentmathieu/game" title="dépôt" style="flex:1"></div>
@@ -512,6 +541,7 @@
     firedTriggers = new Set(); battleFlags = { firstOffense: false }; speeches = [];  // reset des évènements
     recomputeVision();
     emit("start", {});
+    emit("turn", { turn });
   }
   function placeUnits(){ triggers = []; placeUnitsFrom(DEFAULT_SQUAD); }
 
@@ -660,8 +690,17 @@
   }
 
   // Réveille un pod entier (les copains) — ou une unité isolée endormie.
-  function wakePod(pid){ podAlerted.add(pid); for (const u of units) if (u.team === "enemy" && u.pod === pid) u.asleep = false; }
-  function wake(u){ if (u.team !== "enemy") return; if (u.pod !== undefined) wakePod(u.pod); else u.asleep = false; }
+  function wakePod(pid){
+    const fresh = pid !== undefined && !podAlerted.has(pid);
+    podAlerted.add(pid);
+    for (const u of units) if (u.team === "enemy" && u.pod === pid) u.asleep = false;
+    if (fresh) emit("spotted", { pod: pid, actorTeam: "enemy" });
+  }
+  function wake(u){
+    if (u.team !== "enemy") return;
+    if (u.pod !== undefined){ wakePod(u.pod); }
+    else if (u.asleep){ u.asleep = false; emit("spotted", { actorTeam: "enemy" }); }
+  }
   // un bruit (combat, explosion) réveille les pods ennemis dont un membre est à portée
   function makeNoise(col, row, radius){
     if (radius <= 0) return;
@@ -873,6 +912,8 @@
     if (!(silent && dead)) wake(tgt);                    // une victime non tuée — ou une arme bruyante — alerte son pod
     makeNoise(tgt.col, tgt.row, att.wtype === "ranged" ? NOISE_RANGED : (att.flank ? NOISE_DAGGER : NOISE_SWORD));
     if (dmg > 0 && !dead) makeNoise(tgt.col, tgt.row, NOISE_WOUNDED);   // un blessé crie : bruit fort (mais < explosion)
+    if (hit && dmg > 0) emit("wounded", { targetName:tgt.name, targetCls:tgt.cls, targetTeam:tgt.team, byName:att.name,
+      hp:Math.max(0,tgt.hp), maxHp:tgt.maxHp, hpPct:Math.round(100*Math.max(0,tgt.hp)/tgt.maxHp), killed:dead });
     if (dead){ tgt.hp = 0; tgt.dead = true; }          // on garde le corps sur la carte
     emit("attack", { actorName:att.name, actorCls:att.cls, actorTeam:att.team, target:undefined,
       targetName:tgt.name, targetCls:tgt.cls, weapon:weaponName(att),
@@ -932,6 +973,7 @@
       triggerReactions(unit);
       if (unit.hp <= 0) return i;   // abattu en chemin
     }
+    emit("move", { actorName:unit.name, actorCls:unit.cls, actorTeam:unit.team, col:unit.col, row:unit.row, steps:path.length-1 });
     return path.length - 1;
   }
 
@@ -991,6 +1033,7 @@
   }
   // Affiche une réplique : bulle au-dessus de l'unité + ligne de journal.
   function say(who, text){
+    if (!who) who = (units.find(u => u.team === "player" && u.hp > 0) || {}).name || "—";
     const u = units.find(x => x.name === who && x.hp > 0) || units.find(x => x.name === who);
     speeches.push({ who, text, col: u ? u.col : undefined, row: u ? u.row : undefined,
                     t0: (typeof performance !== "undefined" ? performance.now() : Date.now()) });
@@ -1231,6 +1274,7 @@
       if (u.team === "player") u.overwatch = false;   // la vigilance joueur expire ; celle des ennemis (posée ce tour) reste active
     }
     recomputeVision();
+    emit("turn", { turn });
     selectUnit(units.find(u => u.team === "player" && u.hp > 0) || null);  // présélection au nouveau tour
   }
 
@@ -1847,6 +1891,8 @@
         u.hp -= dmg; wake(u);
         if (u.team === thrower.team) alliesHit++; else enemiesHit++;
         if (u.hp <= 0){ u.hp = 0; u.dead = true; killed++; }
+        emit("wounded", { targetName:u.name, targetCls:u.cls, targetTeam:u.team, byName:thrower.name,
+          hp:Math.max(0,u.hp), maxHp:u.maxHp, hpPct:Math.round(100*Math.max(0,u.hp)/u.maxHp), killed:u.hp<=0 });
         pushLog(`   💥 ${u.name} : ${dmg} dégâts${u.hp<=0?" ✝":""}`, u.team);
       }
     }
@@ -2129,7 +2175,7 @@
       if (bf) bf.value = cfg.branch || "claude/intelligent-hypatia-nojupi";
     }catch(e){}
     refreshMissionMenu(); fetchRepoMissions().then(refreshMissionMenu);   // liste des missions chargeable
-    setTool(editTool); updateExport(); draw();
+    setTool(editTool); refreshTrigEditor(); updateExport(); draw();
   }
   function leaveEditor(){
     editMode = false; painting = false;
@@ -2211,13 +2257,62 @@
     applyMission(m); editorName = m.name || editorName;
     const ci = document.getElementById("ed-cols"), ri = document.getElementById("ed-rows"), ni = document.getElementById("ed-name");
     if (ci) ci.value = COLS; if (ri) ri.value = ROWS; if (ni) ni.value = editorName;
-    updateExport(); draw();
+    updateExport(); draw(); refreshTrigEditor();
+  });
+  // ---- éditeur d'évènements (triggers) ------------------------------------
+  const tval = (id) => { const e = document.getElementById(id); return e ? String(e.value).trim() : ""; };
+  const tchk = (id) => { const e = document.getElementById(id); return e ? e.checked : false; };
+  function updateTrigForm(){
+    const on = tval("trig-on") || "start";
+    for (const el of document.querySelectorAll(".tc"))
+      el.style.display = (el.dataset.for || "").split(" ").includes(on) ? "" : "none";
+  }
+  function refreshTrigNames(){
+    const dl = document.getElementById("ed-names"); if (!dl) return;
+    const names = new Set(); for (const u of units) names.add(u.name); for (const id of CLASS_IDS) names.add(id);
+    dl.innerHTML = [...names].map(n => `<option value="${n}">`).join("");
+  }
+  function trigSummary(t){
+    const m = t.match || {}, parts = [];
+    for (const k in m){ const v = m[k]; parts.push(k + ":" + (v && typeof v === "object" ? JSON.stringify(v) : v)); }
+    const say = t.say ? (Array.isArray(t.say) ? `${t.say[0] || "acteur"}: "${t.say[1]}"` : `${t.say.who || "acteur"}: "${t.say.text}"`) : "(action)";
+    return `<b>${t.on}</b>${parts.length ? " [" + parts.join(", ") + "]" : ""}${t.priority ? " ·p" + t.priority : ""}${t.once === false ? " ·∞" : ""} → 💬 ${say}`;
+  }
+  function renderTrigList(){
+    const el = document.getElementById("triglist"); if (!el) return;
+    if (!triggers.length){ el.innerHTML = "<i>Aucun évènement.</i>"; return; }
+    el.innerHTML = triggers.map((t, i) =>
+      `<div style="margin:3px 0;display:flex;gap:6px;align-items:start"><button data-ti="${i}" class="trig-del" style="width:auto;padding:1px 6px;flex:0 0 auto">✕</button><span>${trigSummary(t)}</span></div>`).join("");
+    for (const b of el.querySelectorAll(".trig-del"))
+      b.addEventListener("click", () => { triggers.splice(+b.dataset.ti, 1); renderTrigList(); updateExport(); });
+  }
+  function refreshTrigEditor(){ refreshTrigNames(); updateTrigForm(); renderTrigList(); }
+  { const s = document.getElementById("trig-on"); if (s) s.addEventListener("change", updateTrigForm); }
+  onEd("trig-add", () => {
+    const on = tval("trig-on"), m = {};
+    const setS = (id, key) => { const v = tval(id); if (v) m[key] = v; };
+    setS("trig-actor", "actor"); setS("trig-target", "target"); setS("trig-result", "result"); setS("trig-weapon", "weapon");
+    const killed = tval("trig-killed"); if (killed) m.killed = killed === "true";
+    if (tchk("trig-first")) m.first = true;
+    const eh = tval("trig-enemiesHit"); if (eh !== "") m.enemiesHit = +eh;
+    const hp = tval("trig-hppct"); if (hp !== "") m.hpPct = { max: +hp };
+    const tn = tval("trig-turn"); if (tn !== "") m.turn = +tn;
+    const pod = tval("trig-pod"); if (pod !== "") m.pod = +pod;
+    const text = tval("trig-text"); if (!text){ alert("Écris une réplique."); return; }
+    const who = tval("trig-who");
+    const t = { on }; if (Object.keys(m).length) t.match = m;
+    t.say = who ? [who, text] : { text };
+    const prio = +tval("trig-prio") || 0; if (prio) t.priority = prio;
+    if (!tchk("trig-once")) t.once = false;
+    triggers.push(t);
+    document.getElementById("trig-text").value = "";
+    renderTrigList(); updateExport();
   });
   { const fi = document.getElementById("ed-file"); if (fi) fi.addEventListener("change", (e) => {
       const f = e.target.files[0]; if (!f) return; const rd = new FileReader();
       rd.onload = () => { try{ const m = JSON.parse(rd.result); editorName = m.name || editorName;
           if (editMode){ applyMission(m); const ci=document.getElementById("ed-cols"),ri=document.getElementById("ed-rows"),ni=document.getElementById("ed-name");
-            if(ci)ci.value=COLS; if(ri)ri.value=ROWS; if(ni)ni.value=editorName; updateExport(); draw(); }
+            if(ci)ci.value=COLS; if(ri)ri.value=ROWS; if(ni)ni.value=editorName; updateExport(); draw(); refreshTrigEditor(); }
           else startMission(m);
         }catch(err){ alert("JSON invalide : " + err.message); } };
       rd.readAsText(f); e.target.value = "";

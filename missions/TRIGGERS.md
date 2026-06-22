@@ -31,15 +31,26 @@ réplique (ou une action) quand un évènement de combat correspond.
 C'est ainsi qu'on gère « sauf si… » : une règle générale (priorité 0) + une règle
 plus précise et plus prioritaire (priorité 1) qui la remplace quand elle matche.
 
+## Le plus simple : l'éditeur
+
+Dans l'éditeur (`?edit`), section **« Évènements (dialogues) »** : choisis *Quand*, remplis
+les conditions qui s'affichent, écris la réplique, **+ Ajouter**. La liste se gère avec ✕.
+Tout est enregistré dans la mission. (On peut aussi éditer le JSON à la main, ci-dessous.)
+
 ## Évènements (`on`) et leur contexte
 
 - **`start`** — début de la bataille. (aucun champ)
+- **`turn`** — début d'un tour. `turn` (numéro).
 - **`attack`** — une attaque est résolue.
   `actor`, `target` (nom **ou** classe), `weapon` (`épée`/`dagues`/`arbalète`/`arc`),
-  `result` (`hit`/`miss`/`blocked`), `killed` (bool), `dmg` (nombre), `reaction` (bool),
+  `result` (`hit`/`miss`/`blocked`), `killed` (bool), `dmg`, `reaction` (bool),
   `first` (1re action offensive de la bataille, hors riposte), `actorTeam`.
 - **`kill`** — une unité meurt. `actor`, `target`, `weapon`.
+- **`wounded`** — une unité encaisse des dégâts. `target`, `by` (`byName`), `hp`, `maxHp`,
+  `hpPct` (0–100), `killed`. Ex. seuil de PV : `"hpPct": { "max": 30 }`.
 - **`cracker`** — un cracker explose. `actor`, `enemiesHit`, `alliesHit`, `killed`, `first`.
+- **`move`** — une unité finit un déplacement. `actor`, `col`, `row`, `steps`.
+- **`spotted`** — un pod ennemi se réveille (repère le joueur). `pod`.
 - **`win`** / **`lose`** — fin de partie.
 
 ## Champs de `match`
