@@ -417,13 +417,17 @@
    "type": "Garde",
    "team": "enemy",
    "col": 15,
-   "row": 4
+   "row": 4,
+   "pod": 1,
+   "asleep": true
   },
   {
    "type": "Archer",
    "team": "enemy",
    "col": 12,
-   "row": 8
+   "row": 8,
+   "pod": 1,
+   "asleep": true
   },
   {
    "type": "Stiff",
@@ -451,6 +455,8 @@
    "team": "enemy",
    "col": 3,
    "row": 12,
+   "pod": 0,
+   "asleep": true,
    "facing": 1.0471975511965976
   },
   {
@@ -458,6 +464,8 @@
    "team": "enemy",
    "col": 6,
    "row": 12,
+   "pod": 0,
+   "asleep": true,
    "facing": 2.0943951023931953
   }
  ]
