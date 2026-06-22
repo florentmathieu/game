@@ -1420,9 +1420,11 @@
       ctx.lineTo(x + Math.cos(u.facing)*SIZE*0.85, y + Math.sin(u.facing)*SIZE*0.85);
       ctx.lineWidth = 3; ctx.strokeStyle = u.team === "player" ? "#bfe6ff" : "#f0b0ac"; ctx.stroke();
 
+      const undetected = u.stealth && !enemyStealthSeen.has(u);   // assassin non repéré : jeton grisé
       ctx.beginPath(); ctx.arc(x, y, SIZE*0.55, 0, Math.PI*2);
-      ctx.fillStyle = u.team === "player" ? "#5fb0d8" : "#d8635f";
-      ctx.globalAlpha = (u.team === "player" && u.ap <= 0 && !u.overwatch && !u.bracing) ? 0.5 : 1; ctx.fill(); ctx.globalAlpha = 1;
+      ctx.fillStyle = undetected ? "#7a8b93" : (u.team === "player" ? "#5fb0d8" : "#d8635f");
+      const actedAlpha = (u.team === "player" && u.ap <= 0 && !u.overwatch && !u.bracing) ? 0.5 : 1;
+      ctx.globalAlpha = undetected ? Math.min(actedAlpha, 0.6) : actedAlpha; ctx.fill(); ctx.globalAlpha = 1;
       ctx.lineWidth = u === selected ? 3 : 1.5;
       ctx.strokeStyle = u === selected ? "#ffffff" : "rgba(0,0,0,0.5)"; ctx.stroke();
       ctx.fillStyle = "#10171c"; ctx.font = "bold 12px sans-serif";
