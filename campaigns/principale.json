@@ -1,0 +1,26 @@
+{
+ "name": "Principale",
+ "start": "nae6ji",
+ "nodes": [
+  {
+   "id": "nae6ji",
+   "type": "text",
+   "x": 40,
+   "y": 40,
+   "file": "Opening.txt",
+   "title": "Ouverture",
+   "next": "np7rcb"
+  },
+  {
+   "id": "np7rcb",
+   "type": "mission",
+   "x": 250,
+   "y": 40,
+   "mission": "mission-1.json",
+   "name": "Mission 1",
+   "win": null,
+   "lose": null,
+   "intro": "Scene1.txt"
+  }
+ ]
+}
