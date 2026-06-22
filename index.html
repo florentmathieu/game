@@ -1987,7 +1987,8 @@
 
   // ---- branchements de l'éditeur ------------------------------------------
   canvas.addEventListener("pointerdown", (e) => {
-    if (!editMode) return; e.preventDefault();
+    if (!editMode || (e.button !== undefined && e.button !== 0)) return;   // seul le clic gauche peint/pose
+    e.preventDefault();
     const { mx, my } = evtPos(e); hover = pickTile(mx, my); editComputeEdge(mx, my);
     painting = true; lastPaint = null; editApply(true); updateExport(); draw(); editInfo();
   });
@@ -2000,8 +2001,8 @@
   const endPaint = () => { if (editMode && painting){ painting = false; lastPaint = null; updateExport(); } };
   window.addEventListener("pointerup", endPaint);
   window.addEventListener("pointercancel", endPaint);
-  // double-clic sur une unité : on la retire (quel que soit l'outil actif)
-  canvas.addEventListener("dblclick", (e) => {
+  // clic droit sur une unité : on la retire (quel que soit l'outil actif)
+  canvas.addEventListener("contextmenu", (e) => {
     if (!editMode) return; e.preventDefault();
     const { mx, my } = evtPos(e); const t = pickTile(mx, my);
     if (t && unitAt(t.col, t.row)){ removeUnitAt(t.col, t.row); updateExport(); draw(); }
