@@ -419,7 +419,8 @@
    "col": 15,
    "row": 4,
    "pod": 1,
-   "asleep": true
+   "asleep": true,
+   "facing": -1.0471975511965976
   },
   {
    "cls": "archer",
@@ -427,7 +428,8 @@
    "col": 12,
    "row": 8,
    "pod": 1,
-   "asleep": true
+   "asleep": true,
+   "facing": -1.0471975511965976
   },
   {
    "cls": "sergent",
@@ -460,7 +462,7 @@
    "row": 12,
    "pod": 0,
    "asleep": true,
-   "facing": 1.0471975511965976
+   "facing": -2.0943951023931953
   },
   {
    "cls": "archer",
@@ -469,7 +471,7 @@
    "row": 12,
    "pod": 0,
    "asleep": true,
-   "facing": 2.0943951023931953
+   "facing": -1.0471975511965976
   }
  ]
 }

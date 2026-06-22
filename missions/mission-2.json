@@ -553,7 +553,7 @@
    "row": 3,
    "pod": 0,
    "asleep": true,
-   "facing": 1.0471975511965976
+   "facing": 0
   },
   {
    "type": "Brute",
@@ -562,7 +562,7 @@
    "row": 4,
    "pod": 0,
    "asleep": true,
-   "facing": 1.0471975511965976
+   "facing": 0
   },
   {
    "type": "Garde",
@@ -571,7 +571,7 @@
    "row": 14,
    "pod": 1,
    "asleep": true,
-   "facing": -1.0471975511965976
+   "facing": 0
   },
   {
    "type": "Archer",
@@ -580,7 +580,7 @@
    "row": 14,
    "pod": 1,
    "asleep": true,
-   "facing": 1.0471975511965976
+   "facing": 0
   }
  ],
  "meta": {

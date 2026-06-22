@@ -570,7 +570,7 @@
    "aim": -8,
    "pod": 0,
    "asleep": true,
-   "facing": 1.0471975511965976
+   "facing": 0
   },
   {
    "type": "Garde",
@@ -592,7 +592,7 @@
    "aim": -8,
    "pod": 1,
    "asleep": true,
-   "facing": 1.0471975511965976
+   "facing": -1.0471975511965976
   },
   {
    "type": "Archer",

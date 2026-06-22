@@ -24,7 +24,7 @@ function loadEngine(htmlPath){
     shotChanceFrom, coverPenalty, apForMove, lineOfFire, hexDistUnits, moveCost,
     nearestOpposing, faceTowards, setMode, resolveThrow, checkEnd, neighbors,
     key, offsetToCube, cubeDist, tileAt, hasWall, wallKey,
-    fieldOfView, enemyActive, enemyCanSee, playerCanSee, CLASSES,
+    fieldOfView, enemyActive, enemyCanSee, playerCanSee, CLASSES, triggerReactions, reactionMode,
   };
   `;
   src = src.replace(/\}\)\(\);\s*$/, EXPORT + "\n})();");

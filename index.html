@@ -875,6 +875,11 @@
   //  - tir  : seulement en vigilance, dans la portée, à vue et avec une ligne de tir dégagée.
   function reactionMode(w, m){
     if (w.hp <= 0 || m.hp <= 0 || w.reacted) return null;
+    if (w.team === "enemy" && !enemyActive(w)) return null;     // un ennemi dormant/endormi ne réagit pas
+    if (m.stealth){                                             // pas de réaction contre un furtif non perçu (de dos/côté)
+      const seen = w.team === "enemy" ? enemyCanSee(m) : playerCanSee(m);
+      if (!seen) return null;
+    }
     if (w.weapons.melee && hexDistUnits(w, m) === 1) return "melee";   // attaque d'opportunité (entrée OU sortie d'adjacence)
     if (w.overwatch && w.weapons.ranged && (w.clip === undefined || w.ammo > 0)
         && hexDistUnits(w, m) <= w.weapons.ranged.range
