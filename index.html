@@ -170,10 +170,13 @@
         <button class="etool" data-tool="Archer">🏹 Archer</button>
         <button class="etool" data-tool="Brute">🪓 Brute</button>
       </div>
-      <h2 style="margin-top:12px">Furtivité (sur un ennemi)</h2>
+      <h2 style="margin-top:12px">Orientation</h2>
+      <div class="tools">
+        <button class="etool" data-tool="orient">↻ Orienter (toute unité)</button>
+      </div>
+      <h2 style="margin-top:12px">Furtivité (ennemis)</h2>
       <div class="tools">
         <button class="etool" data-tool="sleep">💤 Endormi</button>
-        <button class="etool" data-tool="orient">↻ Orienter</button>
         <button class="etool" data-tool="pod">👥 Pod</button>
       </div>
       <div id="editinfo" class="hint" style="margin-top:8px">Survole la carte.</div>
@@ -1892,9 +1895,10 @@
     // outils de furtivité : agissent sur l'ennemi présent sur la case (au clic)
     if (editTool === "sleep" || editTool === "orient" || editTool === "pod"){
       if (!isDown) return;
-      const u = unitAt(c, r); if (!u || u.team !== "enemy") return;
+      const u = unitAt(c, r); if (!u) return;
+      if (editTool === "orient"){ u.facing = normAng((Math.round((u.facing || 0) / (Math.PI/3)) + 1) * (Math.PI/3)); u.hasFacing = true; return; }  // toute unité
+      if (u.team !== "enemy") return;   // endormi / pod : ennemis seulement
       if (editTool === "sleep") u.asleep = !u.asleep;
-      else if (editTool === "orient"){ u.facing = normAng((Math.round((u.facing || 0) / (Math.PI/3)) + 1) * (Math.PI/3)); u.hasFacing = true; }
       else if (editTool === "pod") u.pod = ((u.pod === undefined ? -1 : u.pod) + 1) % 4;
       return;
     }
