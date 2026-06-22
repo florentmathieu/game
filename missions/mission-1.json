@@ -502,6 +502,17 @@
     "I owe you ten",
     "Gizz."
    ]
+  },
+  {
+   "on": "cracker",
+   "match": {
+    "first": true,
+    "enemiesHit": 1
+   },
+   "say": [
+    "Gizzard",
+    "You just hit one of them, you numbskull!"
+   ]
   }
  ]
 }
