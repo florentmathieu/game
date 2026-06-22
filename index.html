@@ -28,7 +28,7 @@
     color:#e8ddc8; font-family:Georgia,"Times New Roman",serif; font-size:1rem; line-height:1.5;
     box-shadow:0 6px 24px rgba(0,0,0,.55); opacity:0; transition:opacity .25s}
   #combatline.show{opacity:1}
-  #combatline .sp-who{color:#ffd479; font-weight:bold; margin-right:8px}
+  .sp-who{color:#ffd479; font-weight:bold; margin-right:8px}
   #scenebtn{display:block; margin:10px 0 0 auto; background:#15110c; color:#d8cdb4; border:1px solid #5a4530;
     border-radius:6px; padding:6px 18px; letter-spacing:3px; cursor:pointer; min-width:90px}
   #scenebtn:hover{background:#241a12}
@@ -1945,6 +1945,7 @@
   // Résout un jet de cracker par n'importe quelle unité (joueur ou IA).
   function resolveThrow(thrower, tc, tr){
     const cr = thrower.weapons.cracker;
+    faceTowards(thrower, tc, tr);                                       // se tourne vers le jet
     thrower.crackers -= 1; thrower.ap = 0; thrower.freeAvail = false;   // épuise le tour
     // dispersion : impact tiré au hasard dans un rayon `scatter` autour de la case visée
     const cands = [];
@@ -2559,13 +2560,18 @@ Stiff: Enough. I've decided.`;
     return fallback;
   }
 
-  async function typeInto(el, line){
+  const escHTML = (s) => s.replace(/[&<>]/g, c => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;" }[c]));
+  // tape une ligne « Nom : texte » : le nom du protagoniste est mis en doré (.sp-who)
+  async function typeInto(el, prefixHTML, line){
     if (!el) return;
-    const base = el.textContent;
-    for (let i = 0; i < line.length; i++){
-      if (skipReq){ el.textContent = base + line; return; }   // saut : on pose la ligne entière
-      el.textContent = base + line.slice(0, i + 1);
-      const ch = line[i];
+    const mm = line.match(/^([A-Za-zÀ-ÿ' .]{1,15}):\s(.*)$/);
+    const whoHTML = mm ? `<span class="sp-who">${escHTML(mm[1])}</span>` : "";
+    const body = mm ? mm[2] : line;
+    if (skipReq){ el.innerHTML = prefixHTML + whoHTML + escHTML(body); return; }
+    for (let i = 0; i <= body.length; i++){
+      el.innerHTML = prefixHTML + whoHTML + escHTML(body.slice(0, i));
+      if (i === body.length) break;
+      const ch = body[i];
       let d = 30;
       if (ch === "…") d = 650;            // ellipse : longue suspension
       else if (ch === ".") d = 230;       // les « ... » s'égrènent plus lentement
@@ -2580,12 +2586,14 @@ Stiff: Enough. I've decided.`;
     const pages = text.replace(/\r/g, "").split(/\n[ \t]*_[ \t]*\n/);
     for (let p = 0; p < pages.length; p++){
       if (skipReq) return;
-      if (el) el.textContent = "";
+      if (el) el.innerHTML = "";
+      let prefix = "";
       const lines = pages[p].split("\n").map(s => s.replace(/\s+$/, "")).filter(s => s.length);
       for (let i = 0; i < lines.length; i++){
         if (skipReq) break;
-        if (i > 0){ if (el) el.textContent += "\n"; await sleepI(450); }  // petite pause entre les lignes
-        await typeInto(el, lines[i]);
+        if (i > 0){ prefix += "\n"; await sleepI(450); }  // petite pause entre les lignes
+        await typeInto(el, prefix, lines[i]);
+        if (el) prefix = el.innerHTML;    // fige la ligne terminée (nom doré inclus)
       }
       await waiter("...");
     }
