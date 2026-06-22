@@ -14,5 +14,9 @@
  {
   "file": "texts/demo-fin.txt",
   "name": "Démo — fin"
+ },
+ {
+  "file": "texts/principale-fin.txt",
+  "name": "Principale — fin"
  }
 ]

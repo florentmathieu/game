@@ -2751,6 +2751,26 @@ Stiff: Enough. I've decided.`;
     runIntro();
   }
 
+  // écran d'accueil : fond noir, un seul bouton « new game » qui lance la campagne Principale
+  function mainMenu(){
+    introActive = true; firstGame = true; skipReq = false;
+    if (introEl && introEl.style) introEl.style.display = "";
+    if (introTextEl) introTextEl.innerHTML = "";
+    if (sceneEl && sceneEl.style) sceneEl.style.display = "none";
+    if (skipBtn) skipBtn.style.display = "none";
+    if (panelEl) panelEl.style.display = "none";
+    if (introBtn){
+      introBtn.textContent = "new game";
+      introBtn.style.visibility = "visible";
+      introBtn.onclick = () => { introBtn.onclick = null; introBtn.style.visibility = "hidden"; startPrincipale(); };
+    }
+  }
+  async function startPrincipale(){
+    const c = await loadCampaignFile("principale.json");
+    if (c) startCampaign(c);
+    else startSequence();          // repli si la campagne est absente
+  }
+
   // menu « Missions » du jeu : missions du dépôt (missions/list.json)
   let repoMissions = [];
   async function fetchRepoMissions(){
@@ -3206,7 +3226,7 @@ Stiff: Enough. I've decided.`;
   else if (params.get("campaign") !== null){ enterCampEditor(); }
   else if (params.get("playcampaign")){ loadCampaignFile(params.get("playcampaign")).then(c => c ? startCampaign(c) : startSequence()); }
   else if (params.get("mission")){ loadMissionFromUrl(params.get("mission")).then(m => m ? startMission(m) : startSequence()); }
-  else { startSequence(); }
+  else { mainMenu(); }
 })();
 </script>
 </body>

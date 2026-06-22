@@ -1,14 +1,14 @@
 [
  {
-  "file": "demo.json",
-  "name": "Campagne — démo"
+  "file": "principale.json",
+  "name": "Principale"
  },
  {
   "file": "campagne-principale.json",
   "name": "Campagne principale"
  },
  {
-  "file": "principale.json",
-  "name": "Principale"
+  "file": "demo.json",
+  "name": "Campagne — démo"
  }
 ]
