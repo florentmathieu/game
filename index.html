@@ -787,7 +787,12 @@
   }
   function nearestOpposing(u){
     let best = null, bd = Infinity;
-    for (const o of units){ if (o.hp <= 0 || o.team === u.team) continue; const d = hexDistUnits(u, o); if (d < bd){ bd = d; best = o; } }
+    for (const o of units){
+      if (o.hp <= 0 || o.team === u.team) continue;
+      // on ne s'oriente pas vers un furtif (assassin) qu'on ne perçoit pas (sinon on le « repère » en se tournant)
+      if (o.stealth){ const seen = u.team === "enemy" ? enemyCanSee(o) : playerCanSee(o); if (!seen) continue; }
+      const d = hexDistUnits(u, o); if (d < bd){ bd = d; best = o; }
+    }
     return best;
   }
 
@@ -1453,11 +1458,11 @@
       ctx.lineTo(x + Math.cos(u.facing)*SIZE*0.85, y + Math.sin(u.facing)*SIZE*0.85);
       ctx.lineWidth = 3; ctx.strokeStyle = u.team === "player" ? "#bfe6ff" : "#f0b0ac"; ctx.stroke();
 
-      const undetected = u.stealth && u.team === "player" && !enemyStealthSeen.has(u);   // notre assassin non repéré : jeton grisé
+      const undetected = u.stealth && u.team === "player" && !enemyStealthSeen.has(u);   // notre assassin non repéré : jeton un peu grisé
       ctx.beginPath(); ctx.arc(x, y, SIZE*0.55, 0, Math.PI*2);
-      ctx.fillStyle = undetected ? "#7a8b93" : (u.team === "player" ? "#5fb0d8" : "#d8635f");
+      ctx.fillStyle = undetected ? "#6f97ad" : (u.team === "player" ? "#5fb0d8" : "#d8635f");
       const actedAlpha = (u.team === "player" && u.ap <= 0 && !u.overwatch && !u.bracing) ? 0.5 : 1;
-      ctx.globalAlpha = undetected ? Math.min(actedAlpha, 0.6) : actedAlpha; ctx.fill(); ctx.globalAlpha = 1;
+      ctx.globalAlpha = undetected ? Math.min(actedAlpha, 0.78) : actedAlpha; ctx.fill(); ctx.globalAlpha = 1;
       ctx.lineWidth = u === selected ? 3 : 1.5;
       ctx.strokeStyle = u === selected ? "#ffffff" : "rgba(0,0,0,0.5)"; ctx.stroke();
       ctx.fillStyle = "#10171c"; ctx.font = "bold 12px sans-serif";
