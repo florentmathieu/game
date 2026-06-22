@@ -278,6 +278,12 @@
   let targeting = null;         // mode ciblage : { targets:[unités], idx }
   let throwing = false;         // mode lancer de cracker (vise une case)
   const FX_DUR = 280;
+  // ---- Évènements scriptés (dialogues/triggers paramétrables par mission) ----
+  let triggers = [];                 // règles {on, match, say, once, priority} (mission.triggers)
+  let firedTriggers = new Set();     // triggers déjà déclenchés (pour once)
+  let battleFlags = { firstOffense: false };  // 1re action offensive de la bataille
+  let speeches = [];                 // bulles de dialogue en cours { who, text, col, row, t0 }
+  const SPEECH_DUR = 4200;
   let log = [];              // journal des dernières actions
   let turn = 1;              // numéro du tour
   let gameOver = null;       // null | "win" | "lose"
@@ -503,9 +509,11 @@
     for (const u of units){ if (u.hasFacing) continue; const o = nearestOpposing(u); if (o) faceTowards(u, o.col, o.row); }
     selected = null; reach = null; log = []; turn = 1; gameOver = null;
     explored = new Set(); lastSeen = new Map(); podAlerted = new Set();
+    firedTriggers = new Set(); battleFlags = { firstOffense: false }; speeches = [];  // reset des évènements
     recomputeVision();
+    emit("start", {});
   }
-  function placeUnits(){ placeUnitsFrom(DEFAULT_SQUAD); }
+  function placeUnits(){ triggers = []; placeUnitsFrom(DEFAULT_SQUAD); }
 
   // ---- Missions : (dé)sérialisation ---------------------------------------
   const clampElev = (v) => Math.max(0, Math.min(LEVELS-1, v|0));
@@ -526,6 +534,7 @@
         if (u.hasFacing) o.facing = u.facing;
         return o;
       }),
+      ...(triggers.length ? { triggers } : {}),   // évènements scriptés de la mission
     };
   }
   function applyMission(m){
@@ -535,6 +544,7 @@
       if (m.elev[r] && m.elev[r][c] != null) tiles[r][c].elev = clampElev(m.elev[r][c]);
     if (m.rocks) for (const [c, r] of m.rocks) if (tiles[r] && tiles[r][c]){ tiles[r][c].obstacle = true; tiles[r][c].cover = "full"; }
     walls = new Set(m.walls || []);
+    triggers = Array.isArray(m.triggers) ? m.triggers : [];   // chargé avant placeUnitsFrom (émet "start")
     placeUnitsFrom(m.units || []);   // resolveCls gère cls et anciens « type »
   }
 
@@ -864,6 +874,11 @@
     makeNoise(tgt.col, tgt.row, att.wtype === "ranged" ? NOISE_RANGED : (att.flank ? NOISE_DAGGER : NOISE_SWORD));
     if (dmg > 0 && !dead) makeNoise(tgt.col, tgt.row, NOISE_WOUNDED);   // un blessé crie : bruit fort (mais < explosion)
     if (dead){ tgt.hp = 0; tgt.dead = true; }          // on garde le corps sur la carte
+    emit("attack", { actorName:att.name, actorCls:att.cls, actorTeam:att.team, target:undefined,
+      targetName:tgt.name, targetCls:tgt.cls, weapon:weaponName(att),
+      result: !hit ? "miss" : (saveTxt ? "blocked" : "hit"), killed:dead, dmg, reaction:!!reaction });
+    if (dead) emit("kill", { actorName:att.name, actorCls:att.cls, actorTeam:att.team,
+      targetName:tgt.name, targetCls:tgt.cls, weapon:weaponName(att) });
     recomputeVision();
     reach = (selected && selected.hp > 0) ? computeReach(selected) : reach;
     checkEnd();
@@ -923,8 +938,66 @@
   function checkEnd(){
     const players = units.some(u => u.team === "player" && u.hp > 0);
     const enemies = units.some(u => u.team === "enemy" && u.hp > 0);
-    if (!enemies){ gameOver = "win"; pushLog("— Victoire : tous les ennemis sont éliminés —", "player"); }
-    else if (!players){ gameOver = "lose"; pushLog("— Défaite : toute l'escouade est tombée —", "enemy"); }
+    if (!enemies){ gameOver = "win"; pushLog("— Victoire : tous les ennemis sont éliminés —", "player"); emit("win", {}); }
+    else if (!players){ gameOver = "lose"; pushLog("— Défaite : toute l'escouade est tombée —", "enemy"); emit("lose", {}); }
+  }
+
+  // ====================== ÉVÈNEMENTS / TRIGGERS ============================
+  // Étiquette d'arme (sert au matching des triggers).
+  const weaponName = (u) => u.wtype === "ranged" ? (u.clip !== undefined ? "arbalète" : "arc") : (u.flank ? "dagues" : "épée");
+  // Un trigger « matche » un contexte si tous ses champs `match` correspondent.
+  //  - actor/target : nom OU classe ; nombres : valeur exacte ou { min, max } ; sinon égalité.
+  function trigMatch(t, ctx){
+    const M = t.match || {};
+    for (const k in M){
+      const want = M[k];
+      if (k === "actor" || k === "target"){
+        if (want !== ctx[k + "Name"] && want !== ctx[k + "Cls"]) return false;
+      } else if (want && typeof want === "object"){
+        const v = ctx[k];
+        if (want.min != null && !(v >= want.min)) return false;
+        if (want.max != null && !(v <= want.max)) return false;
+      } else if (ctx[k] !== want) return false;
+    }
+    return true;
+  }
+  // Émet un évènement : calcule le contexte, choisit le trigger prioritaire qui matche, l'exécute.
+  function emit(type, ctx){
+    ctx.type = type; ctx.turn = turn;
+    if (type === "attack" || type === "cracker"){          // « première action offensive » de la bataille
+      if (ctx.reaction){ ctx.first = false; }
+      else { ctx.first = !battleFlags.firstOffense; battleFlags.firstOffense = true; }
+    }
+    let best = null, bestP = -Infinity, bestId = -1;
+    for (let i = 0; i < triggers.length; i++){
+      const t = triggers[i], id = t.id != null ? t.id : i;
+      if (t.on !== type) continue;
+      if (t.once !== false && firedTriggers.has(id)) continue;   // once par défaut
+      if (!trigMatch(t, ctx)) continue;
+      const p = t.priority || 0;
+      if (p > bestP){ bestP = p; best = t; bestId = id; }
+    }
+    if (!best) return;
+    firedTriggers.add(bestId);
+    runAction(best, ctx);
+  }
+  function runAction(t, ctx){
+    if (t.say){
+      const who = Array.isArray(t.say) ? t.say[0] : (t.say.who || ctx.actorName);
+      const text = Array.isArray(t.say) ? t.say[1] : t.say.text;
+      if (text) say(who, text);
+    }
+    if (typeof t.do === "function"){ try{ t.do(ctx); }catch(e){} }   // action JS optionnelle (API live)
+  }
+  // Affiche une réplique : bulle au-dessus de l'unité + ligne de journal.
+  function say(who, text){
+    const u = units.find(x => x.name === who && x.hp > 0) || units.find(x => x.name === who);
+    speeches.push({ who, text, col: u ? u.col : undefined, row: u ? u.row : undefined,
+                    t0: (typeof performance !== "undefined" ? performance.now() : Date.now()) });
+    if (speeches.length > 6) speeches.shift();
+    pushLog(`💬 ${who} : ${text}`, u && u.team === "enemy" ? "enemy" : "player");
+    draw();
+    if (typeof setTimeout === "function") setTimeout(() => draw(), SPEECH_DUR + 80);
   }
 
   function pushLog(msg, team){
@@ -1254,6 +1327,37 @@
     }
   }
 
+  // bulles de dialogue au-dessus de l'unité qui parle (évènements scriptés)
+  function drawSpeeches(){
+    const now = (typeof performance !== "undefined") ? performance.now() : Date.now();
+    speeches = speeches.filter(s => now - s.t0 < SPEECH_DUR);
+    ctx.textAlign = "left"; ctx.textBaseline = "alphabetic";
+    for (const s of speeches){
+      if (s.col === undefined) continue;
+      const c = tileCenter(s.col, s.row);
+      ctx.font = "12px Georgia, serif";
+      const label = (s.who + " : " + s.text).length > 30 ? (s.who + " : " + s.text).slice(0,29)+"…" : s.who + " : " + s.text;
+      const meas = ctx.measureText && ctx.measureText(label);
+      const w = Math.min(190, (meas && meas.width) || label.length * 6.5) + 14;
+      const bx = Math.max(2, Math.min(c.x - w/2, canvas.width/(window.devicePixelRatio||1) - w - 2));
+      const by = c.y - SIZE*1.5 - 22, h = 20;
+      const age = now - s.t0, fade = age > SPEECH_DUR - 500 ? (SPEECH_DUR - age)/500 : 1;
+      ctx.globalAlpha = Math.max(0, fade);
+      ctx.fillStyle = "rgba(12,9,5,0.9)"; ctx.strokeStyle = "#caa86a"; ctx.lineWidth = 1;
+      roundRect(bx, by, w, h, 5); ctx.fill(); ctx.stroke();
+      // petit ergot vers l'unité
+      ctx.beginPath(); ctx.moveTo(c.x-4, by+h); ctx.lineTo(c.x+4, by+h); ctx.lineTo(c.x, by+h+6); ctx.closePath(); ctx.fill();
+      ctx.fillStyle = "#ffe9b8";
+      ctx.fillText(label, bx+7, by+14);
+      ctx.globalAlpha = 1;
+    }
+  }
+  function roundRect(x, y, w, h, r){
+    ctx.beginPath();
+    ctx.moveTo(x+r, y); ctx.arcTo(x+w, y, x+w, y+h, r); ctx.arcTo(x+w, y+h, x, y+h, r);
+    ctx.arcTo(x, y+h, x, y, r); ctx.arcTo(x, y, x+w, y, r); ctx.closePath();
+  }
+
   function drawRock(x, y){
     // rocher : gros tas de blocs sombres (couvert total, bloque la vue)
     const spots = [[-5,3,6],[5,4,5.5],[0,-4,6],[0,2,4]];
@@ -1546,6 +1650,7 @@
     }
 
     drawFx();   // projectiles / coups d'épée
+    drawSpeeches();   // bulles de dialogue (évènements scriptés)
 
     // éditeur : surligne l'arête où le muret serait posé
     if (editMode && editTool === "wall" && editHoverEdge){
@@ -1734,16 +1839,20 @@
     pushBlast(ic, ir, cr.radius);
     pushLog(`${thrower.team === "player" ? "▲" : "▼"} ${thrower.name} lance un cracker en (${ic},${ir})`, thrower.team);
     // dégâts en rayon (ignore couvert et bouclier), tir ami compris
+    let enemiesHit = 0, alliesHit = 0, killed = 0;
     for (const u of units){
       if (u.hp <= 0) continue;
       if (cubeDist(offsetToCube(ic, ir), offsetToCube(u.col, u.row)) <= cr.radius){
         const dmg = cr.dmgMin + Math.floor(Math.random()*(cr.dmgMax-cr.dmgMin+1));
         u.hp -= dmg; wake(u);
-        if (u.hp <= 0){ u.hp = 0; u.dead = true; }
+        if (u.team === thrower.team) alliesHit++; else enemiesHit++;
+        if (u.hp <= 0){ u.hp = 0; u.dead = true; killed++; }
         pushLog(`   💥 ${u.name} : ${dmg} dégâts${u.hp<=0?" ✝":""}`, u.team);
       }
     }
     makeNoise(ic, ir, NOISE_CRACKER);   // l'explosion réveille les pods alentour
+    emit("cracker", { actorName:thrower.name, actorCls:thrower.cls, actorTeam:thrower.team,
+      weapon:"cracker", enemiesHit, alliesHit, killed, reaction:false });
     recomputeVision(); checkEnd();
   }
   function doThrow(tc, tr){       // jet du joueur
@@ -2364,6 +2473,17 @@ Stiff: Enough. I've decided.`;
       return true;
     }catch(e){ set("Échec : " + e.message); return false; }
   }
+
+  // API console pour scripter/tester les évènements en direct pendant le combat :
+  //   MGF.addTrigger({ on:"attack", match:{actor:"Gizzard", first:true, result:"miss"}, say:["Gizzard","Raté !"] })
+  //   MGF.say("Merry","..."), MGF.triggers (liste courante), MGF.emit("attack",{...}) pour simuler
+  if (typeof window !== "undefined") window.MGF = {
+    get triggers(){ return triggers; }, set triggers(v){ triggers = Array.isArray(v) ? v : []; },
+    addTrigger(t){ triggers.push(t); return triggers.length; },
+    clearTriggers(){ triggers = []; },
+    resetFired(){ firedTriggers = new Set(); },
+    say, emit,
+  };
 
   // ---- Init ---------------------------------------------------------------
   setupCanvas(); generate(); placeUnits();
