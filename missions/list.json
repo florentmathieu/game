@@ -74,5 +74,9 @@
  {
   "file": "mission-19.json",
   "name": "Mission 19"
+ },
+ {
+  "file": "mission-20.json",
+  "name": "Mission 20"
  }
 ]
