@@ -269,6 +269,7 @@
   let visible = new Set();   // cases actuellement vues par le joueur
   let explored = new Set();  // cases déjà vues au moins une fois (mémoire)
   let enemyVisible = new Set(); // cases vues par les ennemis (leur propre brouillard)
+  let enemyStealthSeen = new Set(); // joueurs furtifs (assassin) effectivement perçus (de face)
   let lastSeen = new Map();     // mémoire d'escouade : joueur -> {col,row} dernière position vue
   let anim = null;              // animation de déplacement en cours (cosmétique)
   let fx = [];                  // effets d'attaque éphémères (projectiles, coups d'épée)
@@ -414,7 +415,7 @@
     Merry:   { team:"player", role:"Sapeur",   maxMp:8, maxHp:7,  crackers:1,
                weapons:{ ranged: bow(65,3,4,6,1), melee: sword(70,3,5),
                          cracker:{ type:"throw", dmgMin:5, dmgMax:9, range:6, radius:2, scatter:2 } } },
-    Gizzard: { team:"player", role:"Assassin", maxMp:8, maxHp:7,  parry:35, weapons:{ melee: dagger(80,3,4,5,2) } },
+    Gizzard: { team:"player", role:"Assassin", maxMp:8, maxHp:7,  parry:35, stealth:true, weapons:{ melee: dagger(80,3,4,5,2) } },
     Garde:   { team:"enemy",  role:"Garde",    maxMp:6, maxHp:8,  shieldBlock:30, weapons:{ melee: sword(65,3,4) } },
     Archer:  { team:"enemy",  role:"Archer",   maxMp:6, maxHp:6,  weapons:{ ranged: bow(70,2,3,8) } },
     Brute:   { team:"enemy",  role:"Brute",    maxMp:8, maxHp:13, weapons:{ melee: sword(70,5,7) } },
@@ -596,18 +597,29 @@
   function recomputeVision(){
     visible = teamVision("player");
     for (const k of visible) explored.add(k);
-    enemyVisible = teamVision("enemy");   // les ennemis ont les mêmes règles de vision
-    // mémoire d'escouade : on note la dernière position connue de chaque joueur vu,
-    // et on oublie les unités mortes ou disparues.
+    // vision ennemie + perception des furtifs + éveil des pods, en un seul passage
+    enemyVisible = new Set();
+    enemyStealthSeen = new Set();
+    for (const e of units){
+      if (e.team !== "enemy" || e.hp <= 0) continue;
+      const fov = fieldOfView(e);
+      for (const k of fov) enemyVisible.add(k);
+      for (const p of units){
+        if (p.team !== "player" || p.hp <= 0 || !fov.has(key(p.col, p.row))) continue;
+        if (p.stealth && !frontalOf(e, p)) continue;   // furtif (assassin) : perçu seulement de face
+        if (p.stealth) enemyStealthSeen.add(p);
+        wake(e);                                        // percevoir un joueur éveille l'ennemi (et son pod)
+      }
+    }
+    // mémoire d'escouade : on ne mémorise que les joueurs réellement perçus
     for (const p of [...lastSeen.keys()]) if (!units.includes(p) || p.hp <= 0) lastSeen.delete(p);
     for (const u of units){
-      if (u.team !== "player" || u.hp <= 0 || !enemyVisible.has(key(u.col, u.row))) continue;
+      if (u.team !== "player" || u.hp <= 0 || !enemyCanSee(u)) continue;
       const prev = lastSeen.get(u);
       if (!prev) lastSeen.set(u, { col:u.col, row:u.row, pcol:u.col, prow:u.row });
       else if (prev.col !== u.col || prev.row !== u.row)
         lastSeen.set(u, { col:u.col, row:u.row, pcol:prev.col, prow:prev.row }); // garde la direction
     }
-    updatePodAwareness();
   }
 
   // Réveille un pod entier (les copains) — ou une unité isolée endormie.
@@ -622,16 +634,16 @@
     }
   }
 
-  // Éveil par pod : un groupe prend conscience du joueur dès qu'UN de ses membres en voit un.
-  // Endormi = vision réduite/frontale (cf. fieldOfView) ; un membre réveillé réveille ses copains.
-  function updatePodAwareness(){
-    for (const e of units){
-      if (e.team !== "enemy" || e.hp <= 0) continue;
-      if (e.pod !== undefined && podAlerted.has(e.pod)) continue;   // pod déjà actif
-      if (e.pod === undefined && !e.asleep) continue;               // unité isolée déjà active
-      const fov = fieldOfView(e);
-      for (const p of units) if (p.team === "player" && p.hp > 0 && fov.has(key(p.col, p.row))){ wake(e); break; }
-    }
+  // Un joueur est-il dans l'arc frontal de l'ennemi (de face) ?
+  const frontalOf = (e, p) => {
+    const a = tileCenter(e.col, e.row), b = tileCenter(p.col, p.row);
+    let dx = b.x - a.x, dy = b.y - a.y; const L = Math.hypot(dx, dy) || 1;
+    return (dx/L) * Math.cos(e.facing || 0) + (dy/L) * Math.sin(e.facing || 0) >= 0.5;
+  };
+  // Un ennemi perçoit un joueur si sa case est vue ET (joueur non furtif OU vu de face).
+  function enemyCanSee(p){
+    if (!enemyVisible.has(key(p.col, p.row))) return false;
+    return !p.stealth || enemyStealthSeen.has(p);
   }
   // un ennemi agit s'il est éveillé ET (sans pod, ou pod alerté)
   const enemyActive = (e) => !e.asleep && (e.pod === undefined || podAlerted.has(e.pod));
@@ -782,7 +794,7 @@
     if (att.wtype === "ranged" && att.clip !== undefined && att.ammo <= 0) return false; // arme à chargeur vide
     if (!tgt || tgt.team === att.team || tgt.hp <= 0) return false;
     // chaque camp ne peut viser que ce que son équipe voit
-    const seen = att.team === "player" ? isVisible(tgt.col, tgt.row) : enemyVisible.has(key(tgt.col, tgt.row));
+    const seen = att.team === "player" ? isVisible(tgt.col, tgt.row) : enemyCanSee(tgt);
     if (!seen) return false;
     if (hexDistUnits(att, tgt) > att.range) return false;
     return lineOfFire(att, tgt);
@@ -973,7 +985,7 @@
       e.ap = 0; return;
     }
     // l'IA ne connaît que les joueurs que son camp voit (brouillard ennemi)
-    const players = units.filter(u => u.team === "player" && u.hp > 0 && enemyVisible.has(key(u.col, u.row)));
+    const players = units.filter(u => u.team === "player" && u.hp > 0 && enemyCanSee(u));
     if (!players.length){ await searchAct(e); return; }   // personne en vue : fouille la dernière position connue
 
     // cracker : si une case de jet touche un bon groupe (ou une cible bien à couvert), on lance
@@ -1066,7 +1078,7 @@
 
   // une cible serait-elle à portée et à vue si l'arme était chargée ?
   function hasPotentialShot(e){
-    return units.some(p => p.team === "player" && p.hp > 0 && enemyVisible.has(key(p.col, p.row))
+    return units.some(p => p.team === "player" && p.hp > 0 && enemyCanSee(p)
       && hexDistUnits(e, p) <= e.range && lineOfFire(e, p));
   }
 
@@ -1074,7 +1086,7 @@
   // un ennemi ne se met en vigilance que s'il sait que des joueurs sont là (vus maintenant ou mémorisés)
   function enemyKnowsPlayers(){
     if (lastSeen.size > 0) return true;
-    return units.some(u => u.team === "player" && u.hp > 0 && enemyVisible.has(key(u.col, u.row)));
+    return units.some(u => u.team === "player" && u.hp > 0 && enemyCanSee(u));
   }
   function holdOrWatch(e){
     if (e.range > 1 && (e.clip === undefined || e.ammo > 0) && enemyKnowsPlayers()) e.overwatch = true;

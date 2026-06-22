@@ -47,7 +47,10 @@ function aiAct(e, W){
   }
   const opp = e.team === "player" ? "enemy" : "player";
   const vis = visOf(e);
-  const seen = T.units.filter(u => u.team === opp && u.hp > 0 && vis.has(T.key(u.col, u.row)));
+  // l'ennemi ne perçoit le joueur furtif (assassin) que de face -> enemyCanSee
+  const seen = e.team === "enemy"
+    ? T.units.filter(u => u.team === "player" && u.hp > 0 && T.enemyCanSee(u))
+    : T.units.filter(u => u.team === opp && u.hp > 0 && vis.has(T.key(u.col, u.row)));
 
   if (e.weapons.cracker && e.crackers > 0 && e.ap > 0 && seen.length){
     const g = genericGrenade(e); if (g){ T.resolveThrow(e, g.col, g.row); return; }
