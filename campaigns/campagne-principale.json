@@ -1,0 +1,26 @@
+{
+ "name": "Campagne principale",
+ "start": "n2p0n8",
+ "nodes": [
+  {
+   "id": "n2p0n8",
+   "type": "text",
+   "x": 40,
+   "y": 40,
+   "file": "Opening.txt",
+   "title": "Ouverture",
+   "next": "no1c7h"
+  },
+  {
+   "id": "no1c7h",
+   "type": "mission",
+   "x": 50,
+   "y": 216,
+   "mission": "mission-1.json",
+   "name": "Mission 1",
+   "win": null,
+   "lose": null,
+   "intro": "Scene1.txt"
+  }
+ ]
+}
