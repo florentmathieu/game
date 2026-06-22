@@ -130,6 +130,7 @@
 
       <h2 style="margin-top:14px">Carte</h2>
       <div class="row"><button id="regen">Régénérer la carte</button></div>
+      <div class="row"><label><input type="checkbox" id="togglefog" checked> Brouillard de guerre</label></div>
       <div class="row" id="missionrow" style="display:none"><select id="missionsel"></select></div>
       <div class="row"><label class="filelbl">📂 Charger une mission<input id="ed-file" type="file" accept=".json,application/json" hidden></label></div>
 
@@ -2047,6 +2048,7 @@
   canvas.addEventListener("touchstart", (e) => { if (editMode) return; e.preventDefault(); onMove(e); onClick(e); }, { passive:false });
 
   document.getElementById("regen").addEventListener("click", () => { if (busy()) return; generate(); placeUnits(); selectUnit(units.find(u => u.team === "player")); renderLog(); });
+  { const fg = document.getElementById("togglefog"); if (fg) fg.addEventListener("change", () => { opts.fog = fg.checked; refreshAll(); }); }
   document.getElementById("endturn").addEventListener("click", () => { if (!busy()) endPlayerTurn(); });
   document.getElementById("act-shoot").addEventListener("click", () => enterTargeting("ranged"));
   document.getElementById("act-melee").addEventListener("click", () => enterTargeting("melee"));
