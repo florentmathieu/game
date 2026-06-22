@@ -414,7 +414,7 @@
  ],
  "units": [
   {
-   "type": "Garde",
+   "cls": "garde",
    "team": "enemy",
    "col": 15,
    "row": 4,
@@ -422,7 +422,7 @@
    "asleep": true
   },
   {
-   "type": "Archer",
+   "cls": "archer",
    "team": "enemy",
    "col": 12,
    "row": 8,
@@ -430,28 +430,31 @@
    "asleep": true
   },
   {
-   "type": "Stiff",
+   "cls": "sergent",
    "team": "player",
    "col": 4,
    "row": 19,
+   "name": "Stiff",
    "facing": -2.0943951023931957
   },
   {
-   "type": "Merry",
+   "cls": "sapeur",
    "team": "player",
    "col": 6,
    "row": 19,
+   "name": "Merry",
    "facing": -2.0943951023931957
   },
   {
-   "type": "Gizzard",
+   "cls": "assassin",
    "team": "player",
    "col": 2,
    "row": 19,
+   "name": "Gizzard",
    "facing": -1.0471975511965976
   },
   {
-   "type": "Garde",
+   "cls": "garde",
    "team": "enemy",
    "col": 3,
    "row": 12,
@@ -460,7 +463,7 @@
    "facing": 1.0471975511965976
   },
   {
-   "type": "Archer",
+   "cls": "archer",
    "team": "enemy",
    "col": 6,
    "row": 12,
