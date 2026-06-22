@@ -182,7 +182,7 @@
       <div id="editinfo" class="hint" style="margin-top:8px">Survole la carte.</div>
 
       <h2 style="margin-top:12px">Mission</h2>
-      <div class="erow"><button id="ed-play">▶ Tester</button> <button id="ed-quit">Quitter</button></div>
+      <div class="erow"><button id="ed-play">💾 Enregistrer &amp; tester</button> <button id="ed-quit">Quitter</button></div>
       <div class="erow"><select id="ed-missions" style="flex:1"></select> <button id="ed-loadmission" style="flex:0 0 auto;width:auto">Charger</button></div>
 
       <h2 style="margin-top:12px">Enregistrer (dépôt)</h2>
@@ -2015,7 +2015,8 @@
   const onEd = (id, fn) => { const el = document.getElementById(id); if (el) el.addEventListener("click", fn); };
   onEd("openeditor", () => enterEditor());
   onEd("ed-quit", () => { leaveEditor(); generate(); placeUnits(); selectUnit(units.find(u => u.team === "player")); renderLog(); refreshAll(); });
-  onEd("ed-play", () => playCurrent());
+  // Tester : on enregistre d'abord dans le dépôt (sinon la mission serait perdue), puis on joue
+  onEd("ed-play", async () => { if (await publishToRepo()) playCurrent(); });
   onEd("ed-apply", () => {
     const c = +document.getElementById("ed-cols").value, r = +document.getElementById("ed-rows").value;
     resizeGrid(c, r); blankMap(); units = units.filter(u => u.col < COLS && u.row < ROWS);
@@ -2272,9 +2273,9 @@ Stiff: Enough. I've decided.`;
   async function publishToRepo(){
     const status = document.getElementById("gh-status"); const set = (m) => { if (status) status.textContent = m; };
     const { repo, token, branch } = ghCfg();
-    if (!token) return set("Renseigne ton token GitHub.");
-    if (!repo)  return set("Renseigne le dépôt (owner/repo).");
-    if (!branch) return set("Renseigne la branche (ex. celle servie par Pages).");
+    if (!token) { set("Renseigne ton token GitHub."); return false; }
+    if (!repo)  { set("Renseigne le dépôt (owner/repo)."); return false; }
+    if (!branch) { set("Renseigne la branche (ex. celle servie par Pages)."); return false; }
     try{ localStorage.setItem("mgf_gh", JSON.stringify({ repo, branch })); localStorage.setItem("mgf_gh_token", token); }catch(e){}
     const name = editorName || "Mission";
     const file = (name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "") || "mission") + ".json";
@@ -2292,7 +2293,8 @@ Stiff: Enough. I've decided.`;
       if (!repoMissions.some(it => it.file === file)) repoMissions.push(entry);
       refreshMissionMenu();
       set("✓ Publié : " + name + " (" + file + "). Disponible dans le menu après le rebuild Pages (~1 min).");
-    }catch(e){ set("Échec : " + e.message); }
+      return true;
+    }catch(e){ set("Échec : " + e.message); return false; }
   }
 
   // ---- Init ---------------------------------------------------------------
