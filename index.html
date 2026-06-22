@@ -206,6 +206,8 @@
   const AP_MAX = 2;          // points d'action par tour
   const MOB_AP = 3;          // mouvement (MP) débloqué par point d'action converti
   const COVER_HALF = 20, COVER_FULL = 40; // % de défense procurés par le couvert
+  // rayon de bruit qui réveille les pods alentour (en cases) : dague = silencieuse
+  const NOISE_DAGGER = 0, NOISE_SWORD = 2, NOISE_RANGED = 4, NOISE_CRACKER = 7;
   const SQRT3 = Math.sqrt(3);
   const HEX_W = SQRT3 * SIZE;   // largeur d'un hexagone (pointy-top)
   const HEX_V = 1.5 * SIZE;     // pas vertical entre deux lignes
@@ -607,6 +609,14 @@
   // Réveille un pod entier (les copains) — ou une unité isolée endormie.
   function wakePod(pid){ podAlerted.add(pid); for (const u of units) if (u.team === "enemy" && u.pod === pid) u.asleep = false; }
   function wake(u){ if (u.team !== "enemy") return; if (u.pod !== undefined) wakePod(u.pod); else u.asleep = false; }
+  // un bruit (combat, explosion) réveille les pods ennemis dont un membre est à portée
+  function makeNoise(col, row, radius){
+    if (radius <= 0) return;
+    for (const e of units){
+      if (e.team !== "enemy" || e.hp <= 0) continue;
+      if (cubeDist(offsetToCube(col, row), offsetToCube(e.col, e.row)) <= radius) wake(e);
+    }
+  }
 
   // Éveil par pod : un groupe prend conscience du joueur dès qu'UN de ses membres en voit un.
   // Endormi = vision réduite/frontale (cf. fieldOfView) ; un membre réveillé réveille ses copains.
@@ -795,7 +805,9 @@
     const res = !hit ? "raté" : saveTxt ? saveTxt : `touché ${dmg}${dead ? " ✝" : ""}`;
     pushLog(`${att.team === "player" ? "▲" : "▼"} ${att.name} ${verb} ${tgt.name} (${chance}%) : ${res}`, att.team);
     if (!reaction){ att.ap = 0; att.freeAvail = false; }   // une attaque épuise le tour (PA + mouvement libre) ; une riposte n'épuise rien
-    wake(tgt);                                         // se faire attaquer réveille le pod visé
+    const silent = att.wtype === "melee" && att.flank;   // dagues = silencieuses (exécution discrète)
+    if (!(silent && dead)) wake(tgt);                    // une victime non tuée — ou une arme bruyante — alerte son pod
+    makeNoise(tgt.col, tgt.row, att.wtype === "ranged" ? NOISE_RANGED : (att.flank ? NOISE_DAGGER : NOISE_SWORD));
     if (dead){ tgt.hp = 0; tgt.dead = true; }          // on garde le corps sur la carte
     recomputeVision();
     reach = (selected && selected.hp > 0) ? computeReach(selected) : reach;
@@ -1669,6 +1681,7 @@
         pushLog(`   💥 ${u.name} : ${dmg} dégâts${u.hp<=0?" ✝":""}`, u.team);
       }
     }
+    makeNoise(ic, ir, NOISE_CRACKER);   // l'explosion réveille les pods alentour
     recomputeVision(); checkEnd();
   }
   function doThrow(tc, tr){       // jet du joueur

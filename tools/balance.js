@@ -230,8 +230,9 @@ function pickSpots(comp, pref, n, occupied, minSpace){
   return out;
 }
 
-function makeMap(){
-  const format = choice(["vertical", "horizontal", "square", "path"]);
+function makeMap(infil){
+  // l'infiltration demande de la profondeur d'approche -> formats allongés
+  const format = infil ? choice(["vertical", "horizontal"]) : choice(["vertical", "horizontal", "square", "path"]);
   let cols, rows;
   if (format === "vertical"){ cols = ri(12, 16); rows = ri(20, 26); }
   else if (format === "horizontal"){ cols = ri(22, 28); rows = ri(12, 16); }
@@ -247,8 +248,11 @@ function makeMap(){
                                   : (c, r) => r - T.tiles[r][c].elev * 0.5;
   const enemyPref  = axis === "h" ? (c, r) => c + T.tiles[r][c].elev * 1.2
                                   : (c, r) => (R-1-r) + T.tiles[r][c].elev * 1.2;
-  return { format, axis, cols, rows, comp, playerPref, enemyPref };
+  // angle (pixel) de l'avancée joueur -> ennemi : est (h) ou haut (v). Sert à orienter les dormants.
+  const advAngle = axis === "h" ? 0 : -Math.PI / 2;
+  return { format, axis, cols, rows, comp, playerPref, enemyPref, advAngle };
 }
+const snapHex = (a) => Math.round(a / (Math.PI / 3)) * (Math.PI / 3);
 
 // place les ennemis en DEUX pods séparés (2 à 4 unités chacun), regroupés autour de deux
 // points d'ancrage éloignés l'un de l'autre (évite un seul gros paquet).
@@ -294,7 +298,7 @@ function enemyComposition(n){
   return comp.slice(0, n);
 }
 
-function buildMission(map, name, nEnemies, buff){
+function buildMission(map, name, nEnemies, buff, infil){
   const occupied = new Set();
   const pSpots = pickSpots(map.comp, map.playerPref, 3, occupied, 2);
   for (const [c, r] of pSpots) occupied.add(T.key(c, r));
@@ -304,17 +308,21 @@ function buildMission(map, name, nEnemies, buff){
     .map((u, i) => ({ type:u[0], team:"player", col:pSpots[i][0], row:pSpots[i][1] }));
   const comp = enemyComposition(nEnemies);
   const s1 = Math.floor(nEnemies / 2);   // pickPods range les positions pod0 puis pod1
-  const enemies = eSpots.map((s, i) => ({ type:comp[i], team:"enemy", col:s[0], row:s[1], hp:buff.hp, aim:buff.aim, pod: i < s1 ? 0 : 1 }));
+  const enemies = eSpots.map((s, i) => {
+    const e = { type:comp[i], team:"enemy", col:s[0], row:s[1], hp:buff.hp, aim:buff.aim, pod: i < s1 ? 0 : 1 };
+    if (infil){ e.asleep = true; e.facing = snapHex(map.advAngle + choice([-1, 0, 0, 1]) * (Math.PI / 3)); }  // dormants, tournés ~vers l'avant (dos au joueur)
+    return e;
+  });
   T.placeUnitsFrom([...players, ...enemies].map(u => ({ ...u })));
   return T.serializeMission(name);
 }
 
 // ---- calibration : viser 60–80% de victoires joueur ----
 const LO = 0.60, HI = 0.80, SCREEN = 14, CONFIRM = 40;
-function calibrate(map){
+function calibrate(map, infil){
   let n = ri(4, 7), buff = { hp: 0, aim: 0 };      // départ varié pour obtenir 4..7 ennemis
   for (let it = 0; it < 9; it++){
-    const mission = buildMission(map, "tmp", n, buff);
+    const mission = buildMission(map, "tmp", n, buff, infil);
     if (!mission){ if (n > 4){ n--; continue; } return null; }
     const wr = winrate(mission, SCREEN);
     if (wr >= LO && wr <= HI){
@@ -346,14 +354,14 @@ function saveMission(mission, wr, meta){
   const list = readList();
   const idx = nextIndex(list);
   const file = `mission-${idx}.json`;
-  mission.name = `Mission ${idx}`;
+  mission.name = (meta.infil ? "Infiltration " : "Mission ") + idx;
   mission.meta = { winrate: Math.round(wr * 100), ...meta };
   fs.writeFileSync(path.join(MDIR, file), JSON.stringify(mission, null, 1));
   list.push({ file, name: mission.name });
   fs.writeFileSync(path.join(MDIR, "list.json"), JSON.stringify(list, null, 1));
   try{
     execSync(`git add missions/`, { cwd: ROOT });
-    execSync(`git commit -q -m "Mission ${idx} (auto, ${Math.round(wr*100)}% victoire joueur, ${meta.format}, ${meta.cols}x${meta.rows}, ${meta.n} ennemis)" ` +
+    execSync(`git commit -q -m "${mission.name} (auto, ${Math.round(wr*100)}% victoire joueur, ${meta.infil?'infiltration, ':''}${meta.format}, ${meta.cols}x${meta.rows}, ${meta.n} ennemis)" ` +
       `-m "Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>" -m "Claude-Session: https://claude.ai/code/session_011W5fGsCJX3Rz6FN17p17HS"`, { cwd: ROOT });
     for (let a = 0; a < 4; a++){ try{ execSync(`git push -u origin claude/intelligent-hypatia-nojupi`, { cwd: ROOT, stdio:"ignore" }); break; }
       catch(e){ execSync(`sleep ${2 << a}`); } }
@@ -365,20 +373,21 @@ function saveMission(mission, wr, meta){
 function main(){
   const minutes = +(process.env.BAL_MINUTES || 150);
   const maxKeep = +(process.env.BAL_MAX || 14);
+  const infilTarget = +(process.env.BAL_INFIL || 6);   // nombre de missions d'infiltration visées
   const deadline = now() + minutes * 60 * 1000;
-  let tested = 0, kept = 0, games = 0;
+  let tested = 0, kept = 0, keptInfil = 0;
   const t0 = now();
-  log(`=== démarrage : budget ${minutes} min, max ${maxKeep} missions ===`);
+  log(`=== démarrage : budget ${minutes} min, max ${maxKeep} missions (dont ~${infilTarget} infiltration) ===`);
   while (now() < deadline && kept < maxKeep){
-    const map = makeMap(); tested++;
+    const infil = keptInfil < infilTarget;             // on enchaîne d'abord les infiltrations
+    const map = makeMap(infil); tested++;
     if (!map) continue;
-    const res = calibrate(map);
-    games += SCREEN; // approximation pour le débit
+    const res = calibrate(map, infil);
     if (res){
       const file = saveMission(res.mission, res.wr,
-        { format: map.format, cols: map.cols, rows: map.rows, n: res.n, buff: res.buff });
-      kept++;
-      log(`✓ gardée ${file} — ${Math.round(res.wr*100)}% (${map.format} ${map.cols}x${map.rows}, ${res.n} ennemis, buff hp${res.buff.hp}/aim${res.buff.aim}) | testées ${tested}, gardées ${kept}`);
+        { format: map.format, cols: map.cols, rows: map.rows, n: res.n, buff: res.buff, infil });
+      kept++; if (infil) keptInfil++;
+      log(`✓ gardée ${file} ${infil?"[INFIL] ":""}— ${Math.round(res.wr*100)}% (${map.format} ${map.cols}x${map.rows}, ${res.n} ennemis, buff hp${res.buff.hp}/aim${res.buff.aim}) | testées ${tested}, gardées ${kept}`);
     } else if (tested % 10 === 0){
       const rate = (now() - t0) / tested;
       log(`… ${tested} cartes testées, ${kept} gardées (~${rate.toFixed(0)} ms/carte)`);
