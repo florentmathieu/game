@@ -31,6 +31,26 @@ réplique (ou une action) quand un évènement de combat correspond.
 | `requires` | id(s) d'autres triggers qui doivent **déjà s'être déclenchés** (chaîne ou liste) |
 | `forbids`  | id(s) qui ne doivent **pas** s'être déclenchés |
 
+### Actions (en plus du dialogue)
+
+Un trigger peut aussi agir sur le monde (cumulable avec `say`/`lines`) :
+
+| champ    | effet |
+|----------|------|
+| `wake`   | réveille un **pod** : `0`/`1`/… ou `"all"` (tous les ennemis) |
+| `spawn`  | fait apparaître des **renforts** : liste d'unités `[{ "cls":"brute", "team":"enemy", "col":8, "row":2 }]` |
+| `open`   | **ouvre un passage** : enlève les rochers d'un nom de zone (`"porte"`) ou d'une liste `[[c,r],…]` |
+| `close`  | **ferme un passage** : pose des rochers (même format) |
+
+```json
+{ "on":"enter", "match":{ "zone":"piège" },
+  "say":["Stiff","C'était un piège !"], "close":"sortie", "wake":"all",
+  "spawn":[{ "cls":"archer","team":"enemy","col":10,"row":3 }] }
+```
+
+Dans l'éditeur, section **Actions (optionnel)** du formulaire : *réveiller pod*, *ouvrir zone*,
+*fermer zone* (les renforts `spawn` se font pour l'instant en JSON / via `MGF`).
+
 ### Séries et réponses conditionnées
 
 Une **série** se fait avec `lines` (les répliques s'enchaînent dans l'encart).

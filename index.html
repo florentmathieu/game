@@ -238,6 +238,9 @@
       <div class="erow"><input id="trig-who" placeholder="qui parle (défaut : acteur)" list="ed-names" style="flex:1"></div>
       <div class="erow"><input id="trig-text" placeholder="réplique…" style="flex:1"><button id="trig-addline" style="flex:0 0 auto;width:auto">+ ligne</button></div>
       <div class="erow"><input id="trig-id" placeholder="id (optionnel)" style="flex:1"><input id="trig-requires" placeholder="requiert id(s)…" list="ed-trigids" style="flex:1"></div>
+      <div class="erow" style="font-size:.72rem;color:#9a8a74">Actions (optionnel)</div>
+      <div class="erow"><label style="flex:1">réveiller pod <select id="trig-wake"><option value="">—</option><option value="all">tous</option><option>0</option><option>1</option><option>2</option><option>3</option></select></label></div>
+      <div class="erow"><label style="flex:1">ouvrir zone <select id="trig-open"></select></label> <label style="flex:1">fermer zone <select id="trig-close"></select></label></div>
       <div class="erow"><label><input type="checkbox" id="trig-once" checked> une fois</label> <label>prio <input id="trig-prio" type="number" value="0" style="width:46px"></label> <button id="trig-add" style="flex:1">✓ Créer l'évènement</button></div>
       <datalist id="ed-names"></datalist>
       <datalist id="ed-trigids"></datalist>
@@ -1081,7 +1084,32 @@
   function runAction(t, ctx){
     if (t.lines && t.lines.length){ for (const ln of t.lines) sayLine(ln, ctx); }   // série de répliques
     else if (t.say) sayLine(t.say, ctx);
-    if (typeof t.do === "function"){ try{ t.do(ctx); }catch(e){} }   // action JS optionnelle (API live)
+    // ---- actions de monde (réveil de pod, renforts, ouvrir/fermer un passage) ----
+    let changed = false;
+    const tilesOf = (v) => typeof v === "string" ? ((zones.find(z => z.name === v) || { tiles: [] }).tiles) : v;
+    if (t.wake !== undefined){
+      if (t.wake === "all"){ for (const u of units) if (u.team === "enemy"){ if (u.pod !== undefined) podAlerted.add(u.pod); u.asleep = false; } }
+      else wakePod(+t.wake);
+      changed = true;
+    }
+    if (t.spawn){ for (const s of (Array.isArray(t.spawn) ? t.spawn : [t.spawn])) addUnit(s); changed = true; }
+    if (t.open){ for (const [c, r] of tilesOf(t.open)){ const tl = tiles[r] && tiles[r][c]; if (tl){ tl.obstacle = false; delete tl.cover; } } changed = true; }
+    if (t.close){ for (const [c, r] of tilesOf(t.close)){ const tl = tiles[r] && tiles[r][c]; if (tl && !unitAt(c, r)){ tl.obstacle = true; tl.cover = "full"; } } changed = true; }
+    if (typeof t.do === "function"){ try{ t.do(ctx); changed = true; }catch(e){} }   // action JS optionnelle (API live)
+    if (changed){ recomputeVision(); if (selected && selected.hp > 0) reach = computeReach(selected); if (typeof refreshAll === "function") refreshAll(); else draw(); }
+  }
+  // ajoute une unité en cours de partie (renforts)
+  function addUnit(spec){
+    const { cls, defName } = resolveCls(spec);
+    if (!cls || spec.col == null || spec.row == null) return null;
+    const u = buildUnit(cls, spec.col, spec.row, spec.team, spec.over || { hp:spec.hp, aim:spec.aim }, defName);
+    if (!u) return null;
+    if (spec.pod !== undefined) u.pod = spec.pod;
+    if (spec.asleep) u.asleep = true;
+    if (spec.facing !== undefined){ u.facing = spec.facing; u.hasFacing = true; }
+    if (tiles[u.row] && tiles[u.row][u.col]){ tiles[u.row][u.col].obstacle = false; delete tiles[u.row][u.col].cover; }
+    units.push(u); dedupeNames();
+    return u;
   }
   // Affiche une réplique : bulle au-dessus de l'unité + ligne de journal.
   // Réplique scriptée : encart de dialogue par-dessus la carte (style ouverture), + journal.
@@ -2321,11 +2349,17 @@
     const m = t.match || {}, parts = [];
     for (const k in m){ const v = m[k]; parts.push(k + ":" + (v && typeof v === "object" ? JSON.stringify(v) : v)); }
     let say;
-    if (t.lines) say = `${t.lines.length} répliques`;
-    else if (t.say) say = Array.isArray(t.say) ? `${t.say[0] || "acteur"}: "${t.say[1]}"` : `${t.say.who || "acteur"}: "${t.say.text}"`;
-    else say = "(action)";
+    if (t.lines) say = `💬 ${t.lines.length} répliques`;
+    else if (t.say) say = "💬 " + (Array.isArray(t.say) ? `${t.say[0] || "acteur"}: "${t.say[1]}"` : `${t.say.who || "acteur"}: "${t.say.text}"`);
+    else say = "";
+    const acts = [];
+    if (t.wake !== undefined) acts.push("réveil pod " + t.wake);
+    if (t.spawn) acts.push("renforts");
+    if (t.open) acts.push("ouvre " + (typeof t.open === "string" ? t.open : "passage"));
+    if (t.close) acts.push("ferme " + (typeof t.close === "string" ? t.close : "passage"));
+    const eff = [say, acts.length ? "⚙ " + acts.join(", ") : ""].filter(Boolean).join(" · ") || "(rien)";
     const req = t.requires ? " ⟵" + (Array.isArray(t.requires) ? t.requires.join("+") : t.requires) : "";
-    return `<b>${t.on}</b>${t.id ? " #" + t.id : ""}${parts.length ? " [" + parts.join(", ") + "]" : ""}${req}${t.priority ? " ·p" + t.priority : ""}${t.once === false ? " ·∞" : ""} → 💬 ${say}`;
+    return `<b>${t.on}</b>${t.id ? " #" + t.id : ""}${parts.length ? " [" + parts.join(", ") + "]" : ""}${req}${t.priority ? " ·p" + t.priority : ""}${t.once === false ? " ·∞" : ""} → ${eff}`;
   }
   function renderTrigList(){
     const el = document.getElementById("triglist"); if (!el) return;
@@ -2341,6 +2375,8 @@
     const opts = zones.map(z => `<option${z.name===editZone?" selected":""}>${z.name}</option>`).join("");
     if (sel) sel.innerHTML = zones.length ? opts : `<option value="">(aucune)</option>`;
     if (tz) tz.innerHTML = zones.length ? zones.map(z=>`<option>${z.name}</option>`).join("") : `<option value="">(aucune)</option>`;
+    const zopt = `<option value="">—</option>` + zones.map(z=>`<option>${z.name}</option>`).join("");
+    for (const id of ["trig-open","trig-close"]){ const e = document.getElementById(id); if (e) e.innerHTML = zopt; }
   }
   { const s = document.getElementById("zone-sel"); if (s) s.addEventListener("change", () => { editZone = s.value; draw(); }); }
   onEd("zone-new", () => {
@@ -2384,10 +2420,14 @@
     const pod = tval("trig-pod"); if (pod !== "") m.pod = +pod;
     const lines = trigLines.slice();
     const text = tval("trig-text"); if (text) lines.push([tval("trig-who"), text]);   // la ligne en cours compte aussi
-    if (!lines.length){ alert("Ajoute au moins une réplique."); return; }
+    const wake = tval("trig-wake"), open = tval("trig-open"), close = tval("trig-close");
+    if (!lines.length && !wake && !open && !close){ alert("Ajoute une réplique ou une action."); return; }
     const t = { on }; if (Object.keys(m).length) t.match = m;
     if (lines.length === 1) t.say = lines[0][0] ? lines[0] : { text: lines[0][1] };
-    else t.lines = lines;
+    else if (lines.length) t.lines = lines;
+    if (wake) t.wake = wake === "all" ? "all" : +wake;
+    if (open) t.open = open;
+    if (close) t.close = close;
     const id = tval("trig-id"); if (id) t.id = id;
     const req = tval("trig-requires").split(",").map(s => s.trim()).filter(Boolean); if (req.length) t.requires = req.length === 1 ? req[0] : req;
     const prio = +tval("trig-prio") || 0; if (prio) t.priority = prio;
@@ -2395,6 +2435,7 @@
     triggers.push(t);
     trigLines = [];
     for (const id2 of ["trig-text","trig-id","trig-requires"]){ const e = document.getElementById(id2); if (e) e.value = ""; }
+    for (const id2 of ["trig-wake","trig-open","trig-close"]){ const e = document.getElementById(id2); if (e) e.value = ""; }
     renderTrigLines(); renderTrigList(); refreshTrigIds(); updateExport();
   });
   { const fi = document.getElementById("ed-file"); if (fi) fi.addEventListener("change", (e) => {
