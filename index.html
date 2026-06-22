@@ -169,6 +169,12 @@
         <button class="etool" data-tool="Archer">🏹 Archer</button>
         <button class="etool" data-tool="Brute">🪓 Brute</button>
       </div>
+      <h2 style="margin-top:12px">Furtivité (sur un ennemi)</h2>
+      <div class="tools">
+        <button class="etool" data-tool="sleep">💤 Endormi</button>
+        <button class="etool" data-tool="orient">↻ Orienter</button>
+        <button class="etool" data-tool="pod">👥 Pod</button>
+      </div>
       <div id="editinfo" class="hint" style="margin-top:8px">Survole la carte.</div>
 
       <h2 style="margin-top:12px">Mission</h2>
@@ -453,12 +459,20 @@
       const [type, team, col, row, over] = Array.isArray(it)
         ? it : [it.type, it.team, it.col, it.row, it.over || { hp:it.hp, aim:it.aim }];
       const pod = Array.isArray(it) ? it[5] : it.pod;
+      const asleep = Array.isArray(it) ? it[6] : it.asleep;
+      const facing = Array.isArray(it) ? it[7] : it.facing;
       if (col < 0 || col >= COLS || row < 0 || row >= ROWS) continue;
-      const u = buildUnit(type, col, row, team, over); if (u){ if (pod !== undefined) u.pod = pod; units.push(u); }
+      const u = buildUnit(type, col, row, team, over);
+      if (u){
+        if (pod !== undefined) u.pod = pod;
+        if (asleep) u.asleep = true;
+        if (facing !== undefined){ u.facing = facing; u.hasFacing = true; }
+        units.push(u);
+      }
     }
     dedupeNames();
     for (const u of units){ if (tiles[u.row] && tiles[u.row][u.col]){ tiles[u.row][u.col].obstacle = false; delete tiles[u.row][u.col].cover; } }
-    for (const u of units){ const o = nearestOpposing(u); if (o) faceTowards(u, o.col, o.row); }
+    for (const u of units){ if (u.hasFacing) continue; const o = nearestOpposing(u); if (o) faceTowards(u, o.col, o.row); }
     selected = null; reach = null; log = []; turn = 1; gameOver = null;
     explored = new Set(); lastSeen = new Map(); podAlerted = new Set();
     recomputeVision();
@@ -479,6 +493,8 @@
         if (u.over && u.over.hp) o.hp = u.over.hp;
         if (u.over && u.over.aim) o.aim = u.over.aim;
         if (u.pod !== undefined) o.pod = u.pod;
+        if (u.asleep) o.asleep = true;
+        if (u.hasFacing) o.facing = u.facing;
         return o;
       }),
     };
@@ -492,7 +508,7 @@
     walls = new Set(m.walls || []);
     placeUnitsFrom((m.units || []).map(u => ({
       type:u.type, team:u.team || (TEMPLATES[u.type] ? TEMPLATES[u.type].team : "enemy"),
-      col:u.col, row:u.row, hp:u.hp, aim:u.aim,
+      col:u.col, row:u.row, hp:u.hp, aim:u.aim, pod:u.pod, asleep:u.asleep, facing:u.facing,
     })));
   }
 
@@ -524,11 +540,18 @@
     const o = tileCenter(u.col, u.row);
     const src = offsetToCube(u.col, u.row);
     const vis = new Set([key(u.col, u.row)]);
+    const range = u.asleep ? Math.max(1, VISION - 2) : VISION;   // endormi : portée réduite (−2)
+    const fc = Math.cos(u.facing || 0), fs = Math.sin(u.facing || 0);
     const within = [];
-    for (let r = Math.max(0, u.row - VISION); r <= Math.min(ROWS-1, u.row + VISION); r++)
-      for (let c = Math.max(0, u.col - VISION); c <= Math.min(COLS-1, u.col + VISION); c++){
+    for (let r = Math.max(0, u.row - range); r <= Math.min(ROWS-1, u.row + range); r++)
+      for (let c = Math.max(0, u.col - range); c <= Math.min(COLS-1, u.col + range); c++){
         const d = cubeDist(src, offsetToCube(c, r));
-        if (d > 0 && d <= VISION) within.push([d, c, r]);
+        if (d <= 0 || d > range) continue;
+        if (u.asleep){                                            // endormi : ne voit que « devant lui » (cône ~120°)
+          const p = tileCenter(c, r); let dx = p.x - o.x, dy = p.y - o.y; const L = Math.hypot(dx, dy) || 1;
+          if ((dx / L) * fc + (dy / L) * fs < 0.5) continue;
+        }
+        within.push([d, c, r]);
       }
     within.sort((a, b) => a[0] - b[0]);   // du plus proche au plus loin
     const shadows = [];                   // secteurs [lo,hi] en radians (-π..π)
@@ -581,16 +604,23 @@
     updatePodAwareness();
   }
 
-  // Éveil par pod : un groupe d'ennemis prend conscience du joueur dès qu'UN de ses membres
-  // en voit un (chaque pod a sa propre vigilance ; un pod lointain reste ignorant).
+  // Réveille un pod entier (les copains) — ou une unité isolée endormie.
+  function wakePod(pid){ podAlerted.add(pid); for (const u of units) if (u.team === "enemy" && u.pod === pid) u.asleep = false; }
+  function wake(u){ if (u.team !== "enemy") return; if (u.pod !== undefined) wakePod(u.pod); else u.asleep = false; }
+
+  // Éveil par pod : un groupe prend conscience du joueur dès qu'UN de ses membres en voit un.
+  // Endormi = vision réduite/frontale (cf. fieldOfView) ; un membre réveillé réveille ses copains.
   function updatePodAwareness(){
     for (const e of units){
-      if (e.team !== "enemy" || e.hp <= 0 || e.pod === undefined || podAlerted.has(e.pod)) continue;
+      if (e.team !== "enemy" || e.hp <= 0) continue;
+      if (e.pod !== undefined && podAlerted.has(e.pod)) continue;   // pod déjà actif
+      if (e.pod === undefined && !e.asleep) continue;               // unité isolée déjà active
       const fov = fieldOfView(e);
-      for (const p of units) if (p.team === "player" && p.hp > 0 && fov.has(key(p.col, p.row))){ podAlerted.add(e.pod); break; }
+      for (const p of units) if (p.team === "player" && p.hp > 0 && fov.has(key(p.col, p.row))){ wake(e); break; }
     }
   }
-  const podAware = (e) => e.pod === undefined || podAlerted.has(e.pod);
+  // un ennemi agit s'il est éveillé ET (sans pod, ou pod alerté)
+  const enemyActive = (e) => !e.asleep && (e.pod === undefined || podAlerted.has(e.pod));
 
   // ---- Coût de déplacement & portée (Dijkstra) ----------------------------
   // Entrer une case coûte 1 PM, +1 par niveau gravi. Dénivelé >= 2 = falaise.
@@ -765,6 +795,7 @@
     const res = !hit ? "raté" : saveTxt ? saveTxt : `touché ${dmg}${dead ? " ✝" : ""}`;
     pushLog(`${att.team === "player" ? "▲" : "▼"} ${att.name} ${verb} ${tgt.name} (${chance}%) : ${res}`, att.team);
     if (!reaction){ att.ap = 0; att.freeAvail = false; }   // une attaque épuise le tour (PA + mouvement libre) ; une riposte n'épuise rien
+    wake(tgt);                                         // se faire attaquer réveille le pod visé
     if (dead){ tgt.hp = 0; tgt.dead = true; }          // on garde le corps sur la carte
     recomputeVision();
     reach = (selected && selected.hp > 0) ? computeReach(selected) : reach;
@@ -918,9 +949,10 @@
   async function enemyAct(e){
     if (e.hp <= 0) return;
     e.overwatch = false;   // il recommence à agir : la vigilance précédente tombe
-    // pod pas encore alerté : il garde sa zone (vigilance) sans foncer vers le joueur
-    if (!podAware(e)){
-      if (e.range > 1 && (e.clip === undefined || e.ammo > 0)) e.overwatch = true;
+    // endormi ou pod pas encore alerté : il ne fonce pas. L'endormi reste passif ;
+    // l'éveillé-mais-pas-encore-au-courant garde sa zone en vigilance.
+    if (!enemyActive(e)){
+      if (!e.asleep && e.range > 1 && (e.clip === undefined || e.ammo > 0)) e.overwatch = true;
       e.ap = 0; return;
     }
     // l'IA ne connaît que les joueurs que son camp voit (brouillard ennemi)
@@ -1368,6 +1400,19 @@
       ctx.textAlign = "center"; ctx.textBaseline = "middle";
       ctx.fillText(u.name[0], x, y);
 
+      // ennemi endormi : petit « z » (on ne dessine pas son cône de vision)
+      if (u.asleep){
+        ctx.fillStyle = "#ffe9a8"; ctx.font = "bold 11px sans-serif";
+        ctx.textAlign = "center"; ctx.textBaseline = "middle";
+        ctx.fillText("z", x + SIZE*0.5, y - SIZE*0.5);
+      }
+      // numéro de pod (éditeur seulement) pour visualiser les groupes
+      if (editMode && u.team === "enemy" && u.pod !== undefined){
+        ctx.fillStyle = "#cfe8ff"; ctx.font = "bold 9px sans-serif";
+        ctx.textAlign = "center"; ctx.textBaseline = "middle";
+        ctx.fillText("P" + u.pod, x - SIZE*0.5, y + SIZE*0.55);
+      }
+
       // barre de PV
       const bw = SIZE*1.0, bh = 4, bx = x - bw/2, by = y - SIZE*0.55 - 8;
       ctx.fillStyle = "rgba(0,0,0,0.6)"; ctx.fillRect(bx-1, by-1, bw+2, bh+2);
@@ -1619,7 +1664,7 @@
       if (u.hp <= 0) continue;
       if (cubeDist(offsetToCube(ic, ir), offsetToCube(u.col, u.row)) <= cr.radius){
         const dmg = cr.dmgMin + Math.floor(Math.random()*(cr.dmgMax-cr.dmgMin+1));
-        u.hp -= dmg;
+        u.hp -= dmg; wake(u);
         if (u.hp <= 0){ u.hp = 0; u.dead = true; }
         pushLog(`   💥 ${u.name} : ${dmg} dégâts${u.hp<=0?" ✝":""}`, u.team);
       }
@@ -1829,6 +1874,15 @@
       return;
     }
     if (TEMPLATES[editTool]){ if (isDown) placeEditUnit(editTool, c, r); return; }
+    // outils de furtivité : agissent sur l'ennemi présent sur la case (au clic)
+    if (editTool === "sleep" || editTool === "orient" || editTool === "pod"){
+      if (!isDown) return;
+      const u = unitAt(c, r); if (!u || u.team !== "enemy") return;
+      if (editTool === "sleep") u.asleep = !u.asleep;
+      else if (editTool === "orient"){ u.facing = normAng((Math.round((u.facing || 0) / (Math.PI/3)) + 1) * (Math.PI/3)); u.hasFacing = true; }
+      else if (editTool === "pod") u.pod = ((u.pod === undefined ? -1 : u.pod) + 1) % 4;
+      return;
+    }
     if (editTool === "erase" && editHoverEdge){ const w = wallKey(...editHoverEdge); if (walls.has(w)) walls.delete(w); }  // la gomme efface aussi les murets
     if (!isDown && lastPaint === k) return;     // une seule application par case pendant un glisser
     lastPaint = k;
@@ -1843,7 +1897,10 @@
     const el = document.getElementById("editinfo"); if (!el) return;
     if (!hover){ el.textContent = "Survole la carte."; return; }
     const t = tiles[hover.row][hover.col];
-    el.textContent = `(${hover.col}, ${hover.row}) · altitude ${t.elev}${t.obstacle ? " · rocher" : ""}`;
+    const u = unitAt(hover.col, hover.row);
+    let s = `(${hover.col}, ${hover.row}) · altitude ${t.elev}${t.obstacle ? " · rocher" : ""}`;
+    if (u && u.team === "enemy") s += ` · ${u.name}${u.pod !== undefined ? " · pod " + u.pod : ""}${u.asleep ? " · 💤 endormi" : ""}`;
+    el.textContent = s;
   }
 
   function setTool(tool){

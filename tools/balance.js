@@ -41,7 +41,7 @@ function aiAct(e, W){
   if (e.hp <= 0 || T.gameOver) return;
   e.overwatch = false;
   // pod ennemi pas encore conscient du joueur : il garde sa zone, ne fonce pas
-  if (e.team === "enemy" && !T.podAware(e)){
+  if (e.team === "enemy" && !T.enemyActive(e)){
     if (e.range > 1 && (e.clip === undefined || e.ammo > 0)) e.overwatch = true;
     e.ap = 0; return;
   }

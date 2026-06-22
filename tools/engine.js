@@ -24,7 +24,7 @@ function loadEngine(htmlPath){
     shotChanceFrom, coverPenalty, apForMove, lineOfFire, hexDistUnits, moveCost,
     nearestOpposing, faceTowards, setMode, resolveThrow, checkEnd, neighbors,
     key, offsetToCube, cubeDist, tileAt, hasWall, wallKey, TEMPLATES,
-    fieldOfView, podAware,
+    fieldOfView, enemyActive,
   };
   `;
   src = src.replace(/\}\)\(\);\s*$/, EXPORT + "\n})();");
