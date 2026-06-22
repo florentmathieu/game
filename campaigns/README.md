@@ -14,8 +14,9 @@ Ouvre `?campaign` (ou le bouton **🎬 Éditeur de campagne** dans la colonne) :
   - **✓** (vert) : nœud joué après une *victoire* de mission ;
   - **✕** (rouge) : nœud joué après une *défaite* (sans cible = on rejoue la mission).
   - Lâcher le fil dans le vide **coupe** le lien.
-- Clique un nœud pour éditer son contenu (texte au format « Nom: réplique », une ligne
-  `_` seule sépare deux pages ; ou choix de la mission), et le marquer **★ départ**.
+- Clique un nœud pour l'éditer : un nœud **texte** sélectionne un **fichier `.txt`**
+  (listé dans `texts/list.json`), un nœud **mission** choisit la mission. Marque le
+  nœud de départ avec **★ départ**.
 - **💾 Enregistrer dans le dépôt** publie `campaigns/<nom>.json` + met à jour `campaigns/list.json`
   (token GitHub fine-grained, `Contents: write`). La campagne apparaît dans le menu **▶ Jouer**.
 
@@ -31,7 +32,7 @@ la suivante (mémorisés à chaque victoire). Une nouvelle campagne repart escou
   "name": "Campagne",
   "start": "intro",
   "nodes": [
-    { "id": "intro", "type": "text", "title": "...", "text": "Stiff: ...\n_\nMerry: ...", "next": "m1", "x": 40, "y": 40 },
+    { "id": "intro", "type": "text", "title": "...", "file": "Opening.txt", "next": "m1", "x": 40, "y": 40 },
     { "id": "m1", "type": "mission", "mission": "mission-1.json", "name": "Mission 1", "win": "fin", "lose": null, "x": 40, "y": 160 },
     { "id": "fin", "type": "text", "text": "Stiff: ...", "next": null, "x": 300, "y": 160 }
   ]

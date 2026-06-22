@@ -6,7 +6,7 @@
    "id": "intro",
    "type": "text",
    "title": "Ouverture",
-   "text": "Merry: So it WAS bandits! I knew it.\nStiff: See, you're not such a no-good.\n_\nStiff: Anyway, let's get this going. They should be close now.",
+   "file": "Opening.txt",
    "next": "m1",
    "x": 40,
    "y": 40
@@ -24,8 +24,8 @@
   {
    "id": "between",
    "type": "text",
-   "title": "Interlude",
-   "text": "Gizzard: Told you it was bandits.\nMerry: You said undead. And animals. And kids.\nGizzard: … One of those was bound to land.",
+   "title": "Démo — interlude",
+   "file": "texts/demo-interlude.txt",
    "next": "m2",
    "x": 300,
    "y": 160
@@ -43,8 +43,8 @@
   {
    "id": "end",
    "type": "text",
-   "title": "Fin",
-   "text": "Stiff: That's the lot of them.\nMerry: Same time tomorrow, Sarge?\nStiff: …\nGizzard: He means yes.",
+   "title": "Démo — fin",
+   "file": "texts/demo-fin.txt",
    "next": null,
    "x": 560,
    "y": 280

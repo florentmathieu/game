@@ -2839,7 +2839,7 @@ Stiff: Enough. I've decided.`;
   const uid = () => "n" + Math.random().toString(36).slice(2, 7);
   const campNodeById = (id) => campaign.nodes.find(n => n.id === id) || null;
   const campLabel = (n) => !n ? "?" :
-    n.type === "text" ? (n.title || (n.text || "").split("\n")[0] || "Texte").slice(0, 22)
+    n.type === "text" ? (n.title || (n.file || "").split("/").pop().replace(/\.txt$/, "") || "Texte").slice(0, 22)
                       : (n.name || n.mission || "Mission").slice(0, 22);
   function campPorts(n){
     const by = n.y + CAMP_H;
@@ -2954,7 +2954,7 @@ Stiff: Enough. I've decided.`;
   function addCampNode(type){
     const i = campaign.nodes.length;
     const n = { id:uid(), type, x: 40 + (i % 4)*210, y: 40 + Math.floor(i / 4)*110 };
-    if (type === "text"){ n.title = "Texte"; n.text = "Stiff: …"; n.next = null; }
+    if (type === "text"){ n.file = repoTexts[0] ? repoTexts[0].file : ""; n.title = repoTexts[0] ? repoTexts[0].name : "Texte"; n.next = null; }
     else { n.mission = repoMissions[0] ? repoMissions[0].file : ""; n.name = repoMissions[0] ? repoMissions[0].name : "Mission"; n.win = null; n.lose = null; }
     if (!campaign.start) campaign.start = n.id;
     campaign.nodes.push(n); campSel = n; renderCampForm(); draw();
@@ -2977,9 +2977,9 @@ Stiff: Enough. I've decided.`;
     const missOpts = repoMissions.map(m => `<option value="${m.file}" ${m.file === n.mission ? "selected" : ""}>${escHTML(m.name)}</option>`).join("");
     let h = "";
     if (n.type === "text"){
-      h += `<div class="erow"><label style="flex:1">Titre <input id="cn-title" type="text" value="${escHTML(n.title || "")}"></label></div>`;
-      h += `<div class="erow"><textarea id="cn-text" style="flex:1;min-height:120px;background:#1c150e;color:#e8ddc8;border:1px solid #5a4530;border-radius:6px;padding:6px;font-family:Georgia,serif;font-size:.82rem" placeholder="Stiff: réplique…&#10;Merry: …&#10;_  (sépare les pages)">${escHTML(n.text || "")}</textarea></div>`;
-      h += `<div class="hint">Format « Nom: réplique ». Une ligne <code>_</code> seule sépare deux pages.</div>`;
+      const txtOpts = repoTexts.map(t => `<option value="${t.file}" ${t.file === n.file ? "selected" : ""}>${escHTML(t.name)}</option>`).join("");
+      h += `<div class="erow"><label style="flex:1">Fichier texte <select id="cn-file">${txtOpts || `<option value="">(aucun .txt)</option>`}</select></label></div>`;
+      h += `<div class="hint">Les fichiers <code>.txt</code> proposés sont listés dans <code>texts/list.json</code> (ajoute-y tes fichiers).</div>`;
       h += `<div class="erow"><label style="flex:1">Suite → <select id="cn-next">${optList(n.next)}</select></label></div>`;
     } else {
       h += `<div class="erow"><label style="flex:1">Mission <select id="cn-mission">${missOpts || `<option value="">(aucune)</option>`}</select></label></div>`;
@@ -2991,8 +2991,7 @@ Stiff: Enough. I've decided.`;
     h += `<div class="erow"><button id="cn-start" ${campaign.start === n.id ? "disabled" : ""}>★ Définir comme départ</button> <button id="cn-del">🗑 Supprimer</button></div>`;
     box.innerHTML = h;
     const on = (id, ev, fn) => { const el = document.getElementById(id); if (el) el.addEventListener(ev, fn); };
-    on("cn-title", "input", e => { n.title = e.target.value; draw(); });
-    on("cn-text", "input", e => { n.text = e.target.value; });
+    on("cn-file", "change", e => { n.file = e.target.value; const t = repoTexts.find(x => x.file === n.file); if (t) n.title = t.name; draw(); });
     on("cn-next", "change", e => { n.next = e.target.value || null; draw(); });
     on("cn-mission", "change", e => { n.mission = e.target.value; const m = repoMissions.find(x => x.file === n.mission); if (m && (!n.name || n.name === "Mission")) n.name = m.name; renderCampForm(); draw(); });
     on("cn-name", "input", e => { n.name = e.target.value; draw(); });
@@ -3008,6 +3007,14 @@ Stiff: Enough. I've decided.`;
     token: (document.getElementById("gh-token2").value || "").trim(),
     branch:(document.getElementById("gh-branch2").value || "").trim(),
   });
+  let repoTexts = [];                     // fichiers .txt sélectionnables (texts/list.json)
+  async function fetchTexts(){
+    try{
+      const r = await fetch("texts/list.json?_=" + Date.now(), { cache:"no-store" });
+      if (r.ok){ const l = await r.json(); if (Array.isArray(l))
+        repoTexts = l.map(x => typeof x === "string" ? { file:x, name:x.split("/").pop().replace(/\.txt$/,"") } : x); }
+    }catch(e){}
+  }
   let repoCampaigns = [];
   async function fetchCampaigns(){
     try{
@@ -3073,7 +3080,8 @@ Stiff: Enough. I've decided.`;
     if (introEl) introEl.style.display = "";
     if (introTextEl) introTextEl.innerHTML = "";
     if (skipBtn) skipBtn.style.display = "none";
-    await playDialogue(node.text || "", introTextEl, waitBtn);
+    const txt = node.file ? await loadDialogue(node.file, node.text || "") : (node.text || "");
+    await playDialogue(txt, introTextEl, waitBtn);
     if (introEl) introEl.style.display = "none";
     introActive = false;
   }
@@ -3130,7 +3138,7 @@ Stiff: Enough. I've decided.`;
       if (bf) bf.value = cfg.branch || "claude/intelligent-hypatia-nojupi";
     }catch(e){}
     const ni = document.getElementById("camp-name"); if (ni) ni.value = campaign.name || "";
-    fetchRepoMissions().then(() => { renderCampForm(); draw(); });
+    Promise.all([fetchRepoMissions(), fetchTexts()]).then(() => { renderCampForm(); draw(); });
     fetchCampaigns().then(refreshCampaignMenu);
     renderCampForm(); draw();
   }

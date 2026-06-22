@@ -1,0 +1,18 @@
+[
+ {
+  "file": "Opening.txt",
+  "name": "Ouverture"
+ },
+ {
+  "file": "Scene1.txt",
+  "name": "Scène 1"
+ },
+ {
+  "file": "texts/demo-interlude.txt",
+  "name": "Démo — interlude"
+ },
+ {
+  "file": "texts/demo-fin.txt",
+  "name": "Démo — fin"
+ }
+]
