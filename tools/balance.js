@@ -142,43 +142,50 @@ function largestComponent(){
 }
 function setRock(c, r){ const t = T.tiles[r] && T.tiles[r][c]; if (t){ t.obstacle = true; t.cover = "full"; } }
 
-// pose des rochers/murets « logiques » : forteresse sur les hauteurs, lignes de crête, couvert épars
+// pose des rochers/murets « logiques » MAIS bien répartis : forteresse légère sur les
+// hauteurs, chicane éventuelle, puis couvert distribué case-grille sur toute la carte.
 function topology(format){
   const C = T.COLS, R = T.ROWS;
   let maxE = 0; for (let r = 0; r < R; r++) for (let c = 0; c < C; c++) maxE = Math.max(maxE, T.tiles[r][c].elev);
   const high = [];
   for (let r = 0; r < R; r++) for (let c = 0; c < C; c++) if (T.tiles[r][c].elev >= maxE - 1) high.push([c, r]);
 
-  // forteresse : anneau partiel de rochers sur le pourtour bas des hauteurs (avec ouvertures)
+  let count = 0; const cap = Math.round(C * R * 0.09);          // densité de rochers plafonnée (~9%)
+  const tryRock = (c, r) => { if (c>=0&&c<C&&r>=0&&r<R&&!T.tiles[r][c].obstacle && count<cap){ setRock(c, r); count++; return true; } return false; };
+
+  // forteresse légère : quelques rochers en contrebas des hauteurs (avec ouvertures)
   if (high.length && maxE >= 2){
-    for (const [c, r] of high){
-      for (const [nc, nr] of T.neighbors(c, r)){
-        const t = T.tiles[nr][nc];
-        if (t.elev < T.tiles[r][c].elev && Math.random() < 0.5) setRock(nc, nr);  // muraille en contrebas (gaps via proba)
-      }
+    for (const [c, r] of high) for (const [nc, nr] of T.neighbors(c, r)){
+      const t = T.tiles[nr][nc];
+      if (t.elev < T.tiles[r][c].elev && Math.random() < 0.3) tryRock(nc, nr);
     }
   }
-  // chicane / chokepoint pour le format « carré avec parcours »
+  // chicane / chokepoint pour le format « parcours »
   if (format === "path"){
     const mid = Math.floor(R / 2), gap = ri(2, C - 3);
-    for (let c = 0; c < C; c++) if (Math.abs(c - gap) > 1 && Math.random() < 0.8) setRock(c, mid);
+    for (let c = 0; c < C; c++) if (Math.abs(c - gap) > 1 && Math.random() < 0.7) tryRock(c, mid);
   }
-  // couvert épars dans les zones ouvertes
-  const rocksTarget = Math.round(C * R * rf(0.03, 0.06));
-  let g = 0, placed = 0;
-  while (placed < rocksTarget && g++ < 2000){
-    const c = ri(0, C - 1), r = ri(0, R - 1);
-    if (!T.tiles[r][c].obstacle && T.tiles[r][c].elev <= maxE - 1){ setRock(c, r); placed++; }
+  // couvert RÉPARTI : remplissage cellule par cellule, en tourniquet, jusqu'au plafond
+  const gx = 4, gy = 4, cw = C / gx, ch = R / gy;
+  const cells = []; for (let ix = 0; ix < gx; ix++) for (let iy = 0; iy < gy; iy++) cells.push([ix, iy]);
+  for (let round = 0; round < 3 && count < cap; round++){
+    for (const [ix, iy] of cells){
+      if (count >= cap) break;
+      if (round > 0 && Math.random() < 0.4) continue;   // densité décroissante après le 1er passage
+      const c = Math.min(C - 1, Math.floor(ix * cw + Math.random() * cw));
+      const r = Math.min(R - 1, Math.floor(iy * ch + Math.random() * ch));
+      tryRock(c, r);
+    }
   }
-  // murets : courts segments sur terrain plat (couvert de skirmish)
+  // murets RÉPARTIS : un court segment dans la plupart des cellules
   const walls = new Set();
-  const segs = ri(3, 7);
-  for (let s = 0; s < segs; s++){
-    const c = ri(1, C - 2), r = ri(1, R - 2);
-    const dirs = T.NEI[r & 1]; const n = ri(1, 2);
-    let cc = c, rr = r;
-    for (let k = 0; k < n; k++){
-      const [dc, dr] = choice(dirs); const nc = cc + dc, nr = rr + dr;
+  for (let ix = 0; ix < gx; ix++) for (let iy = 0; iy < gy; iy++){
+    if (Math.random() < 0.55) continue;
+    let cc = Math.min(C - 2, Math.max(1, Math.floor(ix * cw + Math.random() * cw)));
+    let rr = Math.min(R - 2, Math.max(1, Math.floor(iy * ch + Math.random() * ch)));
+    const len = ri(1, 2);
+    for (let k = 0; k < len; k++){
+      const [dc, dr] = choice(T.NEI[rr & 1]); const nc = cc + dc, nr = rr + dr;
       if (nc < 0 || nc >= C || nr < 0 || nr >= R) break;
       if (T.tiles[rr][cc].obstacle || T.tiles[nr][nc].obstacle) break;
       walls.add(T.wallKey(cc, rr, nc, nr)); cc = nc; rr = nr;
@@ -219,6 +226,37 @@ function makeMap(){
   return { format, cols, rows, comp, span, playerPref, enemyPref };
 }
 
+// place les ennemis en DEUX pods séparés (2 à 4 unités chacun), regroupés autour de deux
+// points d'ancrage éloignés l'un de l'autre (évite un seul gros paquet).
+function pickPods(map, n, occupied){
+  const comp = [...map.comp].map(k => k.split(",").map(Number)).filter(([c, r]) => !occupied.has(T.key(c, r)));
+  if (comp.length < n) return null;
+  const cb = (c, r) => T.offsetToCube(c, r);
+  const sorted = comp.slice().sort((a, b) => map.enemyPref(b[0], b[1]) - map.enemyPref(a[0], a[1]));
+  // zone ennemie : meilleure fraction selon la préférence (les deux pods y restent → pas chez le joueur)
+  const zone = sorted.slice(0, Math.max(n * 3, Math.ceil(sorted.length * 0.4)));
+  const a1 = zone[0];
+  // 2e ancre : DANS la zone ennemie, la plus éloignée possible de la 1re (pods séparés latéralement)
+  let a2 = zone[1] || a1, bs = -Infinity;
+  for (const [c, r] of zone){
+    const d = T.cubeDist(cb(c, r), cb(a1[0], a1[1]));
+    if (d > bs){ bs = d; a2 = [c, r]; }
+  }
+  const s1 = Math.floor(n / 2), s2 = n - s1;          // 4->2,2 5->2,3 6->3,3 7->3,4 (chacun dans 2..4)
+  const taken = new Set(occupied), out = [];
+  for (const [anchor, size] of [[a1, s1], [a2, s2]]){
+    const near = comp.filter(([c, r]) => !taken.has(T.key(c, r)))
+      .map(([c, r]) => [c, r, T.cubeDist(cb(c, r), cb(anchor[0], anchor[1]))])
+      .sort((p, q) => p[2] - q[2] || (map.enemyPref(q[0], q[1]) - map.enemyPref(p[0], p[1])));
+    let cnt = 0;
+    for (const [c, r] of near){
+      out.push([c, r]); taken.add(T.key(c, r));
+      if (++cnt >= size) break;
+    }
+  }
+  return out.length === n ? out : null;
+}
+
 const ENEMY_POOL = ["Garde", "Archer", "Brute"];
 function enemyComposition(n){
   // au moins un tireur souvent, le reste mêlée variée
@@ -232,7 +270,8 @@ function buildMission(map, name, nEnemies, buff){
   const occupied = new Set();
   const pSpots = pickSpots(map.comp, map.playerPref, 3, occupied, 2);
   for (const [c, r] of pSpots) occupied.add(T.key(c, r));
-  const eSpots = pickSpots(map.comp, map.enemyPref, nEnemies, occupied, 2);
+  const eSpots = pickPods(map, nEnemies, occupied);
+  if (!eSpots) return null;
   const players = [["Stiff", "player"], ["Merry", "player"], ["Gizzard", "player"]]
     .map((u, i) => ({ type:u[0], team:"player", col:pSpots[i][0], row:pSpots[i][1] }));
   const comp = enemyComposition(nEnemies);
@@ -247,6 +286,7 @@ function calibrate(map){
   let n = ri(4, 7), buff = { hp: 0, aim: 0 };      // départ varié pour obtenir 4..7 ennemis
   for (let it = 0; it < 9; it++){
     const mission = buildMission(map, "tmp", n, buff);
+    if (!mission){ if (n > 4){ n--; continue; } return null; }
     const wr = winrate(mission, SCREEN);
     if (wr >= LO && wr <= HI){
       const wr2 = winrate(mission, CONFIRM);          // confirmation sur plus de parties
