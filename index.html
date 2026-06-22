@@ -140,7 +140,11 @@
 
     <!-- Panneau de l'éditeur (affiché en mode édition) -->
     <div class="panel" id="editor">
-      <h2>Éditeur de mission</h2>
+      <h2>Mission</h2>
+      <div class="erow"><button id="ed-play">💾 Enregistrer &amp; tester</button> <button id="ed-quit">Quitter</button></div>
+      <div class="erow"><select id="ed-missions" style="flex:1"></select> <button id="ed-loadmission" style="flex:0 0 auto;width:auto">Charger</button></div>
+
+      <h2 style="margin-top:12px">Éditeur de mission</h2>
       <div class="erow"><label>Nom <input id="ed-name" type="text" placeholder="nom de la mission…"></label></div>
       <div class="erow">Taille
         <input id="ed-cols" type="number" min="6" max="40" value="20" title="colonnes"> ×
@@ -180,10 +184,6 @@
         <button class="etool" data-tool="pod">👥 Pod</button>
       </div>
       <div id="editinfo" class="hint" style="margin-top:8px">Survole la carte.</div>
-
-      <h2 style="margin-top:12px">Mission</h2>
-      <div class="erow"><button id="ed-play">💾 Enregistrer &amp; tester</button> <button id="ed-quit">Quitter</button></div>
-      <div class="erow"><select id="ed-missions" style="flex:1"></select> <button id="ed-loadmission" style="flex:0 0 auto;width:auto">Charger</button></div>
 
       <h2 style="margin-top:12px">Enregistrer (dépôt)</h2>
       <div class="erow"><input id="gh-token" type="password" placeholder="token GitHub (fine-grained, Contents: write)" style="flex:1"></div>
