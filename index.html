@@ -138,8 +138,7 @@
       <h2 style="margin-top:14px">Carte</h2>
       <div class="row"><button id="regen">Régénérer la carte</button></div>
       <div class="row"><label><input type="checkbox" id="togglefog" checked> Brouillard de guerre</label></div>
-      <div class="row" id="missionrow" style="display:none"><select id="missionsel"></select></div>
-      <div class="row"><label class="filelbl">📂 Charger une mission<input id="ed-file" type="file" accept=".json,application/json" hidden></label></div>
+      <div class="row" id="missionrow" style="display:none"><select id="missionsel" style="flex:1"></select> <button id="loadsel" style="width:auto;flex:0 0 auto">Charger</button></div>
 
       <h2 style="margin-top:14px">Survol</h2>
       <div id="info">Passe la souris sur la carte.</div>
@@ -2714,9 +2713,9 @@ Stiff: Enough. I've decided.`;
   setupCanvas(); generate(); placeUnits();
   selected = units.find(u => u.team === "player"); reach = selected ? computeReach(selected) : null;
   renderLog(); refreshAll();
-  { const sel = document.getElementById("missionsel");
-    if (sel) sel.addEventListener("change", async () => {
-      const f = sel.value; if (!f) return;
+  { const btn = document.getElementById("loadsel");
+    if (btn) btn.addEventListener("click", async () => {
+      const sel = document.getElementById("missionsel"); const f = sel && sel.value; if (!f) return;
       const m = await loadMissionFromUrl(f.includes("/") ? f : "missions/" + f);
       if (m) startMission(m); else alert("Mission introuvable.");
     });
