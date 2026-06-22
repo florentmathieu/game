@@ -50,7 +50,7 @@ function aiAct(e, W){
   // l'ennemi ne perçoit le joueur furtif (assassin) que de face -> enemyCanSee
   const seen = e.team === "enemy"
     ? T.units.filter(u => u.team === "player" && u.hp > 0 && T.enemyCanSee(u))
-    : T.units.filter(u => u.team === opp && u.hp > 0 && vis.has(T.key(u.col, u.row)));
+    : T.units.filter(u => u.team === "enemy" && u.hp > 0 && T.playerCanSee(u));
 
   if (e.weapons.cracker && e.crackers > 0 && e.ap > 0 && seen.length){
     const g = genericGrenade(e); if (g){ T.resolveThrow(e, g.col, g.row); return; }
@@ -292,11 +292,11 @@ function pickPods(map, n, occupied){
   return out.length === n ? out : null;
 }
 
-const ENEMY_POOL = ["Garde", "Archer", "Brute"];
+const ENEMY_POOL = ["garde", "archer", "brute"];
 function enemyComposition(n){
   // au moins un tireur souvent, le reste mêlée variée
   const comp = [];
-  if (Math.random() < 0.8) comp.push("Archer");
+  if (Math.random() < 0.8) comp.push("archer");
   while (comp.length < n) comp.push(choice(ENEMY_POOL));
   return comp.slice(0, n);
 }
@@ -307,12 +307,12 @@ function buildMission(map, name, nEnemies, buff, infil){
   for (const [c, r] of pSpots) occupied.add(T.key(c, r));
   const eSpots = pickPods(map, nEnemies, occupied);
   if (!eSpots) return null;
-  const players = [["Stiff", "player"], ["Merry", "player"], ["Gizzard", "player"]]
-    .map((u, i) => ({ type:u[0], team:"player", col:pSpots[i][0], row:pSpots[i][1] }));
+  const players = [["sergent", "Stiff"], ["sapeur", "Merry"], ["assassin", "Gizzard"]]
+    .map((u, i) => ({ cls:u[0], name:u[1], team:"player", col:pSpots[i][0], row:pSpots[i][1] }));
   const comp = enemyComposition(nEnemies);
   const s1 = Math.floor(nEnemies / 2);   // pickPods range les positions pod0 puis pod1
   const enemies = eSpots.map((s, i) => {
-    const e = { type:comp[i], team:"enemy", col:s[0], row:s[1], hp:buff.hp, aim:buff.aim, pod: i < s1 ? 0 : 1 };
+    const e = { cls:comp[i], team:"enemy", col:s[0], row:s[1], hp:buff.hp, aim:buff.aim, pod: i < s1 ? 0 : 1 };
     if (infil){ e.asleep = true; e.facing = snapHex(map.advAngle + choice([-1, 0, 0, 1]) * (Math.PI / 3)); }  // dormants, tournés ~vers l'avant (dos au joueur)
     return e;
   });

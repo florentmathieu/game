@@ -68,7 +68,7 @@
   .erow button{width:auto; flex:1}
   .tools{display:grid; grid-template-columns:1fr 1fr; gap:4px}
   .tools button{width:100%; text-align:left}
-  .etool.on{background:#5a4a20; border-color:#caa24a; box-shadow:0 0 0 1px #caa24a}
+  .etool.on,.eteam.on{background:#5a4a20; border-color:#caa24a; box-shadow:0 0 0 1px #caa24a}
   .filelbl{display:inline-flex; justify-content:center; background:#3a2c1c; border:1px solid #5a4530; border-radius:6px; padding:7px 10px; width:100%; font-size:.82rem}
   .filelbl:hover{background:#4a3826}
   #missionsel,#ed-missions{width:100%; background:#1c150e; color:var(--ink); border:1px solid #5a4530; border-radius:6px; padding:6px}
@@ -158,24 +158,24 @@
         <button class="etool" data-tool="wall">🧱 Muret</button>
         <button class="etool" data-tool="erase">🧽 Gomme</button>
       </div>
-      <h2 style="margin-top:12px">Alliés</h2>
+      <h2 style="margin-top:12px">Camp à poser</h2>
       <div class="tools">
-        <button class="etool" data-tool="Stiff">🛡 Stiff</button>
-        <button class="etool" data-tool="Merry">🏹 Merry</button>
-        <button class="etool" data-tool="Gizzard">🗡 Gizzard</button>
+        <button class="eteam on" data-team="player">🔵 Allié</button>
+        <button class="eteam" data-team="enemy">🔴 Ennemi</button>
       </div>
-      <h2 style="margin-top:12px">Ennemis</h2>
+      <h2 style="margin-top:12px">Classes</h2>
       <div class="tools">
-        <button class="etool" data-tool="Garde">🛡 Garde</button>
-        <button class="etool" data-tool="Archer">🏹 Archer</button>
-        <button class="etool" data-tool="Brute">🪓 Brute</button>
+        <button class="etool" data-tool="cls:sergent">🛡 Sergent</button>
+        <button class="etool" data-tool="cls:sapeur">🏹 Sapeur</button>
+        <button class="etool" data-tool="cls:assassin">🗡 Assassin</button>
+        <button class="etool" data-tool="cls:garde">🛡 Garde</button>
+        <button class="etool" data-tool="cls:archer">🏹 Archer</button>
+        <button class="etool" data-tool="cls:brute">🪓 Brute</button>
       </div>
-      <h2 style="margin-top:12px">Orientation</h2>
+      <h2 style="margin-top:12px">Unité posée</h2>
       <div class="tools">
-        <button class="etool" data-tool="orient">↻ Orienter (toute unité)</button>
-      </div>
-      <h2 style="margin-top:12px">Furtivité (ennemis)</h2>
-      <div class="tools">
+        <button class="etool" data-tool="name">✎ Nommer</button>
+        <button class="etool" data-tool="orient">↻ Orienter</button>
         <button class="etool" data-tool="sleep">💤 Endormi</button>
         <button class="etool" data-tool="pod">👥 Pod</button>
       </div>
@@ -269,7 +269,8 @@
   let visible = new Set();   // cases actuellement vues par le joueur
   let explored = new Set();  // cases déjà vues au moins une fois (mémoire)
   let enemyVisible = new Set(); // cases vues par les ennemis (leur propre brouillard)
-  let enemyStealthSeen = new Set(); // joueurs furtifs (assassin) effectivement perçus (de face)
+  let enemyStealthSeen = new Set(); // joueurs furtifs (assassin) perçus par les ennemis (de face)
+  let playerStealthSeen = new Set(); // ennemis furtifs (assassin) perçus par les joueurs (de face)
   let lastSeen = new Map();     // mémoire d'escouade : joueur -> {col,row} dernière position vue
   let anim = null;              // animation de déplacement en cours (cosmétique)
   let fx = [];                  // effets d'attaque éphémères (projectiles, coups d'épée)
@@ -406,24 +407,36 @@
   }
   function setMode(u, mode){ if (u.weapons[mode]){ u.mode = mode; applyWeapon(u); } }
 
-  // ---- Modèles d'unités (éditeur + missions) ------------------------------
+  // ---- Classes d'unités (éditeur + missions) ------------------------------
+  // Une CLASSE décrit un archétype (stats + armes), sans équipe : on choisit l'équipe
+  // à la pose, et on peut donner un nom optionnel (sinon = nom de classe).
   const sword  = (aim, lo, hi) => ({ type:"melee", aim, dmgMin:lo, dmgMax:hi });
   const bow    = (aim, lo, hi, rng, clip) => ({ type:"ranged", aim, dmgMin:lo, dmgMax:hi, range:rng, clip });
   const dagger = (aim, lo, hi, back, side) => ({ type:"melee", aim, dmgMin:lo, dmgMax:hi, flank:{ back, side } });
-  const TEMPLATES = {
-    Stiff:   { team:"player", role:"Sergent",  maxMp:8, maxHp:10, shieldBlock:40, weapons:{ melee: sword(75,4,6) } },
-    Merry:   { team:"player", role:"Sapeur",   maxMp:8, maxHp:7,  crackers:1,
-               weapons:{ ranged: bow(65,3,4,6,1), melee: sword(70,3,5),
-                         cracker:{ type:"throw", dmgMin:5, dmgMax:9, range:6, radius:2, scatter:2 } } },
-    Gizzard: { team:"player", role:"Assassin", maxMp:8, maxHp:7,  parry:35, stealth:true, weapons:{ melee: dagger(80,3,4,5,2) } },
-    Garde:   { team:"enemy",  role:"Garde",    maxMp:6, maxHp:8,  shieldBlock:30, weapons:{ melee: sword(65,3,4) } },
-    Archer:  { team:"enemy",  role:"Archer",   maxMp:6, maxHp:6,  weapons:{ ranged: bow(70,2,3,8) } },
-    Brute:   { team:"enemy",  role:"Brute",    maxMp:8, maxHp:13, weapons:{ melee: sword(70,5,7) } },
+  const CLASSES = {
+    sergent:  { name:"Sergent",  maxMp:8, maxHp:10, shieldBlock:40, weapons:{ melee: sword(75,4,6) } },
+    sapeur:   { name:"Sapeur",   maxMp:8, maxHp:7,  crackers:1,
+                weapons:{ ranged: bow(65,3,4,6,1), melee: sword(70,3,5),
+                          cracker:{ type:"throw", dmgMin:5, dmgMax:9, range:6, radius:2, scatter:2 } } },
+    assassin: { name:"Assassin", maxMp:8, maxHp:7,  parry:35, stealth:true, weapons:{ melee: dagger(80,3,4,5,2) } },
+    garde:    { name:"Garde",    maxMp:6, maxHp:8,  shieldBlock:30, weapons:{ melee: sword(65,3,4) } },
+    archer:   { name:"Archer",   maxMp:6, maxHp:6,  weapons:{ ranged: bow(70,2,3,8) } },
+    brute:    { name:"Brute",    maxMp:8, maxHp:13, weapons:{ melee: sword(70,5,7) } },
   };
-  const PLAYER_TYPES = ["Stiff","Merry","Gizzard"];
-  const ENEMY_TYPES  = ["Garde","Archer","Brute"];
+  const CLASS_IDS = Object.keys(CLASSES);
+  // compatibilité : anciens « type » (noms) -> { classe, nom par défaut }
+  const LEGACY = {
+    Stiff:{ cls:"sergent", name:"Stiff" }, Merry:{ cls:"sapeur", name:"Merry" }, Gizzard:{ cls:"assassin", name:"Gizzard" },
+    Garde:{ cls:"garde" }, Archer:{ cls:"archer" }, Brute:{ cls:"brute" },
+    Sergent:{ cls:"sergent" }, Sapeur:{ cls:"sapeur" }, Assassin:{ cls:"assassin" },
+  };
+  const resolveCls = (it) => {
+    if (it.cls && CLASSES[it.cls]) return { cls:it.cls, defName:it.name };
+    if (it.type){ const L = LEGACY[it.type]; if (L) return { cls:L.cls, defName: it.name !== undefined ? it.name : L.name };
+                  if (CLASSES[it.type.toLowerCase()]) return { cls:it.type.toLowerCase(), defName:it.name }; }
+    return { cls:null, defName:it.name };
+  };
 
-  // instancie une unité (stats de tour, hp, munitions) à partir d'une config complète
   function instantiate(o){
     const u = Object.assign({ acted:false, overwatch:false, reacted:false, shieldBlock:0, parry:0, facing:0 }, o);
     u.mode = o.weapons.ranged ? "ranged" : "melee";   // par défaut on tire si on a une arme à distance
@@ -434,12 +447,14 @@
     u.mob = MOB_AP; u.ap = AP_MAX; u.freeAvail = true;
     return u;
   }
-  // construit une unité d'un type donné posée en (col,row) — armes clonées du modèle.
+  // construit une unité d'une CLASSE, à (col,row), pour une équipe. `name` optionnel.
   // `over` = ajustements optionnels (deltas) : { hp, aim } pour calibrer une mission.
-  function buildUnit(type, col, row, team, over){
-    const t = TEMPLATES[type]; if (!t) return null;
+  function buildUnit(cls, col, row, team, over, name){
+    const t = CLASSES[cls]; if (!t) return null;
     const o = JSON.parse(JSON.stringify(t));
-    o.type = type; o.name = type; o.col = col; o.row = row; o.team = team || t.team;
+    o.cls = cls; o.role = t.name; o.col = col; o.row = row; o.team = team || "enemy";
+    o.named = !!(name && String(name).trim());
+    o.name = o.named ? String(name).trim() : t.name;
     const u = instantiate(o);
     if (over && (over.hp || over.aim)){
       u.over = { hp: over.hp || 0, aim: over.aim || 0 };
@@ -448,32 +463,38 @@
     }
     return u;
   }
-  // noms uniques quand un type est dupliqué : Garde, Garde 2, Garde 3…
+  // noms uniques pour les unités SANS nom propre : Garde, Garde 2, Garde 3… (les noms donnés sont gardés)
   function dedupeNames(){
     const seen = {};
-    for (const u of units){ const n = (seen[u.type] = (seen[u.type]||0)+1); u.name = n > 1 ? `${u.type} ${n}` : u.type; }
+    for (const u of units){
+      if (u.named) continue;
+      const base = CLASSES[u.cls] ? CLASSES[u.cls].name : u.cls;
+      const n = (seen[base] = (seen[base] || 0) + 1);
+      u.name = n > 1 ? `${base} ${n}` : base;
+    }
   }
 
   // escouade par défaut de la partie « rapide » (carte aléatoire)
   const DEFAULT_SQUAD = [
-    ["Stiff","player",3,16],["Merry","player",5,14],["Gizzard","player",4,15],
-    ["Garde","enemy",15,4],["Archer","enemy",12,8],["Brute","enemy",16,12],
+    { cls:"sergent", name:"Stiff", team:"player", col:3, row:16 },
+    { cls:"sapeur",  name:"Merry", team:"player", col:5, row:14 },
+    { cls:"assassin",name:"Gizzard", team:"player", col:4, row:15 },
+    { cls:"garde",  team:"enemy", col:15, row:4 },
+    { cls:"archer", team:"enemy", col:12, row:8 },
+    { cls:"brute",  team:"enemy", col:16, row:12 },
   ];
-  // pose une liste d'unités (tableaux [type,team,col,row,over] ou objets {type,team,col,row,hp,aim})
+  // pose une liste d'unités (objets {cls|type, team, col, row, name?, hp?, aim?, pod?, asleep?, facing?})
   function placeUnitsFrom(list){
     units = [];
     for (const it of list){
-      const [type, team, col, row, over] = Array.isArray(it)
-        ? it : [it.type, it.team, it.col, it.row, it.over || { hp:it.hp, aim:it.aim }];
-      const pod = Array.isArray(it) ? it[5] : it.pod;
-      const asleep = Array.isArray(it) ? it[6] : it.asleep;
-      const facing = Array.isArray(it) ? it[7] : it.facing;
-      if (col < 0 || col >= COLS || row < 0 || row >= ROWS) continue;
-      const u = buildUnit(type, col, row, team, over);
+      const { cls, defName } = resolveCls(it);
+      if (!cls || it.col < 0 || it.col >= COLS || it.row < 0 || it.row >= ROWS) continue;
+      const over = it.over || { hp:it.hp, aim:it.aim };
+      const u = buildUnit(cls, it.col, it.row, it.team, over, defName);
       if (u){
-        if (pod !== undefined) u.pod = pod;
-        if (asleep) u.asleep = true;
-        if (facing !== undefined){ u.facing = facing; u.hasFacing = true; }
+        if (it.pod !== undefined) u.pod = it.pod;
+        if (it.asleep) u.asleep = true;
+        if (it.facing !== undefined){ u.facing = it.facing; u.hasFacing = true; }
         units.push(u);
       }
     }
@@ -496,7 +517,8 @@
       elev: tiles.map(row => row.map(t => t.elev)),
       rocks, walls: [...walls],
       units: units.map(u => {
-        const o = { type:u.type, team:u.team, col:u.col, row:u.row };
+        const o = { cls:u.cls, team:u.team, col:u.col, row:u.row };
+        if (u.named) o.name = u.name;
         if (u.over && u.over.hp) o.hp = u.over.hp;
         if (u.over && u.over.aim) o.aim = u.over.aim;
         if (u.pod !== undefined) o.pod = u.pod;
@@ -513,10 +535,7 @@
       if (m.elev[r] && m.elev[r][c] != null) tiles[r][c].elev = clampElev(m.elev[r][c]);
     if (m.rocks) for (const [c, r] of m.rocks) if (tiles[r] && tiles[r][c]){ tiles[r][c].obstacle = true; tiles[r][c].cover = "full"; }
     walls = new Set(m.walls || []);
-    placeUnitsFrom((m.units || []).map(u => ({
-      type:u.type, team:u.team || (TEMPLATES[u.type] ? TEMPLATES[u.type].team : "enemy"),
-      col:u.col, row:u.row, hp:u.hp, aim:u.aim, pod:u.pod, asleep:u.asleep, facing:u.facing,
-    })));
+    placeUnitsFrom(m.units || []);   // resolveCls gère cls et anciens « type »
   }
 
   // ---- Brouillard de guerre : vision des unités joueur --------------------
@@ -594,23 +613,31 @@
     return set;
   }
 
-  function recomputeVision(){
-    visible = teamVision("player");
-    for (const k of visible) explored.add(k);
-    // vision ennemie + perception des furtifs + éveil des pods, en un seul passage
-    enemyVisible = new Set();
-    enemyStealthSeen = new Set();
-    for (const e of units){
-      if (e.team !== "enemy" || e.hp <= 0) continue;
-      const fov = fieldOfView(e);
-      for (const k of fov) enemyVisible.add(k);
-      for (const p of units){
-        if (p.team !== "player" || p.hp <= 0 || !fov.has(key(p.col, p.row))) continue;
-        if (p.stealth && !frontalOf(e, p)) continue;   // furtif (assassin) : perçu seulement de face
-        if (p.stealth) enemyStealthSeen.add(p);
-        wake(e);                                        // percevoir un joueur éveille l'ennemi (et son pod)
+  // Vision d'une équipe en un passage : cases vues (union) + adversaires furtifs perçus
+  // (un furtif n'est perçu que dans l'arc frontal d'un observateur). `wakeFoes` réveille
+  // les ennemis qui perçoivent un joueur (utilisé pour l'équipe ennemie).
+  function computeVisionFor(team, wakeFoes){
+    const tiles = new Set(), stealthSeen = new Set();
+    const opp = team === "player" ? "enemy" : "player";
+    for (const u of units){
+      if (u.team !== team || u.hp <= 0) continue;
+      const fov = fieldOfView(u);
+      for (const k of fov) tiles.add(k);
+      for (const e of units){
+        if (e.team !== opp || e.hp <= 0 || !fov.has(key(e.col, e.row))) continue;
+        if (e.stealth && !frontalOf(u, e)) continue;   // furtif (assassin) : perçu seulement de face
+        if (e.stealth) stealthSeen.add(e);
+        if (wakeFoes) wake(u);                          // l'ennemi qui perçoit un joueur s'éveille (et son pod)
       }
     }
+    return { tiles, stealthSeen };
+  }
+  function recomputeVision(){
+    const pv = computeVisionFor("player", false);
+    visible = pv.tiles; playerStealthSeen = pv.stealthSeen;
+    for (const k of visible) explored.add(k);
+    const ev = computeVisionFor("enemy", true);
+    enemyVisible = ev.tiles; enemyStealthSeen = ev.stealthSeen;
     // mémoire d'escouade : on ne mémorise que les joueurs réellement perçus
     for (const p of [...lastSeen.keys()]) if (!units.includes(p) || p.hp <= 0) lastSeen.delete(p);
     for (const u of units){
@@ -644,6 +671,12 @@
   function enemyCanSee(p){
     if (!enemyVisible.has(key(p.col, p.row))) return false;
     return !p.stealth || enemyStealthSeen.has(p);
+  }
+  // Un joueur perçoit un ennemi (respecte le brouillard ; un ennemi furtif n'est vu que de face).
+  function playerCanSee(e){
+    if (!isVisible(e.col, e.row)) return false;
+    if (!opts.fog) return true;                    // mode test : on voit tout
+    return !e.stealth || playerStealthSeen.has(e);
   }
   // un ennemi agit s'il est éveillé ET (sans pod, ou pod alerté)
   const enemyActive = (e) => !e.asleep && (e.pod === undefined || podAlerted.has(e.pod));
@@ -794,7 +827,7 @@
     if (att.wtype === "ranged" && att.clip !== undefined && att.ammo <= 0) return false; // arme à chargeur vide
     if (!tgt || tgt.team === att.team || tgt.hp <= 0) return false;
     // chaque camp ne peut viser que ce que son équipe voit
-    const seen = att.team === "player" ? isVisible(tgt.col, tgt.row) : enemyCanSee(tgt);
+    const seen = att.team === "player" ? playerCanSee(tgt) : enemyCanSee(tgt);
     if (!seen) return false;
     if (hexDistUnits(att, tgt) > att.range) return false;
     return lineOfFire(att, tgt);
@@ -1394,7 +1427,7 @@
         ctx.globalAlpha = 1;
         continue;
       }
-      if (u.team === "enemy" && !isVisible(u.col, u.row)) continue;
+      if (u.team === "enemy" && !playerCanSee(u)) continue;   // ennemi furtif caché sauf perçu de face
 
       // halo "cible attaquable" si une unité joueur est sélectionnée
       if (selected && canAttack(selected, u)){
@@ -1420,7 +1453,7 @@
       ctx.lineTo(x + Math.cos(u.facing)*SIZE*0.85, y + Math.sin(u.facing)*SIZE*0.85);
       ctx.lineWidth = 3; ctx.strokeStyle = u.team === "player" ? "#bfe6ff" : "#f0b0ac"; ctx.stroke();
 
-      const undetected = u.stealth && !enemyStealthSeen.has(u);   // assassin non repéré : jeton grisé
+      const undetected = u.stealth && u.team === "player" && !enemyStealthSeen.has(u);   // notre assassin non repéré : jeton grisé
       ctx.beginPath(); ctx.arc(x, y, SIZE*0.55, 0, Math.PI*2);
       ctx.fillStyle = undetected ? "#7a8b93" : (u.team === "player" ? "#5fb0d8" : "#d8635f");
       const actedAlpha = (u.team === "player" && u.ap <= 0 && !u.overwatch && !u.bracing) ? 0.5 : 1;
@@ -1877,10 +1910,11 @@
   // ---- Contrôles ----------------------------------------------------------
   // ====================== ÉDITEUR DE MISSION ==============================
   const removeUnitAt = (c, r) => { units = units.filter(u => !(u.col === c && u.row === r)); dedupeNames(); };
-  function placeEditUnit(type, c, r){
+  let placeTeam = "player";   // camp posé par les boutons de classe (éditeur)
+  function placeEditUnit(cls, c, r, team){
     removeUnitAt(c, r);
     const t = tiles[r][c]; if (t.obstacle){ t.obstacle = false; delete t.cover; }
-    const u = buildUnit(type, c, r); if (u) units.push(u);
+    const u = buildUnit(cls, c, r, team); if (u) units.push(u);
     dedupeNames();
   }
   // arête (muret) la plus proche du curseur, parmi les voisins de la case survolée
@@ -1905,12 +1939,17 @@
       if (isDown && editHoverEdge){ const w = wallKey(...editHoverEdge); walls.has(w) ? walls.delete(w) : walls.add(w); }
       return;
     }
-    if (TEMPLATES[editTool]){ if (isDown) placeEditUnit(editTool, c, r); return; }
-    // outils de furtivité : agissent sur l'ennemi présent sur la case (au clic)
-    if (editTool === "sleep" || editTool === "orient" || editTool === "pod"){
+    if (editTool.startsWith("cls:")){ if (isDown) placeEditUnit(editTool.slice(4), c, r, placeTeam); return; }
+    // outils agissant sur l'unité présente sur la case (au clic)
+    if (editTool === "name" || editTool === "sleep" || editTool === "orient" || editTool === "pod"){
       if (!isDown) return;
       const u = unitAt(c, r); if (!u) return;
       if (editTool === "orient"){ u.facing = normAng((Math.round((u.facing || 0) / (Math.PI/3)) + 1) * (Math.PI/3)); u.hasFacing = true; return; }  // toute unité
+      if (editTool === "name"){
+        const v = (typeof prompt === "function") ? prompt("Nom de l'unité (vide = nom de classe) :", u.named ? u.name : "") : null;
+        if (v !== null){ const s = v.trim(); if (s){ u.name = s; u.named = true; } else { u.named = false; } dedupeNames(); }
+        return;
+      }
       if (u.team !== "enemy") return;   // endormi / pod : ennemis seulement
       if (editTool === "sleep") u.asleep = !u.asleep;
       else if (editTool === "pod") u.pod = ((u.pod === undefined ? -1 : u.pod) + 1) % 4;
@@ -2041,6 +2080,10 @@
   onEd("ed-clearunits", () => { units = []; updateExport(); draw(); });
   { const ni = document.getElementById("ed-name"); if (ni) ni.addEventListener("input", () => { editorName = ni.value.trim(); updateExport(); }); }
   for (const b of document.querySelectorAll(".etool")) b.addEventListener("click", () => setTool(b.dataset.tool));
+  for (const b of document.querySelectorAll(".eteam")) b.addEventListener("click", () => {
+    placeTeam = b.dataset.team;
+    for (const x of document.querySelectorAll(".eteam")) x.classList.toggle("on", x === b);
+  });
   onEd("ed-publish", () => publishToRepo());
   onEd("ed-loadmission", async () => {
     const f = document.getElementById("ed-missions").value; if (!f) return;
