@@ -6,5 +6,9 @@
  {
   "file": "campagne-principale.json",
   "name": "Campagne principale"
+ },
+ {
+  "file": "principale.json",
+  "name": "Principale"
  }
 ]
