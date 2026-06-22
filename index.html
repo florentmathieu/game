@@ -269,6 +269,7 @@
   let gameOver = null;       // null | "win" | "lose"
   let enemyPhase = false;    // true pendant la phase ennemie (entrées bloquées)
   let walls = new Set();     // murets : couvert partiel posé sur l'arête entre deux cases
+  let podAlerted = new Set();// pods ennemis ayant pris conscience du joueur (éveil par groupe)
   let introActive = true;    // true tant que l'ouverture (écran noir + scène) est affichée (entrées bloquées)
   let firstGame = true;      // la scène sous la map ne joue qu'à la toute première partie
   let editMode = false;      // éditeur de mission actif
@@ -451,14 +452,15 @@
     for (const it of list){
       const [type, team, col, row, over] = Array.isArray(it)
         ? it : [it.type, it.team, it.col, it.row, it.over || { hp:it.hp, aim:it.aim }];
+      const pod = Array.isArray(it) ? it[5] : it.pod;
       if (col < 0 || col >= COLS || row < 0 || row >= ROWS) continue;
-      const u = buildUnit(type, col, row, team, over); if (u) units.push(u);
+      const u = buildUnit(type, col, row, team, over); if (u){ if (pod !== undefined) u.pod = pod; units.push(u); }
     }
     dedupeNames();
     for (const u of units){ if (tiles[u.row] && tiles[u.row][u.col]){ tiles[u.row][u.col].obstacle = false; delete tiles[u.row][u.col].cover; } }
     for (const u of units){ const o = nearestOpposing(u); if (o) faceTowards(u, o.col, o.row); }
     selected = null; reach = null; log = []; turn = 1; gameOver = null;
-    explored = new Set(); lastSeen = new Map();
+    explored = new Set(); lastSeen = new Map(); podAlerted = new Set();
     recomputeVision();
   }
   function placeUnits(){ placeUnitsFrom(DEFAULT_SQUAD); }
@@ -476,6 +478,7 @@
         const o = { type:u.type, team:u.team, col:u.col, row:u.row };
         if (u.over && u.over.hp) o.hp = u.over.hp;
         if (u.over && u.over.aim) o.aim = u.over.aim;
+        if (u.pod !== undefined) o.pod = u.pod;
         return o;
       }),
     };
@@ -575,7 +578,19 @@
       else if (prev.col !== u.col || prev.row !== u.row)
         lastSeen.set(u, { col:u.col, row:u.row, pcol:prev.col, prow:prev.row }); // garde la direction
     }
+    updatePodAwareness();
   }
+
+  // Éveil par pod : un groupe d'ennemis prend conscience du joueur dès qu'UN de ses membres
+  // en voit un (chaque pod a sa propre vigilance ; un pod lointain reste ignorant).
+  function updatePodAwareness(){
+    for (const e of units){
+      if (e.team !== "enemy" || e.hp <= 0 || e.pod === undefined || podAlerted.has(e.pod)) continue;
+      const fov = fieldOfView(e);
+      for (const p of units) if (p.team === "player" && p.hp > 0 && fov.has(key(p.col, p.row))){ podAlerted.add(e.pod); break; }
+    }
+  }
+  const podAware = (e) => e.pod === undefined || podAlerted.has(e.pod);
 
   // ---- Coût de déplacement & portée (Dijkstra) ----------------------------
   // Entrer une case coûte 1 PM, +1 par niveau gravi. Dénivelé >= 2 = falaise.
@@ -903,6 +918,11 @@
   async function enemyAct(e){
     if (e.hp <= 0) return;
     e.overwatch = false;   // il recommence à agir : la vigilance précédente tombe
+    // pod pas encore alerté : il garde sa zone (vigilance) sans foncer vers le joueur
+    if (!podAware(e)){
+      if (e.range > 1 && (e.clip === undefined || e.ammo > 0)) e.overwatch = true;
+      e.ap = 0; return;
+    }
     // l'IA ne connaît que les joueurs que son camp voit (brouillard ennemi)
     const players = units.filter(u => u.team === "player" && u.hp > 0 && enemyVisible.has(key(u.col, u.row)));
     if (!players.length){ await searchAct(e); return; }   // personne en vue : fouille la dernière position connue

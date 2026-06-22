@@ -40,6 +40,11 @@ function genericGrenade(e){
 function aiAct(e, W){
   if (e.hp <= 0 || T.gameOver) return;
   e.overwatch = false;
+  // pod ennemi pas encore conscient du joueur : il garde sa zone, ne fonce pas
+  if (e.team === "enemy" && !T.podAware(e)){
+    if (e.range > 1 && (e.clip === undefined || e.ammo > 0)) e.overwatch = true;
+    e.ap = 0; return;
+  }
   const opp = e.team === "player" ? "enemy" : "player";
   const vis = visOf(e);
   const seen = T.units.filter(u => u.team === opp && u.hp > 0 && vis.has(T.key(u.col, u.row)));
@@ -144,7 +149,7 @@ function setRock(c, r){ const t = T.tiles[r] && T.tiles[r][c]; if (t){ t.obstacl
 
 // pose des rochers/murets « logiques » MAIS bien répartis : forteresse légère sur les
 // hauteurs, chicane éventuelle, puis couvert distribué case-grille sur toute la carte.
-function topology(format){
+function topology(format, axis){
   const C = T.COLS, R = T.ROWS;
   let maxE = 0; for (let r = 0; r < R; r++) for (let c = 0; c < C; c++) maxE = Math.max(maxE, T.tiles[r][c].elev);
   const high = [];
@@ -177,19 +182,36 @@ function topology(format){
       tryRock(c, r);
     }
   }
-  // murets RÉPARTIS : un court segment dans la plupart des cellules
   const walls = new Set();
-  for (let ix = 0; ix < gx; ix++) for (let iy = 0; iy < gy; iy++){
-    if (Math.random() < 0.55) continue;
-    let cc = Math.min(C - 2, Math.max(1, Math.floor(ix * cw + Math.random() * cw)));
-    let rr = Math.min(R - 2, Math.max(1, Math.floor(iy * ch + Math.random() * ch)));
-    const len = ri(1, 2);
-    for (let k = 0; k < len; k++){
-      const [dc, dr] = choice(T.NEI[rr & 1]); const nc = cc + dc, nr = rr + dr;
-      if (nc < 0 || nc >= C || nr < 0 || nr >= R) break;
-      if (T.tiles[rr][cc].obstacle || T.tiles[nr][nc].obstacle) break;
-      walls.add(T.wallKey(cc, rr, nc, nr)); cc = nc; rr = nr;
+  // MURETS DE PROGRESSION : lignes grossièrement perpendiculaires à l'avancée du joueur,
+  // posées sur l'arête tournée vers l'ennemi -> couvert frontal pour avancer (avec ouvertures).
+  // h : avancée +c, arête est (c,c+1) ; v : avancée -r (vers le haut), arête nord (r,r-1).
+  const bands = [0.30, 0.45, 0.60, 0.75];
+  for (const f of bands){
+    if (axis === "h"){
+      const cBand = Math.min(C - 2, Math.max(1, Math.round(f * (C - 1))));
+      for (let r = 0; r < R; r++){
+        if (Math.random() < 0.4) continue;                       // ouvertures dans la ligne
+        const c = Math.min(C - 2, Math.max(1, cBand + ri(-1, 1)));
+        if (!T.tiles[r][c].obstacle && !T.tiles[r][c + 1].obstacle && T.tiles[r][c].elev <= T.tiles[r][c + 1].elev)
+          walls.add(T.wallKey(c, r, c + 1, r));
+      }
+    } else {
+      const rBand = Math.min(R - 1, Math.max(1, Math.round(f * (R - 1))));
+      for (let c = 0; c < C; c++){
+        if (Math.random() < 0.4) continue;
+        const r = Math.min(R - 1, Math.max(1, rBand + ri(-1, 1)));
+        if (!T.tiles[r][c].obstacle && !T.tiles[r - 1][c].obstacle && T.tiles[r][c].elev <= T.tiles[r - 1][c].elev)
+          walls.add(T.wallKey(c, r, c, r - 1));
+      }
     }
+  }
+  // quelques murets épars en complément
+  for (let s = 0; s < ri(3, 6); s++){
+    const cc = ri(1, C - 2), rr = ri(1, R - 2);
+    const [dc, dr] = choice(T.NEI[rr & 1]); const nc = cc + dc, nr = rr + dr;
+    if (nc < 0 || nc >= C || nr < 0 || nr >= R) continue;
+    if (!T.tiles[rr][cc].obstacle && !T.tiles[nr][nc].obstacle) walls.add(T.wallKey(cc, rr, nc, nr));
   }
   T.walls = walls;
 }
@@ -214,16 +236,18 @@ function makeMap(){
   if (format === "vertical"){ cols = ri(12, 16); rows = ri(20, 26); }
   else if (format === "horizontal"){ cols = ri(22, 28); rows = ri(12, 16); }
   else { cols = ri(16, 20); rows = ri(16, 20); }
-  T.resizeGrid(cols, rows); T.generateElevation(); topology(format);
+  // sens de progression imposé : gauche->droite (h) ou bas->haut (v)
+  const axis = format === "horizontal" ? "h" : format === "vertical" ? "v" : choice(["h", "v"]);
+  T.resizeGrid(cols, rows); T.generateElevation(); topology(format, axis);
   const comp = largestComponent();
   if (comp.size < cols * rows * 0.35) return null;   // carte trop morcelée
-  // axe d'affrontement
-  const horiz = format === "horizontal";
-  const span = horiz ? T.COLS : T.ROWS;
-  const lowEnd = (c, r) => (horiz ? c : r);                       // près de 0 = côté joueurs
-  const playerPref = (c, r) => -(lowEnd(c, r)) - T.tiles[r][c].elev * 0.5;     // bas + plutôt en contrebas
-  const enemyPref  = (c, r) => (lowEnd(c, r)) + T.tiles[r][c].elev * 1.2;      // côté opposé + hauteurs
-  return { format, cols, rows, comp, span, playerPref, enemyPref };
+  const C = T.COLS, R = T.ROWS;
+  // h : joueurs à gauche (c petit) -> ennemis à droite ; v : joueurs en bas (r grand) -> ennemis en haut
+  const playerPref = axis === "h" ? (c, r) => (C-1-c) - T.tiles[r][c].elev * 0.5
+                                  : (c, r) => r - T.tiles[r][c].elev * 0.5;
+  const enemyPref  = axis === "h" ? (c, r) => c + T.tiles[r][c].elev * 1.2
+                                  : (c, r) => (R-1-r) + T.tiles[r][c].elev * 1.2;
+  return { format, axis, cols, rows, comp, playerPref, enemyPref };
 }
 
 // place les ennemis en DEUX pods séparés (2 à 4 unités chacun), regroupés autour de deux
@@ -232,9 +256,13 @@ function pickPods(map, n, occupied){
   const comp = [...map.comp].map(k => k.split(",").map(Number)).filter(([c, r]) => !occupied.has(T.key(c, r)));
   if (comp.length < n) return null;
   const cb = (c, r) => T.offsetToCube(c, r);
+  const C = T.COLS, R = T.ROWS;
+  // zone ennemie définie par la POSITION (moitié opposée au joueur) -> les deux pods restent loin
+  const onSide = map.axis === "h" ? ([c]) => c >= C * 0.55 : ([, r]) => r <= R * 0.45;
+  let zone = comp.filter(onSide);
   const sorted = comp.slice().sort((a, b) => map.enemyPref(b[0], b[1]) - map.enemyPref(a[0], a[1]));
-  // zone ennemie : meilleure fraction selon la préférence (les deux pods y restent → pas chez le joueur)
-  const zone = sorted.slice(0, Math.max(n * 3, Math.ceil(sorted.length * 0.4)));
+  if (zone.length < n) zone = sorted.slice(0, Math.max(n, Math.ceil(comp.length * 0.4)));
+  zone.sort((a, b) => map.enemyPref(b[0], b[1]) - map.enemyPref(a[0], a[1]));
   const a1 = zone[0];
   // 2e ancre : DANS la zone ennemie, la plus éloignée possible de la 1re (pods séparés latéralement)
   let a2 = zone[1] || a1, bs = -Infinity;
@@ -275,7 +303,8 @@ function buildMission(map, name, nEnemies, buff){
   const players = [["Stiff", "player"], ["Merry", "player"], ["Gizzard", "player"]]
     .map((u, i) => ({ type:u[0], team:"player", col:pSpots[i][0], row:pSpots[i][1] }));
   const comp = enemyComposition(nEnemies);
-  const enemies = eSpots.map((s, i) => ({ type:comp[i], team:"enemy", col:s[0], row:s[1], hp:buff.hp, aim:buff.aim }));
+  const s1 = Math.floor(nEnemies / 2);   // pickPods range les positions pod0 puis pod1
+  const enemies = eSpots.map((s, i) => ({ type:comp[i], team:"enemy", col:s[0], row:s[1], hp:buff.hp, aim:buff.aim, pod: i < s1 ? 0 : 1 }));
   T.placeUnitsFrom([...players, ...enemies].map(u => ({ ...u })));
   return T.serializeMission(name);
 }
