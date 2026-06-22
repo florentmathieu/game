@@ -486,6 +486,22 @@
     "Gizzard",
     "Shit! He's tough!"
    ]
+  },
+  {
+   "on": "cracker",
+   "match": {
+    "first": true,
+    "enemiesHit": 2
+   },
+   "say": [
+    "Merry",
+    "Hi 'em both!"
+   ],
+   "id": "Stiff",
+   "requires": [
+    "I owe you ten",
+    "Gizz."
+   ]
   }
  ]
 }
