@@ -353,10 +353,6 @@
    6
   ],
   [
-   13,
-   6
-  ],
-  [
    16,
    7
   ],
@@ -472,25 +468,28 @@
  ],
  "units": [
   {
-   "type": "Stiff",
+   "cls": "sergent",
    "team": "player",
    "col": 0,
-   "row": 15
+   "row": 15,
+   "name": "Stiff"
   },
   {
-   "type": "Merry",
+   "cls": "sapeur",
    "team": "player",
    "col": 0,
-   "row": 1
+   "row": 1,
+   "name": "Merry"
   },
   {
-   "type": "Gizzard",
+   "cls": "assassin",
    "team": "player",
    "col": 0,
-   "row": 13
+   "row": 13,
+   "name": "Gizzard"
   },
   {
-   "type": "Archer",
+   "cls": "archer",
    "team": "enemy",
    "col": 15,
    "row": 12,
@@ -498,7 +497,7 @@
    "pod": 0
   },
   {
-   "type": "Garde",
+   "cls": "garde",
    "team": "enemy",
    "col": 14,
    "row": 11,
@@ -506,7 +505,7 @@
    "pod": 0
   },
   {
-   "type": "Archer",
+   "cls": "archer",
    "team": "enemy",
    "col": 16,
    "row": 0,
@@ -514,7 +513,7 @@
    "pod": 1
   },
   {
-   "type": "Archer",
+   "cls": "archer",
    "team": "enemy",
    "col": 16,
    "row": 1,
@@ -522,24 +521,18 @@
    "pod": 1
   },
   {
-   "type": "Garde",
+   "cls": "garde",
    "team": "enemy",
    "col": 15,
    "row": 1,
    "aim": -8,
    "pod": 1
-  }
- ],
- "meta": {
-  "winrate": 63,
-  "format": "square",
-  "cols": 17,
-  "rows": 17,
-  "n": 5,
-  "buff": {
-   "hp": 0,
-   "aim": -8
   },
-  "infil": false
- }
+  {
+   "cls": "brute",
+   "team": "enemy",
+   "col": 13,
+   "row": 6
+  }
+ ]
 }
