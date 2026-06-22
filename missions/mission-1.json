@@ -434,7 +434,21 @@
    "team": "player",
    "col": 2,
    "row": 19,
-   "facing": -2.0943951023931957
+   "facing": -1.0471975511965976
+  },
+  {
+   "type": "Garde",
+   "team": "enemy",
+   "col": 3,
+   "row": 12,
+   "facing": 1.0471975511965976
+  },
+  {
+   "type": "Archer",
+   "team": "enemy",
+   "col": 5,
+   "row": 12,
+   "facing": 1.0471975511965976
   }
  ]
 }
