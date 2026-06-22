@@ -57,9 +57,9 @@
   button:disabled{opacity:.4; cursor:default}
   button.armed{background:#5a3030; border-color:#a05050}
   /* éditeur */
-  #editor{display:none}
-  body.editing #editor{display:block}
-  body.editing .panel:not(#editor){display:none}
+  #editor,#editorEvents{display:none}
+  body.editing #editor,body.editing #editorEvents{display:block}
+  body.editing .panel:not(#editor):not(#editorEvents){display:none}
   body.editing #roster{display:none}
   .erow{display:flex; align-items:center; gap:6px; margin:6px 0; flex-wrap:wrap}
   .erow input[type=text]{flex:1}
@@ -185,7 +185,23 @@
       <div class="erow"><button id="ed-play">💾 Enregistrer &amp; tester</button> <button id="ed-quit">Quitter</button></div>
       <div class="erow"><select id="ed-missions" style="flex:1"></select> <button id="ed-loadmission" style="flex:0 0 auto;width:auto">Charger</button></div>
 
-      <h2 style="margin-top:12px">Évènements (dialogues)</h2>
+      <h2 style="margin-top:12px">Enregistrer (dépôt)</h2>
+      <div class="erow"><input id="gh-token" type="password" placeholder="token GitHub (fine-grained, Contents: write)" style="flex:1"></div>
+      <div class="erow"><input id="gh-repo" type="text" value="florentmathieu/game" title="dépôt" style="flex:1"></div>
+      <div class="erow"><input id="gh-branch" type="text" placeholder="branche" style="flex:1"></div>
+      <div class="erow"><button id="ed-publish">💾 Enregistrer dans le dépôt</button></div>
+      <div id="gh-status" class="hint"></div>
+      <div class="hint">Enregistre la mission dans le dépôt (et le menu « Missions »). Le token ne quitte pas ce navigateur ; crée un fine-grained PAT limité à ce dépôt avec <code>Contents: write</code>.</div>
+    </div>
+
+    <!-- Colonne dédiée : zones + évènements scriptés (mode édition) -->
+    <div class="panel" id="editorEvents">
+      <h2>Zones</h2>
+      <div class="erow"><select id="zone-sel" style="flex:1"></select> <button id="zone-new" style="flex:0 0 auto;width:auto">+ zone</button></div>
+      <div class="erow"><button id="zone-paint" class="etool" data-tool="zone">▦ Peindre la zone</button> <button id="zone-clear" style="flex:0 0 auto;width:auto">vider</button> <button id="zone-del" style="flex:0 0 auto;width:auto">✕</button></div>
+      <div class="hint">Sélectionne une zone, clique « Peindre » puis dessine les cases (clic/glisser). La gomme retire les cases.</div>
+
+      <h2 style="margin-top:14px">Évènements (dialogues)</h2>
       <div id="triglist" class="hint"></div>
       <div class="erow"><label style="flex:1">Quand <select id="trig-on">
         <option value="start">Début de bataille</option>
@@ -195,11 +211,13 @@
         <option value="wounded">Unité blessée</option>
         <option value="cracker">Cracker</option>
         <option value="move">Déplacement</option>
+        <option value="enter">Entre dans une zone</option>
         <option value="spotted">Pod repéré</option>
         <option value="win">Victoire</option>
         <option value="lose">Défaite</option>
       </select></label></div>
-      <div class="erow tc" data-for="attack kill wounded move cracker"><input id="trig-actor" placeholder="acteur (nom/classe)" list="ed-names" style="flex:1"></div>
+      <div class="erow tc" data-for="attack kill wounded move cracker enter"><input id="trig-actor" placeholder="acteur (nom/classe, vide = n'importe qui)" list="ed-names" style="flex:1"></div>
+      <div class="erow tc" data-for="enter"><label style="flex:1">zone <select id="trig-zone"></select></label></div>
       <div class="erow tc" data-for="attack kill wounded"><input id="trig-target" placeholder="cible (nom/classe)" list="ed-names" style="flex:1"></div>
       <div class="erow tc" data-for="attack"><label style="flex:1">résultat <select id="trig-result"><option value="">—</option><option>hit</option><option>miss</option><option>blocked</option></select></label></div>
       <div class="erow tc" data-for="attack kill"><label style="flex:1">arme <select id="trig-weapon"><option value="">—</option><option>épée</option><option>dagues</option><option>arbalète</option><option>arc</option><option>cracker</option></select></label></div>
@@ -213,14 +231,6 @@
       <div class="erow"><input id="trig-text" placeholder="réplique…" style="flex:1"></div>
       <div class="erow"><label><input type="checkbox" id="trig-once" checked> une fois</label> <label>prio <input id="trig-prio" type="number" value="0" style="width:46px"></label> <button id="trig-add" style="flex:1">+ Ajouter</button></div>
       <datalist id="ed-names"></datalist>
-
-      <h2 style="margin-top:12px">Enregistrer (dépôt)</h2>
-      <div class="erow"><input id="gh-token" type="password" placeholder="token GitHub (fine-grained, Contents: write)" style="flex:1"></div>
-      <div class="erow"><input id="gh-repo" type="text" value="florentmathieu/game" title="dépôt" style="flex:1"></div>
-      <div class="erow"><input id="gh-branch" type="text" placeholder="branche" style="flex:1"></div>
-      <div class="erow"><button id="ed-publish">💾 Enregistrer dans le dépôt</button></div>
-      <div id="gh-status" class="hint"></div>
-      <div class="hint">Enregistre la mission dans le dépôt (et le menu « Missions »). Le token ne quitte pas ce navigateur ; crée un fine-grained PAT limité à ce dépôt avec <code>Contents: write</code>.</div>
     </div>
   </div>
 
@@ -309,6 +319,8 @@
   const FX_DUR = 280;
   // ---- Évènements scriptés (dialogues/triggers paramétrables par mission) ----
   let triggers = [];                 // règles {on, match, say, once, priority} (mission.triggers)
+  let zones = [];                    // zones nommées { name, tiles:[[c,r],…] } pour l'évènement "enter"
+  let editZone = null;               // zone en cours d'édition (nom)
   let firedTriggers = new Set();     // triggers déjà déclenchés (pour once)
   let battleFlags = { firstOffense: false };  // 1re action offensive de la bataille
   let speeches = [];                 // bulles de dialogue en cours { who, text, col, row, t0 }
@@ -543,7 +555,7 @@
     emit("start", {});
     emit("turn", { turn });
   }
-  function placeUnits(){ triggers = []; placeUnitsFrom(DEFAULT_SQUAD); }
+  function placeUnits(){ triggers = []; zones = []; editZone = null; placeUnitsFrom(DEFAULT_SQUAD); }
 
   // ---- Missions : (dé)sérialisation ---------------------------------------
   const clampElev = (v) => Math.max(0, Math.min(LEVELS-1, v|0));
@@ -565,6 +577,7 @@
         return o;
       }),
       ...(triggers.length ? { triggers } : {}),   // évènements scriptés de la mission
+      ...(zones.length ? { zones: zones.map(z => ({ name:z.name, tiles:z.tiles })) } : {}),
     };
   }
   function applyMission(m){
@@ -575,6 +588,8 @@
     if (m.rocks) for (const [c, r] of m.rocks) if (tiles[r] && tiles[r][c]){ tiles[r][c].obstacle = true; tiles[r][c].cover = "full"; }
     walls = new Set(m.walls || []);
     triggers = Array.isArray(m.triggers) ? m.triggers : [];   // chargé avant placeUnitsFrom (émet "start")
+    zones = Array.isArray(m.zones) ? m.zones.map(z => ({ name:z.name, tiles:(z.tiles||[]).map(t => [t[0], t[1]]) })) : [];
+    editZone = zones.length ? zones[0].name : null;
     placeUnitsFrom(m.units || []);   // resolveCls gère cls et anciens « type »
   }
 
@@ -961,15 +976,29 @@
     return path;
   }
 
+  const zoneHas = (z, c, r) => z.tiles.some(t => t[0] === c && t[1] === r);
+  const zonesAt = (c, r) => { const s = new Set(); for (const z of zones) if (zoneHas(z, c, r)) s.add(z.name); return s; };
+  // émet "enter" pour chaque zone nouvellement pénétrée par l'unité (met à jour `inZ`)
+  function fireZoneEnters(unit, inZ){
+    for (const z of zones){
+      const here = zoneHas(z, unit.col, unit.row);
+      if (here && !inZ.has(z.name)){ inZ.add(z.name);
+        emit("enter", { actorName:unit.name, actorCls:unit.cls, actorTeam:unit.team, zone:z.name, col:unit.col, row:unit.row });
+      } else if (!here) inZ.delete(z.name);
+    }
+  }
+
   // Avance une unité le long d'un chemin : à chaque case, les adversaires peuvent riposter
   // (en QUITTANT une case adjacente comme en y entrant). Renvoie l'index d'arrêt.
   function executeMove(unit, path){
+    const inZ = zonesAt(unit.col, unit.row);    // zones déjà occupées au départ (pas de "enter")
     triggerReactions(unit);                     // opportunité en quittant la case de départ
     if (unit.hp <= 0) return 0;
     for (let i = 1; i < path.length; i++){
       unit.facing = angleTiles(path[i-1][0], path[i-1][1], path[i][0], path[i][1]);  // regarde dans le sens du pas
       unit.col = path[i][0]; unit.row = path[i][1];
       recomputeVision();
+      fireZoneEnters(unit, inZ);    // "enter" si on pénètre une zone
       triggerReactions(unit);
       if (unit.hp <= 0) return i;   // abattu en chemin
     }
@@ -1697,6 +1726,21 @@
     drawSpeeches();   // bulles de dialogue (évènements scriptés)
 
     // éditeur : surligne l'arête où le muret serait posé
+    // éditeur : zones nommées (overlay translucide coloré + nom)
+    if (editMode && zones.length){
+      const ZC = ["#5fd0a0","#d0a85f","#9a7fe0","#e07f9a","#7fb0e0","#c0c060"];
+      zones.forEach((z, zi) => {
+        const col = ZC[zi % ZC.length];
+        for (const [c, r] of z.tiles){ const p = tileCenter(c, r); fillHex(p.x, p.y, SIZE);
+          ctx.globalAlpha = z.name === editZone ? 0.34 : 0.18; ctx.fillStyle = col; ctx.fill(); ctx.globalAlpha = 1;
+          ctx.lineWidth = 1.5; ctx.strokeStyle = col; ctx.stroke();
+        }
+        if (z.tiles.length){ const p = tileCenter(z.tiles[0][0], z.tiles[0][1]);
+          ctx.fillStyle = "#0b0905"; ctx.fillRect(p.x-2, p.y-7, ctx.measureText?ctx.measureText(z.name).width+6:z.name.length*7, 13);
+          ctx.fillStyle = col; ctx.font = "bold 10px sans-serif"; ctx.textAlign = "left"; ctx.textBaseline = "middle";
+          ctx.fillText(z.name, p.x, p.y); }
+      });
+    }
     if (editMode && editTool === "wall" && editHoverEdge){
       const [c1, r1, c2, r2] = editHoverEdge;
       const a = tileCenter(c1, r1), b = tileCenter(c2, r2);
@@ -2127,7 +2171,8 @@
       case "elev+": t.elev = Math.min(LEVELS-1, t.elev+1); break;
       case "elev-": t.elev = Math.max(0, t.elev-1); break;
       case "rock":  t.obstacle = true; t.cover = "full"; removeUnitAt(c, r); break;
-      case "erase": removeUnitAt(c, r); if (t.obstacle){ t.obstacle = false; delete t.cover; } break;
+      case "erase": removeUnitAt(c, r); if (t.obstacle){ t.obstacle = false; delete t.cover; } for (const z of zones) z.tiles = z.tiles.filter(p => !(p[0]===c && p[1]===r)); break;
+      case "zone": { const z = zones.find(zz => zz.name === editZone); if (z && !zoneHas(z, c, r)) z.tiles.push([c, r]); break; }
     }
   }
   function editInfo(){
@@ -2286,12 +2331,28 @@
     for (const b of el.querySelectorAll(".trig-del"))
       b.addEventListener("click", () => { triggers.splice(+b.dataset.ti, 1); renderTrigList(); updateExport(); });
   }
-  function refreshTrigEditor(){ refreshTrigNames(); updateTrigForm(); renderTrigList(); }
+  // ---- zones ----
+  function refreshZones(){
+    const sel = document.getElementById("zone-sel"), tz = document.getElementById("trig-zone");
+    const opts = zones.map(z => `<option${z.name===editZone?" selected":""}>${z.name}</option>`).join("");
+    if (sel) sel.innerHTML = zones.length ? opts : `<option value="">(aucune)</option>`;
+    if (tz) tz.innerHTML = zones.length ? zones.map(z=>`<option>${z.name}</option>`).join("") : `<option value="">(aucune)</option>`;
+  }
+  { const s = document.getElementById("zone-sel"); if (s) s.addEventListener("change", () => { editZone = s.value; draw(); }); }
+  onEd("zone-new", () => {
+    const n = (typeof prompt === "function") ? prompt("Nom de la zone :", "zone " + (zones.length+1)) : "zone " + (zones.length+1);
+    if (!n) return; const name = n.trim(); if (!name || zones.some(z=>z.name===name)) return;
+    zones.push({ name, tiles: [] }); editZone = name; setTool("zone"); refreshZones(); updateExport(); draw();
+  });
+  onEd("zone-clear", () => { const z = zones.find(z=>z.name===editZone); if (z){ z.tiles = []; updateExport(); draw(); } });
+  onEd("zone-del", () => { zones = zones.filter(z=>z.name!==editZone); editZone = zones.length?zones[0].name:null; refreshZones(); updateExport(); draw(); });
+
+  function refreshTrigEditor(){ refreshTrigNames(); refreshZones(); updateTrigForm(); renderTrigList(); }
   { const s = document.getElementById("trig-on"); if (s) s.addEventListener("change", updateTrigForm); }
   onEd("trig-add", () => {
     const on = tval("trig-on"), m = {};
     const setS = (id, key) => { const v = tval(id); if (v) m[key] = v; };
-    setS("trig-actor", "actor"); setS("trig-target", "target"); setS("trig-result", "result"); setS("trig-weapon", "weapon");
+    setS("trig-actor", "actor"); setS("trig-target", "target"); setS("trig-result", "result"); setS("trig-weapon", "weapon"); setS("trig-zone", "zone");
     const killed = tval("trig-killed"); if (killed) m.killed = killed === "true";
     if (tchk("trig-first")) m.first = true;
     const eh = tval("trig-enemiesHit"); if (eh !== "") m.enemiesHit = +eh;

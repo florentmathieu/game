@@ -50,8 +50,16 @@ Tout est enregistré dans la mission. (On peut aussi éditer le JSON à la main,
   `hpPct` (0–100), `killed`. Ex. seuil de PV : `"hpPct": { "max": 30 }`.
 - **`cracker`** — un cracker explose. `actor`, `enemiesHit`, `alliesHit`, `killed`, `first`.
 - **`move`** — une unité finit un déplacement. `actor`, `col`, `row`, `steps`.
+- **`enter`** — une unité **entre dans une zone**. `actor` (vide = n'importe qui), `zone`, `col`, `row`.
 - **`spotted`** — un pod ennemi se réveille (repère le joueur). `pod`.
 - **`win`** / **`lose`** — fin de partie.
+
+## Zones
+
+Les zones se dessinent dans l'éditeur (colonne dédiée, section **Zones**) : « + zone »,
+puis l'outil **▦ Peindre la zone** pour colorier les cases. Elles sont stockées dans la
+mission (`"zones": [{ "name": "piège", "tiles": [[5,2],[5,3]] }]`) et servent à l'évènement
+`enter` (`"match": { "actor": "Gizzard", "zone": "piège" }`).
 
 ## Champs de `match`
 
