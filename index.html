@@ -2730,9 +2730,13 @@ Stiff: Enough. I've decided.`;
   }
 
   async function runScene1(){
-    if (!sceneEl) return;
+    return runSceneFile("Scene1.txt", SCENE1_TEXT);
+  }
+  // joue un texte « sous la carte » (comme la Scene 1 d'origine) puis le retire
+  async function runSceneFile(file, fallback){
+    if (!sceneEl || !file) return;
     sceneEl.style.display = "block";
-    await playDialogue(await loadDialogue("Scene1.txt", SCENE1_TEXT), sceneTextEl, waitScene);
+    await playDialogue(await loadDialogue(file, fallback || ""), sceneTextEl, waitScene);
     sceneEl.style.display = "none";
   }
 
@@ -2982,8 +2986,11 @@ Stiff: Enough. I've decided.`;
       h += `<div class="hint">Les fichiers <code>.txt</code> proposés sont listés dans <code>texts/list.json</code> (ajoute-y tes fichiers).</div>`;
       h += `<div class="erow"><label style="flex:1">Suite → <select id="cn-next">${optList(n.next)}</select></label></div>`;
     } else {
+      const introOpts = `<option value="">— aucun —</option>` + repoTexts.map(t => `<option value="${t.file}" ${t.file === n.intro ? "selected" : ""}>${escHTML(t.name)}</option>`).join("");
       h += `<div class="erow"><label style="flex:1">Mission <select id="cn-mission">${missOpts || `<option value="">(aucune)</option>`}</select></label></div>`;
       h += `<div class="erow"><label style="flex:1">Étiquette <input id="cn-name" type="text" value="${escHTML(n.name || "")}"></label></div>`;
+      h += `<div class="erow"><label style="flex:1">Texte d'intro (sous la carte) <select id="cn-intro">${introOpts}</select></label></div>`;
+      h += `<div class="hint">Joué « sous la map » au lancement de la mission, comme la Scène 1 d'origine.</div>`;
       h += `<div class="erow"><label style="flex:1"><span style="color:#5fd07f">✓</span> Victoire → <select id="cn-win">${optList(n.win)}</select></label></div>`;
       h += `<div class="erow"><label style="flex:1"><span style="color:#e0705f">✕</span> Défaite → <select id="cn-lose">${optList(n.lose)}</select></label></div>`;
       h += `<div class="hint">Défaite sans cible = on rejoue la mission.</div>`;
@@ -2995,6 +3002,7 @@ Stiff: Enough. I've decided.`;
     on("cn-next", "change", e => { n.next = e.target.value || null; draw(); });
     on("cn-mission", "change", e => { n.mission = e.target.value; const m = repoMissions.find(x => x.file === n.mission); if (m && (!n.name || n.name === "Mission")) n.name = m.name; renderCampForm(); draw(); });
     on("cn-name", "input", e => { n.name = e.target.value; draw(); });
+    on("cn-intro", "change", e => { n.intro = e.target.value || null; });
     on("cn-win", "change", e => { n.win = e.target.value || null; draw(); });
     on("cn-lose", "change", e => { n.lose = e.target.value || null; draw(); });
     on("cn-start", "click", () => { campaign.start = n.id; renderCampForm(); draw(); });
@@ -3095,6 +3103,14 @@ Stiff: Enough. I've decided.`;
     const m = await loadMissionFromUrl(n.mission && n.mission.includes("/") ? n.mission : "missions/" + n.mission);
     if (!m){ alert("Mission introuvable : " + n.mission); endCampaign(false); return; }
     startMission(m);
+    if (n.intro){                                  // texte joué sous la carte avant de rendre la main
+      introActive = true; skipReq = false;
+      if (panelEl) panelEl.style.display = "none";
+      await runSceneFile(n.intro);
+      introActive = false;
+      if (panelEl) panelEl.style.display = "";
+      selectUnit(units.find(u => u.team === "player" && u.hp > 0)); refreshAll();
+    }
   }
   function campMissionEnd(result){
     const node = campNodeById(campRun.nodeId);

@@ -16,6 +16,7 @@
    "type": "mission",
    "mission": "mission-1.json",
    "name": "Mission 1",
+   "intro": "Scene1.txt",
    "win": "between",
    "lose": null,
    "x": 40,
