@@ -23,6 +23,12 @@
     background:rgba(10,8,5,.88); border:1px solid #5a4530; border-radius:8px; padding:14px 16px 12px;
     color:#d8cdb4; font-family:Georgia,"Times New Roman",serif; box-shadow:0 6px 24px rgba(0,0,0,.55)}
   #scenetext{min-height:3em; line-height:1.6; white-space:pre-wrap; font-size:1rem}
+  #combatline{position:absolute; left:10px; right:10px; bottom:10px; display:none; z-index:6;
+    background:rgba(10,8,5,.9); border:1px solid #5a4530; border-radius:8px; padding:11px 14px;
+    color:#e8ddc8; font-family:Georgia,"Times New Roman",serif; font-size:1rem; line-height:1.5;
+    box-shadow:0 6px 24px rgba(0,0,0,.55); opacity:0; transition:opacity .25s}
+  #combatline.show{opacity:1}
+  #combatline .sp-who{color:#ffd479; font-weight:bold; margin-right:8px}
   #scenebtn{display:block; margin:10px 0 0 auto; background:#15110c; color:#d8cdb4; border:1px solid #5a4530;
     border-radius:6px; padding:6px 18px; letter-spacing:3px; cursor:pointer; min-width:90px}
   #scenebtn:hover{background:#241a12}
@@ -108,6 +114,7 @@
     <div id="boardwrap">
       <canvas id="board"></canvas>
       <div id="scene"><div id="scenetext"></div><button id="scenebtn">...</button></div>
+      <div id="combatline"></div>
     </div>
 
     <div class="panel">
@@ -227,10 +234,13 @@
       <div class="erow tc" data-for="wounded"><label style="flex:1">PV cible ≤ <input id="trig-hppct" type="number" min="0" max="100" style="width:56px"> %</label></div>
       <div class="erow tc" data-for="turn"><label style="flex:1">tour n° <input id="trig-turn" type="number" min="1" style="width:56px"></label></div>
       <div class="erow tc" data-for="spotted"><label style="flex:1">pod n° <input id="trig-pod" type="number" min="0" style="width:56px"></label></div>
+      <div id="trig-lines" class="hint"></div>
       <div class="erow"><input id="trig-who" placeholder="qui parle (défaut : acteur)" list="ed-names" style="flex:1"></div>
-      <div class="erow"><input id="trig-text" placeholder="réplique…" style="flex:1"></div>
-      <div class="erow"><label><input type="checkbox" id="trig-once" checked> une fois</label> <label>prio <input id="trig-prio" type="number" value="0" style="width:46px"></label> <button id="trig-add" style="flex:1">+ Ajouter</button></div>
+      <div class="erow"><input id="trig-text" placeholder="réplique…" style="flex:1"><button id="trig-addline" style="flex:0 0 auto;width:auto">+ ligne</button></div>
+      <div class="erow"><input id="trig-id" placeholder="id (optionnel)" style="flex:1"><input id="trig-requires" placeholder="requiert id(s)…" list="ed-trigids" style="flex:1"></div>
+      <div class="erow"><label><input type="checkbox" id="trig-once" checked> une fois</label> <label>prio <input id="trig-prio" type="number" value="0" style="width:46px"></label> <button id="trig-add" style="flex:1">✓ Créer l'évènement</button></div>
       <datalist id="ed-names"></datalist>
+      <datalist id="ed-trigids"></datalist>
     </div>
   </div>
 
@@ -323,7 +333,9 @@
   let editZone = null;               // zone en cours d'édition (nom)
   let firedTriggers = new Set();     // triggers déjà déclenchés (pour once)
   let battleFlags = { firstOffense: false };  // 1re action offensive de la bataille
-  let speeches = [];                 // bulles de dialogue en cours { who, text, col, row, t0 }
+  let speechQueue = [];              // file de répliques à afficher dans l'encart de dialogue
+  let speechTimer = null;            // minuterie d'enchaînement des répliques
+  let lastSpoken = null;             // dernière réplique (pour tests/console)
   const SPEECH_DUR = 4200;
   let log = [];              // journal des dernières actions
   let turn = 1;              // numéro du tour
@@ -550,7 +562,9 @@
     for (const u of units){ if (u.hasFacing) continue; const o = nearestOpposing(u); if (o) faceTowards(u, o.col, o.row); }
     selected = null; reach = null; log = []; turn = 1; gameOver = null;
     explored = new Set(); lastSeen = new Map(); podAlerted = new Set();
-    firedTriggers = new Set(); battleFlags = { firstOffense: false }; speeches = [];  // reset des évènements
+    firedTriggers = new Set(); battleFlags = { firstOffense: false };  // reset des évènements
+    speechQueue = []; if (speechTimer && typeof clearTimeout === "function") clearTimeout(speechTimer); speechTimer = null;
+    { const el = (typeof document !== "undefined") && document.getElementById("combatline"); if (el && el.style){ el.style.display = "none"; if (el.classList) el.classList.remove("show"); } }
     recomputeVision();
     emit("start", {});
     emit("turn", { turn });
@@ -1039,37 +1053,55 @@
       if (ctx.reaction){ ctx.first = false; }
       else { ctx.first = !battleFlags.firstOffense; battleFlags.firstOffense = true; }
     }
+    const reqOk = (t) => {
+      if (t.requires){ const r = Array.isArray(t.requires) ? t.requires : [t.requires]; if (!r.every(x => firedTriggers.has(x))) return false; }
+      if (t.forbids){ const f = Array.isArray(t.forbids) ? t.forbids : [t.forbids]; if (f.some(x => firedTriggers.has(x))) return false; }
+      return true;
+    };
     let best = null, bestP = -Infinity, bestId = -1;
     for (let i = 0; i < triggers.length; i++){
       const t = triggers[i], id = t.id != null ? t.id : i;
       if (t.on !== type) continue;
       if (t.once !== false && firedTriggers.has(id)) continue;   // once par défaut
+      if (!reqOk(t)) continue;                                   // dépend d'autres répliques déjà passées
       if (!trigMatch(t, ctx)) continue;
       const p = t.priority || 0;
       if (p > bestP){ bestP = p; best = t; bestId = id; }
     }
     if (!best) return;
-    firedTriggers.add(bestId);
+    firedTriggers.add(bestId);   // mémorise (sert au « requires » et au « once »)
     runAction(best, ctx);
   }
+  // joue une réplique (objet/tuple/chaîne) — `who` par défaut = l'acteur
+  function sayLine(ln, ctx){
+    if (Array.isArray(ln)) say(ln[0] || ctx.actorName, ln[1]);
+    else if (typeof ln === "string") say(ctx.actorName, ln);
+    else if (ln) say(ln.who || ctx.actorName, ln.text);
+  }
   function runAction(t, ctx){
-    if (t.say){
-      const who = Array.isArray(t.say) ? t.say[0] : (t.say.who || ctx.actorName);
-      const text = Array.isArray(t.say) ? t.say[1] : t.say.text;
-      if (text) say(who, text);
-    }
+    if (t.lines && t.lines.length){ for (const ln of t.lines) sayLine(ln, ctx); }   // série de répliques
+    else if (t.say) sayLine(t.say, ctx);
     if (typeof t.do === "function"){ try{ t.do(ctx); }catch(e){} }   // action JS optionnelle (API live)
   }
   // Affiche une réplique : bulle au-dessus de l'unité + ligne de journal.
+  // Réplique scriptée : encart de dialogue par-dessus la carte (style ouverture), + journal.
   function say(who, text){
     if (!who) who = (units.find(u => u.team === "player" && u.hp > 0) || {}).name || "—";
-    const u = units.find(x => x.name === who && x.hp > 0) || units.find(x => x.name === who);
-    speeches.push({ who, text, col: u ? u.col : undefined, row: u ? u.row : undefined,
-                    t0: (typeof performance !== "undefined" ? performance.now() : Date.now()) });
-    if (speeches.length > 6) speeches.shift();
+    const u = units.find(x => x.name === who);
+    lastSpoken = { who, text };
+    speechQueue.push({ who, text });
     pushLog(`💬 ${who} : ${text}`, u && u.team === "enemy" ? "enemy" : "player");
-    draw();
-    if (typeof setTimeout === "function") setTimeout(() => draw(), SPEECH_DUR + 80);
+    if (!speechTimer) showNextSpeech();
+  }
+  function showNextSpeech(){
+    const el = document.getElementById("combatline");
+    if (!speechQueue.length){ if (el && el.style){ el.classList && el.classList.remove("show"); el.style.display = "none"; } speechTimer = null; return; }
+    const s = speechQueue.shift();
+    if (el && el.style){
+      el.innerHTML = `<span class="sp-who">${s.who}</span>${s.text}`;
+      el.style.display = "block"; if (el.classList){ el.classList.remove("show"); void el.offsetWidth; el.classList.add("show"); }
+    }
+    speechTimer = (typeof setTimeout === "function") ? setTimeout(showNextSpeech, SPEECH_DUR) : null;
   }
 
   function pushLog(msg, team){
@@ -1400,37 +1432,6 @@
     }
   }
 
-  // bulles de dialogue au-dessus de l'unité qui parle (évènements scriptés)
-  function drawSpeeches(){
-    const now = (typeof performance !== "undefined") ? performance.now() : Date.now();
-    speeches = speeches.filter(s => now - s.t0 < SPEECH_DUR);
-    ctx.textAlign = "left"; ctx.textBaseline = "alphabetic";
-    for (const s of speeches){
-      if (s.col === undefined) continue;
-      const c = tileCenter(s.col, s.row);
-      ctx.font = "12px Georgia, serif";
-      const label = (s.who + " : " + s.text).length > 30 ? (s.who + " : " + s.text).slice(0,29)+"…" : s.who + " : " + s.text;
-      const meas = ctx.measureText && ctx.measureText(label);
-      const w = Math.min(190, (meas && meas.width) || label.length * 6.5) + 14;
-      const bx = Math.max(2, Math.min(c.x - w/2, canvas.width/(window.devicePixelRatio||1) - w - 2));
-      const by = c.y - SIZE*1.5 - 22, h = 20;
-      const age = now - s.t0, fade = age > SPEECH_DUR - 500 ? (SPEECH_DUR - age)/500 : 1;
-      ctx.globalAlpha = Math.max(0, fade);
-      ctx.fillStyle = "rgba(12,9,5,0.9)"; ctx.strokeStyle = "#caa86a"; ctx.lineWidth = 1;
-      roundRect(bx, by, w, h, 5); ctx.fill(); ctx.stroke();
-      // petit ergot vers l'unité
-      ctx.beginPath(); ctx.moveTo(c.x-4, by+h); ctx.lineTo(c.x+4, by+h); ctx.lineTo(c.x, by+h+6); ctx.closePath(); ctx.fill();
-      ctx.fillStyle = "#ffe9b8";
-      ctx.fillText(label, bx+7, by+14);
-      ctx.globalAlpha = 1;
-    }
-  }
-  function roundRect(x, y, w, h, r){
-    ctx.beginPath();
-    ctx.moveTo(x+r, y); ctx.arcTo(x+w, y, x+w, y+h, r); ctx.arcTo(x+w, y+h, x, y+h, r);
-    ctx.arcTo(x, y+h, x, y, r); ctx.arcTo(x, y, x+w, y, r); ctx.closePath();
-  }
-
   function drawRock(x, y){
     // rocher : gros tas de blocs sombres (couvert total, bloque la vue)
     const spots = [[-5,3,6],[5,4,5.5],[0,-4,6],[0,2,4]];
@@ -1723,7 +1724,6 @@
     }
 
     drawFx();   // projectiles / coups d'épée
-    drawSpeeches();   // bulles de dialogue (évènements scriptés)
 
     // éditeur : surligne l'arête où le muret serait posé
     // éditeur : zones nommées (overlay translucide coloré + nom)
@@ -2320,8 +2320,12 @@
   function trigSummary(t){
     const m = t.match || {}, parts = [];
     for (const k in m){ const v = m[k]; parts.push(k + ":" + (v && typeof v === "object" ? JSON.stringify(v) : v)); }
-    const say = t.say ? (Array.isArray(t.say) ? `${t.say[0] || "acteur"}: "${t.say[1]}"` : `${t.say.who || "acteur"}: "${t.say.text}"`) : "(action)";
-    return `<b>${t.on}</b>${parts.length ? " [" + parts.join(", ") + "]" : ""}${t.priority ? " ·p" + t.priority : ""}${t.once === false ? " ·∞" : ""} → 💬 ${say}`;
+    let say;
+    if (t.lines) say = `${t.lines.length} répliques`;
+    else if (t.say) say = Array.isArray(t.say) ? `${t.say[0] || "acteur"}: "${t.say[1]}"` : `${t.say.who || "acteur"}: "${t.say.text}"`;
+    else say = "(action)";
+    const req = t.requires ? " ⟵" + (Array.isArray(t.requires) ? t.requires.join("+") : t.requires) : "";
+    return `<b>${t.on}</b>${t.id ? " #" + t.id : ""}${parts.length ? " [" + parts.join(", ") + "]" : ""}${req}${t.priority ? " ·p" + t.priority : ""}${t.once === false ? " ·∞" : ""} → 💬 ${say}`;
   }
   function renderTrigList(){
     const el = document.getElementById("triglist"); if (!el) return;
@@ -2329,7 +2333,7 @@
     el.innerHTML = triggers.map((t, i) =>
       `<div style="margin:3px 0;display:flex;gap:6px;align-items:start"><button data-ti="${i}" class="trig-del" style="width:auto;padding:1px 6px;flex:0 0 auto">✕</button><span>${trigSummary(t)}</span></div>`).join("");
     for (const b of el.querySelectorAll(".trig-del"))
-      b.addEventListener("click", () => { triggers.splice(+b.dataset.ti, 1); renderTrigList(); updateExport(); });
+      b.addEventListener("click", () => { triggers.splice(+b.dataset.ti, 1); renderTrigList(); refreshTrigIds(); updateExport(); });
   }
   // ---- zones ----
   function refreshZones(){
@@ -2347,8 +2351,27 @@
   onEd("zone-clear", () => { const z = zones.find(z=>z.name===editZone); if (z){ z.tiles = []; updateExport(); draw(); } });
   onEd("zone-del", () => { zones = zones.filter(z=>z.name!==editZone); editZone = zones.length?zones[0].name:null; refreshZones(); updateExport(); draw(); });
 
-  function refreshTrigEditor(){ refreshTrigNames(); refreshZones(); updateTrigForm(); renderTrigList(); }
+  function refreshTrigEditor(){ refreshTrigNames(); refreshZones(); updateTrigForm(); renderTrigList(); renderTrigLines(); refreshTrigIds(); }
   { const s = document.getElementById("trig-on"); if (s) s.addEventListener("change", updateTrigForm); }
+  // construction d'une SÉRIE de répliques avant de créer l'évènement
+  let trigLines = [];
+  function renderTrigLines(){
+    const el = document.getElementById("trig-lines"); if (!el) return;
+    el.innerHTML = trigLines.length
+      ? "<b>Répliques :</b>" + trigLines.map((l, i) => `<div style="display:flex;gap:6px"><button data-li="${i}" class="tl-del" style="width:auto;padding:0 6px;flex:0 0 auto">✕</button><span>${l[0] || "(acteur)"} : ${l[1]}</span></div>`).join("")
+      : "";
+    for (const b of el.querySelectorAll(".tl-del")) b.addEventListener("click", () => { trigLines.splice(+b.dataset.li, 1); renderTrigLines(); });
+  }
+  function refreshTrigIds(){
+    const dl = document.getElementById("ed-trigids"); if (!dl) return;
+    dl.innerHTML = triggers.filter(t => t.id).map(t => `<option value="${t.id}">`).join("");
+  }
+  onEd("trig-addline", () => {
+    const text = tval("trig-text"); if (!text) return;
+    trigLines.push([tval("trig-who"), text]);
+    document.getElementById("trig-text").value = "";
+    renderTrigLines();
+  });
   onEd("trig-add", () => {
     const on = tval("trig-on"), m = {};
     const setS = (id, key) => { const v = tval(id); if (v) m[key] = v; };
@@ -2359,15 +2382,20 @@
     const hp = tval("trig-hppct"); if (hp !== "") m.hpPct = { max: +hp };
     const tn = tval("trig-turn"); if (tn !== "") m.turn = +tn;
     const pod = tval("trig-pod"); if (pod !== "") m.pod = +pod;
-    const text = tval("trig-text"); if (!text){ alert("Écris une réplique."); return; }
-    const who = tval("trig-who");
+    const lines = trigLines.slice();
+    const text = tval("trig-text"); if (text) lines.push([tval("trig-who"), text]);   // la ligne en cours compte aussi
+    if (!lines.length){ alert("Ajoute au moins une réplique."); return; }
     const t = { on }; if (Object.keys(m).length) t.match = m;
-    t.say = who ? [who, text] : { text };
+    if (lines.length === 1) t.say = lines[0][0] ? lines[0] : { text: lines[0][1] };
+    else t.lines = lines;
+    const id = tval("trig-id"); if (id) t.id = id;
+    const req = tval("trig-requires").split(",").map(s => s.trim()).filter(Boolean); if (req.length) t.requires = req.length === 1 ? req[0] : req;
     const prio = +tval("trig-prio") || 0; if (prio) t.priority = prio;
     if (!tchk("trig-once")) t.once = false;
     triggers.push(t);
-    document.getElementById("trig-text").value = "";
-    renderTrigList(); updateExport();
+    trigLines = [];
+    for (const id2 of ["trig-text","trig-id","trig-requires"]){ const e = document.getElementById(id2); if (e) e.value = ""; }
+    renderTrigLines(); renderTrigList(); refreshTrigIds(); updateExport();
   });
   { const fi = document.getElementById("ed-file"); if (fi) fi.addEventListener("change", (e) => {
       const f = e.target.files[0]; if (!f) return; const rd = new FileReader();

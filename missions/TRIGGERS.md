@@ -23,10 +23,30 @@ réplique (ou une action) quand un évènement de combat correspond.
 |------------|------|
 | `on`       | type d'évènement (voir liste) |
 | `match`    | conditions ; **tous** les champs doivent correspondre au contexte |
-| `say`      | `["QuiParle", "texte"]` (ou `{ "who": "...", "text": "..." }`). `who` par défaut = l'acteur |
+| `say`      | une réplique : `["QuiParle", "texte"]` ou `{ "who": "...", "text": "..." }`. `who` par défaut = l'acteur |
+| `lines`    | une **série** de répliques jouées à la suite : `[["Gizzard","…"], ["Merry","…"], …]` |
 | `once`     | `true` par défaut (ne se déclenche qu'une fois). Mettre `false` pour répétable |
 | `priority` | si plusieurs triggers matchent le **même** évènement, seul le plus prioritaire se déclenche (défaut 0) |
-| `id`       | identifiant optionnel (sinon l'index sert d'id pour le `once`) |
+| `id`       | identifiant (pour être référencé par `requires`/`forbids`) |
+| `requires` | id(s) d'autres triggers qui doivent **déjà s'être déclenchés** (chaîne ou liste) |
+| `forbids`  | id(s) qui ne doivent **pas** s'être déclenchés |
+
+### Séries et réponses conditionnées
+
+Une **série** se fait avec `lines` (les répliques s'enchaînent dans l'encart).
+Une **réponse conditionnée au passage par une réplique** se fait avec `id` + `requires` :
+
+```json
+[
+  { "id": "rate1", "on": "attack", "match": { "actor": "Gizzard", "first": true, "result": "miss" },
+    "lines": [["Gizzard", "et merde"], ["Merry", "joli, l'artiste"], ["Gizzard", "la ferme"]] },
+  { "on": "turn", "requires": "rate1", "say": ["Stiff", "concentrez-vous, au prochain tour"] }
+]
+```
+
+Dans l'éditeur : tape une réplique + **« + ligne »** pour bâtir la série, renseigne un **id**
+et un **requiert id(s)** au besoin, puis **« ✓ Créer l'évènement »**. Les triggers ne se
+déclenchent **qu'une fois** par défaut.
 
 C'est ainsi qu'on gère « sauf si… » : une règle générale (priorité 0) + une règle
 plus précise et plus prioritaire (priorité 1) qui la remplace quand elle matche.
