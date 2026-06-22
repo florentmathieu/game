@@ -1832,7 +1832,7 @@
     let html = "";
     if (!selected){ html = "Clique une unité bleue."; }
     else {
-      const wn = selected.wtype === "ranged" ? (selected.clip !== undefined ? "arbalète" : "arc") : "épée";
+      const wn = selected.wtype === "ranged" ? (selected.clip !== undefined ? "arbalète" : "arc") : (selected.flank ? "dagues" : "épée");
       html = `<code>${selected.name}</code> — PV <code>${Math.max(0,selected.hp)}/${selected.maxHp}</code>`
         + `<br>PA <code>${selected.ap}/${AP_MAX}</code> · mouvement libre <code>${freeOf(selected)}</code>${selected.ap>0?` (+${selected.ap}×${selected.mob} via PA)`:``}`
         + `<br>arme : <code>${wn}</code> · précision <code>${selected.aim}%</code>`
