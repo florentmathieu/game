@@ -724,17 +724,18 @@
   function wakePod(pid){
     const fresh = pid !== undefined && !podAlerted.has(pid);
     podAlerted.add(pid);
-    for (const u of units) if (u.team === "enemy" && u.pod === pid) u.asleep = false;
-    if (fresh) emit("spotted", { pod: pid, actorTeam: "enemy" });
+    for (const u of units) if (u.team === "enemy" && u.pod === pid){ if (fresh && u.hp > 0) pushAlert(u.col, u.row); u.asleep = false; }
+    if (fresh){ spottedFlash(); emit("spotted", { pod: pid, actorTeam: "enemy" }); }
   }
   function wake(u){
     if (u.team !== "enemy") return;
     if (u.pod !== undefined){ wakePod(u.pod); }
-    else if (u.asleep){ u.asleep = false; emit("spotted", { actorTeam: "enemy" }); }
+    else if (u.asleep){ u.asleep = false; pushAlert(u.col, u.row); spottedFlash(); emit("spotted", { actorTeam: "enemy" }); }
   }
   // un bruit (combat, explosion) réveille les pods ennemis dont un membre est à portée
   function makeNoise(col, row, radius){
     if (radius <= 0) return;
+    pushNoise(col, row, radius);   // onde sonore visible
     for (const e of units){
       if (e.team !== "enemy" || e.hp <= 0) continue;
       if (cubeDist(offsetToCube(col, row), offsetToCube(e.col, e.row)) <= radius) wake(e);
@@ -943,8 +944,8 @@
     if (!(silent && dead)) wake(tgt);                    // une victime non tuée — ou une arme bruyante — alerte son pod
     makeNoise(tgt.col, tgt.row, att.wtype === "ranged" ? NOISE_RANGED : (att.flank ? NOISE_DAGGER : NOISE_SWORD));
     if (dmg > 0 && !dead) makeNoise(tgt.col, tgt.row, NOISE_WOUNDED);   // un blessé crie : bruit fort (mais < explosion)
-    if (hit && dmg > 0) emit("wounded", { targetName:tgt.name, targetCls:tgt.cls, targetTeam:tgt.team, byName:att.name,
-      hp:Math.max(0,tgt.hp), maxHp:tgt.maxHp, hpPct:Math.round(100*Math.max(0,tgt.hp)/tgt.maxHp), killed:dead });
+    if (hit && dmg > 0){ pushDmg(tgt.col, tgt.row, dmg, tgt.team); screenShake(dead ? 4 : 2); emit("wounded", { targetName:tgt.name, targetCls:tgt.cls, targetTeam:tgt.team, byName:att.name,
+      hp:Math.max(0,tgt.hp), maxHp:tgt.maxHp, hpPct:Math.round(100*Math.max(0,tgt.hp)/tgt.maxHp), killed:dead }); }
     if (dead){ tgt.hp = 0; tgt.dead = true; }          // on garde le corps sur la carte
     emit("attack", { actorName:att.name, actorCls:att.cls, actorTeam:att.team, target:undefined,
       targetName:tgt.name, targetCls:tgt.cls, weapon:weaponName(att),
@@ -1417,25 +1418,51 @@
   }
   function pushBlast(c, r, radius){
     const a = tileCenter(c, r);
-    fx.push({ blast:true, bx:a.x, by:a.y, rad:(radius+0.5)*HEX_W, t0:(typeof performance!=="undefined"?performance.now():0) });
+    fx.push({ blast:true, bx:a.x, by:a.y, rad:(radius+0.5)*HEX_W, t0:fxNow(), dur:FX_DUR });
     ensureFxLoop();
   }
+  const fxNow = () => (typeof performance !== "undefined" ? performance.now() : Date.now());
+  function pushDmg(col, row, val, team){ const a = tileCenter(col, row); fx.push({ dmg:true, x:a.x, y:a.y - SIZE*0.6, val, team, t0:fxNow(), dur:950 }); ensureFxLoop(); }
+  function pushAlert(col, row){ const a = tileCenter(col, row); fx.push({ alert:true, x:a.x, y:a.y - SIZE*0.9, t0:fxNow(), dur:1100 }); ensureFxLoop(); }
+  function pushNoise(col, row, radiusTiles){ if (radiusTiles <= 0) return; const a = tileCenter(col, row); fx.push({ noise:true, x:a.x, y:a.y, rad:radiusTiles*HEX_W, t0:fxNow(), dur:600 }); ensureFxLoop(); }
+  let shakeUntil = 0, shakeMag = 0;
+  function screenShake(mag){ shakeUntil = fxNow() + 260; shakeMag = mag; ensureFxLoop(); }
+  let spotUntil = 0;
+  function spottedFlash(){ spotUntil = fxNow() + 900; screenShake(4); ensureFxLoop(); }
   function ensureFxLoop(){
     if (typeof requestAnimationFrame === "undefined" || typeof performance === "undefined"){ fx = []; return; }
     if (fxRunning) return;
     fxRunning = true;
     requestAnimationFrame(function loop(){
-      fx = fx.filter(f => performance.now() - f.t0 < FX_DUR);
+      fx = fx.filter(f => performance.now() - f.t0 < (f.dur || FX_DUR));
       draw();
-      if (fx.length) requestAnimationFrame(loop); else fxRunning = false;
+      if (fx.length || performance.now() < shakeUntil || performance.now() < spotUntil) requestAnimationFrame(loop); else fxRunning = false;
     });
   }
   function drawFx(){
     const now = (typeof performance !== "undefined") ? performance.now() : 0;
     for (const f of fx){
-      const p = Math.min(1, (now - f.t0) / FX_DUR);
+      const p = Math.min(1, (now - f.t0) / (f.dur || FX_DUR));
       ctx.save();
-      if (f.blast){
+      if (f.dmg){
+        // nombre de dégâts qui s'élève et s'estompe
+        ctx.globalAlpha = 1 - p; ctx.font = "bold 15px 'Trebuchet MS',sans-serif";
+        ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.lineWidth = 3;
+        ctx.strokeStyle = "rgba(0,0,0,0.7)"; ctx.fillStyle = f.team === "player" ? "#ff8b6b" : "#ffd479";
+        const yy = f.y - 22 * p; ctx.strokeText("-" + f.val, f.x, yy); ctx.fillText("-" + f.val, f.x, yy);
+      } else if (f.alert){
+        // « ! » d'alerte qui surgit au-dessus d'un ennemi qui nous repère
+        const pop = p < 0.3 ? p / 0.3 : 1; ctx.globalAlpha = 1 - Math.max(0, (p - 0.7) / 0.3);
+        const s = 14 + 8 * pop; ctx.font = `bold ${s}px 'Trebuchet MS',sans-serif`;
+        ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.lineWidth = 3;
+        ctx.strokeStyle = "rgba(0,0,0,0.8)"; ctx.fillStyle = "#ff4438";
+        ctx.strokeText("!", f.x, f.y); ctx.fillText("!", f.x, f.y);
+      } else if (f.noise){
+        // onde sonore : anneau qui s'étend jusqu'au rayon de bruit
+        ctx.globalAlpha = (1 - p) * 0.6; ctx.lineWidth = 2; ctx.setLineDash([4, 4]);
+        ctx.strokeStyle = "#bcd0e0";
+        ctx.beginPath(); ctx.arc(f.x, f.y, f.rad * (0.2 + 0.8*p), 0, Math.PI*2); ctx.stroke(); ctx.setLineDash([]);
+      } else if (f.blast){
         // explosion : disque + onde qui s'étend
         ctx.globalAlpha = (1 - p) * 0.5; ctx.fillStyle = "#ff9b4a";
         ctx.beginPath(); ctx.arc(f.bx, f.by, f.rad * (0.4 + 0.6*p), 0, Math.PI*2); ctx.fill();
@@ -1554,6 +1581,11 @@
 
   function draw(){
     ctx.clearRect(0, 0, canvas.width, canvas.height);
+    let shaken = false;
+    if (typeof performance !== "undefined" && performance.now() < shakeUntil){
+      const k = (shakeUntil - performance.now()) / 260 * shakeMag;
+      ctx.save(); ctx.translate((Math.random()*2-1)*k, (Math.random()*2-1)*k); shaken = true;
+    }
 
     // 1) sol (avec brouillard de guerre et obstacles)
     for (let row = 0; row < ROWS; row++){
@@ -1792,6 +1824,24 @@
       ctx.fillStyle = "#e8ddc8"; ctx.font = "16px 'Trebuchet MS',sans-serif";
       ctx.fillText("« Régénérer la carte » pour rejouer", w/2, h/2 + 22);
     }
+    if (shaken) ctx.restore();
+    // vignette rouge clignotante quand on vient d'être repérés
+    if (typeof performance !== "undefined" && performance.now() < spotUntil){
+      const sp = (spotUntil - performance.now()) / 900;     // 1 → 0
+      const w = canvas.width / (window.devicePixelRatio || 1);
+      const h = canvas.height / (window.devicePixelRatio || 1);
+      const pulse = 0.45 * sp * (0.6 + 0.4 * Math.abs(Math.sin(performance.now() / 90)));
+      const g = ctx.createRadialGradient(w/2, h/2, Math.min(w,h)*0.30, w/2, h/2, Math.max(w,h)*0.62);
+      g.addColorStop(0, "rgba(200,30,20,0)"); g.addColorStop(1, `rgba(200,30,20,${pulse})`);
+      ctx.fillStyle = g; ctx.fillRect(0, 0, w, h);
+      if (sp > 0.45){
+        ctx.globalAlpha = Math.min(1, (sp - 0.45) / 0.3);
+        ctx.fillStyle = "#ff5a4a"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+        ctx.font = "bold 26px 'Trebuchet MS',sans-serif"; ctx.lineWidth = 4; ctx.strokeStyle = "rgba(0,0,0,0.7)";
+        ctx.strokeText("REPÉRÉS !", w/2, 38); ctx.fillText("REPÉRÉS !", w/2, 38);
+        ctx.globalAlpha = 1;
+      }
+    }
   }
 
   // ---- Sélection de tuile à partir de la souris ---------------------------
@@ -1952,7 +2002,7 @@
     for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++)
       if (cubeDist(offsetToCube(tc, tr), offsetToCube(c, r)) <= cr.scatter && !tiles[r][c].obstacle) cands.push([c, r]);
     const [ic, ir] = cands.length ? cands[Math.floor(Math.random()*cands.length)] : [tc, tr];
-    pushBlast(ic, ir, cr.radius);
+    pushBlast(ic, ir, cr.radius); screenShake(6);
     pushLog(`${thrower.team === "player" ? "▲" : "▼"} ${thrower.name} lance un cracker en (${ic},${ir})`, thrower.team);
     // dégâts en rayon (ignore couvert et bouclier), tir ami compris
     let enemiesHit = 0, alliesHit = 0, killed = 0;
@@ -1960,7 +2010,7 @@
       if (u.hp <= 0) continue;
       if (cubeDist(offsetToCube(ic, ir), offsetToCube(u.col, u.row)) <= cr.radius){
         const dmg = cr.dmgMin + Math.floor(Math.random()*(cr.dmgMax-cr.dmgMin+1));
-        u.hp -= dmg; wake(u);
+        u.hp -= dmg; wake(u); pushDmg(u.col, u.row, dmg, u.team);
         if (u.team === thrower.team) alliesHit++; else enemiesHit++;
         if (u.hp <= 0){ u.hp = 0; u.dead = true; killed++; }
         emit("wounded", { targetName:u.name, targetCls:u.cls, targetTeam:u.team, byName:thrower.name,
