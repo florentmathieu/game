@@ -26,6 +26,11 @@
   body:not(.editing):not(.campediting) #gamepanel{position:fixed; left:8px; bottom:8px; top:auto; right:auto; z-index:15;
     width:auto; max-width:300px; padding:8px; background:rgba(20,16,11,.82);
     box-shadow:0 6px 24px rgba(0,0,0,.5); backdrop-filter:blur(2px)}
+  body:not(.editing):not(.campediting) #logpanel{position:fixed; right:8px; top:8px; z-index:15;
+    width:auto; max-width:300px; padding:8px; background:rgba(20,16,11,.82);
+    box-shadow:0 6px 24px rgba(0,0,0,.5); backdrop-filter:blur(2px)}
+  #logpanel{display:none}
+  body:not(.editing):not(.campediting) #logpanel{display:block}
   /* boutons d'action en pictos seuls (le détail est dans l'info-bulle) */
   #actions{display:flex; flex-direction:row; flex-wrap:wrap; gap:5px; margin:0 0 6px}
   #actions button{position:relative; width:46px; height:42px; padding:0; display:flex;
@@ -220,7 +225,9 @@
         <button id="act-item" title="🧪 Objet — utilise un objet (1 PA) : choisis l'allié à soigner."><span class="num"></span><span class="bi">🧪</span><small id="cnt-item" class="cnt"></small></button>
       </div>
       <div class="row"><button id="endturn"><span class="num">0 ·</span> Fin de tour ▶</button></div>
-      <button id="logtoggle" class="collapse">▸ Journal &amp; brouillard</button>
+    </div>
+    <div class="panel" id="logpanel">
+      <button id="logtoggle" class="collapse">▸ Journal</button>
       <div id="logbox" class="collapsed">
         <div id="log" class="hint"></div>
         <label class="fogrow"><input type="checkbox" id="togglefog" checked> Brouillard de guerre</label>
@@ -2943,7 +2950,7 @@
   { const lt = document.getElementById("logtoggle"), lb = document.getElementById("logbox");
     if (lt && lb) lt.addEventListener("click", () => {
       const open = lb.classList.toggle("collapsed") === false;   // toggle renvoie l'état présent
-      lt.textContent = (open ? "▾" : "▸") + " Journal & brouillard";
+      lt.textContent = (open ? "▾" : "▸") + " Journal";
     });
   }
   document.getElementById("act-shoot").addEventListener("click", () => enterTargeting("ranged"));
