@@ -18,15 +18,15 @@
    "y": 131,
    "mission": "mission-1.json",
    "name": "Mission 1",
-   "win": "nzwgeo",
+   "win": "n35tql",
    "lose": null,
    "intro": "Scene1.txt"
   },
   {
    "id": "nzwgeo",
    "type": "choice",
-   "x": 127,
-   "y": 231,
+   "x": 130,
+   "y": 332,
    "title": "Choix",
    "options": [
     "ncnhre",
@@ -36,8 +36,8 @@
   {
    "id": "ncnhre",
    "type": "mission",
-   "x": 56,
-   "y": 322,
+   "x": 34,
+   "y": 430,
    "mission": "mission-2.json",
    "name": "Infiltration 2",
    "desc": "Coucou",
@@ -48,14 +48,23 @@
   {
    "id": "nlqxlk",
    "type": "mission",
-   "x": 299,
-   "y": 362,
+   "x": 273,
+   "y": 443,
    "mission": "mission-7.json",
    "name": "Mission 7",
    "desc": "",
    "win": null,
    "lose": null,
    "intro": "texts/demo-interlude.txt"
+  },
+  {
+   "id": "n35tql",
+   "type": "text",
+   "x": 103,
+   "y": 230,
+   "file": "Opening.txt",
+   "title": "Ouverture",
+   "next": "nzwgeo"
   }
  ]
 }
