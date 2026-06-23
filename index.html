@@ -2591,6 +2591,14 @@
     const isDagger = !!(w && w.melee && w.melee.flank);
     const im = document.getElementById("ico-melee"); if (im) im.textContent = isDagger ? "🗡️" : "⚔️";
     const io = document.getElementById("ico-owm");   if (io) io.textContent = isDagger ? "👁🗡️" : "👁⚔️";
+    if (isDagger) {
+      const fk = w.melee.flank;
+      melee.title = `🗡️ Dagues — corps à corps silencieux (exécution discrète). Bonus de flanquement : dos +${fk.back} dégâts, flanc +${fk.side}. Clique un ennemi proche pour charger. Termine le tour.`;
+      owM.title   = `👁 Vigilance — dagues : riposte silencieuse à un ennemi qui s'approche au contact. Bonus de flanquement : dos +${fk.back} dégâts, flanc +${fk.side}. Termine le tour.`;
+    } else {
+      melee.title = `⚔️ Épée — attaque au corps à corps (clique un ennemi proche pour charger). Termine le tour.`;
+      owM.title   = `👁 Vigilance — épée : riposte à un ennemi qui s'approche au contact. Termine le tour.`;
+    }
     const armedMode = targeting ? selected.mode : null;
     shoot.classList.toggle("armed", armedMode === "ranged");
     melee.classList.toggle("armed", armedMode === "melee");
@@ -3153,12 +3161,12 @@ Stiff: Enough. I've decided.`;
     for (let i = 0; i <= body.length; i++){
       el.innerHTML = prefixHTML + whoHTML + escHTML(body.slice(0, i));
       if (i === body.length) break;
-      const ch = body[i];
+      const ch = body[i - 1];             // la pause suit le caractère qu'on vient d'afficher
       let d = 30;
-      if (ch === "…") d = 650;            // ellipse : longue suspension
-      else if (ch === ".") d = 230;       // les « ... » s'égrènent plus lentement
-      else if (",;:!?".includes(ch)) d = 130;
-      else if (ch === " ") d = 20;
+      if (ch === "…") d = 650;            // ellipse : longue suspension après
+      else if (ch === ".") d = 230;       // on souffle après le point
+      else if (ch && ",;:!?".includes(ch)) d = 130;
+      else if (body[i] === " ") d = 20;   // espace à venir : on l'enchaîne vite
       await sleepI(d);
     }
   }
