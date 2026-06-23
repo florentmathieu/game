@@ -3669,7 +3669,7 @@ Stiff: Enough. I've decided.`;
       await ghPutFile("campaigns/list.json", JSON.stringify(list, null, 1), "campaigns/list.json : " + name, cfg.branch, cfg);
       if (!repoCampaigns.some(c => c.file === file)) repoCampaigns.push(entry);
       refreshCampaignMenu();
-      set("✓ Publié : " + name + " (" + file + "). Dispo dans le menu après le rebuild Pages (~1 min).");
+      set("✓ Publié : " + name + ". Pour tester tout de suite : ▶ Tester (en mémoire). Le menu/rechargement n'est à jour qu'après le rebuild Pages (~1 min).");
       return true;
     }catch(e){ set("Échec : " + e.message); return false; }
   }
