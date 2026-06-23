@@ -21,11 +21,31 @@
   #boardwrap{position:relative; align-self:flex-start}
   /* EN JEU : plateau plein écran ; colonne à droite et persos à gauche en surimpression */
   body:not(.editing):not(.campediting) #wrap{padding:0}
-  body:not(.editing):not(.campediting) #boardwrap{position:fixed; inset:0}
+  body:not(.editing):not(.campediting) #boardwrap{position:fixed; inset:0; display:flex; justify-content:center}
   body:not(.editing):not(.campediting) #board{border:none; border-radius:0}
-  body:not(.editing):not(.campediting) #gamepanel{position:fixed; right:8px; top:8px; z-index:15;
-    max-height:calc(100vh - 16px); overflow-y:auto; background:rgba(20,16,11,.82);
+  body:not(.editing):not(.campediting) #gamepanel{position:fixed; left:8px; bottom:8px; top:auto; right:auto; z-index:15;
+    width:auto; max-width:300px; padding:8px; background:rgba(20,16,11,.82);
     box-shadow:0 6px 24px rgba(0,0,0,.5); backdrop-filter:blur(2px)}
+  body:not(.editing):not(.campediting) #logpanel{position:fixed; right:8px; top:8px; z-index:15;
+    width:auto; max-width:300px; padding:8px; background:rgba(20,16,11,.82);
+    box-shadow:0 6px 24px rgba(0,0,0,.5); backdrop-filter:blur(2px)}
+  #logpanel{display:none}
+  body:not(.editing):not(.campediting) #logpanel{display:block}
+  /* boutons d'action en pictos seuls (le détail est dans l'info-bulle) */
+  #actions{display:flex; flex-direction:column; gap:6px; margin:0}
+  #actions button{position:relative; width:66px; height:62px; padding:0; display:flex;
+    align-items:center; justify-content:center; font-size:1.95rem}
+  #actions .bi{line-height:1}
+  #actions .num{position:absolute; top:3px; left:6px; font-size:.74rem; font-weight:bold; color:#ffd479}
+  #actions .cnt{position:absolute; bottom:2px; right:6px; font-size:.74rem; color:#e0a86a}
+  #actions button.endturn{margin-top:4px; border-color:#7a5a30}
+  #actions button.endturn:hover{background:#4a3416}
+  #gamepanel .collapse{width:100%; text-align:left; margin-top:6px; background:transparent; border:none;
+    color:var(--accent); cursor:pointer; padding:4px 2px; font-size:.8rem; letter-spacing:.5px}
+  #gamepanel .collapse:hover{color:#ffd479}
+  #logbox.collapsed{display:none}
+  #logbox .fogrow{display:flex; align-items:center; gap:6px; margin-top:6px; font-size:.8rem}
+  #logbox #log{max-height:26vh; overflow-y:auto}
   body:not(.editing):not(.campediting) #roster{position:fixed; left:8px; top:8px; z-index:15; margin:0;
     flex-direction:column; align-items:stretch; gap:8px; padding:8px; max-height:calc(100vh - 16px); overflow-y:auto;
     background:rgba(14,11,7,.62); border-radius:10px; box-shadow:0 6px 24px rgba(0,0,0,.5); backdrop-filter:blur(2px)}
@@ -82,6 +102,7 @@
   body.campediting #campeditor{display:block}
   body.campediting .panel:not(#campeditor){display:none}
   body.campediting #roster{display:none}
+  body.campediting #boardwrap{max-height:calc(100vh - 28px); overflow-y:auto; overflow-x:hidden}
   #campcont{position:absolute; inset:0; display:none; flex-direction:column; align-items:center;
     justify-content:center; gap:18px; background:rgba(8,6,3,.78); color:#e8ddc8; z-index:30;
     font-family:Georgia,"Times New Roman",serif; text-align:center; padding:24px}
@@ -138,12 +159,7 @@
   .filelbl:hover{background:#4a3826}
   #missionsel,#ed-missions{width:100%; background:#1c150e; color:var(--ink); border:1px solid #5a4530; border-radius:6px; padding:6px}
   #missionjson{background:#1c150e; color:#bdae93; border:1px solid #5a4530; border-radius:6px; margin-top:6px; font-family:monospace; font-size:.68rem; resize:vertical}
-  #actions{display:flex; flex-direction:column; gap:4px; margin:6px 0}
-  #actions button{display:flex; justify-content:space-between; align-items:center; gap:10px; text-align:left}
-  .te{font-weight:bold; color:#caa86a; letter-spacing:-1px}
-  .te.end{color:#e0a060}
   .dmg{color:#e0a86a; font-size:.78em; opacity:.9}
-  #actions .num{color:#ffd479; font-weight:bold}
   #actions .num:not(:empty){margin-right:4px}
   #info,#sel{color:var(--muted); min-height:2.6em}
   code{color:var(--ink)}
@@ -199,25 +215,24 @@
     </div>
 
     <div class="panel" id="gamepanel">
-      <h2>Unité</h2>
-      <div id="turninfo" class="hint" style="margin-bottom:6px"></div>
-      <div id="sel">Clique une unité bleue.</div>
       <div id="actions">
-        <button id="act-shoot" title="Tir à distance sur une cible visible, dans la portée et à découvert. Termine le tour de l'unité (&gt;|)."><span><span class="num"></span>🏹 Tirer <small id="dmg-shoot" class="dmg"></small></span><span class="te end">&gt;|</span></button>
-        <button id="act-melee" title="Attaque au corps à corps une cible adjacente (clique aussi un ennemi proche pour charger). Termine le tour (&gt;|)."><span><span class="num"></span><span id="lbl-melee">⚔️ Épée</span> <small id="dmg-melee" class="dmg"></small></span><span class="te end">&gt;|</span></button>
-        <button id="act-ow-shoot" title="Vigilance — tir : l'unité tient en joue et riposte au premier ennemi qui bouge dans sa ligne de tir. Termine le tour (&gt;|)."><span><span class="num"></span>👁️ Vigilance — tir <small id="dmg-ows" class="dmg"></small></span><span class="te end">&gt;|</span></button>
-        <button id="act-ow-melee" title="Vigilance — épée/dagues : l'unité riposte à un ennemi qui s'approche au contact. Termine le tour (&gt;|)."><span><span class="num"></span><span id="lbl-owm">👁️ Vigilance — épée</span> <small id="dmg-owm" class="dmg"></small></span><span class="te end">&gt;|</span></button>
-        <button id="act-reload" title="Recharge l'arme à distance (1 PA, ne termine pas forcément le tour)."><span><span class="num"></span>🔄 Recharger</span><span class="te">&gt;</span></button>
-        <button id="act-brace" title="En garde : +défense jusqu'au début de ton prochain tour (1 PA)."><span><span class="num"></span>🛡️ Brace</span><span class="te">&gt;</span></button>
-        <button id="act-cracker" title="Lance un cracker explosif sur une zone (dégâts en aire, ignore les couverts). Termine le tour (&gt;|)."><span><span class="num"></span>💣 Cracker <small id="dmg-cracker" class="dmg"></small></span><span class="te end">&gt;|</span></button>
-        <button id="act-item" title="Utilise un objet de l'inventaire (1 PA) : choisis ensuite l'allié à soigner."><span><span class="num"></span>🧪 Objet <small id="cnt-item" class="dmg"></small></span><span class="te">&gt;</span></button>
+        <button id="act-shoot" title="🏹 Tirer — tir à distance sur une cible visible, à portée et à découvert. Termine le tour."><span class="num"></span><span class="bi">🏹</span></button>
+        <button id="act-melee" title="⚔️ Épée/dagues — attaque au corps à corps (clique un ennemi proche pour charger). Termine le tour."><span class="num"></span><span class="bi" id="ico-melee">⚔️</span></button>
+        <button id="act-ow-shoot" title="👁 Vigilance — tir : riposte au premier ennemi qui bouge dans la ligne de tir. Termine le tour."><span class="num"></span><span class="bi">👁🏹</span></button>
+        <button id="act-ow-melee" title="👁 Vigilance — épée/dagues : riposte à un ennemi qui s'approche au contact. Termine le tour."><span class="num"></span><span class="bi" id="ico-owm">👁⚔️</span></button>
+        <button id="act-reload" title="🔄 Recharger l'arme à distance (1 PA)."><span class="num"></span><span class="bi">🔄</span></button>
+        <button id="act-brace" title="🛡️ Brace — +défense jusqu'à ton prochain tour (1 PA)."><span class="num"></span><span class="bi">🛡️</span></button>
+        <button id="act-cracker" title="💣 Cracker — explosif en aire, ignore les couverts. Termine le tour."><span class="num"></span><span class="bi">💣</span></button>
+        <button id="act-item" title="🧪 Objet — utilise un objet (1 PA) : choisis l'allié à soigner."><span class="num"></span><span class="bi">🧪</span><small id="cnt-item" class="cnt"></small></button>
+        <button id="endturn" class="endturn" title="Fin de tour (touche 0) — passe la main aux ennemis"><span class="num">0</span><span class="bi">🙅</span></button>
       </div>
-      <div class="row"><button id="endturn"><span class="num">0 -</span> Fin de tour ▶ (phase ennemie)</button></div>
-
-      <h2 style="margin-top:14px">Journal</h2>
-      <div id="log" class="hint"></div>
-
-      <div class="row" style="margin-top:14px"><label><input type="checkbox" id="togglefog" checked> Brouillard de guerre</label></div>
+    </div>
+    <div class="panel" id="logpanel">
+      <button id="logtoggle" class="collapse">▸ Journal</button>
+      <div id="logbox" class="collapsed">
+        <div id="log" class="hint"></div>
+        <label class="fogrow"><input type="checkbox" id="togglefog" checked> Brouillard de guerre</label>
+      </div>
     </div>
 
     <!-- Panneau de l'éditeur (affiché en mode édition) -->
@@ -335,7 +350,6 @@
 
       <h2 style="margin-top:12px">Nœuds</h2>
       <div class="erow"><button id="camp-addtext">＋ Texte</button> <button id="camp-addmission">＋ Mission</button> <button id="camp-addchoice">＋ Choix</button></div>
-      <div class="erow"><label style="flex:1">Hauteur du plan</label> <button id="camp-shorter" style="flex:0 0 auto;width:auto" title="Réduire la hauteur">▲ −</button> <button id="camp-taller" style="flex:0 0 auto;width:auto" title="Agrandir la hauteur">▼ +</button></div>
       <div class="hint">Glisse les nœuds pour les ranger. Tire un fil depuis la pastille du bas
         (<span style="color:#7fb0e0">→</span> suite, <span style="color:#5fd07f">✓</span> victoire,
         <span style="color:#e0705f">✕</span> défaite, <span style="color:#d0b25f">＋</span> ajoute une route depuis un
@@ -361,7 +375,9 @@
   // ---- Paramètres de la grille --------------------------------------------
   let COLS = 20, ROWS = 20;                       // taille de la carte (modifiable : éditeur / missions)
   const SIZE = 20, LEVELS = 7, MARGIN = 14;
-  const VISION = 9;          // rayon de vision (= course max 8 + 1 case de marge)
+  const VISION = 9;          // rayon de vision/brouillard du JOUEUR (voit le terrain un peu plus loin)
+  const ENEMY_VISION = 7;    // détection d'un ennemi éveillé (< vision joueur : on les repère avant qu'ils nous voient)
+  const SLEEP_VISION = 3;    // portée de détection d'un ennemi ENDORMI (courte : permet l'approche furtive)
   const ROCK_RATE = 0.07;    // proportion de cases occupées par un rocher (couvert total)
   const WALL_RATE = 0.16;    // densité de murets (couvert partiel) posés sur les arêtes
   const HEIGHT_BONUS = 6;    // % de précision par niveau d'écart de hauteur (plafonné)
@@ -802,7 +818,7 @@
     const o = tileCenter(u.col, u.row);
     const src = offsetToCube(u.col, u.row);
     const vis = new Set([key(u.col, u.row)]);
-    const range = u.asleep ? Math.max(1, VISION - 2) : VISION;   // endormi : portée réduite (−2)
+    const range = u.asleep ? SLEEP_VISION : (u.team === "enemy" ? ENEMY_VISION : VISION);   // endormi : courte ; ennemi éveillé : < joueur
     const fc = Math.cos(u.facing || 0), fs = Math.sin(u.facing || 0);
     const within = [];
     for (let r = Math.max(0, u.row - range); r <= Math.min(ROWS-1, u.row + range); r++)
@@ -1601,11 +1617,12 @@
     if (editMode){                                       // éditeur : on laisse la place aux colonnes d'édition
       let top = 80; try{ const r = canvas.getBoundingClientRect(); if (r && r.top > 0) top = r.top; }catch(e){}
       availW = Math.max(360, winW - 580); availH = Math.max(320, winH - top - 28); fullscreen = false;
-    } else {                                             // en jeu : plein écran navigateur
-      availW = winW; availH = winH; fullscreen = true;
+    } else {                                             // en jeu : plein écran, mais largeur plafonnée
+      // on réserve des gouttières latérales pour les colonnes en surimpression (persos / unité)
+      availW = Math.min(1080, Math.max(420, winW - 480)); availH = winH; fullscreen = true;
     }
     baseScale = Math.min(availW / mw, availH / mh);      // ajuste la carte (agrandit un petit plateau)
-    boardCssW = fullscreen ? winW : Math.round(mw * baseScale);
+    boardCssW = fullscreen ? availW : Math.round(mw * baseScale);
     boardCssH = fullscreen ? winH : Math.round(mh * baseScale);
     const dpr = window.devicePixelRatio || 1;
     canvas.style.width = boardCssW + "px"; canvas.style.height = boardCssH + "px";
@@ -2005,21 +2022,37 @@
       for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++){
         if (!isVisible(c, r) || cubeDist(src, offsetToCube(c, r)) > cr.range) continue;
         const { x, y } = tileCenter(c, r);
-        fillHex(x, y, SIZE); ctx.fillStyle = "rgba(255,155,74,0.12)"; ctx.fill();
+        fillHex(x, y, SIZE); ctx.fillStyle = "rgba(255,155,74,0.10)"; ctx.fill();   // portée de jet
       }
       if (hover){
         const hc = offsetToCube(hover.col, hover.row);
         if (cubeDist(src, hc) <= cr.range){
+          // zone de CHUTE possible (dispersion) : c'est là que la bombe peut atterrir
           for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++){
-            if (cubeDist(offsetToCube(c, r), hc) <= cr.radius){
+            if (cubeDist(offsetToCube(c, r), hc) <= cr.scatter && !tiles[r][c].obstacle){
               const { x, y } = tileCenter(c, r); fillHex(x, y, SIZE);
-              ctx.fillStyle = "rgba(255,107,74,0.30)"; ctx.fill();
-              ctx.lineWidth = 1.2; ctx.strokeStyle = "rgba(255,140,90,0.6)"; ctx.stroke();
+              ctx.fillStyle = "rgba(255,150,60,0.16)"; ctx.fill();
+              ctx.lineWidth = 1; ctx.strokeStyle = "rgba(255,170,90,0.45)"; ctx.setLineDash([3,3]); ctx.stroke(); ctx.setLineDash([]);
             }
           }
+          // case visée
           const ctr = tileCenter(hover.col, hover.row);
-          ctx.lineWidth = 2; ctx.strokeStyle = "#ff6b4a"; ctx.setLineDash([4,3]);
-          ctx.beginPath(); ctx.arc(ctr.x, ctr.y, SIZE*0.5, 0, Math.PI*2); ctx.stroke(); ctx.setLineDash([]);
+          ctx.lineWidth = 1.5; ctx.strokeStyle = "rgba(255,150,90,0.7)"; ctx.setLineDash([4,3]);
+          ctx.beginPath(); ctx.arc(ctr.x, ctr.y, SIZE*0.45, 0, Math.PI*2); ctx.stroke(); ctx.setLineDash([]);
+          // la bombe qui se promène + l'aire qu'elle couvrirait en explosant ici
+          const bt = crackerHopTile;
+          if (bt){
+            const bc = offsetToCube(bt.col, bt.row);
+            for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++){
+              if (cubeDist(offsetToCube(c, r), bc) <= cr.radius){
+                const { x, y } = tileCenter(c, r); fillHex(x, y, SIZE);
+                ctx.fillStyle = "rgba(255,90,60,0.28)"; ctx.fill();
+              }
+            }
+            const p = tileCenter(bt.col, bt.row);
+            ctx.font = `${Math.round(SIZE*1.15)}px sans-serif`; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+            ctx.fillText("💣", p.x, p.y);
+          }
         }
       }
     }
@@ -2221,7 +2254,7 @@
   function refreshAll(){ updateSel(); renderRoster(); draw(); }
 
   function selectUnit(u){
-    selected = u; targeting = null; throwing = false; usingItem = null;
+    selected = u; targeting = null; throwing = false; usingItem = null; stopCrackerHop();
     reach = u ? computeReach(u) : null;
     refreshAll();
   }
@@ -2304,12 +2337,33 @@
   }
 
   // ---- Cracker (grenade) : vise une case, dispersion ±scatter, dégâts en rayon ----
+  // une « bombe » se promène de case en case dans la zone de chute possible, pour rappeler
+  // que l'impact est aléatoire (et non que toute la zone est touchée).
+  let crackerHopTile = null, crackerHopTimer = null;
+  function crackerScatterTiles(){
+    if (!throwing || !selected || !hover || !selected.weapons.cracker) return [];
+    const cr = selected.weapons.cracker, src = offsetToCube(selected.col, selected.row);
+    const hc = offsetToCube(hover.col, hover.row);
+    if (!isVisible(hover.col, hover.row) || cubeDist(src, hc) > cr.range) return [];
+    const out = [];
+    for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++)
+      if (cubeDist(offsetToCube(c, r), hc) <= cr.scatter && !tiles[r][c].obstacle) out.push({ col:c, row:r });
+    return out;
+  }
+  function crackerHop(){
+    if (!throwing){ stopCrackerHop(); return; }
+    const cands = crackerScatterTiles();
+    crackerHopTile = cands.length ? cands[Math.floor(Math.random()*cands.length)] : null;
+    draw();
+  }
+  function startCrackerHop(){ if (!crackerHopTimer && typeof setInterval === "function") crackerHopTimer = setInterval(crackerHop, 240); }
+  function stopCrackerHop(){ if (crackerHopTimer){ clearInterval(crackerHopTimer); crackerHopTimer = null; } crackerHopTile = null; }
   function enterThrow(){
     if (!selected || selected.ap <= 0 || gameOver || busy()) return;
     if (!selected.weapons.cracker || selected.crackers <= 0) return;
-    throwing = true; targeting = null; refreshAll();
+    throwing = true; targeting = null; startCrackerHop(); refreshAll();
   }
-  function cancelThrow(){ if (throwing){ throwing = false; refreshAll(); } }
+  function cancelThrow(){ if (throwing){ throwing = false; stopCrackerHop(); refreshAll(); } }
   function throwTiles(){
     // cases visées possibles : à portée, vues
     const cr = selected.weapons.cracker, out = [];
@@ -2351,7 +2405,7 @@
     recomputeVision(); checkEnd();
   }
   function doThrow(tc, tr){       // jet du joueur
-    const thrower = selected; throwing = false;
+    const thrower = selected; throwing = false; stopCrackerHop();
     resolveThrow(thrower, tc, tr);
     if (selected && selected.hp > 0) reach = computeReach(selected);
     refreshAll(); afterPlayerAction();
@@ -2467,7 +2521,7 @@
           cubeDist(offsetToCube(selected.col, selected.row), offsetToCube(t.col, t.row)) <= selected.weapons.cracker.range){
         doThrow(t.col, t.row); return;
       }
-      throwing = false; refreshAll(); return;
+      throwing = false; stopCrackerHop(); refreshAll(); return;
     }
     // en mode visée : clic sur un ennemi -> on l'attaque (ou on charge) ; sinon clic = on sort de la visée
     if (targeting){
@@ -2480,9 +2534,15 @@
       if (u === selected && !unitDone(u)) rotateUnit(u); else selectUnit(u);
       return;
     }
-    // clic sur un ennemi hors visée -> rappel : il faut d'abord choisir une action
+    // clic sur un ennemi -> déclenche l'action par défaut (1 : tir si dispo, sinon mêlée) sur cette cible
     if (selected && u && u.team !== selected.team && u.hp > 0){
-      flash("Choisis une action (1 Épée / 1 Tirer) puis vise l'ennemi"); return;
+      if (selected.ap <= 0){ flash("Plus de PA ce tour"); return; }
+      const w = selected.weapons, ammoOk = (selected.clip === undefined || selected.ammo > 0);
+      const mode = (w.ranged && ammoOk) ? "ranged" : (w.melee ? "melee" : null);
+      if (!mode){ flash("Aucune arme disponible"); return; }
+      enterTargeting(mode);
+      if (targeting) executeAttack(u);    // attaque directe ou charge ; message clair si hors d'atteinte
+      return;
     }
     // clic sur une case atteignable -> déplacement (résolu, puis animé)
     if (selected && reach && reach.dist[key(t.col, t.row)] !== undefined){
@@ -2501,37 +2561,6 @@
   }
 
   function updateSel(){
-    const el = document.getElementById("sel");
-    let html = "";
-    if (!selected){ html = "Clique une unité bleue."; }
-    else {
-      html = `<code>${selected.name}</code> — PV <code>${Math.max(0,selected.hp)}/${selected.maxHp}</code>`
-        + `<br>PA <code>${selected.ap}/${AP_MAX}</code> · mouvement libre <code>${freeOf(selected)}</code>`
-        + (selected.clip !== undefined && selected.ammo <= 0 ? `<br><span style="color:#e0a85f">arme vide — recharger</span>` : ``)
-        + (selected.bracing ? `<br><span style="color:#8fd3ff">En garde (+${DEF_BRACE} défense).</span>` : ``)
-        + (selected.overwatch ? `<br><span style="color:#7fe0d0">En vigilance.</span>`
-           : selected.ap <= 0 ? `<br><span style="color:#c98f3c">Plus de PA ce tour.</span>` : ``)
-        + (invTotal() ? `<br>Inventaire : ${Object.keys(inventory).filter(id=>inventory[id]>0).map(id=>`${ITEMS[id].icon} ${ITEMS[id].name} ×${inventory[id]}`).join(" · ")}` : ``)
-        + `<br><span style="color:#7a6c58;font-size:.9em">Survole une unité pour sa fiche.</span>`;
-      if (usingItem){
-        html += `<br><b style="color:#9adf9a">🧪 Choisis un allié à soigner</b><br><span style="color:#9a8a74">clique un allié · Échap annule</span>`;
-      } else if (targeting){
-        if (targeting.targets.length){
-          const tgt = targeting.targets[targeting.idx];
-          const plan = attackPlan(tgt);
-          const lbl = plan && plan.kind === "charge" ? "charge" : `${hitBreakdown(selected, tgt).chance}%`;
-          html += `<br><b style="color:#ffd479">▶ Vise ${tgt.name} — ${lbl}</b>`
-                + `<br><span style="color:#9a8a74">${targeting.idx+1}/${targeting.targets.length} · clique un ennemi · Tab change · Entrée valide · Échap annule</span>`;
-        } else {
-          html += `<br><span style="color:#e0a85f">Aucune cible atteignable. Échap pour annuler.</span>`;
-        }
-      }
-    }
-    el.innerHTML = html;
-    document.getElementById("turninfo").textContent =
-      gameOver === "win" ? "Victoire ! (Régénérer pour rejouer)"
-      : gameOver === "lose" ? "Défaite… (Régénérer pour rejouer)"
-      : `Tour ${turn} — phase joueur`;
     refreshButtons();
   }
 
@@ -2560,27 +2589,20 @@
     if (item){ show(item, ready && invTotal() > 0); const ci = document.getElementById("cnt-item"); if (ci) ci.textContent = invCount("potion") ? "×" + invCount("potion") : ""; item.classList.toggle("armed", !!usingItem); }
     // libellé de mêlée selon l'arme (épée vs dagues)
     const isDagger = !!(w && w.melee && w.melee.flank);
-    const lm = document.getElementById("lbl-melee");
-    const lo = document.getElementById("lbl-owm");
-    if (lm) lm.textContent = isDagger ? "🗡️ Dagues" : "⚔️ Épée";
-    if (lo) lo.textContent = isDagger ? "👁️ Vigilance — dagues" : "👁️ Vigilance — épée";
-    // dégâts de chaque attaque, lus sur l'arme correspondante
-    const dmg = (id, wp, bonus) => { const el = document.getElementById(id); if (el) el.textContent = wp ? `${wp.dmgMin + (bonus||0)}–${wp.dmgMax + (bonus||0)}` : ""; };
-    // si on vise une cible en mêlée, on montre les dégâts incluant le bonus de flanc (dos/flanc)
-    const aimTgt = (targeting && selected.mode === "melee" && targeting.targets && targeting.targets.length) ? targeting.targets[targeting.idx] : null;
-    const meleeFlank = (isDagger && aimTgt) ? flankBonus(selected, aimTgt) : 0;
-    if (w){ dmg("dmg-shoot", w.ranged); dmg("dmg-melee", w.melee, meleeFlank); dmg("dmg-ows", w.ranged); dmg("dmg-owm", w.melee); dmg("dmg-cracker", w.cracker); }
+    const im = document.getElementById("ico-melee"); if (im) im.textContent = isDagger ? "🗡️" : "⚔️";
+    const io = document.getElementById("ico-owm");   if (io) io.textContent = isDagger ? "👁🗡️" : "👁⚔️";
     const armedMode = targeting ? selected.mode : null;
     shoot.classList.toggle("armed", armedMode === "ranged");
     melee.classList.toggle("armed", armedMode === "melee");
     cracker.classList.toggle("armed", !!throwing);
+    item.classList.toggle("armed", !!usingItem);
     // numéros clavier : 1,2,3… sur les actions disponibles, dans l'ordre
     actionKeyMap = {};
     let n = 0;
     for (const b of [shoot, melee, owS, owM, reload, brace, cracker, item]){
       if (!b) continue;
       const numEl = b.querySelector && b.querySelector(".num");
-      if (b.style.display !== "none"){ n++; actionKeyMap[n] = b; if (numEl) numEl.textContent = n + " -"; }
+      if (b.style.display !== "none"){ n++; actionKeyMap[n] = b; if (numEl) numEl.textContent = n; }
       else if (numEl) numEl.textContent = "";
     }
   }
@@ -2965,6 +2987,12 @@
   { const rg = document.getElementById("regen"); if (rg) rg.addEventListener("click", () => { if (busy()) return; generate(); placeUnits(); selectUnit(units.find(u => u.team === "player")); renderLog(); }); }
   { const fg = document.getElementById("togglefog"); if (fg) fg.addEventListener("change", () => { opts.fog = fg.checked; refreshAll(); }); }
   document.getElementById("endturn").addEventListener("click", () => { if (!busy()) endPlayerTurn(); });
+  { const lt = document.getElementById("logtoggle"), lb = document.getElementById("logbox");
+    if (lt && lb) lt.addEventListener("click", () => {
+      const open = lb.classList.toggle("collapsed") === false;   // toggle renvoie l'état présent
+      lt.textContent = (open ? "▾" : "▸") + " Journal";
+    });
+  }
   document.getElementById("act-shoot").addEventListener("click", () => enterTargeting("ranged"));
   document.getElementById("act-melee").addEventListener("click", () => enterTargeting("melee"));
   document.getElementById("act-ow-shoot").addEventListener("click", () => doOverwatch("ranged"));
@@ -3301,20 +3329,16 @@ Stiff: Enough. I've decided.`;
   };
 
   // ====================== CAMPAGNE : éditeur visuel + exécution ============
-  const campCanvasW = 920; let campCanvasH = 620;   // hauteur ajustable (boutons + auto-fit)
-  // agrandit la hauteur pour englober tous les nœuds (+ marge)
+  const campCanvasW = 920; let campCanvasH = 640;   // hauteur ajustée aux nœuds ; l'éditeur a un ascenseur
+  // adapte la hauteur du plan aux nœuds (+ marge en bas pour pouvoir en descendre de nouveaux)
   function campFitHeight(){
-    let maxB = 560;
+    let maxB = 540;
     for (const n of campaign.nodes) maxB = Math.max(maxB, n.y + CAMP_H);
-    const h = Math.round(maxB + 90);
-    if (h > campCanvasH){ campCanvasH = h; setupCampCanvas(); }
+    const h = Math.max(640, Math.round(maxB + 200));
+    if (h !== campCanvasH){ campCanvasH = h; setupCampCanvas(); }
   }
-  function campSetHeight(h){
-    let minB = 560;                                  // pas plus court que le nœud le plus bas
-    for (const n of campaign.nodes) minB = Math.max(minB, n.y + CAMP_H + 30);
-    campCanvasH = Math.max(420, Math.min(4000, Math.max(minB, h)));
-    setupCampCanvas(); draw();
-  }
+  // sauvegarde locale du brouillon d'édition (restauré au rechargement, sans dépendre de Pages)
+  function campSaveDraft(){ try{ localStorage.setItem("mgf_camp_draft", JSON.stringify(campaign)); }catch(e){} }
   const uid = () => "n" + Math.random().toString(36).slice(2, 7);
   const campNodeById = (id) => campaign.nodes.find(n => n.id === id) || null;
   const campLabel = (n) => !n ? "?" :
@@ -3522,9 +3546,9 @@ Stiff: Enough. I've decided.`;
       const { mx, my } = evtPos(e); const t = campNodeAt(mx, my);
       if (t && t.id !== campLink.node.id) portSet(campLink.node, campLink.key, t.id);
       else if (!t && campLink.key !== "opt:add") portSet(campLink.node, campLink.key, null);  // lâché dans le vide : coupe
-      campLink = null; campHover = null; renderCampForm(); draw();
+      campLink = null; campHover = null; renderCampForm(); draw(); campSaveDraft();
     }
-    if (campDrag){ campDrag = null; campFitHeight(); draw(); }   // un nœud descendu agrandit le plan
+    if (campDrag){ campDrag = null; campFitHeight(); draw(); campSaveDraft(); }   // un nœud descendu agrandit le plan
   });
 
   function addCampNode(type){
@@ -3534,7 +3558,7 @@ Stiff: Enough. I've decided.`;
     else if (type === "choice"){ n.title = "Choix"; n.options = []; }
     else { n.mission = repoMissions[0] ? repoMissions[0].file : ""; n.name = repoMissions[0] ? repoMissions[0].name : "Mission"; n.desc = ""; n.win = null; n.lose = null; }
     if (!campaign.start) campaign.start = n.id;
-    campaign.nodes.push(n); campSel = n; campFitHeight(); renderCampForm(); draw();
+    campaign.nodes.push(n); campSel = n; campFitHeight(); renderCampForm(); draw(); campSaveDraft();
   }
   function deleteCampNode(n){
     campaign.nodes = campaign.nodes.filter(x => x !== n);
@@ -3544,7 +3568,7 @@ Stiff: Enough. I've decided.`;
     }
     if (campaign.start === n.id) campaign.start = campaign.nodes[0] ? campaign.nodes[0].id : null;
     if (campSel === n) campSel = null;
-    renderCampForm(); draw();
+    renderCampForm(); draw(); campSaveDraft();
   }
   // formulaire d'édition du nœud sélectionné
   function renderCampForm(){
@@ -3558,8 +3582,9 @@ Stiff: Enough. I've decided.`;
     let h = "";
     if (n.type === "text"){
       const txtOpts = repoTexts.map(t => `<option value="${t.file}" ${t.file === n.file ? "selected" : ""}>${escHTML(t.name)}</option>`).join("");
+      h += `<div class="erow"><label style="flex:1">Nom du nœud <input id="cn-title" type="text" value="${escHTML(n.title || "")}" placeholder="ex. Avant Mission 2"></label></div>`;
       h += `<div class="erow"><label style="flex:1">Fichier texte <select id="cn-file">${txtOpts || `<option value="">(aucun .txt)</option>`}</select></label></div>`;
-      h += `<div class="hint">Les fichiers <code>.txt</code> proposés sont listés dans <code>texts/list.json</code> (ajoute-y tes fichiers).</div>`;
+      h += `<div class="hint">Le nom s'affiche sur le nœud. Les <code>.txt</code> proposés sont listés dans <code>texts/list.json</code>.</div>`;
       h += `<div class="erow"><label style="flex:1">Suite → <select id="cn-next">${optList(n.next)}</select></label></div>`;
     } else if (n.type === "choice"){
       h += `<div class="erow"><label style="flex:1">Titre <input id="cn-title" type="text" value="${escHTML(n.title || "")}"></label></div>`;
@@ -3588,9 +3613,10 @@ Stiff: Enough. I've decided.`;
       h += `<div class="erow"><button id="cn-preview">${previewing ? "✕ Fermer l'aperçu" : "👁 Aperçu du parcours"}</button></div>`;
     }
     box.innerHTML = h;
-    const on = (id, ev, fn) => { const el = document.getElementById(id); if (el) el.addEventListener(ev, fn); };
+    // chaque interaction du formulaire enregistre le brouillon local
+    const on = (id, ev, fn) => { const el = document.getElementById(id); if (el) el.addEventListener(ev, e => { fn(e); campSaveDraft(); }); };
     on("cn-title", "input", e => { n.title = e.target.value; draw(); });
-    on("cn-file", "change", e => { n.file = e.target.value; const t = repoTexts.find(x => x.file === n.file); if (t) n.title = t.name; draw(); });
+    on("cn-file", "change", e => { n.file = e.target.value; const t = repoTexts.find(x => x.file === n.file); if (t && !(n.title || "").trim()) n.title = t.name; renderCampForm(); draw(); });
     on("cn-next", "change", e => { n.next = e.target.value || null; draw(); });
     on("cn-mission", "change", e => { n.mission = e.target.value; const m = repoMissions.find(x => x.file === n.mission); if (m && (!n.name || n.name === "Mission")) n.name = m.name; renderCampForm(); draw(); });
     on("cn-name", "input", e => { n.name = e.target.value; draw(); });
@@ -3600,8 +3626,8 @@ Stiff: Enough. I've decided.`;
     on("cn-win", "change", e => { n.win = e.target.value || null; draw(); });
     on("cn-lose", "change", e => { n.lose = e.target.value || null; draw(); });
     on("cn-optadd", "change", e => { if (e.target.value){ (n.options = n.options || []).push(e.target.value); renderCampForm(); draw(); } });
-    for (const el of box.querySelectorAll(".cn-opt")) el.addEventListener("change", e => { n.options[+e.target.dataset.i] = e.target.value || null; n.options = n.options.filter(Boolean); renderCampForm(); draw(); });
-    for (const el of box.querySelectorAll(".cn-optdel")) el.addEventListener("click", e => { n.options.splice(+e.target.dataset.i, 1); renderCampForm(); draw(); });
+    for (const el of box.querySelectorAll(".cn-opt")) el.addEventListener("change", e => { n.options[+e.target.dataset.i] = e.target.value || null; n.options = n.options.filter(Boolean); renderCampForm(); draw(); campSaveDraft(); });
+    for (const el of box.querySelectorAll(".cn-optdel")) el.addEventListener("click", e => { n.options.splice(+e.target.dataset.i, 1); renderCampForm(); draw(); campSaveDraft(); });
     on("cn-start", "click", () => { campaign.start = n.id; renderCampForm(); draw(); });
     on("cn-del", "click", () => deleteCampNode(n));
     on("cn-testhere", "click", () => startCampaign(campaign, n.id));
@@ -3674,7 +3700,7 @@ Stiff: Enough. I've decided.`;
       await ghPutFile("campaigns/list.json", JSON.stringify(list, null, 1), "campaigns/list.json : " + name, cfg.branch, cfg);
       if (!repoCampaigns.some(c => c.file === file)) repoCampaigns.push(entry);
       refreshCampaignMenu();
-      set("✓ Publié : " + name + " (" + file + "). Dispo dans le menu après le rebuild Pages (~1 min).");
+      set("✓ Publié : " + name + ". Pour tester tout de suite : ▶ Tester (en mémoire). Le menu/rechargement n'est à jour qu'après le rebuild Pages (~1 min).");
       return true;
     }catch(e){ set("Échec : " + e.message); return false; }
   }
@@ -3820,17 +3846,15 @@ Stiff: Enough. I've decided.`;
   onEd("camp-addtext", () => addCampNode("text"));
   onEd("camp-addmission", () => addCampNode("mission"));
   onEd("camp-addchoice", () => addCampNode("choice"));
-  onEd("camp-taller", () => campSetHeight(campCanvasH + 240));
-  onEd("camp-shorter", () => campSetHeight(campCanvasH - 240));
   onEd("camp-test", () => startCampaign(campaign));
   onEd("camp-publish", () => saveCampaign());
-  { const ni = document.getElementById("camp-name"); if (ni) ni.addEventListener("input", () => { campaign.name = ni.value.trim(); }); }
+  { const ni = document.getElementById("camp-name"); if (ni) ni.addEventListener("input", () => { campaign.name = ni.value.trim(); campSaveDraft(); }); }
   onEd("camp-loadbtn", async () => {
     const f = document.getElementById("camp-load").value; if (!f) return;
     const c = await loadCampaignFile(f);
     if (c){ campaign = { name:c.name || "", start:c.start || null, nodes:Array.isArray(c.nodes) ? c.nodes : [] };
       campSel = null; const ni = document.getElementById("camp-name"); if (ni) ni.value = campaign.name;
-      campFitHeight(); renderCampForm(); draw(); }
+      campFitHeight(); renderCampForm(); draw(); campSaveDraft(); }
     else alert("Campagne introuvable.");
   });
   onEd("campplay", async () => {
@@ -3839,7 +3863,10 @@ Stiff: Enough. I've decided.`;
     if (c) startCampaign(c); else alert("Campagne introuvable.");
   });
   fetchCampaigns().then(refreshCampaignMenu);
-  // campagne active par défaut : la Principale (éditeur pré-rempli ; « new game » la lance)
+  // brouillon d'édition local : on restaure le dernier état de l'éditeur (indépendant de Pages)
+  try{ const d = JSON.parse(localStorage.getItem("mgf_camp_draft") || "null");
+    if (d && Array.isArray(d.nodes) && d.nodes.length) campaign = { name:d.name || "", start:d.start || null, nodes:d.nodes }; }catch(e){}
+  // campagne active par défaut : la Principale (seulement si pas de brouillard) (« new game » la lance)
   loadCampaignFile("principale.json").then(c => {
     if (c && !campaign.nodes.length){
       campaign = { name:c.name || "", start:c.start || null, nodes:Array.isArray(c.nodes) ? c.nodes : [] };
