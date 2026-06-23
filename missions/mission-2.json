@@ -585,5 +585,6 @@
    "asleep": true,
    "facing": 0
   }
- ]
+ ],
+ "fullHeal": true
 }
