@@ -2770,8 +2770,30 @@
   }
 
   // ---- chargement de mission (jeu) ----------------------------------------
+  // config GitHub mémorisée (token local), valable dans toutes les vues
+  function repoCfg(){
+    try{
+      const c = JSON.parse(localStorage.getItem("mgf_gh") || "{}");
+      const token = localStorage.getItem("mgf_gh_token") || "";
+      if (c && c.repo && c.branch && token) return { repo:c.repo, branch:c.branch, token };
+    }catch(e){}
+    return null;
+  }
+  // lit un fichier du dépôt SANS attendre le build Pages : via l'API GitHub (instantané après commit)
+  // si un token est configuré, sinon repli sur le fichier statique servi par Pages.
+  async function repoFetchText(path){
+    const c = repoCfg();
+    if (c){
+      try{ const f = await ghGetFile(path, c.branch, c); if (f) return f.text; }catch(e){}
+    }
+    try{ const r = await fetch(path + "?_=" + Date.now(), { cache:"no-store" }); if (r.ok) return await r.text(); }catch(e){}
+    return null;
+  }
   async function loadMissionFromUrl(url){
-    try{ const r = await fetch(url + "?_=" + Date.now(), { cache:"no-store" }); if (r.ok) return await r.json(); }catch(e){}
+    try{
+      if (/^https?:/i.test(url)){ const r = await fetch(url + "?_=" + Date.now(), { cache:"no-store" }); if (r.ok) return await r.json(); return null; }
+      const t = await repoFetchText(url); if (t) return JSON.parse(t);
+    }catch(e){}
     return null;
   }
   function startMission(m, deferBanner){
@@ -3183,8 +3205,10 @@ Stiff: Enough. I've decided.`;
   // recharge le texte depuis le fichier (pour iterer sans toucher au code) ; repli sur l'embarque
   async function loadDialogue(url, fallback){
     try{
-      const r = await fetch(url + "?_=" + Date.now(), { cache: "no-store" });
-      if (r.ok){ const t = await r.text(); if (t && t.trim()) return t; }
+      const t = /^https?:/i.test(url)
+        ? await (async () => { const r = await fetch(url + "?_=" + Date.now(), { cache:"no-store" }); return r.ok ? r.text() : ""; })()
+        : await repoFetchText(url);
+      if (t && t.trim()) return t;
     }catch(e){}
     return fallback;
   }
@@ -3287,8 +3311,8 @@ Stiff: Enough. I've decided.`;
   let repoMissions = [];
   async function fetchRepoMissions(){
     try{
-      const r = await fetch("missions/list.json?_=" + Date.now(), { cache:"no-store" });
-      if (r.ok){ const l = await r.json(); if (Array.isArray(l))
+      const t = await repoFetchText("missions/list.json");
+      if (t){ const l = JSON.parse(t); if (Array.isArray(l))
         repoMissions = l.map(x => typeof x === "string" ? { file:x, name:x.split("/").pop().replace(/\.json$/,"") } : x); }
     }catch(e){}
   }
@@ -3367,9 +3391,10 @@ Stiff: Enough. I've decided.`;
       const entry = { file, name }, i = list.findIndex(it => it.file === file);
       if (i >= 0) list[i] = entry; else list.push(entry);
       await ghPutFile("missions/list.json", JSON.stringify(list, null, 1), "list.json : " + name, branch);
-      if (!repoMissions.some(it => it.file === file)) repoMissions.push(entry);
+      const ix = repoMissions.findIndex(it => it.file === file);
+      if (ix >= 0) repoMissions[ix] = entry; else repoMissions.push(entry);
       refreshMissionMenu();
-      set("✓ Publié : " + name + " (" + file + "). Disponible dans le menu après le rebuild Pages (~1 min).");
+      set("✓ Publié : " + name + " (" + file + "). Jouable tout de suite (lecture via l'API GitHub, sans attendre le build Pages).");
       return true;
     }catch(e){ set("Échec : " + e.message); return false; }
   }
@@ -3705,16 +3730,16 @@ Stiff: Enough. I've decided.`;
   let repoTexts = [];                     // fichiers .txt sélectionnables (texts/list.json)
   async function fetchTexts(){
     try{
-      const r = await fetch("texts/list.json?_=" + Date.now(), { cache:"no-store" });
-      if (r.ok){ const l = await r.json(); if (Array.isArray(l))
+      const t = await repoFetchText("texts/list.json");
+      if (t){ const l = JSON.parse(t); if (Array.isArray(l))
         repoTexts = l.map(x => typeof x === "string" ? { file:x, name:x.split("/").pop().replace(/\.txt$/,"") } : x); }
     }catch(e){}
   }
   let repoCampaigns = [];
   async function fetchCampaigns(){
     try{
-      const r = await fetch("campaigns/list.json?_=" + Date.now(), { cache:"no-store" });
-      if (r.ok){ const l = await r.json(); if (Array.isArray(l))
+      const t = await repoFetchText("campaigns/list.json");
+      if (t){ const l = JSON.parse(t); if (Array.isArray(l))
         repoCampaigns = l.map(x => typeof x === "string" ? { file:x, name:x.replace(/\.json$/,"") } : x); }
     }catch(e){}
   }
@@ -3729,8 +3754,7 @@ Stiff: Enough. I've decided.`;
       : `<option value="">(aucune campagne)</option>`;
   }
   async function loadCampaignFile(file){
-    try{ const r = await fetch("campaigns/" + file + "?_=" + Date.now(), { cache:"no-store" });
-      if (r.ok) return await r.json(); }catch(e){}
+    try{ const t = await repoFetchText("campaigns/" + file); if (t) return JSON.parse(t); }catch(e){}
     return null;
   }
   async function saveCampaign(){
