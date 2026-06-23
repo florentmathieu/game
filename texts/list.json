@@ -4,19 +4,39 @@
   "name": "Ouverture"
  },
  {
-  "file": "texts/Scene1.txt",
-  "name": "Scène 1"
+  "file": "texts/Mission1-beginning.txt",
+  "name": "Mission 1 — début"
  },
  {
-  "file": "texts/demo-interlude.txt",
-  "name": "Démo — interlude"
+  "file": "texts/Interlude1.txt",
+  "name": "Interlude 1"
  },
  {
-  "file": "texts/demo-fin.txt",
-  "name": "Démo — fin"
+  "file": "texts/Mission2-beginning.txt",
+  "name": "Mission 2 — début"
  },
  {
-  "file": "texts/principale-fin.txt",
-  "name": "Principale — fin"
+  "file": "texts/Mission2-ending.txt",
+  "name": "Mission 2 — fin"
+ },
+ {
+  "file": "texts/Interlude2.txt",
+  "name": "Interlude 2"
+ },
+ {
+  "file": "texts/Interlude2bis.txt",
+  "name": "Interlude 2 bis"
+ },
+ {
+  "file": "texts/Mission3-beginning.txt",
+  "name": "Mission 3 — début"
+ },
+ {
+  "file": "texts/Interlude3.txt",
+  "name": "Interlude 3"
+ },
+ {
+  "file": "texts/Interlude4.txt",
+  "name": "Interlude 4"
  }
 ]
