@@ -1,6 +1,6 @@
 {
  "name": "Principale",
- "start": "nlqxlk",
+ "start": "nae6ji",
  "nodes": [
   {
    "id": "nae6ji",
@@ -18,7 +18,7 @@
    "y": 131,
    "mission": "mission-1.json",
    "name": "Mission 1",
-   "win": "n35tql",
+   "win": null,
    "lose": null,
    "intro": "Scene1.txt"
   },
