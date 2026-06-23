@@ -3154,7 +3154,7 @@ Stiff: Enough. I've decided.`;
 
   async function runIntro(){
     await waitBtn("new game");                       // écran noir : un seul bouton
-    await playDialogue(await loadDialogue("Opening.txt", INTRO_TEXT), introTextEl, waitBtn);
+    await playDialogue(await loadDialogue("texts/Opening.txt", INTRO_TEXT), introTextEl, waitBtn);
     if (introEl && introEl.style) introEl.style.display = "none";  // on lève le rideau : la map apparaît
     selected = null; reach = null; draw();
     if (firstGame && !skipReq) await runScene1();                   // dialogue sous la map (sauté si skip)
@@ -3166,7 +3166,7 @@ Stiff: Enough. I've decided.`;
   }
 
   async function runScene1(){
-    return runSceneFile("Scene1.txt", SCENE1_TEXT);
+    return runSceneFile("texts/Scene1.txt", SCENE1_TEXT);
   }
   // joue un texte « sous la carte » (comme la Scene 1 d'origine) puis le retire
   async function runSceneFile(file, fallback){

@@ -7,7 +7,7 @@
    "type": "text",
    "x": 40,
    "y": 40,
-   "file": "Opening.txt",
+   "file": "texts/Opening.txt",
    "title": "Ouverture",
    "next": "no1c7h"
   },
@@ -20,7 +20,7 @@
    "name": "Mission 1",
    "win": null,
    "lose": null,
-   "intro": "Scene1.txt"
+   "intro": "texts/Scene1.txt"
   }
  ]
 }

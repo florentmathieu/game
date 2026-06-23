@@ -6,7 +6,7 @@
    "id": "intro",
    "type": "text",
    "title": "Ouverture",
-   "file": "Opening.txt",
+   "file": "texts/Opening.txt",
    "next": "m1",
    "x": 40,
    "y": 40
@@ -16,7 +16,7 @@
    "type": "mission",
    "mission": "mission-1.json",
    "name": "Mission 1",
-   "intro": "Scene1.txt",
+   "intro": "texts/Scene1.txt",
    "desc": "Premiers contacts avec les bandits. Une mise en jambe.",
    "win": "carrefour",
    "lose": null,

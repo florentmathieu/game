@@ -7,7 +7,7 @@
    "type": "text",
    "x": 40,
    "y": 40,
-   "file": "Opening.txt",
+   "file": "texts/Opening.txt",
    "title": "Ouverture",
    "next": "np7rcb"
   },
@@ -20,7 +20,7 @@
    "name": "Mission 1",
    "win": null,
    "lose": null,
-   "intro": "Scene1.txt"
+   "intro": "texts/Scene1.txt"
   },
   {
    "id": "nzwgeo",
@@ -62,7 +62,7 @@
    "type": "text",
    "x": 103,
    "y": 230,
-   "file": "Opening.txt",
+   "file": "texts/Opening.txt",
    "title": "Ouverture",
    "next": "nzwgeo"
   }

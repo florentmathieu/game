@@ -45,8 +45,8 @@ la suivante (mémorisés à chaque victoire). Une nouvelle campagne repart escou
   "name": "Campagne",
   "start": "intro",
   "nodes": [
-    { "id": "intro", "type": "text", "title": "...", "file": "Opening.txt", "next": "m1", "x": 40, "y": 40 },
-    { "id": "m1", "type": "mission", "mission": "mission-1.json", "name": "Mission 1", "intro": "Scene1.txt", "desc": "blurb au survol", "win": "carrefour", "lose": null, "x": 40, "y": 160 },
+    { "id": "intro", "type": "text", "title": "...", "file": "texts/Opening.txt", "next": "m1", "x": 40, "y": 40 },
+    { "id": "m1", "type": "mission", "mission": "mission-1.json", "name": "Mission 1", "intro": "texts/Scene1.txt", "desc": "blurb au survol", "win": "carrefour", "lose": null, "x": 40, "y": 160 },
     { "id": "carrefour", "type": "choice", "title": "Quelle route ?", "options": ["m2", "m3"], "x": 40, "y": 290 },
     { "id": "m2", "type": "mission", "mission": "mission-2.json", "name": "Voie discrète", "desc": "...", "win": "fin", "lose": null, "x": 250, "y": 420 },
     { "id": "m3", "type": "mission", "mission": "mission-3.json", "name": "Voie directe", "desc": "...", "win": "fin", "lose": null, "x": 470, "y": 420 },
