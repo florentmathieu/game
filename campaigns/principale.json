@@ -5,8 +5,8 @@
   {
    "id": "nae6ji",
    "type": "text",
-   "x": 26,
-   "y": 12,
+   "x": 40,
+   "y": 40,
    "file": "texts/Opening.txt",
    "title": "Ouverture",
    "next": "np7rcb"
@@ -14,86 +14,87 @@
   {
    "id": "np7rcb",
    "type": "mission",
-   "x": 42,
-   "y": 86,
+   "x": 64,
+   "y": 131,
    "mission": "mission-1.json",
    "name": "Mission 1",
-   "win": "n35tql",
+   "win": null,
    "lose": null,
    "intro": "texts/Scene1.txt"
   },
   {
    "id": "nzwgeo",
    "type": "choice",
-   "x": 79,
-   "y": 263,
+   "x": 130,
+   "y": 332,
    "title": "Choix",
    "options": [
-    "ngsz1k",
-    "nvzf7j"
+    "ncnhre",
+    "nlqxlk"
    ]
   },
   {
    "id": "ncnhre",
    "type": "mission",
-   "x": 18,
-   "y": 434,
+   "x": 35,
+   "y": 441,
    "mission": "mission-2.json",
-   "name": "Infiltration 2",
-   "desc": "Coucou",
-   "win": "nl7vay",
+   "name": "Infiltration du camp",
+   "desc": "Hurry!",
+   "win": "njb08s",
    "lose": null,
-   "intro": "texts/Mission2-beginning.txt",
-   "outro": "texts/Mission2-ending.txt"
+   "intro": null
   },
   {
    "id": "nlqxlk",
    "type": "mission",
-   "x": 225,
-   "y": 438,
+   "x": 270,
+   "y": 441,
    "mission": "mission-1.json",
-   "name": "Mission 7",
-   "desc": "",
-   "win": "nl7vay",
+   "name": "Renforts",
+   "desc": "Let's regroup.",
+   "win": "njb08s",
    "lose": null,
-   "intro": "texts/Mission2-beginning.txt",
-   "outro": "texts/Mission2-ending.txt"
+   "intro": null
   },
   {
    "id": "n35tql",
    "type": "text",
-   "x": 69,
-   "y": 178,
-   "file": "texts/Interlude1.txt",
-   "title": "Interlude 1",
+   "x": 103,
+   "y": 230,
+   "file": "texts/Opening.txt",
+   "title": "Ouverture",
    "next": "nzwgeo"
   },
   {
-   "id": "nl7vay",
+   "id": "njb08s",
    "type": "text",
-   "x": 101,
-   "y": 533,
-   "file": "texts/Interlude3.txt",
-   "title": "Interlude 3",
+   "x": 153,
+   "y": 529,
+   "file": "texts/Opening.txt",
+   "title": "Ouverture",
+   "next": "n9kjmh"
+  },
+  {
+   "id": "n9kjmh",
+   "type": "mission",
+   "x": 527,
+   "y": 503,
+   "mission": "mission-11.json",
+   "name": "Mission 11",
+   "desc": "",
+   "win": "nvn5ro",
+   "lose": null,
+   "intro": "texts/Mission3-beginning.txt"
+  },
+  {
+   "id": "nvn5ro",
+   "type": "text",
+   "x": 716,
+   "y": 542,
+   "file": "texts/Opening.txt",
+   "title": "Ouverture",
    "next": null
-  },
-  {
-   "id": "ngsz1k",
-   "type": "text",
-   "x": 31,
-   "y": 353,
-   "file": "texts/Interlude2.txt",
-   "title": "Interlude 2",
-   "next": "ncnhre"
-  },
-  {
-   "id": "nvzf7j",
-   "type": "text",
-   "x": 221,
-   "y": 354,
-   "file": "texts/Interlude2bis.txt",
-   "title": "Interlude 2 bis",
-   "next": "nlqxlk"
   }
  ]
 }
