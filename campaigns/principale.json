@@ -36,24 +36,24 @@
   {
    "id": "ncnhre",
    "type": "mission",
-   "x": 34,
-   "y": 430,
+   "x": 35,
+   "y": 441,
    "mission": "mission-2.json",
-   "name": "Infiltration 2",
-   "desc": "Coucou",
-   "win": null,
+   "name": "Infiltration du camp",
+   "desc": "Hurry!",
+   "win": "njb08s",
    "lose": null,
    "intro": null
   },
   {
    "id": "nlqxlk",
    "type": "mission",
-   "x": 273,
-   "y": 443,
+   "x": 270,
+   "y": 441,
    "mission": "mission-1.json",
-   "name": "Mission 7",
-   "desc": "",
-   "win": null,
+   "name": "Renforts",
+   "desc": "Let's regroup.",
+   "win": "njb08s",
    "lose": null,
    "intro": null
   },
@@ -65,6 +65,15 @@
    "file": "texts/Opening.txt",
    "title": "Ouverture",
    "next": "nzwgeo"
+  },
+  {
+   "id": "njb08s",
+   "type": "text",
+   "x": 153,
+   "y": 529,
+   "file": "texts/Opening.txt",
+   "title": "Ouverture",
+   "next": null
   }
  ]
 }
