@@ -653,12 +653,12 @@
   const bow    = (aim, lo, hi, rng, clip) => ({ type:"ranged", aim, dmgMin:lo, dmgMax:hi, range:rng, clip });
   const dagger = (aim, lo, hi, back, side) => ({ type:"melee", aim, dmgMin:lo, dmgMax:hi, flank:{ back, side } });
   const CLASSES = {
-    sergent:  { name:"Sergent",  maxMp:8, maxHp:10, shieldBlock:40, weapons:{ melee: sword(75,4,6) } },
+    sergent:  { name:"Sergent",  maxMp:8, maxHp:10, shieldBlock:30, weapons:{ melee: sword(75,4,6) } },
     sapeur:   { name:"Sapeur",   maxMp:8, maxHp:7,  crackers:1,
                 weapons:{ ranged: bow(65,3,4,6,1), melee: sword(70,3,5),
                           cracker:{ type:"throw", dmgMin:5, dmgMax:9, range:6, radius:2, scatter:2 } } },
     assassin: { name:"Assassin", maxMp:8, maxHp:7,  parry:35, stealth:true, weapons:{ melee: dagger(80,3,4,5,2) } },
-    garde:    { name:"Garde",    maxMp:6, maxHp:8,  shieldBlock:30, weapons:{ melee: sword(65,3,4) } },
+    garde:    { name:"Garde",    maxMp:6, maxHp:8,  shieldBlock:20, weapons:{ melee: sword(65,3,4) } },
     archer:   { name:"Archer",   maxMp:6, maxHp:6,  weapons:{ ranged: bow(70,2,3,8) } },
     brute:    { name:"Brute",    maxMp:8, maxHp:13, weapons:{ melee: sword(70,5,7) } },
   };
@@ -1678,7 +1678,8 @@
       draw(); if (onDone) onDone(); return;
     }
     anim = { mover, pts, t: 0 };
-    const t0 = performance.now(), dur = 170 * (pts.length - 1);
+    const perStep = (mover && mover.team === "enemy") ? 340 : 170;   // ennemis : déplacement 2× plus lent (plus lisible)
+    const t0 = performance.now(), dur = perStep * (pts.length - 1);
     (function tick(now){
       anim.t = Math.min(1, (now - t0) / dur);
       draw();
