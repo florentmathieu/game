@@ -139,6 +139,8 @@
   .te{font-weight:bold; color:#caa86a; letter-spacing:-1px}
   .te.end{color:#e0a060}
   .dmg{color:#e0a86a; font-size:.78em; opacity:.9}
+  #actions .num{color:#ffd479; font-weight:bold}
+  #actions .num:not(:empty){margin-right:4px}
   #info,#sel{color:var(--muted); min-height:2.6em}
   code{color:var(--ink)}
   .hint{font-size:.72rem; color:var(--muted); line-height:1.4; margin-top:4px}
@@ -176,6 +178,7 @@
           <li><b>Échap</b> — annule l'action en cours, ou ouvre/ferme ce menu</li>
           <li>Clique une <b>case</b> surlignée pour t'y déplacer</li>
           <li>Re-clique ton <b>perso sélectionné</b> pour le faire pivoter</li>
+          <li>Touches <b>1</b>…<b>9</b> — déclenchent les actions de l'unité</li>
         </ul>
         <button id="pause-close">Reprendre ▶</button>
       </div>
@@ -194,13 +197,13 @@
       <div id="turninfo" class="hint" style="margin-bottom:6px"></div>
       <div id="sel">Clique une unité bleue.</div>
       <div id="actions">
-        <button id="act-shoot" title="Tir à distance sur une cible visible, dans la portée et à découvert. Termine le tour de l'unité (&gt;|)."><span>🏹 Tirer <small id="dmg-shoot" class="dmg"></small></span><span class="te end">&gt;|</span></button>
-        <button id="act-melee" title="Attaque au corps à corps une cible adjacente (clique aussi un ennemi proche pour charger). Termine le tour (&gt;|)."><span><span id="lbl-melee">⚔️ Épée</span> <small id="dmg-melee" class="dmg"></small></span><span class="te end">&gt;|</span></button>
-        <button id="act-ow-shoot" title="Vigilance — tir : l'unité tient en joue et riposte au premier ennemi qui bouge dans sa ligne de tir. Termine le tour (&gt;|)."><span>👁️ Vigilance — tir <small id="dmg-ows" class="dmg"></small></span><span class="te end">&gt;|</span></button>
-        <button id="act-ow-melee" title="Vigilance — épée/dagues : l'unité riposte à un ennemi qui s'approche au contact. Termine le tour (&gt;|)."><span><span id="lbl-owm">👁️ Vigilance — épée</span> <small id="dmg-owm" class="dmg"></small></span><span class="te end">&gt;|</span></button>
-        <button id="act-reload" title="Recharge l'arme à distance (1 PA, ne termine pas forcément le tour)."><span>🔄 Recharger</span><span class="te">&gt;</span></button>
-        <button id="act-brace" title="En garde : +défense jusqu'au début de ton prochain tour (1 PA)."><span>🛡️ Brace</span><span class="te">&gt;</span></button>
-        <button id="act-cracker" title="Lance un cracker explosif sur une zone (dégâts en aire, ignore les couverts). Termine le tour (&gt;|)."><span>💣 Cracker <small id="dmg-cracker" class="dmg"></small></span><span class="te end">&gt;|</span></button>
+        <button id="act-shoot" title="Tir à distance sur une cible visible, dans la portée et à découvert. Termine le tour de l'unité (&gt;|)."><span><span class="num"></span>🏹 Tirer <small id="dmg-shoot" class="dmg"></small></span><span class="te end">&gt;|</span></button>
+        <button id="act-melee" title="Attaque au corps à corps une cible adjacente (clique aussi un ennemi proche pour charger). Termine le tour (&gt;|)."><span><span class="num"></span><span id="lbl-melee">⚔️ Épée</span> <small id="dmg-melee" class="dmg"></small></span><span class="te end">&gt;|</span></button>
+        <button id="act-ow-shoot" title="Vigilance — tir : l'unité tient en joue et riposte au premier ennemi qui bouge dans sa ligne de tir. Termine le tour (&gt;|)."><span><span class="num"></span>👁️ Vigilance — tir <small id="dmg-ows" class="dmg"></small></span><span class="te end">&gt;|</span></button>
+        <button id="act-ow-melee" title="Vigilance — épée/dagues : l'unité riposte à un ennemi qui s'approche au contact. Termine le tour (&gt;|)."><span><span class="num"></span><span id="lbl-owm">👁️ Vigilance — épée</span> <small id="dmg-owm" class="dmg"></small></span><span class="te end">&gt;|</span></button>
+        <button id="act-reload" title="Recharge l'arme à distance (1 PA, ne termine pas forcément le tour)."><span><span class="num"></span>🔄 Recharger</span><span class="te">&gt;</span></button>
+        <button id="act-brace" title="En garde : +défense jusqu'au début de ton prochain tour (1 PA)."><span><span class="num"></span>🛡️ Brace</span><span class="te">&gt;</span></button>
+        <button id="act-cracker" title="Lance un cracker explosif sur une zone (dégâts en aire, ignore les couverts). Termine le tour (&gt;|)."><span><span class="num"></span>💣 Cracker <small id="dmg-cracker" class="dmg"></small></span><span class="te end">&gt;|</span></button>
       </div>
       <div class="row"><button id="endturn">Fin de tour ▶ (phase ennemie)</button></div>
 
@@ -2340,6 +2343,7 @@
     refreshButtons();
   }
 
+  let actionKeyMap = {};                  // numéro clavier → bouton d'action (recalculé à chaque refresh)
   function refreshButtons(){
     const shoot = document.getElementById("act-shoot");
     const melee = document.getElementById("act-melee");
@@ -2376,6 +2380,14 @@
     shoot.classList.toggle("armed", armedMode === "ranged");
     melee.classList.toggle("armed", armedMode === "melee");
     cracker.classList.toggle("armed", !!throwing);
+    // numéros clavier : 1,2,3… sur les actions disponibles, dans l'ordre
+    actionKeyMap = {};
+    let n = 0;
+    for (const b of [shoot, melee, owS, owM, reload, brace, cracker]){
+      const numEl = b.querySelector && b.querySelector(".num");
+      if (b.style.display !== "none"){ n++; actionKeyMap[n] = b; if (numEl) numEl.textContent = n + " -"; }
+      else if (numEl) numEl.textContent = "";
+    }
   }
 
   function renderRoster(){
@@ -2786,6 +2798,11 @@
         else if (e.key === "ArrowUp") panBy(0, s); else if (e.key === "ArrowDown") panBy(0, -s);
       }
       else if (e.key === "Enter"){ if (targeting) confirmTarget(); }
+      else if (e.key >= "1" && e.key <= "9"){            // raccourcis des actions (1, 2, 3…)
+        if (editMode || campMode || campChoosing || introActive || pauseOpen || gameOver) return;
+        const b = actionKeyMap[+e.key];
+        if (b && b.style.display !== "none" && !b.disabled){ e.preventDefault(); b.click(); }
+      }
       else if (e.key === "Escape"){
         if (pauseOpen){ setPauseMenu(false); }
         else if (campChoosing && campChoosing.preview){ campChoosing = null; campHoverNode = null; setupCampCanvas(); draw(); }
