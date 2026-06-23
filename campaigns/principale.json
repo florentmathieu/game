@@ -5,8 +5,8 @@
   {
    "id": "nae6ji",
    "type": "text",
-   "x": 40,
-   "y": 40,
+   "x": 26,
+   "y": 12,
    "file": "texts/Opening.txt",
    "title": "Ouverture",
    "next": "np7rcb"
@@ -14,87 +14,86 @@
   {
    "id": "np7rcb",
    "type": "mission",
-   "x": 64,
-   "y": 131,
+   "x": 42,
+   "y": 86,
    "mission": "mission-1.json",
    "name": "Mission 1",
-   "win": null,
+   "win": "n35tql",
    "lose": null,
    "intro": "texts/Scene1.txt"
   },
   {
    "id": "nzwgeo",
    "type": "choice",
-   "x": 130,
-   "y": 332,
+   "x": 79,
+   "y": 263,
    "title": "Choix",
    "options": [
-    "ncnhre",
-    "nlqxlk"
+    "ngsz1k",
+    "nvzf7j"
    ]
   },
   {
    "id": "ncnhre",
    "type": "mission",
-   "x": 35,
-   "y": 441,
+   "x": 18,
+   "y": 434,
    "mission": "mission-2.json",
-   "name": "Infiltration du camp",
-   "desc": "Hurry!",
-   "win": "njb08s",
+   "name": "Infiltration 2",
+   "desc": "Coucou",
+   "win": "nl7vay",
    "lose": null,
-   "intro": null
+   "intro": "texts/Mission2-beginning.txt",
+   "outro": "texts/Mission2-ending.txt"
   },
   {
    "id": "nlqxlk",
    "type": "mission",
-   "x": 270,
-   "y": 441,
+   "x": 225,
+   "y": 438,
    "mission": "mission-1.json",
-   "name": "Renforts",
-   "desc": "Let's regroup.",
-   "win": "njb08s",
+   "name": "Mission 7",
+   "desc": "",
+   "win": "nl7vay",
    "lose": null,
-   "intro": null
+   "intro": "texts/Mission2-beginning.txt",
+   "outro": "texts/Mission2-ending.txt"
   },
   {
    "id": "n35tql",
    "type": "text",
-   "x": 103,
-   "y": 230,
-   "file": "texts/Opening.txt",
-   "title": "Ouverture",
+   "x": 69,
+   "y": 178,
+   "file": "texts/Interlude1.txt",
+   "title": "Interlude 1",
    "next": "nzwgeo"
   },
   {
-   "id": "njb08s",
+   "id": "nl7vay",
    "type": "text",
-   "x": 153,
-   "y": 529,
-   "file": "texts/Opening.txt",
-   "title": "Ouverture",
-   "next": "n9kjmh"
-  },
-  {
-   "id": "n9kjmh",
-   "type": "mission",
-   "x": 527,
-   "y": 503,
-   "mission": "mission-11.json",
-   "name": "Mission 11",
-   "desc": "",
-   "win": "nvn5ro",
-   "lose": null,
-   "intro": "texts/Mission3-beginning.txt"
-  },
-  {
-   "id": "nvn5ro",
-   "type": "text",
-   "x": 716,
-   "y": 542,
-   "file": "texts/Opening.txt",
-   "title": "Ouverture",
+   "x": 101,
+   "y": 533,
+   "file": "texts/Interlude3.txt",
+   "title": "Interlude 3",
    "next": null
+  },
+  {
+   "id": "ngsz1k",
+   "type": "text",
+   "x": 31,
+   "y": 353,
+   "file": "texts/Interlude2.txt",
+   "title": "Interlude 2",
+   "next": "ncnhre"
+  },
+  {
+   "id": "nvzf7j",
+   "type": "text",
+   "x": 221,
+   "y": 354,
+   "file": "texts/Interlude2bis.txt",
+   "title": "Interlude 2 bis",
+   "next": "nlqxlk"
   }
  ]
 }
