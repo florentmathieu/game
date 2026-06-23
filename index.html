@@ -47,7 +47,7 @@
   .legend{display:flex; flex-direction:column; gap:3px; margin-top:6px}
   .legend .item{display:flex; align-items:center; gap:8px; font-size:.75rem; color:var(--muted)}
   .swatch{width:18px; height:18px; border-radius:3px; border:1px solid #00000055}
-  #roster{display:flex; gap:10px; flex-wrap:wrap; justify-content:center; margin:0 0 12px; padding:0 12px}
+  #roster{display:flex; gap:10px; flex-wrap:wrap; justify-content:center; margin:14px 0 12px; padding:0 12px}
   .chip{
     background:var(--panel); border:1px solid #3a2c1c; border-radius:8px; padding:6px 10px;
     min-width:120px; cursor:pointer; user-select:none;
@@ -79,6 +79,17 @@
   #campcont button{background:#15110c; color:#e8ddc8; border:1px solid #5a4530; border-radius:6px;
     padding:10px 24px; font-size:1rem; letter-spacing:2px; cursor:pointer; width:auto}
   #campcont button:hover{background:#241a12}
+  #pausemenu{position:absolute; inset:0; display:none; flex-direction:column; align-items:center;
+    justify-content:center; gap:18px; background:rgba(8,6,3,.86); color:#e8ddc8; z-index:40;
+    font-family:Georgia,"Times New Roman",serif; text-align:left; padding:24px}
+  #pausemenu.show{display:flex}
+  #pausemenu h2{font-size:1.4rem; color:var(--accent); letter-spacing:2px; margin:0}
+  #pausemenu ul{list-style:none; padding:0; margin:0; max-width:460px; line-height:2; font-size:1.02rem}
+  #pausemenu li{border-bottom:1px solid #2c2418; padding:2px 0}
+  #pausemenu b{color:#ffd479}
+  #pause-close{background:#15110c; color:#e8ddc8; border:1px solid #5a4530; border-radius:6px;
+    padding:10px 24px; font-size:1rem; letter-spacing:2px; cursor:pointer; width:auto}
+  #pause-close:hover{background:#241a12}
   .erow{display:flex; align-items:center; gap:6px; margin:6px 0; flex-wrap:wrap}
   .erow input[type=text]{flex:1}
   .erow input[type=number]{width:54px}
@@ -117,9 +128,6 @@
   <div id="intro"><div id="introtext"></div><button id="introbtn">new game</button></div>
   <button id="skipbtn">passer ⏭</button>
 
-  <h1>Malazan game of the fallen</h1>
-  <div class="sub">Tab = unité suivante · clique une action puis Tab pour changer de cible · Échap annule</div>
-
   <div id="roster"></div>
 
   <div id="wrap">
@@ -128,6 +136,16 @@
       <div id="scene"><div id="scenetext"></div><button id="scenebtn">...</button></div>
       <div id="combatline"></div>
       <div id="campcont"><div id="campcont-msg"></div><div style="display:flex;gap:14px"><button id="campcont-btn">Continuer ▶</button><button id="campcont-cancel" style="display:none">Annuler</button></div></div>
+      <div id="pausemenu">
+        <h2>Contrôles</h2>
+        <ul>
+          <li><b>Tab</b> — unité suivante (<b>Maj+Tab</b> : précédente)</li>
+          <li>Clique une <b>action</b> puis <b>Tab</b> pour changer de cible · <b>Entrée</b> valide</li>
+          <li><b>Échap</b> — annule l'action en cours, ou ouvre/ferme ce menu</li>
+          <li>Clique une <b>case</b> surlignée pour t'y déplacer</li>
+        </ul>
+        <button id="pause-close">Reprendre ▶</button>
+      </div>
     </div>
 
     <div class="panel">
@@ -293,7 +311,7 @@
 
   // ---- Paramètres de la grille --------------------------------------------
   let COLS = 20, ROWS = 20;                       // taille de la carte (modifiable : éditeur / missions)
-  const SIZE = 17, LEVELS = 7, MARGIN = 14;
+  const SIZE = 20, LEVELS = 7, MARGIN = 14;
   const VISION = 8;          // rayon de vision : au moins égal à la course max (2 + 2*3 = 8)
   const ROCK_RATE = 0.07;    // proportion de cases occupées par un rocher (couvert total)
   const WALL_RATE = 0.16;    // densité de murets (couvert partiel) posés sur les arêtes
@@ -2606,14 +2624,26 @@
   document.getElementById("act-brace").addEventListener("click", doBrace);
   document.getElementById("act-cracker").addEventListener("click", enterThrow);
 
+  // menu des contrôles (pause) accessible en jeu via Échap
+  let pauseOpen = false;
+  function setPauseMenu(open){
+    pauseOpen = open;
+    const el = document.getElementById("pausemenu");
+    if (el && el.classList) el.classList.toggle("show", open);
+  }
+  { const b = document.getElementById("pause-close"); if (b) b.addEventListener("click", () => setPauseMenu(false)); }
+
   if (typeof window !== "undefined" && window.addEventListener)
     window.addEventListener("keydown", (e) => {
       if (e.key === "Tab"){ e.preventDefault(); if (busy()) return; targeting ? cycleTarget(e.shiftKey ? -1 : 1) : cycleUnit(e.shiftKey ? -1 : 1); }
       else if (e.key === "Enter"){ if (targeting) confirmTarget(); }
       else if (e.key === "Escape"){
-        if (campChoosing && campChoosing.preview){ campChoosing = null; campHoverNode = null; setupCampCanvas(); draw(); }
+        if (pauseOpen){ setPauseMenu(false); }
+        else if (campChoosing && campChoosing.preview){ campChoosing = null; campHoverNode = null; setupCampCanvas(); draw(); }
         else if (editMode){ setTool(""); editDragUnit = null; editInfo(); }
-        else { cancelTargeting(); cancelThrow(); }
+        else if (campMode || campChoosing){ /* éditeur/parcours : rien */ }
+        else if (targeting || throwing){ cancelTargeting(); cancelThrow(); }   // annule l'action en cours
+        else if (!introActive){ setPauseMenu(true); }                          // sinon : menu des contrôles
       }
     });
 
