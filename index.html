@@ -2125,8 +2125,8 @@
     }
 
     ctx.restore();                                       // fin du repère monde → overlays en coordonnées écran
-    // 8) bannière de fin de partie
-    if (gameOver){
+    // 8) bannière de fin de partie (en campagne, l'écran de fin de mission s'en charge)
+    if (gameOver && !campRun){
       const w = canvas.width / (window.devicePixelRatio || 1);
       const h = canvas.height / (window.devicePixelRatio || 1);
       ctx.fillStyle = "rgba(8,6,3,0.7)"; ctx.fillRect(0, 0, w, h);
@@ -3556,12 +3556,13 @@ Stiff: Enough. I've decided.`;
       }
       h += `<div class="erow"><label style="flex:1">＋ ajouter <select id="cn-optadd">${optList("")}</select></label></div>`;
     } else {
-      const introOpts = `<option value="">— aucun —</option>` + repoTexts.map(t => `<option value="${t.file}" ${t.file === n.intro ? "selected" : ""}>${escHTML(t.name)}</option>`).join("");
+      const textOpts = (sel) => `<option value="">— aucun —</option>` + repoTexts.map(t => `<option value="${t.file}" ${t.file === sel ? "selected" : ""}>${escHTML(t.name)}</option>`).join("");
       h += `<div class="erow"><label style="flex:1">Mission <select id="cn-mission">${missOpts || `<option value="">(aucune)</option>`}</select></label></div>`;
       h += `<div class="erow"><label style="flex:1">Étiquette <input id="cn-name" type="text" value="${escHTML(n.name || "")}"></label></div>`;
       h += `<div class="erow"><textarea id="cn-desc" style="flex:1;min-height:60px;background:#1c150e;color:#e8ddc8;border:1px solid #5a4530;border-radius:6px;padding:6px;font-family:inherit;font-size:.8rem" placeholder="descriptif affiché au survol dans le menu de parcours…">${escHTML(n.desc || "")}</textarea></div>`;
-      h += `<div class="erow"><label style="flex:1">Texte d'intro (sous la carte) <select id="cn-intro">${introOpts}</select></label></div>`;
-      h += `<div class="hint">Joué « sous la map » au lancement de la mission, comme la Scène 1 d'origine.</div>`;
+      h += `<div class="erow"><label style="flex:1">Texte d'intro (sous la carte) <select id="cn-intro">${textOpts(n.intro)}</select></label></div>`;
+      h += `<div class="erow"><label style="flex:1">Texte de fin (avant de sortir) <select id="cn-outro">${textOpts(n.outro)}</select></label></div>`;
+      h += `<div class="hint">Intro jouée « sous la map » au lancement ; fin jouée en bas de l'écran après la victoire, avant de continuer.</div>`;
       h += `<div class="erow"><label style="flex:1"><span style="color:#5fd07f">✓</span> Victoire → <select id="cn-win">${optList(n.win)}</select></label></div>`;
       h += `<div class="erow"><label style="flex:1"><span style="color:#e0705f">✕</span> Défaite → <select id="cn-lose">${optList(n.lose)}</select></label></div>`;
       h += `<div class="hint">Défaite sans cible = on rejoue la mission. La cible Victoire/Défaite peut être un <b>Choix</b>.</div>`;
@@ -3581,6 +3582,7 @@ Stiff: Enough. I've decided.`;
     on("cn-name", "input", e => { n.name = e.target.value; draw(); });
     on("cn-desc", "input", e => { n.desc = e.target.value; });
     on("cn-intro", "change", e => { n.intro = e.target.value || null; });
+    on("cn-outro", "change", e => { n.outro = e.target.value || null; });
     on("cn-win", "change", e => { n.win = e.target.value || null; draw(); });
     on("cn-lose", "change", e => { n.lose = e.target.value || null; draw(); });
     on("cn-optadd", "change", e => { if (e.target.value){ (n.options = n.options || []).push(e.target.value); renderCampForm(); draw(); } });
@@ -3721,10 +3723,17 @@ Stiff: Enough. I've decided.`;
       showTurnBanner("À votre tour", "player");
     }
   }
-  function campMissionEnd(result){
+  async function campMissionEnd(result){
     const node = campNodeById(campRun.nodeId);
     const nextId = node ? node[result] : null;
     if (result === "win"){
+      if (node && node.outro){                       // texte de fin de mission, joué en bas de l'écran avant de sortir
+        introActive = true;
+        if (panelEl) panelEl.style.display = "none";
+        await runSceneFile(node.outro);
+        introActive = false;
+        if (panelEl) panelEl.style.display = "";
+      }
       const loot = lastLoot ? `<br><span style="color:#9adf9a">🎁 Butin : ${lastLoot.icon} ${lastLoot.name}</span>` : "";
       lastLoot = null;
       if (nextId) showCampCont("Mission accomplie." + loot, "Continuer ▶", () => runCampNode(nextId));

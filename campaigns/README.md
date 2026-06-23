@@ -19,8 +19,9 @@ Ouvre `?campaign` (ou le bouton **🎬 Éditeur de campagne** dans la colonne) :
 - Clique un nœud pour l'éditer : un nœud **texte** sélectionne un **fichier `.txt`**
   (listé dans `texts/list.json`), un nœud **mission** choisit la mission. Marque le
   nœud de départ avec **★ départ**.
-- Un nœud **mission** peut avoir un **texte d'intro** (un `.txt` joué *sous la carte*
-  comme la Scène 1) et un **descriptif** affiché au survol dans le menu de parcours.
+- Un nœud **mission** peut avoir un **texte d'intro** (`.txt` joué *sous la carte* comme
+  la Scène 1), un **texte de fin** (`outro`, joué en bas de l'écran après la victoire, avant
+  de continuer) et un **descriptif** affiché au survol dans le menu de parcours.
 - **💾 Enregistrer dans le dépôt** publie `campaigns/<nom>.json` + met à jour `campaigns/list.json`
   (token GitHub fine-grained, `Contents: write`). La campagne apparaît dans le menu **▶ Jouer**.
 
