@@ -458,11 +458,11 @@
       carryHP[carryKey(u)] = { hp: Math.max(0, u.hp) };
     try{ localStorage.setItem("mgf_carry", JSON.stringify(carryHP)); }catch(e){}
   }
-  function applyCarry(){     // restaure les PV mémorisés sur les joueurs de la mission courante
+  function applyCarry(){     // restaure les PV mémorisés ; un allié K.O. repart à 1 PV
     for (const u of units) if (u.team === "player"){
       const s = carryHP[carryKey(u)]; if (!s) continue;
-      u.hp = Math.max(0, Math.min(u.maxHp, s.hp));
-      if (u.hp <= 0) u.dead = true;
+      u.hp = Math.min(u.maxHp, Math.max(1, s.hp));   // jamais en dessous de 1 : les K.O. reviennent
+      u.dead = false;
     }
   }
   function resetCarry(){ carryHP = {}; try{ localStorage.removeItem("mgf_carry"); }catch(e){} resetInventory(); }
