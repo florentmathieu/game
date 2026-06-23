@@ -17,29 +17,44 @@
    "mission": "mission-1.json",
    "name": "Mission 1",
    "intro": "Scene1.txt",
-   "win": "between",
+   "desc": "Premiers contacts avec les bandits. Une mise en jambe.",
+   "win": "carrefour",
    "lose": null,
    "x": 40,
    "y": 160
   },
   {
-   "id": "between",
-   "type": "text",
-   "title": "Démo — interlude",
-   "file": "texts/demo-interlude.txt",
-   "next": "m2",
-   "x": 300,
-   "y": 160
+   "id": "carrefour",
+   "type": "choice",
+   "title": "Quelle route ?",
+   "options": [
+    "m2",
+    "m3"
+   ],
+   "x": 40,
+   "y": 290
   },
   {
    "id": "m2",
    "type": "mission",
    "mission": "mission-2.json",
    "name": "Infiltration 2",
+   "desc": "La voie discrète : contourner le camp et frapper par surprise. Moins d'ennemis, plus de tension.",
    "win": "end",
    "lose": null,
-   "x": 300,
-   "y": 280
+   "x": 250,
+   "y": 420
+  },
+  {
+   "id": "m3",
+   "type": "mission",
+   "mission": "mission-3.json",
+   "name": "Infiltration 3",
+   "desc": "La voie directe : tailler à travers les lignes. Plus d'opposition, mais le chemin le plus court.",
+   "win": "end",
+   "lose": null,
+   "x": 470,
+   "y": 420
   },
   {
    "id": "end",
@@ -47,8 +62,8 @@
    "title": "Démo — fin",
    "file": "texts/demo-fin.txt",
    "next": null,
-   "x": 560,
-   "y": 280
+   "x": 250,
+   "y": 550
   }
  ]
 }

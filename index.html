@@ -127,7 +127,7 @@
       <canvas id="board"></canvas>
       <div id="scene"><div id="scenetext"></div><button id="scenebtn">...</button></div>
       <div id="combatline"></div>
-      <div id="campcont"><div id="campcont-msg"></div><button id="campcont-btn">Continuer ▶</button></div>
+      <div id="campcont"><div id="campcont-msg"></div><div style="display:flex;gap:14px"><button id="campcont-btn">Continuer ▶</button><button id="campcont-cancel" style="display:none">Annuler</button></div></div>
     </div>
 
     <div class="panel">
@@ -268,10 +268,12 @@
       <div class="erow"><label>Nom <input id="camp-name" type="text" placeholder="nom de la campagne…"></label></div>
 
       <h2 style="margin-top:12px">Nœuds</h2>
-      <div class="erow"><button id="camp-addtext">＋ Texte</button> <button id="camp-addmission">＋ Mission</button></div>
+      <div class="erow"><button id="camp-addtext">＋ Texte</button> <button id="camp-addmission">＋ Mission</button> <button id="camp-addchoice">＋ Choix</button></div>
       <div class="hint">Glisse les nœuds pour les ranger. Tire un fil depuis la pastille du bas
         (<span style="color:#7fb0e0">→</span> suite, <span style="color:#5fd07f">✓</span> victoire,
-        <span style="color:#e0705f">✕</span> défaite) vers un autre nœud pour l'enchaîner. Lâche dans le vide pour couper le lien.</div>
+        <span style="color:#e0705f">✕</span> défaite, <span style="color:#d0b25f">＋</span> ajoute une route depuis un
+        <b>Choix</b>) vers un autre nœud pour l'enchaîner. Lâche dans le vide pour couper le lien.
+        Un nœud <b>Choix</b> propose plusieurs routes : le joueur en choisit une dans un menu de parcours.</div>
 
       <h2 style="margin-top:12px">Nœud sélectionné</h2>
       <div id="camp-node" class="hint">Clique un nœud pour l'éditer.</div>
@@ -406,6 +408,9 @@
   let campHover = null;          // nœud survolé pendant un drag de fil
   let campRun = null;            // exécution en cours : { camp, nodeId } ou null
   let campEnded = false;         // évite de relancer l'enchaînement plusieurs fois
+  let campChoosing = null;       // menu de parcours actif : { nodeId, options:[ids], preview }
+  let campHoverNode = null;      // nœud survolé dans le menu de parcours (pour le descriptif)
+  let campMouse = { x:0, y:0 };  // position souris dans le menu de parcours
   const CAMP_W = 168, CAMP_H = 58;
   let enemyPhase = false;    // true pendant la phase ennemie (entrées bloquées)
   let walls = new Set();     // murets : couvert partiel posé sur l'arête entre deux cases
@@ -1647,7 +1652,7 @@
   }
 
   function draw(){
-    if (campMode){ drawCampaign(); return; }
+    if (campMode || campChoosing){ drawCampaign(); return; }
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     let shaken = false;
     if (typeof performance !== "undefined" && performance.now() < shakeUntil){
@@ -2605,7 +2610,11 @@
     window.addEventListener("keydown", (e) => {
       if (e.key === "Tab"){ e.preventDefault(); if (busy()) return; targeting ? cycleTarget(e.shiftKey ? -1 : 1) : cycleUnit(e.shiftKey ? -1 : 1); }
       else if (e.key === "Enter"){ if (targeting) confirmTarget(); }
-      else if (e.key === "Escape"){ if (editMode){ setTool(""); editDragUnit = null; editInfo(); } else { cancelTargeting(); cancelThrow(); } }
+      else if (e.key === "Escape"){
+        if (campChoosing && campChoosing.preview){ campChoosing = null; campHoverNode = null; setupCampCanvas(); draw(); }
+        else if (editMode){ setTool(""); editDragUnit = null; editInfo(); }
+        else { cancelTargeting(); cancelThrow(); }
+      }
     });
 
   // ---- Écran d'ouverture --------------------------------------------------
@@ -2882,16 +2891,39 @@ Stiff: Enough. I've decided.`;
   const uid = () => "n" + Math.random().toString(36).slice(2, 7);
   const campNodeById = (id) => campaign.nodes.find(n => n.id === id) || null;
   const campLabel = (n) => !n ? "?" :
-    n.type === "text" ? (n.title || (n.file || "").split("/").pop().replace(/\.txt$/, "") || "Texte").slice(0, 22)
-                      : (n.name || n.mission || "Mission").slice(0, 22);
+    n.type === "text"   ? (n.title || (n.file || "").split("/").pop().replace(/\.txt$/, "") || "Texte").slice(0, 22) :
+    n.type === "choice" ? (n.title || "Choix").slice(0, 22)
+                        : (n.name || n.mission || "Mission").slice(0, 22);
   function campPorts(n){
     const by = n.y + CAMP_H;
     if (n.type === "mission") return [
       { key:"win",  x:n.x + CAMP_W*0.30, y:by, color:"#5fd07f", sym:"✓" },
       { key:"lose", x:n.x + CAMP_W*0.70, y:by, color:"#e0705f", sym:"✕" },
     ];
+    if (n.type === "choice"){
+      const opts = n.options || [], total = opts.length + 1, ports = [];
+      for (let i = 0; i < opts.length; i++) ports.push({ key:"opt:"+i, x:n.x + CAMP_W*((i+1)/(total+1)), y:by, color:"#d0b25f", sym:String(i+1) });
+      ports.push({ key:"opt:add", x:n.x + CAMP_W*((opts.length+1)/(total+1)), y:by, color:"#7a6c58", sym:"+" });
+      return ports;
+    }
     return [{ key:"next", x:n.x + CAMP_W*0.5, y:by, color:"#7fb0e0", sym:"→" }];
   }
+  // cible courante d'une pastille / pose-coupe d'un lien (gère le tableau options d'un Choix)
+  function portTarget(n, key){
+    if (key.indexOf("opt:") === 0){ const s = key.slice(4); return s === "add" ? null : ((n.options || [])[+s] || null); }
+    return n[key] || null;
+  }
+  function portSet(n, key, id){
+    if (key.indexOf("opt:") === 0){
+      const s = key.slice(4); if (!n.options) n.options = [];
+      if (s === "add"){ if (id) n.options.push(id); }
+      else { const i = +s; if (id) n.options[i] = id; else n.options.splice(i, 1); }
+      return;
+    }
+    n[key] = id;
+  }
+  const campOutTargets = (n) => n.type === "choice" ? (n.options || []).slice()
+    : n.type === "mission" ? [n.win, n.lose].filter(Boolean) : [n.next].filter(Boolean);
   const campInPoint = (n) => ({ x:n.x + CAMP_W/2, y:n.y });
   function campNodeAt(mx, my){
     for (let i = campaign.nodes.length - 1; i >= 0; i--){ const n = campaign.nodes[i];
@@ -2920,47 +2952,100 @@ Stiff: Enough. I've decided.`;
     ctx.closePath(); ctx.fillStyle = color; ctx.fill();
     ctx.restore();
   }
+  const NODE_FILL = (t) => t === "text" ? "#1c2740" : t === "choice" ? "#2a2030" : "#2a2113";
+  const NODE_TAG  = (t) => t === "text" ? "#6f9fd0" : t === "choice" ? "#c69fe0" : "#caa86a";
+  const NODE_TAGTXT = (t) => t === "text" ? "TEXTE" : t === "choice" ? "CHOIX" : "MISSION";
   function drawCampaign(){
+    const choosing = !!campChoosing;
+    const selSet = choosing ? new Set(campChoosing.options) : null;
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     ctx.fillStyle = "#14100b"; ctx.fillRect(0, 0, campCanvasW, campCanvasH);
     ctx.fillStyle = "#1d160e";                                   // pointillé de fond
     for (let y = 20; y < campCanvasH; y += 28) for (let x = 20; x < campCanvasW; x += 28){
       ctx.beginPath(); ctx.arc(x, y, 1, 0, Math.PI*2); ctx.fill(); }
+    // liens
     for (const n of campaign.nodes) for (const p of campPorts(n)){
-      const t = campNodeById(n[p.key]); if (t) drawCampLink(p.x, p.y, campInPoint(t).x, campInPoint(t).y, p.color, false);
+      const t = campNodeById(portTarget(n, p.key)); if (!t) continue;
+      const lit = choosing && campChoosing.nodeId === n.id;     // routes proposées en surbrillance
+      ctx.globalAlpha = !choosing || lit ? 1 : 0.18;
+      drawCampLink(p.x, p.y, campInPoint(t).x, campInPoint(t).y, p.color, false);
+      ctx.globalAlpha = 1;
     }
     if (campLink){
       const p = campPorts(campLink.node).find(q => q.key === campLink.key);
       if (p) drawCampLink(p.x, p.y, campLink.x, campLink.y, p.color, true);
     }
+    // nœuds
     for (const n of campaign.nodes){
-      const isStart = campaign.start === n.id, isSel = campSel === n, isHover = campHover === n && campLink;
+      const isStart = campaign.start === n.id, isSel = campSel === n, isLinkHover = campHover === n && campLink;
+      const selectable = choosing && selSet.has(n.id);
+      const isCur = choosing && campChoosing.nodeId === n.id;
+      const dim = choosing && !selectable && !isCur;
       ctx.save();
+      ctx.globalAlpha = dim ? 0.32 : 1;
       rrect(n.x, n.y, CAMP_W, CAMP_H, 9);
-      ctx.fillStyle = n.type === "text" ? "#1c2740" : "#2a2113"; ctx.fill();
-      ctx.lineWidth = isSel ? 3 : 2;
-      ctx.strokeStyle = isHover ? "#ffd479" : isStart ? "#caa24a" : isSel ? "#e8ddc8" : "#5a4530";
+      ctx.fillStyle = NODE_FILL(n.type); ctx.fill();
+      const hot = selectable && campHoverNode === n;
+      ctx.lineWidth = selectable ? 3 : isSel ? 3 : 2;
+      ctx.strokeStyle = isLinkHover || hot ? "#ffd479"
+        : selectable ? "#5fd07f" : isCur ? "#c69fe0"
+        : isStart ? "#caa24a" : isSel ? "#e8ddc8" : "#5a4530";
       ctx.stroke();
-      // bandeau de type
-      ctx.fillStyle = n.type === "text" ? "#6f9fd0" : "#caa86a";
+      ctx.fillStyle = NODE_TAG(n.type);
       ctx.font = "bold 10px 'Trebuchet MS',sans-serif"; ctx.textAlign = "left"; ctx.textBaseline = "top";
-      ctx.fillText(n.type === "text" ? "TEXTE" : "MISSION", n.x + 10, n.y + 7);
-      if (isStart){ ctx.fillStyle = "#caa24a"; ctx.textAlign = "right"; ctx.fillText("★ départ", n.x + CAMP_W - 10, n.y + 7); }
-      // libellé
-      ctx.fillStyle = "#e8ddc8"; ctx.font = "13px 'Trebuchet MS',sans-serif"; ctx.textAlign = "left";
+      ctx.fillText(NODE_TAGTXT(n.type), n.x + 10, n.y + 7);
+      if (isStart && !choosing){ ctx.fillStyle = "#caa24a"; ctx.textAlign = "right"; ctx.fillText("★ départ", n.x + CAMP_W - 10, n.y + 7); }
+      if (selectable){ ctx.fillStyle = "#5fd07f"; ctx.textAlign = "right"; ctx.fillText("▶ route", n.x + CAMP_W - 10, n.y + 7); }
+      ctx.fillStyle = "#e8ddc8"; ctx.font = "13px 'Trebuchet MS',sans-serif"; ctx.textAlign = "left"; ctx.textBaseline = "top";
       ctx.fillText(campLabel(n), n.x + 10, n.y + 24);
-      // pastilles de sortie
-      for (const p of campPorts(n)){
+      if (!choosing) for (const p of campPorts(n)){       // pastilles de sortie (éditeur seulement)
         ctx.beginPath(); ctx.arc(p.x, p.y, 7, 0, Math.PI*2); ctx.fillStyle = p.color; ctx.fill();
         ctx.fillStyle = "#0b0905"; ctx.font = "bold 9px sans-serif"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
         ctx.fillText(p.sym, p.x, p.y + 0.5);
       }
       ctx.restore();
     }
+    if (choosing){
+      ctx.fillStyle = "#e8ddc8"; ctx.font = "bold 18px 'Trebuchet MS',sans-serif"; ctx.textAlign = "center"; ctx.textBaseline = "top";
+      ctx.fillText(campChoosing.title || "Choisis ta route", campCanvasW/2, 12);
+      ctx.fillStyle = "#9a8a74"; ctx.font = "12px 'Trebuchet MS',sans-serif";
+      ctx.fillText(campChoosing.preview ? "Aperçu — Échap pour revenir à l'éditeur"
+                                        : "Survole une route pour le détail · clique pour t'y engager", campCanvasW/2, 36);
+      drawParcoursTip();
+    }
     if (!campaign.nodes.length){
       ctx.fillStyle = "#7a6c58"; ctx.font = "15px 'Trebuchet MS',sans-serif"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
-      ctx.fillText("« ＋ Texte » ou « ＋ Mission » pour commencer.", campCanvasW/2, campCanvasH/2);
+      ctx.fillText("« ＋ Texte », « ＋ Mission » ou « ＋ Choix » pour commencer.", campCanvasW/2, campCanvasH/2);
     }
+  }
+  // info-bulle descriptive au survol d'une route dans le menu de parcours
+  function drawParcoursTip(){
+    const n = campHoverNode; if (!n) return;
+    const title = n.type === "mission" ? (n.name || n.mission || "Mission") : campLabel(n);
+    const desc = (n.desc || (n.type === "mission" ? "" : "")).trim();
+    const lines = [];
+    lines.push({ t: title, bold:true });
+    const wrap = (s) => { const words = s.split(/\s+/); let line = ""; const out = [];
+      for (const w of words){ const test = line ? line + " " + w : w;
+        if (test.length > 38){ if (line) out.push(line); line = w; } else line = test; }
+      if (line) out.push(line); return out; };
+    for (const para of desc.split("\n")) for (const l of wrap(para)) lines.push({ t:l });
+    const w = 270, h = 14 + lines.length * 16 + 8;
+    let x = campMouse.x + 14, y = campMouse.y + 14;
+    if (x + w > campCanvasW) x = campCanvasW - w - 6;
+    if (y + h > campCanvasH) y = campCanvasH - h - 6;
+    ctx.save();
+    rrect(x, y, w, h, 7); ctx.fillStyle = "rgba(12,9,5,0.95)"; ctx.fill();
+    ctx.lineWidth = 1.5; ctx.strokeStyle = "#5a4530"; ctx.stroke();
+    ctx.textAlign = "left"; ctx.textBaseline = "top";
+    let yy = y + 8;
+    for (const ln of lines){
+      ctx.font = ln.bold ? "bold 13px 'Trebuchet MS',sans-serif" : "12px 'Trebuchet MS',sans-serif";
+      ctx.fillStyle = ln.bold ? "#ffd479" : "#cdbfa2";
+      ctx.fillText(ln.t, x + 10, yy); yy += ln.bold ? 18 : 16;
+    }
+    if (!desc) { ctx.fillStyle = "#7a6c58"; ctx.font = "italic 11px 'Trebuchet MS',sans-serif"; ctx.fillText("(pas de descriptif)", x + 10, yy); }
+    ctx.restore();
   }
   function setupCampCanvas(){
     const dpr = window.devicePixelRatio || 1;
@@ -2968,9 +3053,15 @@ Stiff: Enough. I've decided.`;
     canvas.width = Math.round(campCanvasW*dpr); canvas.height = Math.round(campCanvasH*dpr);
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   }
-  // pointer (création/déplacement de nœuds et de liens)
+  // pointer (création/déplacement de nœuds et de liens ; ou choix d'une route en jeu)
   canvas.addEventListener("pointerdown", (e) => {
-    if (!campMode || (e.button !== undefined && e.button !== 0)) return;
+    if (e.button !== undefined && e.button !== 0) return;
+    if (campChoosing){                                   // menu de parcours : clic = choisir une route
+      e.preventDefault(); const { mx, my } = evtPos(e); const n = campNodeAt(mx, my);
+      if (n && campChoosing.options.indexOf(n.id) >= 0 && !campChoosing.preview) campConfirmChoice(n);
+      return;
+    }
+    if (!campMode) return;
     e.preventDefault(); const { mx, my } = evtPos(e);
     const ph = campPortAt(mx, my);
     if (ph){ campLink = { node:ph.node, key:ph.port.key, x:mx, y:my }; return; }
@@ -2979,7 +3070,15 @@ Stiff: Enough. I've decided.`;
     campSel = null; campDrag = null; renderCampForm(); draw();
   });
   canvas.addEventListener("pointermove", (e) => {
-    if (!campMode) return; const { mx, my } = evtPos(e);
+    const { mx, my } = evtPos(e);
+    if (campChoosing){
+      campMouse = { x:mx, y:my };
+      const n = campNodeAt(mx, my);
+      campHoverNode = (n && campChoosing.options.indexOf(n.id) >= 0) ? n : null;
+      canvas.style.cursor = campHoverNode ? "pointer" : "default";
+      draw(); return;
+    }
+    if (!campMode) return;
     if (campDrag){ campDrag.node.x = Math.round(mx - campDrag.dx); campDrag.node.y = Math.round(my - campDrag.dy); draw(); return; }
     if (campLink){ campLink.x = mx; campLink.y = my; campHover = campNodeAt(mx, my); draw(); }
   });
@@ -2987,8 +3086,8 @@ Stiff: Enough. I've decided.`;
     if (!campMode) return;
     if (campLink){
       const { mx, my } = evtPos(e); const t = campNodeAt(mx, my);
-      if (t && t.id !== campLink.node.id) campLink.node[campLink.key] = t.id;
-      else if (!t) campLink.node[campLink.key] = null;     // lâché dans le vide : coupe le lien
+      if (t && t.id !== campLink.node.id) portSet(campLink.node, campLink.key, t.id);
+      else if (!t && campLink.key !== "opt:add") portSet(campLink.node, campLink.key, null);  // lâché dans le vide : coupe
       campLink = null; campHover = null; renderCampForm(); draw();
     }
     campDrag = null;
@@ -2998,13 +3097,17 @@ Stiff: Enough. I've decided.`;
     const i = campaign.nodes.length;
     const n = { id:uid(), type, x: 40 + (i % 4)*210, y: 40 + Math.floor(i / 4)*110 };
     if (type === "text"){ n.file = repoTexts[0] ? repoTexts[0].file : ""; n.title = repoTexts[0] ? repoTexts[0].name : "Texte"; n.next = null; }
-    else { n.mission = repoMissions[0] ? repoMissions[0].file : ""; n.name = repoMissions[0] ? repoMissions[0].name : "Mission"; n.win = null; n.lose = null; }
+    else if (type === "choice"){ n.title = "Choix"; n.options = []; }
+    else { n.mission = repoMissions[0] ? repoMissions[0].file : ""; n.name = repoMissions[0] ? repoMissions[0].name : "Mission"; n.desc = ""; n.win = null; n.lose = null; }
     if (!campaign.start) campaign.start = n.id;
     campaign.nodes.push(n); campSel = n; renderCampForm(); draw();
   }
   function deleteCampNode(n){
     campaign.nodes = campaign.nodes.filter(x => x !== n);
-    for (const o of campaign.nodes){ for (const k of ["next","win","lose"]) if (o[k] === n.id) o[k] = null; }
+    for (const o of campaign.nodes){
+      for (const k of ["next","win","lose"]) if (o[k] === n.id) o[k] = null;
+      if (o.options) o.options = o.options.filter(id => id !== n.id);     // retire des routes de Choix
+    }
     if (campaign.start === n.id) campaign.start = campaign.nodes[0] ? campaign.nodes[0].id : null;
     if (campSel === n) campSel = null;
     renderCampForm(); draw();
@@ -3024,28 +3127,44 @@ Stiff: Enough. I've decided.`;
       h += `<div class="erow"><label style="flex:1">Fichier texte <select id="cn-file">${txtOpts || `<option value="">(aucun .txt)</option>`}</select></label></div>`;
       h += `<div class="hint">Les fichiers <code>.txt</code> proposés sont listés dans <code>texts/list.json</code> (ajoute-y tes fichiers).</div>`;
       h += `<div class="erow"><label style="flex:1">Suite → <select id="cn-next">${optList(n.next)}</select></label></div>`;
+    } else if (n.type === "choice"){
+      h += `<div class="erow"><label style="flex:1">Titre <input id="cn-title" type="text" value="${escHTML(n.title || "")}"></label></div>`;
+      h += `<div class="hint">Routes proposées au joueur (menu de parcours). Tire le fil <span style="color:#d0b25f">＋</span> du nœud vers une mission, ou ajoute ci-dessous.</div>`;
+      const opts = n.options || [];
+      for (let i = 0; i < opts.length; i++){
+        h += `<div class="erow"><label style="flex:1">${i+1}. <select class="cn-opt" data-i="${i}">${optList(opts[i])}</select></label> <button class="cn-optdel" data-i="${i}" style="flex:0 0 auto;width:auto">✕</button></div>`;
+      }
+      h += `<div class="erow"><label style="flex:1">＋ ajouter <select id="cn-optadd">${optList("")}</select></label></div>`;
     } else {
       const introOpts = `<option value="">— aucun —</option>` + repoTexts.map(t => `<option value="${t.file}" ${t.file === n.intro ? "selected" : ""}>${escHTML(t.name)}</option>`).join("");
       h += `<div class="erow"><label style="flex:1">Mission <select id="cn-mission">${missOpts || `<option value="">(aucune)</option>`}</select></label></div>`;
       h += `<div class="erow"><label style="flex:1">Étiquette <input id="cn-name" type="text" value="${escHTML(n.name || "")}"></label></div>`;
+      h += `<div class="erow"><textarea id="cn-desc" style="flex:1;min-height:60px;background:#1c150e;color:#e8ddc8;border:1px solid #5a4530;border-radius:6px;padding:6px;font-family:inherit;font-size:.8rem" placeholder="descriptif affiché au survol dans le menu de parcours…">${escHTML(n.desc || "")}</textarea></div>`;
       h += `<div class="erow"><label style="flex:1">Texte d'intro (sous la carte) <select id="cn-intro">${introOpts}</select></label></div>`;
       h += `<div class="hint">Joué « sous la map » au lancement de la mission, comme la Scène 1 d'origine.</div>`;
       h += `<div class="erow"><label style="flex:1"><span style="color:#5fd07f">✓</span> Victoire → <select id="cn-win">${optList(n.win)}</select></label></div>`;
       h += `<div class="erow"><label style="flex:1"><span style="color:#e0705f">✕</span> Défaite → <select id="cn-lose">${optList(n.lose)}</select></label></div>`;
-      h += `<div class="hint">Défaite sans cible = on rejoue la mission.</div>`;
+      h += `<div class="hint">Défaite sans cible = on rejoue la mission. La cible Victoire/Défaite peut être un <b>Choix</b>.</div>`;
     }
     h += `<div class="erow"><button id="cn-start" ${campaign.start === n.id ? "disabled" : ""}>★ Définir comme départ</button> <button id="cn-del">🗑 Supprimer</button></div>`;
+    if (n.type === "choice") h += `<div class="erow"><button id="cn-preview">👁 Aperçu du parcours</button></div>`;
     box.innerHTML = h;
     const on = (id, ev, fn) => { const el = document.getElementById(id); if (el) el.addEventListener(ev, fn); };
+    on("cn-title", "input", e => { n.title = e.target.value; draw(); });
     on("cn-file", "change", e => { n.file = e.target.value; const t = repoTexts.find(x => x.file === n.file); if (t) n.title = t.name; draw(); });
     on("cn-next", "change", e => { n.next = e.target.value || null; draw(); });
     on("cn-mission", "change", e => { n.mission = e.target.value; const m = repoMissions.find(x => x.file === n.mission); if (m && (!n.name || n.name === "Mission")) n.name = m.name; renderCampForm(); draw(); });
     on("cn-name", "input", e => { n.name = e.target.value; draw(); });
+    on("cn-desc", "input", e => { n.desc = e.target.value; });
     on("cn-intro", "change", e => { n.intro = e.target.value || null; });
     on("cn-win", "change", e => { n.win = e.target.value || null; draw(); });
     on("cn-lose", "change", e => { n.lose = e.target.value || null; draw(); });
+    on("cn-optadd", "change", e => { if (e.target.value){ (n.options = n.options || []).push(e.target.value); renderCampForm(); draw(); } });
+    for (const el of box.querySelectorAll(".cn-opt")) el.addEventListener("change", e => { n.options[+e.target.dataset.i] = e.target.value || null; n.options = n.options.filter(Boolean); renderCampForm(); draw(); });
+    for (const el of box.querySelectorAll(".cn-optdel")) el.addEventListener("click", e => { n.options.splice(+e.target.dataset.i, 1); renderCampForm(); draw(); });
     on("cn-start", "click", () => { campaign.start = n.id; renderCampForm(); draw(); });
     on("cn-del", "click", () => deleteCampNode(n));
+    on("cn-preview", "click", () => openParcours(n, true));
   }
 
   // ---- sauvegarde / chargement des campagnes (dépôt) ----------------------
@@ -3115,10 +3234,12 @@ Stiff: Enough. I've decided.`;
 
   // ---- exécution d'une campagne -------------------------------------------
   function hideCampCont(){ const c = document.getElementById("campcont"); if (c) c.style.display = "none"; }
-  function showCampCont(msg, label, fn){
-    const c = document.getElementById("campcont"), m = document.getElementById("campcont-msg"), b = document.getElementById("campcont-btn");
+  function showCampCont(msg, label, fn, cancelFn){
+    const c = document.getElementById("campcont"), m = document.getElementById("campcont-msg"),
+          b = document.getElementById("campcont-btn"), cb = document.getElementById("campcont-cancel");
     if (!c) { fn(); return; }
-    m.textContent = msg; b.textContent = label; b.onclick = () => { hideCampCont(); fn(); };
+    m.innerHTML = msg; b.textContent = label; b.onclick = () => { hideCampCont(); fn(); };
+    if (cb){ cb.style.display = cancelFn ? "" : "none"; cb.onclick = () => { hideCampCont(); if (cancelFn) cancelFn(); }; }
     c.style.display = "flex";
   }
   async function campPlayText(node){
@@ -3132,10 +3253,26 @@ Stiff: Enough. I've decided.`;
     if (introEl) introEl.style.display = "none";
     introActive = false;
   }
+  // menu de parcours : laisse le joueur choisir une route entre plusieurs missions
+  function openParcours(node, preview){
+    const opts = (node.options || []).filter(id => campNodeById(id));
+    if (!preview && !opts.length){ runCampNode(node.win || null); return; }   // choix vide : on continue
+    campChoosing = { nodeId:node.id, options:opts, title:node.title, preview:!!preview };
+    campHoverNode = null;
+    if (!preview){ introActive = true; if (panelEl) panelEl.style.display = "none"; if (introEl) introEl.style.display = "none"; }
+    hideCampCont();
+    setupCampCanvas(); draw();
+  }
+  function campConfirmChoice(node){
+    const title = node.name || campLabel(node);
+    const msg = "<b>" + escHTML(title) + "</b>" + (node.desc ? "<br><span style=\"font-size:.85em;color:#cdbfa2\">" + escHTML(node.desc).replace(/\n/g, "<br>") + "</span>" : "");
+    showCampCont(msg, "▶ S'engager", () => { campChoosing = null; setupCanvas(); runCampNode(node.id); }, () => { draw(); });
+  }
   async function runCampNode(id){
     hideCampCont();
     const n = campNodeById(id);
     if (!n){ endCampaign(true); return; }
+    if (n.type === "choice"){ openParcours(n, false); return; }
     if (n.type === "text"){ await campPlayText(n); runCampNode(n.next); return; }
     // nœud mission
     campRun.nodeId = n.id; campEnded = false;
@@ -3164,14 +3301,15 @@ Stiff: Enough. I've decided.`;
   }
   function startCampaign(camp){
     if (!camp || !camp.nodes || !camp.nodes.length){ alert("Campagne vide."); return; }
-    campaign = camp; campRun = { camp, nodeId:null }; campEnded = false;
+    campaign = camp; campRun = { camp, nodeId:null }; campEnded = false; campChoosing = null;
     resetCarry();                                   // nouvelle campagne : escouade au complet
-    if (campMode) leaveCampEditor();
+    if (campMode) leaveCampEditor(); else setupCanvas();
     hideCampCont();
     runCampNode(camp.start);
   }
   function endCampaign(){
-    campRun = null; campEnded = false; hideCampCont();
+    campRun = null; campEnded = false; campChoosing = null; hideCampCont();
+    setupCanvas();
     introActive = false;
     if (panelEl) panelEl.style.display = "";
     generate(); placeUnits();
@@ -3222,6 +3360,7 @@ Stiff: Enough. I've decided.`;
   onEd("camp-quit", () => { leaveCampEditor(); selectUnit(units.find(u => u.team === "player")); refreshAll(); });
   onEd("camp-addtext", () => addCampNode("text"));
   onEd("camp-addmission", () => addCampNode("mission"));
+  onEd("camp-addchoice", () => addCampNode("choice"));
   onEd("camp-test", () => startCampaign(campaign));
   onEd("camp-publish", () => saveCampaign());
   { const ni = document.getElementById("camp-name"); if (ni) ni.addEventListener("input", () => { campaign.name = ni.value.trim(); }); }
