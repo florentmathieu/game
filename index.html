@@ -122,6 +122,10 @@
     color:#e8ddc8; font-size:.8rem; line-height:1.55; box-shadow:0 6px 22px rgba(0,0,0,.55)}
   #unittip b{color:#ffd479}
   #unittip code{color:#e8ddc8}
+  #flash{position:absolute; left:50%; bottom:64px; transform:translateX(-50%); z-index:39; pointer-events:none;
+    display:none; background:rgba(10,8,5,.92); border:1px solid #7a3530; border-radius:8px; padding:8px 18px;
+    color:#ffcf9a; font-size:1rem; letter-spacing:1px; box-shadow:0 6px 20px rgba(0,0,0,.5); white-space:nowrap}
+  #flash.show{display:block}
   .erow{display:flex; align-items:center; gap:6px; margin:6px 0; flex-wrap:wrap}
   .erow input[type=text]{flex:1}
   .erow input[type=number]{width:54px}
@@ -174,7 +178,8 @@
         <h2>Contrôles</h2>
         <ul>
           <li><b>Tab</b> — unité suivante (<b>Maj+Tab</b> : précédente)</li>
-          <li>Clique une <b>action</b> puis <b>Tab</b> pour changer de cible · <b>Entrée</b> valide</li>
+          <li>Choisis une <b>action</b> (clic ou 1…9), <b>puis clique l'ennemi</b> à viser (<b>Tab</b> change de cible, <b>Entrée</b> valide)</li>
+          <li>Une charge en mêlée trace le chemin ; un réticule <span style="color:#e0534a">rouge ✕</span> = cible hors d'atteinte</li>
           <li><b>Échap</b> — annule l'action en cours, ou ouvre/ferme ce menu</li>
           <li>Clique une <b>case</b> surlignée pour t'y déplacer</li>
           <li>Re-clique ton <b>perso sélectionné</b> pour le faire pivoter</li>
@@ -190,6 +195,7 @@
       </div>
       <div id="turnbanner"></div>
       <div id="unittip"></div>
+      <div id="flash"></div>
     </div>
 
     <div class="panel" id="gamepanel">
@@ -1937,19 +1943,42 @@
       ctx.beginPath(); ctx.arc(o.x, o.y, selected.range * HEX_W, 0, Math.PI*2); ctx.stroke(); ctx.setLineDash([]);
     }
 
-    // ciblage actif : ligne, réticule sur la cible courante, % de réussite
-    if (targeting && selected && targeting.targets.length){
-      const tgt = targeting.targets[targeting.idx];
-      const a = tileCenter(selected.col, selected.row), b = tileCenter(tgt.col, tgt.row);
-      ctx.lineWidth = 2; ctx.strokeStyle = "#ff6b66"; ctx.setLineDash([5,4]);
-      ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke(); ctx.setLineDash([]);
-      ctx.lineWidth = 3; ctx.strokeStyle = "#ffd479";
-      ctx.beginPath(); ctx.arc(b.x, b.y, SIZE*0.85, 0, Math.PI*2); ctx.stroke();
-      const bd = hitBreakdown(selected, tgt);
-      ctx.fillStyle = "#000"; ctx.fillRect(b.x-16, b.y-SIZE*1.25, 32, 14);
-      ctx.fillStyle = "#ffd479"; ctx.font = "bold 11px sans-serif";
-      ctx.textAlign = "center"; ctx.textBaseline = "middle";
-      ctx.fillText(bd.chance + "%", b.x, b.y - SIZE*1.25 + 7);
+    // visée active : repères sur les cibles atteignables, tracé/réticule sur la cible visée
+    if (targeting && selected){
+      for (const tg of targeting.targets){           // cibles atteignables : petit cercle vert
+        const p = tileCenter(tg.col, tg.row);
+        ctx.lineWidth = 1.5; ctx.strokeStyle = "rgba(95,208,127,0.55)";
+        ctx.beginPath(); ctx.arc(p.x, p.y, SIZE*0.95, 0, Math.PI*2); ctx.stroke();
+      }
+      // cible visée : l'ennemi survolé en priorité, sinon la cible courante (Tab)
+      let aim = hover ? unitAt(hover.col, hover.row) : null;
+      if (!(aim && aim.team !== selected.team && aim.hp > 0)) aim = targeting.targets[targeting.idx] || null;
+      if (aim){
+        const plan = attackPlan(aim);
+        const a = tileCenter(selected.col, selected.row), b = tileCenter(aim.col, aim.row);
+        if (plan && plan.kind === "charge"){
+          ctx.lineWidth = 3; ctx.strokeStyle = "#7fd3ec"; ctx.lineCap = "round"; ctx.setLineDash([7,5]);
+          ctx.beginPath(); const p0 = tileCenter(plan.path[0][0], plan.path[0][1]); ctx.moveTo(p0.x, p0.y);
+          for (const [c, r] of plan.path.slice(1)){ const p = tileCenter(c, r); ctx.lineTo(p.x, p.y); }
+          ctx.stroke(); ctx.setLineDash([]);
+          const pd = tileCenter(plan.dest[0], plan.dest[1]);
+          ctx.lineWidth = 2; ctx.strokeStyle = "#7fd3ec"; ctx.beginPath(); ctx.arc(pd.x, pd.y, SIZE*0.5, 0, Math.PI*2); ctx.stroke();
+          ctx.lineWidth = 3; ctx.strokeStyle = "#5fd07f"; ctx.beginPath(); ctx.arc(b.x, b.y, SIZE*0.85, 0, Math.PI*2); ctx.stroke();
+        } else if (plan){                              // attaque directe possible
+          ctx.lineWidth = 2; ctx.strokeStyle = "#ff6b66"; ctx.setLineDash([5,4]);
+          ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke(); ctx.setLineDash([]);
+          ctx.lineWidth = 3; ctx.strokeStyle = "#5fd07f"; ctx.beginPath(); ctx.arc(b.x, b.y, SIZE*0.85, 0, Math.PI*2); ctx.stroke();
+          const bd = hitBreakdown(selected, aim);
+          ctx.fillStyle = "#000"; ctx.fillRect(b.x-16, b.y-SIZE*1.25, 32, 14);
+          ctx.fillStyle = "#ffd479"; ctx.font = "bold 11px sans-serif"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+          ctx.fillText(bd.chance + "%", b.x, b.y - SIZE*1.25 + 7);
+        } else {                                       // impossible : réticule rouge + croix
+          ctx.lineWidth = 2.5; ctx.strokeStyle = "#e0534a"; ctx.setLineDash([]);
+          ctx.beginPath(); ctx.arc(b.x, b.y, SIZE*0.85, 0, Math.PI*2); ctx.stroke();
+          const s = SIZE*0.48;
+          ctx.beginPath(); ctx.moveTo(b.x-s, b.y-s); ctx.lineTo(b.x+s, b.y+s); ctx.moveTo(b.x+s, b.y-s); ctx.lineTo(b.x-s, b.y+s); ctx.stroke();
+        }
+      }
     }
 
     drawFx();   // projectiles / coups d'épée
@@ -2099,25 +2128,23 @@
   function enterTargeting(weaponMode){
     if (!selected || selected.ap <= 0 || gameOver || busy()) return;
     if (!selected.weapons[weaponMode]) return;
+    if (weaponMode === "ranged" && selected.clip !== undefined && selected.ammo <= 0){ flash("Arme vide — recharge"); return; }
     throwing = false;
     setMode(selected, weaponMode);
-    const targets = units.filter(u => u.team === "enemy" && u.hp > 0 && canAttack(selected, u));
-    if (!targets.length){ targeting = null; flash("Aucune cible à portée"); refreshAll(); return; }
-    targeting = { targets, idx: 0 };
+    targeting = { mode: weaponMode, targets: [], idx: 0 };
+    targeting.targets = units.filter(u => u.team === "enemy" && u.hp > 0 && attackPlan(u));   // cibles atteignables (tir ou charge)
+    if (!targeting.targets.length) flash(weaponMode === "melee" ? "Aucun ennemi à portée de charge" : "Aucune cible en vue");
     refreshAll();
   }
   function cycleTarget(dir){
-    if (!targeting) return;
+    if (!targeting || !targeting.targets.length) return;
     const n = targeting.targets.length;
     targeting.idx = (targeting.idx + dir + n) % n;
     refreshAll();
   }
   function confirmTarget(){
-    if (!targeting) return;
-    const tgt = targeting.targets[targeting.idx];
-    targeting = null;
-    doAttack(selected, tgt);
-    refreshAll(); afterPlayerAction();
+    if (!targeting || !targeting.targets.length) return;
+    executeAttack(targeting.targets[targeting.idx]);
   }
   function cancelTargeting(){ if (targeting){ targeting = null; refreshAll(); } }
 
@@ -2231,8 +2258,13 @@
   // après une action joueur : on avance, sinon on tente la fin de tour
   function afterPlayerAction(){ maybeAdvance(); maybeAutoEnd(); }
 
-  let flashMsg = "";
-  function flash(m){ flashMsg = m; setTimeout(() => { flashMsg = ""; const el = document.getElementById("info"); if (el && el.textContent === m) el.textContent = "Passe la souris sur la carte."; }, 1500); const el = document.getElementById("info"); if (el) el.textContent = m; }
+  let flashTimer = null;
+  function flash(m){
+    const el = document.getElementById("flash"); if (!el || !el.classList) return;
+    el.textContent = m; el.classList.add("show");
+    if (flashTimer && typeof clearTimeout === "function") clearTimeout(flashTimer);
+    flashTimer = setTimeout(() => el.classList.remove("show"), 1600);
+  }
 
   // fait pivoter une unité d'un cran (60°) ; gratuit, tant qu'elle n'a pas fini d'agir
   function rotateUnit(u){
@@ -2240,30 +2272,44 @@
     u.hasFacing = true;
     recomputeVision(); refreshAll();
   }
-  // charge en mêlée : rejoint une case adjacente à l'ennemi (si atteignable, en gardant un PA) puis frappe
-  function tryChargeMelee(mover, enemy){
-    if (!mover || !mover.weapons.melee || !reach || enemy.hp <= 0) return false;
-    if (!playerCanSee(enemy)) return false;
-    let best = null, bestCost = Infinity;
-    for (const [dc, dr] of NEI[enemy.row & 1]){
-      const c = enemy.col + dc, r = enemy.row + dr;
-      if (c < 0 || c >= COLS || r < 0 || r >= ROWS) continue;
-      if (c === mover.col && r === mover.row) continue;          // déjà adjacent → géré par l'attaque directe
-      const d = reach.dist[key(c, r)];
-      if (d === undefined) continue;                              // case non atteignable ce tour
-      if (apForMove(mover, d) >= mover.ap) continue;              // il faut garder un PA pour frapper
-      if (d < bestCost){ bestCost = d; best = [c, r]; }
+  // plan d'attaque contre `enemy` depuis l'unité en visée :
+  //  - { kind:"direct" } : à portée tout de suite
+  //  - { kind:"charge", dest, path } : mêlée, en rejoignant une case adjacente atteignable (et en gardant un PA)
+  //  - null : impossible
+  function attackPlan(enemy){
+    const m = selected;
+    if (!m || !targeting || !enemy || enemy.team === m.team || enemy.hp <= 0) return null;
+    if (!playerCanSee(enemy)) return null;
+    if (canAttack(m, enemy)) return { kind: "direct" };
+    if (targeting.mode === "melee" && m.weapons.melee && reach){
+      let best = null, bestCost = Infinity;
+      for (const [dc, dr] of NEI[enemy.row & 1]){
+        const c = enemy.col + dc, r = enemy.row + dr;
+        if (c < 0 || c >= COLS || r < 0 || r >= ROWS) continue;
+        if (c === m.col && r === m.row) continue;
+        const d = reach.dist[key(c, r)];
+        if (d === undefined) continue;
+        if (apForMove(m, d) >= m.ap) continue;        // garder un PA pour frapper
+        if (d < bestCost){ bestCost = d; best = [c, r]; }
+      }
+      if (best) return { kind: "charge", dest: best, path: buildPath(reach.prev, best[0], best[1]) };
     }
-    if (!best) return false;
-    setMode(mover, "melee");
-    const path = buildPath(reach.prev, best[0], best[1]);
-    spendMove(mover, reach.dist[key(best[0], best[1])]);
-    const stop = executeMove(mover, path);
-    if (mover.hp <= 0){ refreshAll(); afterPlayerAction(); return true; }
-    reach = computeReach(mover);
+    return null;
+  }
+  // exécute l'attaque (ou la charge) contre `enemy` ; feedback si impossible
+  function executeAttack(enemy){
+    const m = selected, plan = attackPlan(enemy);
+    if (!plan){ flash("Cible hors d'atteinte"); return false; }
+    targeting = null;
+    if (plan.kind === "direct"){ doAttack(m, enemy); refreshAll(); afterPlayerAction(); return true; }
+    setMode(m, "melee");                               // charge en mêlée : on rejoint puis on frappe
+    spendMove(m, reach.dist[key(plan.dest[0], plan.dest[1])]);
+    const stop = executeMove(m, plan.path);
+    if (m.hp <= 0){ refreshAll(); afterPlayerAction(); return true; }
+    reach = computeReach(m);
     refreshAll();
-    animateMove(mover, path.slice(0, stop + 1), () => {
-      if (canAttack(mover, enemy)) doAttack(mover, enemy);        // frappe à l'arrivée si toujours possible
+    animateMove(m, plan.path.slice(0, stop + 1), () => {
+      if (canAttack(m, enemy)) doAttack(m, enemy);
       refreshAll(); afterPlayerAction();
     });
     return true;
@@ -2283,22 +2329,20 @@
       }
       throwing = false; refreshAll(); return;
     }
-    // en mode ciblage : clic sur une cible valide -> attaque ; sinon on annule et on continue
+    // en mode visée : clic sur un ennemi -> on l'attaque (ou on charge) ; sinon clic = on sort de la visée
     if (targeting){
-      if (u && targeting.targets.includes(u)){ targeting.idx = targeting.targets.indexOf(u); confirmTarget(); return; }
-      targeting = null;
+      if (u && selected && u.team !== selected.team && u.hp > 0){ executeAttack(u); return; }   // flash si hors d'atteinte
+      if (u && u.team === "player"){ targeting = null; selectUnit(u); return; }                 // re-sélection d'un allié
+      targeting = null; refreshAll(); return;                                                    // clic ailleurs : on annule la visée
     }
     // clic sur une unité joueur -> sélection ; re-clic sur l'unité déjà active (et pas épuisée) -> elle se tourne
     if (u && u.team === "player"){
       if (u === selected && !unitDone(u)) rotateUnit(u); else selectUnit(u);
       return;
     }
-    // clic sur un ennemi attaquable -> attaque directe (arme active)
-    if (selected && u && canAttack(selected, u)){ doAttack(selected, u); refreshAll(); afterPlayerAction(); return; }
-    // clic sur un ennemi proche, hors de portée immédiate -> charge en mêlée (rejoint + frappe)
+    // clic sur un ennemi hors visée -> rappel : il faut d'abord choisir une action
     if (selected && u && u.team !== selected.team && u.hp > 0){
-      tryChargeMelee(selected, u);                 // charge si atteignable ; sinon on ne désélectionne pas
-      return;
+      flash("Choisis une action (1 Épée / 1 Tirer) puis vise l'ennemi"); return;
     }
     // clic sur une case atteignable -> déplacement (résolu, puis animé)
     if (selected && reach && reach.dist[key(t.col, t.row)] !== undefined){
@@ -2328,11 +2372,16 @@
         + (selected.overwatch ? `<br><span style="color:#7fe0d0">En vigilance.</span>`
            : selected.ap <= 0 ? `<br><span style="color:#c98f3c">Plus de PA ce tour.</span>` : ``)
         + `<br><span style="color:#7a6c58;font-size:.9em">Survole une unité pour sa fiche.</span>`;
-      if (targeting && targeting.targets.length){
-        const tgt = targeting.targets[targeting.idx];
-        const bd = hitBreakdown(selected, tgt);
-        html += `<br><b style="color:#ffd479">▶ Cible : ${tgt.name} — ${bd.chance}%</b>`
-              + `<br><span style="color:#9a8a74">${targeting.idx+1}/${targeting.targets.length} · Tab change, Entrée valide, Échap annule</span>`;
+      if (targeting){
+        if (targeting.targets.length){
+          const tgt = targeting.targets[targeting.idx];
+          const plan = attackPlan(tgt);
+          const lbl = plan && plan.kind === "charge" ? "charge" : `${hitBreakdown(selected, tgt).chance}%`;
+          html += `<br><b style="color:#ffd479">▶ Vise ${tgt.name} — ${lbl}</b>`
+                + `<br><span style="color:#9a8a74">${targeting.idx+1}/${targeting.targets.length} · clique un ennemi · Tab change · Entrée valide · Échap annule</span>`;
+        } else {
+          html += `<br><span style="color:#e0a85f">Aucune cible atteignable. Échap pour annuler.</span>`;
+        }
       }
     }
     el.innerHTML = html;
