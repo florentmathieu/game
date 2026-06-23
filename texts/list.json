@@ -6,6 +6,9 @@
  {
   "file": "texts/Mission1-beginning.txt",
   "name": "Mission 1 — début"
+ }, {
+  "file": "texts/Mission1-end.txt",
+  "name": "Mission 1 — fin"
  },
  {
   "file": "texts/Interlude1.txt",
