@@ -1,5 +1,5 @@
 {
- "name": "Infiltration 2",
+ "name": "Mission 2",
  "cols": 22,
  "rows": 15,
  "elev": [
@@ -529,25 +529,28 @@
  ],
  "units": [
   {
-   "type": "Stiff",
+   "cls": "sergent",
    "team": "player",
    "col": 0,
-   "row": 13
+   "row": 13,
+   "name": "Stiff"
   },
   {
-   "type": "Merry",
+   "cls": "sapeur",
    "team": "player",
    "col": 0,
-   "row": 11
+   "row": 11,
+   "name": "Merry"
   },
   {
-   "type": "Gizzard",
+   "cls": "assassin",
    "team": "player",
    "col": 0,
-   "row": 0
+   "row": 0,
+   "name": "Gizzard"
   },
   {
-   "type": "Archer",
+   "cls": "archer",
    "team": "enemy",
    "col": 20,
    "row": 3,
@@ -556,7 +559,7 @@
    "facing": 0
   },
   {
-   "type": "Brute",
+   "cls": "brute",
    "team": "enemy",
    "col": 21,
    "row": 4,
@@ -565,7 +568,7 @@
    "facing": 0
   },
   {
-   "type": "Garde",
+   "cls": "garde",
    "team": "enemy",
    "col": 13,
    "row": 14,
@@ -574,7 +577,7 @@
    "facing": 0
   },
   {
-   "type": "Archer",
+   "cls": "archer",
    "team": "enemy",
    "col": 14,
    "row": 14,
@@ -582,17 +585,5 @@
    "asleep": true,
    "facing": 0
   }
- ],
- "meta": {
-  "winrate": 78,
-  "format": "horizontal",
-  "cols": 22,
-  "rows": 15,
-  "n": 4,
-  "buff": {
-   "hp": 0,
-   "aim": 0
-  },
-  "infil": true
- }
+ ]
 }
