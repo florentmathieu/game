@@ -1,13 +1,13 @@
-S: Let's find someone at camp and heal up.
+Stiff: Let's find someone at camp and heal up.
 _
 …
 _
 … 
 _
-M: Thanks for coming with us, Shady, appreciate it.
+Merry: Thanks for coming with us, Shady, appreciate it.
 _
-Sh: Well, I was bored anyway. Too much drinking becomes boring at some point.
-G: What, you're drunk again?
-M: I can never tell.
+Shady: Well, I was bored anyway. Too much drinking becomes boring at some point.
+Gizzard: What, you're drunk again?
+Merry: I can never tell.
 _
-S: Shut up. To work.
+Stiff: Shut up. To work.
