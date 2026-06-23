@@ -75,7 +75,7 @@
    "y": 533,
    "file": "texts/Interlude3.txt",
    "title": "Interlude 3",
-   "next": null
+   "next": "njlbw3"
   },
   {
    "id": "ngsz1k",
@@ -94,6 +94,27 @@
    "file": "texts/Interlude2bis.txt",
    "title": "Interlude 2 bis",
    "next": "nlqxlk"
+  },
+  {
+   "id": "njlbw3",
+   "type": "mission",
+   "x": 530,
+   "y": 446,
+   "mission": "mission-7.json",
+   "name": "Mission 3",
+   "desc": "",
+   "win": null,
+   "lose": "niu7qi",
+   "intro": "texts/Mission3-beginning.txt"
+  },
+  {
+   "id": "niu7qi",
+   "type": "text",
+   "x": 553,
+   "y": 554,
+   "file": "texts/Interlude4.txt",
+   "title": "Interlude 4",
+   "next": null
   }
  ]
 }
