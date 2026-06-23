@@ -3147,7 +3147,11 @@ Stiff: Enough. I've decided.`;
       h += `<div class="hint">Défaite sans cible = on rejoue la mission. La cible Victoire/Défaite peut être un <b>Choix</b>.</div>`;
     }
     h += `<div class="erow"><button id="cn-start" ${campaign.start === n.id ? "disabled" : ""}>★ Définir comme départ</button> <button id="cn-del">🗑 Supprimer</button></div>`;
-    if (n.type === "choice") h += `<div class="erow"><button id="cn-preview">👁 Aperçu du parcours</button></div>`;
+    h += `<div class="erow"><button id="cn-testhere">▶ Tester d'ici</button></div>`;
+    if (n.type === "choice"){
+      const previewing = campChoosing && campChoosing.preview && campChoosing.nodeId === n.id;
+      h += `<div class="erow"><button id="cn-preview">${previewing ? "✕ Fermer l'aperçu" : "👁 Aperçu du parcours"}</button></div>`;
+    }
     box.innerHTML = h;
     const on = (id, ev, fn) => { const el = document.getElementById(id); if (el) el.addEventListener(ev, fn); };
     on("cn-title", "input", e => { n.title = e.target.value; draw(); });
@@ -3164,7 +3168,13 @@ Stiff: Enough. I've decided.`;
     for (const el of box.querySelectorAll(".cn-optdel")) el.addEventListener("click", e => { n.options.splice(+e.target.dataset.i, 1); renderCampForm(); draw(); });
     on("cn-start", "click", () => { campaign.start = n.id; renderCampForm(); draw(); });
     on("cn-del", "click", () => deleteCampNode(n));
-    on("cn-preview", "click", () => openParcours(n, true));
+    on("cn-testhere", "click", () => startCampaign(campaign, n.id));
+    on("cn-preview", "click", () => {
+      const previewing = campChoosing && campChoosing.preview && campChoosing.nodeId === n.id;
+      if (previewing){ campChoosing = null; campHoverNode = null; setupCampCanvas(); }
+      else openParcours(n, true);
+      renderCampForm(); draw();
+    });
   }
 
   // ---- sauvegarde / chargement des campagnes (dépôt) ----------------------
@@ -3217,7 +3227,8 @@ Stiff: Enough. I've decided.`;
     const file = (name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "") || "campagne") + ".json";
     try{
       set("Publication de " + file + "…");
-      await ghPutFile("campaigns/" + file, JSON.stringify(campaign, null, 1), "Campagne : " + name, cfg.branch, cfg);
+      const payload = { name: campaign.name, start: campaign.start, nodes: campaign.nodes };
+      await ghPutFile("campaigns/" + file, JSON.stringify(payload, null, 1), "Campagne : " + name, cfg.branch, cfg);
       const cur = await ghGetFile("campaigns/list.json", cfg.branch, cfg);
       let list = [];
       if (cur){ try{ const p = JSON.parse(cur.text); if (Array.isArray(p)) list = p; }catch(e){} }
@@ -3299,13 +3310,14 @@ Stiff: Enough. I've decided.`;
       else showCampCont("Mission échouée…", "↻ Réessayer", () => runCampNode(campRun.nodeId));
     }
   }
-  function startCampaign(camp){
+  function startCampaign(camp, fromId){
     if (!camp || !camp.nodes || !camp.nodes.length){ alert("Campagne vide."); return; }
+    const startId = (fromId && camp.nodes.some(n => n.id === fromId)) ? fromId : camp.start;
     campaign = camp; campRun = { camp, nodeId:null }; campEnded = false; campChoosing = null;
     resetCarry();                                   // nouvelle campagne : escouade au complet
     if (campMode) leaveCampEditor(); else setupCanvas();
     hideCampCont();
-    runCampNode(camp.start);
+    runCampNode(startId);
   }
   function endCampaign(){
     campRun = null; campEnded = false; campChoosing = null; hideCampCont();
