@@ -23,9 +23,23 @@
   body:not(.editing):not(.campediting) #wrap{padding:0}
   body:not(.editing):not(.campediting) #boardwrap{position:fixed; inset:0; display:flex; justify-content:center}
   body:not(.editing):not(.campediting) #board{border:none; border-radius:0}
-  body:not(.editing):not(.campediting) #gamepanel{position:fixed; right:8px; top:8px; z-index:15;
-    max-height:calc(100vh - 16px); overflow-y:auto; background:rgba(20,16,11,.82);
+  body:not(.editing):not(.campediting) #gamepanel{position:fixed; left:8px; bottom:8px; top:auto; right:auto; z-index:15;
+    width:auto; max-width:300px; padding:8px; background:rgba(20,16,11,.82);
     box-shadow:0 6px 24px rgba(0,0,0,.5); backdrop-filter:blur(2px)}
+  /* boutons d'action en pictos seuls (le détail est dans l'info-bulle) */
+  #actions{display:flex; flex-direction:row; flex-wrap:wrap; gap:5px; margin:0 0 6px}
+  #actions button{position:relative; width:46px; height:42px; padding:0; display:flex;
+    align-items:center; justify-content:center; font-size:1.25rem}
+  #actions .bi{line-height:1}
+  #actions .num{position:absolute; top:2px; left:4px; font-size:.6rem; font-weight:bold; color:#ffd479}
+  #actions .cnt{position:absolute; bottom:1px; right:4px; font-size:.62rem; color:#e0a86a}
+  #gamepanel #endturn{width:100%; text-align:left}
+  #gamepanel .collapse{width:100%; text-align:left; margin-top:6px; background:transparent; border:none;
+    color:var(--accent); cursor:pointer; padding:4px 2px; font-size:.8rem; letter-spacing:.5px}
+  #gamepanel .collapse:hover{color:#ffd479}
+  #logbox.collapsed{display:none}
+  #logbox .fogrow{display:flex; align-items:center; gap:6px; margin-top:6px; font-size:.8rem}
+  #logbox #log{max-height:26vh; overflow-y:auto}
   body:not(.editing):not(.campediting) #roster{position:fixed; left:8px; top:8px; z-index:15; margin:0;
     flex-direction:column; align-items:stretch; gap:8px; padding:8px; max-height:calc(100vh - 16px); overflow-y:auto;
     background:rgba(14,11,7,.62); border-radius:10px; box-shadow:0 6px 24px rgba(0,0,0,.5); backdrop-filter:blur(2px)}
@@ -139,12 +153,7 @@
   .filelbl:hover{background:#4a3826}
   #missionsel,#ed-missions{width:100%; background:#1c150e; color:var(--ink); border:1px solid #5a4530; border-radius:6px; padding:6px}
   #missionjson{background:#1c150e; color:#bdae93; border:1px solid #5a4530; border-radius:6px; margin-top:6px; font-family:monospace; font-size:.68rem; resize:vertical}
-  #actions{display:flex; flex-direction:column; gap:4px; margin:6px 0}
-  #actions button{display:flex; justify-content:space-between; align-items:center; gap:10px; text-align:left}
-  .te{font-weight:bold; color:#caa86a; letter-spacing:-1px}
-  .te.end{color:#e0a060}
   .dmg{color:#e0a86a; font-size:.78em; opacity:.9}
-  #actions .num{color:#ffd479; font-weight:bold}
   #actions .num:not(:empty){margin-right:4px}
   #info,#sel{color:var(--muted); min-height:2.6em}
   code{color:var(--ink)}
@@ -200,25 +209,22 @@
     </div>
 
     <div class="panel" id="gamepanel">
-      <h2>Unité</h2>
-      <div id="turninfo" class="hint" style="margin-bottom:6px"></div>
-      <div id="sel">Clique une unité bleue.</div>
       <div id="actions">
-        <button id="act-shoot" title="Tir à distance sur une cible visible, dans la portée et à découvert. Termine le tour de l'unité (&gt;|)."><span><span class="num"></span>🏹 Tirer <small id="dmg-shoot" class="dmg"></small></span><span class="te end">&gt;|</span></button>
-        <button id="act-melee" title="Attaque au corps à corps une cible adjacente (clique aussi un ennemi proche pour charger). Termine le tour (&gt;|)."><span><span class="num"></span><span id="lbl-melee">⚔️ Épée</span> <small id="dmg-melee" class="dmg"></small></span><span class="te end">&gt;|</span></button>
-        <button id="act-ow-shoot" title="Vigilance — tir : l'unité tient en joue et riposte au premier ennemi qui bouge dans sa ligne de tir. Termine le tour (&gt;|)."><span><span class="num"></span>👁️ Vigilance — tir <small id="dmg-ows" class="dmg"></small></span><span class="te end">&gt;|</span></button>
-        <button id="act-ow-melee" title="Vigilance — épée/dagues : l'unité riposte à un ennemi qui s'approche au contact. Termine le tour (&gt;|)."><span><span class="num"></span><span id="lbl-owm">👁️ Vigilance — épée</span> <small id="dmg-owm" class="dmg"></small></span><span class="te end">&gt;|</span></button>
-        <button id="act-reload" title="Recharge l'arme à distance (1 PA, ne termine pas forcément le tour)."><span><span class="num"></span>🔄 Recharger</span><span class="te">&gt;</span></button>
-        <button id="act-brace" title="En garde : +défense jusqu'au début de ton prochain tour (1 PA)."><span><span class="num"></span>🛡️ Brace</span><span class="te">&gt;</span></button>
-        <button id="act-cracker" title="Lance un cracker explosif sur une zone (dégâts en aire, ignore les couverts). Termine le tour (&gt;|)."><span><span class="num"></span>💣 Cracker <small id="dmg-cracker" class="dmg"></small></span><span class="te end">&gt;|</span></button>
-        <button id="act-item" title="Utilise un objet de l'inventaire (1 PA) : choisis ensuite l'allié à soigner."><span><span class="num"></span>🧪 Objet <small id="cnt-item" class="dmg"></small></span><span class="te">&gt;</span></button>
+        <button id="act-shoot" title="🏹 Tirer — tir à distance sur une cible visible, à portée et à découvert. Termine le tour."><span class="num"></span><span class="bi">🏹</span></button>
+        <button id="act-melee" title="⚔️ Épée/dagues — attaque au corps à corps (clique un ennemi proche pour charger). Termine le tour."><span class="num"></span><span class="bi" id="ico-melee">⚔️</span></button>
+        <button id="act-ow-shoot" title="👁 Vigilance — tir : riposte au premier ennemi qui bouge dans la ligne de tir. Termine le tour."><span class="num"></span><span class="bi">👁🏹</span></button>
+        <button id="act-ow-melee" title="👁 Vigilance — épée/dagues : riposte à un ennemi qui s'approche au contact. Termine le tour."><span class="num"></span><span class="bi" id="ico-owm">👁⚔️</span></button>
+        <button id="act-reload" title="🔄 Recharger l'arme à distance (1 PA)."><span class="num"></span><span class="bi">🔄</span></button>
+        <button id="act-brace" title="🛡️ Brace — +défense jusqu'à ton prochain tour (1 PA)."><span class="num"></span><span class="bi">🛡️</span></button>
+        <button id="act-cracker" title="💣 Cracker — explosif en aire, ignore les couverts. Termine le tour."><span class="num"></span><span class="bi">💣</span></button>
+        <button id="act-item" title="🧪 Objet — utilise un objet (1 PA) : choisis l'allié à soigner."><span class="num"></span><span class="bi">🧪</span><small id="cnt-item" class="cnt"></small></button>
       </div>
-      <div class="row"><button id="endturn"><span class="num">0 -</span> Fin de tour ▶ (phase ennemie)</button></div>
-
-      <h2 style="margin-top:14px">Journal</h2>
-      <div id="log" class="hint"></div>
-
-      <div class="row" style="margin-top:14px"><label><input type="checkbox" id="togglefog" checked> Brouillard de guerre</label></div>
+      <div class="row"><button id="endturn"><span class="num">0 ·</span> Fin de tour ▶</button></div>
+      <button id="logtoggle" class="collapse">▸ Journal &amp; brouillard</button>
+      <div id="logbox" class="collapsed">
+        <div id="log" class="hint"></div>
+        <label class="fogrow"><input type="checkbox" id="togglefog" checked> Brouillard de guerre</label>
+      </div>
     </div>
 
     <!-- Panneau de l'éditeur (affiché en mode édition) -->
@@ -2508,37 +2514,6 @@
   }
 
   function updateSel(){
-    const el = document.getElementById("sel");
-    let html = "";
-    if (!selected){ html = "Clique une unité bleue."; }
-    else {
-      html = `<code>${selected.name}</code> — PV <code>${Math.max(0,selected.hp)}/${selected.maxHp}</code>`
-        + `<br>PA <code>${selected.ap}/${AP_MAX}</code> · mouvement libre <code>${freeOf(selected)}</code>`
-        + (selected.clip !== undefined && selected.ammo <= 0 ? `<br><span style="color:#e0a85f">arme vide — recharger</span>` : ``)
-        + (selected.bracing ? `<br><span style="color:#8fd3ff">En garde (+${DEF_BRACE} défense).</span>` : ``)
-        + (selected.overwatch ? `<br><span style="color:#7fe0d0">En vigilance.</span>`
-           : selected.ap <= 0 ? `<br><span style="color:#c98f3c">Plus de PA ce tour.</span>` : ``)
-        + (invTotal() ? `<br>Inventaire : ${Object.keys(inventory).filter(id=>inventory[id]>0).map(id=>`${ITEMS[id].icon} ${ITEMS[id].name} ×${inventory[id]}`).join(" · ")}` : ``)
-        + `<br><span style="color:#7a6c58;font-size:.9em">Survole une unité pour sa fiche.</span>`;
-      if (usingItem){
-        html += `<br><b style="color:#9adf9a">🧪 Choisis un allié à soigner</b><br><span style="color:#9a8a74">clique un allié · Échap annule</span>`;
-      } else if (targeting){
-        if (targeting.targets.length){
-          const tgt = targeting.targets[targeting.idx];
-          const plan = attackPlan(tgt);
-          const lbl = plan && plan.kind === "charge" ? "charge" : `${hitBreakdown(selected, tgt).chance}%`;
-          html += `<br><b style="color:#ffd479">▶ Vise ${tgt.name} — ${lbl}</b>`
-                + `<br><span style="color:#9a8a74">${targeting.idx+1}/${targeting.targets.length} · clique un ennemi · Tab change · Entrée valide · Échap annule</span>`;
-        } else {
-          html += `<br><span style="color:#e0a85f">Aucune cible atteignable. Échap pour annuler.</span>`;
-        }
-      }
-    }
-    el.innerHTML = html;
-    document.getElementById("turninfo").textContent =
-      gameOver === "win" ? "Victoire ! (Régénérer pour rejouer)"
-      : gameOver === "lose" ? "Défaite… (Régénérer pour rejouer)"
-      : `Tour ${turn} — phase joueur`;
     refreshButtons();
   }
 
@@ -2567,27 +2542,20 @@
     if (item){ show(item, ready && invTotal() > 0); const ci = document.getElementById("cnt-item"); if (ci) ci.textContent = invCount("potion") ? "×" + invCount("potion") : ""; item.classList.toggle("armed", !!usingItem); }
     // libellé de mêlée selon l'arme (épée vs dagues)
     const isDagger = !!(w && w.melee && w.melee.flank);
-    const lm = document.getElementById("lbl-melee");
-    const lo = document.getElementById("lbl-owm");
-    if (lm) lm.textContent = isDagger ? "🗡️ Dagues" : "⚔️ Épée";
-    if (lo) lo.textContent = isDagger ? "👁️ Vigilance — dagues" : "👁️ Vigilance — épée";
-    // dégâts de chaque attaque, lus sur l'arme correspondante
-    const dmg = (id, wp, bonus) => { const el = document.getElementById(id); if (el) el.textContent = wp ? `${wp.dmgMin + (bonus||0)}–${wp.dmgMax + (bonus||0)}` : ""; };
-    // si on vise une cible en mêlée, on montre les dégâts incluant le bonus de flanc (dos/flanc)
-    const aimTgt = (targeting && selected.mode === "melee" && targeting.targets && targeting.targets.length) ? targeting.targets[targeting.idx] : null;
-    const meleeFlank = (isDagger && aimTgt) ? flankBonus(selected, aimTgt) : 0;
-    if (w){ dmg("dmg-shoot", w.ranged); dmg("dmg-melee", w.melee, meleeFlank); dmg("dmg-ows", w.ranged); dmg("dmg-owm", w.melee); dmg("dmg-cracker", w.cracker); }
+    const im = document.getElementById("ico-melee"); if (im) im.textContent = isDagger ? "🗡️" : "⚔️";
+    const io = document.getElementById("ico-owm");   if (io) io.textContent = isDagger ? "👁🗡️" : "👁⚔️";
     const armedMode = targeting ? selected.mode : null;
     shoot.classList.toggle("armed", armedMode === "ranged");
     melee.classList.toggle("armed", armedMode === "melee");
     cracker.classList.toggle("armed", !!throwing);
+    item.classList.toggle("armed", !!usingItem);
     // numéros clavier : 1,2,3… sur les actions disponibles, dans l'ordre
     actionKeyMap = {};
     let n = 0;
     for (const b of [shoot, melee, owS, owM, reload, brace, cracker, item]){
       if (!b) continue;
       const numEl = b.querySelector && b.querySelector(".num");
-      if (b.style.display !== "none"){ n++; actionKeyMap[n] = b; if (numEl) numEl.textContent = n + " -"; }
+      if (b.style.display !== "none"){ n++; actionKeyMap[n] = b; if (numEl) numEl.textContent = n; }
       else if (numEl) numEl.textContent = "";
     }
   }
@@ -2972,6 +2940,12 @@
   { const rg = document.getElementById("regen"); if (rg) rg.addEventListener("click", () => { if (busy()) return; generate(); placeUnits(); selectUnit(units.find(u => u.team === "player")); renderLog(); }); }
   { const fg = document.getElementById("togglefog"); if (fg) fg.addEventListener("change", () => { opts.fog = fg.checked; refreshAll(); }); }
   document.getElementById("endturn").addEventListener("click", () => { if (!busy()) endPlayerTurn(); });
+  { const lt = document.getElementById("logtoggle"), lb = document.getElementById("logbox");
+    if (lt && lb) lt.addEventListener("click", () => {
+      const open = lb.classList.toggle("collapsed") === false;   // toggle renvoie l'état présent
+      lt.textContent = (open ? "▾" : "▸") + " Journal & brouillard";
+    });
+  }
   document.getElementById("act-shoot").addEventListener("click", () => enterTargeting("ranged"));
   document.getElementById("act-melee").addEventListener("click", () => enterTargeting("melee"));
   document.getElementById("act-ow-shoot").addEventListener("click", () => doOverwatch("ranged"));
