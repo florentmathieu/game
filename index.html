@@ -32,13 +32,14 @@
   #logpanel{display:none}
   body:not(.editing):not(.campediting) #logpanel{display:block}
   /* boutons d'action en pictos seuls (le détail est dans l'info-bulle) */
-  #actions{display:flex; flex-direction:column; gap:6px; margin:0 0 6px}
-  #actions button{position:relative; width:60px; height:58px; padding:0; display:flex;
-    align-items:center; justify-content:center; font-size:1.7rem}
+  #actions{display:flex; flex-direction:column; gap:6px; margin:0}
+  #actions button{position:relative; width:66px; height:62px; padding:0; display:flex;
+    align-items:center; justify-content:center; font-size:1.95rem}
   #actions .bi{line-height:1}
-  #actions .num{position:absolute; top:3px; left:6px; font-size:.72rem; font-weight:bold; color:#ffd479}
-  #actions .cnt{position:absolute; bottom:2px; right:6px; font-size:.72rem; color:#e0a86a}
-  #gamepanel #endturn{width:100%; text-align:left}
+  #actions .num{position:absolute; top:3px; left:6px; font-size:.74rem; font-weight:bold; color:#ffd479}
+  #actions .cnt{position:absolute; bottom:2px; right:6px; font-size:.74rem; color:#e0a86a}
+  #actions button.endturn{margin-top:4px; border-color:#7a5a30}
+  #actions button.endturn:hover{background:#4a3416}
   #gamepanel .collapse{width:100%; text-align:left; margin-top:6px; background:transparent; border:none;
     color:var(--accent); cursor:pointer; padding:4px 2px; font-size:.8rem; letter-spacing:.5px}
   #gamepanel .collapse:hover{color:#ffd479}
@@ -223,8 +224,8 @@
         <button id="act-brace" title="🛡️ Brace — +défense jusqu'à ton prochain tour (1 PA)."><span class="num"></span><span class="bi">🛡️</span></button>
         <button id="act-cracker" title="💣 Cracker — explosif en aire, ignore les couverts. Termine le tour."><span class="num"></span><span class="bi">💣</span></button>
         <button id="act-item" title="🧪 Objet — utilise un objet (1 PA) : choisis l'allié à soigner."><span class="num"></span><span class="bi">🧪</span><small id="cnt-item" class="cnt"></small></button>
+        <button id="endturn" class="endturn" title="Fin de tour (touche 0) — passe la main aux ennemis"><span class="num">0</span><span class="bi">🙅</span></button>
       </div>
-      <div class="row"><button id="endturn"><span class="num">0 ·</span> Fin de tour ▶</button></div>
     </div>
     <div class="panel" id="logpanel">
       <button id="logtoggle" class="collapse">▸ Journal</button>
