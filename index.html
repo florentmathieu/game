@@ -109,6 +109,14 @@
   .pan-left{left:8px; top:50%; transform:translateY(-50%)}
   .pan-right{right:8px; top:50%; transform:translateY(-50%)}
   body.editing #panpad,body.campediting #panpad{display:none}
+  #turnbanner{position:absolute; left:50%; top:42%; transform:translate(-50%,-50%) scale(.92);
+    z-index:38; pointer-events:none; opacity:0; transition:opacity .2s ease, transform .2s ease;
+    background:rgba(10,8,5,.9); border:1px solid #5a4530; border-radius:10px; padding:14px 32px;
+    color:#e8ddc8; font-family:Georgia,"Times New Roman",serif; font-size:1.5rem; letter-spacing:2px;
+    box-shadow:0 8px 30px rgba(0,0,0,.6); white-space:nowrap}
+  #turnbanner.show{opacity:1; transform:translate(-50%,-50%) scale(1)}
+  #turnbanner.enemy{color:#ff8b86; border-color:#7a3530}
+  #turnbanner.player{color:#9adf9a; border-color:#3a6a40}
   .erow{display:flex; align-items:center; gap:6px; margin:6px 0; flex-wrap:wrap}
   .erow input[type=text]{flex:1}
   .erow input[type=number]{width:54px}
@@ -171,6 +179,7 @@
         <button data-dir="left" class="pan-left" title="gauche">◀</button>
         <button data-dir="right" class="pan-right" title="droite">▶</button>
       </div>
+      <div id="turnbanner"></div>
     </div>
 
     <div class="panel" id="gamepanel">
@@ -1461,6 +1470,7 @@
     enemyPhase = true;
     selected = null; reach = null; targeting = null; throwing = false;
     pushLog(`— Tour ${turn} : phase ennemie —`, "enemy");
+    showTurnBanner("Tour de l'ennemi", "enemy");
     refreshAll();
     for (const e of units.filter(u => u.team === "enemy")){
       if (gameOver) break;
@@ -1478,6 +1488,7 @@
     recomputeVision();
     emit("turn", { turn });
     selectUnit(units.find(u => u.team === "player" && u.hp > 0) || null);  // présélection au nouveau tour
+    showTurnBanner("À votre tour", "player");
   }
 
   // ---- Rendu --------------------------------------------------------------
@@ -2477,7 +2488,7 @@
     try{ const r = await fetch(url + "?_=" + Date.now(), { cache:"no-store" }); if (r.ok) return await r.json(); }catch(e){}
     return null;
   }
-  function startMission(m){
+  function startMission(m, deferBanner){
     leaveEditor();
     if (introEl) introEl.style.display = "none";
     if (skipBtn) skipBtn.style.display = "none";
@@ -2486,6 +2497,7 @@
     editorName = m.name || editorName;
     applyMission(m);
     selectUnit(units.find(u => u.team === "player" && u.hp > 0)); renderLog(); refreshAll();
+    if (!deferBanner) showTurnBanner("À votre tour", "player");
   }
 
   // ---- branchements de l'éditeur ------------------------------------------
@@ -2714,6 +2726,17 @@
     if (el && el.classList) el.classList.toggle("show", open);
   }
   { const b = document.getElementById("pause-close"); if (b) b.addEventListener("click", () => setPauseMenu(false)); }
+
+  // bandeau central « À votre tour » / « Tour de l'ennemi » ~1 s au début d'un tour
+  let turnBannerTimer = null;
+  function showTurnBanner(text, side){
+    const el = document.getElementById("turnbanner"); if (!el || !el.classList) return;
+    el.textContent = text;
+    el.classList.remove("enemy", "player"); if (side) el.classList.add(side);
+    el.classList.add("show");
+    if (turnBannerTimer && typeof clearTimeout === "function") clearTimeout(turnBannerTimer);
+    turnBannerTimer = setTimeout(() => el.classList.remove("show"), 1000);
+  }
 
   if (typeof window !== "undefined" && window.addEventListener)
     window.addEventListener("keydown", (e) => {
@@ -3420,7 +3443,7 @@ Stiff: Enough. I've decided.`;
     campRun.nodeId = n.id; campEnded = false;
     const m = await loadMissionFromUrl(n.mission && n.mission.includes("/") ? n.mission : "missions/" + n.mission);
     if (!m){ alert("Mission introuvable : " + n.mission); endCampaign(false); return; }
-    startMission(m);
+    startMission(m, !!n.intro);                    // banderole « À votre tour » différée s'il y a une intro
     if (n.intro){                                  // texte joué sous la carte avant de rendre la main
       introActive = true; skipReq = false;
       if (panelEl) panelEl.style.display = "none";
@@ -3428,6 +3451,7 @@ Stiff: Enough. I've decided.`;
       introActive = false;
       if (panelEl) panelEl.style.display = "";
       selectUnit(units.find(u => u.team === "player" && u.hp > 0)); refreshAll();
+      showTurnBanner("À votre tour", "player");
     }
   }
   function campMissionEnd(result){
