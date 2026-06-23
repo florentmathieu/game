@@ -178,7 +178,7 @@
           <li><b>Échap</b> — annule l'action en cours, ou ouvre/ferme ce menu</li>
           <li>Clique une <b>case</b> surlignée pour t'y déplacer</li>
           <li>Re-clique ton <b>perso sélectionné</b> pour le faire pivoter</li>
-          <li>Touches <b>1</b>…<b>9</b> — déclenchent les actions de l'unité</li>
+          <li>Touches <b>1</b>…<b>9</b> — actions de l'unité · <b>0</b> — fin de tour</li>
         </ul>
         <button id="pause-close">Reprendre ▶</button>
       </div>
@@ -205,7 +205,7 @@
         <button id="act-brace" title="En garde : +défense jusqu'au début de ton prochain tour (1 PA)."><span><span class="num"></span>🛡️ Brace</span><span class="te">&gt;</span></button>
         <button id="act-cracker" title="Lance un cracker explosif sur une zone (dégâts en aire, ignore les couverts). Termine le tour (&gt;|)."><span><span class="num"></span>💣 Cracker <small id="dmg-cracker" class="dmg"></small></span><span class="te end">&gt;|</span></button>
       </div>
-      <div class="row"><button id="endturn">Fin de tour ▶ (phase ennemie)</button></div>
+      <div class="row"><button id="endturn"><span class="num">0 -</span> Fin de tour ▶ (phase ennemie)</button></div>
 
       <h2 style="margin-top:14px">Journal</h2>
       <div id="log" class="hint"></div>
@@ -2788,6 +2788,12 @@
     turnBannerTimer = setTimeout(() => el.classList.remove("show"), 1000);
   }
 
+  // chiffre d'une touche, par position physique (Digit/Numpad) : marche sur AZERTY sans Maj
+  function eventDigit(e){
+    if (e.code && /^(Digit|Numpad)[0-9]$/.test(e.code)) return +e.code.slice(-1);
+    if (/^[0-9]$/.test(e.key)) return +e.key;            // repli (claviers exotiques)
+    return null;
+  }
   if (typeof window !== "undefined" && window.addEventListener)
     window.addEventListener("keydown", (e) => {
       if (e.key === "Tab"){ e.preventDefault(); if (busy()) return; targeting ? cycleTarget(e.shiftKey ? -1 : 1) : cycleUnit(e.shiftKey ? -1 : 1); }
@@ -2798,10 +2804,11 @@
         else if (e.key === "ArrowUp") panBy(0, s); else if (e.key === "ArrowDown") panBy(0, -s);
       }
       else if (e.key === "Enter"){ if (targeting) confirmTarget(); }
-      else if (e.key >= "1" && e.key <= "9"){            // raccourcis des actions (1, 2, 3…)
+      else if (eventDigit(e) !== null){                  // raccourcis : 1…9 = actions, 0 = fin de tour
         if (editMode || campMode || campChoosing || introActive || pauseOpen || gameOver) return;
-        const b = actionKeyMap[+e.key];
-        if (b && b.style.display !== "none" && !b.disabled){ e.preventDefault(); b.click(); }
+        const d = eventDigit(e);
+        if (d === 0){ const eb = document.getElementById("endturn"); if (eb && !busy()){ e.preventDefault(); eb.click(); } }
+        else { const b = actionKeyMap[d]; if (b && b.style.display !== "none" && !b.disabled){ e.preventDefault(); b.click(); } }
       }
       else if (e.key === "Escape"){
         if (pauseOpen){ setPauseMenu(false); }
