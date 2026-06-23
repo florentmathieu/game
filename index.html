@@ -21,7 +21,7 @@
   #boardwrap{position:relative; align-self:flex-start}
   /* EN JEU : plateau plein écran ; colonne à droite et persos à gauche en surimpression */
   body:not(.editing):not(.campediting) #wrap{padding:0}
-  body:not(.editing):not(.campediting) #boardwrap{position:fixed; inset:0}
+  body:not(.editing):not(.campediting) #boardwrap{position:fixed; inset:0; display:flex; justify-content:center}
   body:not(.editing):not(.campediting) #board{border:none; border-radius:0}
   body:not(.editing):not(.campediting) #gamepanel{position:fixed; right:8px; top:8px; z-index:15;
     max-height:calc(100vh - 16px); overflow-y:auto; background:rgba(20,16,11,.82);
@@ -1601,11 +1601,12 @@
     if (editMode){                                       // éditeur : on laisse la place aux colonnes d'édition
       let top = 80; try{ const r = canvas.getBoundingClientRect(); if (r && r.top > 0) top = r.top; }catch(e){}
       availW = Math.max(360, winW - 580); availH = Math.max(320, winH - top - 28); fullscreen = false;
-    } else {                                             // en jeu : plein écran navigateur
-      availW = winW; availH = winH; fullscreen = true;
+    } else {                                             // en jeu : plein écran, mais largeur plafonnée
+      // on réserve des gouttières latérales pour les colonnes en surimpression (persos / unité)
+      availW = Math.min(1080, Math.max(420, winW - 480)); availH = winH; fullscreen = true;
     }
     baseScale = Math.min(availW / mw, availH / mh);      // ajuste la carte (agrandit un petit plateau)
-    boardCssW = fullscreen ? winW : Math.round(mw * baseScale);
+    boardCssW = fullscreen ? availW : Math.round(mw * baseScale);
     boardCssH = fullscreen ? winH : Math.round(mh * baseScale);
     const dpr = window.devicePixelRatio || 1;
     canvas.style.width = boardCssW + "px"; canvas.style.height = boardCssH + "px";
