@@ -16,7 +16,10 @@
   }
   h1{font-size:1.2rem; margin:14px 0 2px; color:var(--accent); letter-spacing:1px}
   .sub{color:var(--muted); font-size:.78rem; margin-bottom:10px}
-  #wrap{display:flex; gap:16px; flex-wrap:wrap; justify-content:center; padding:0 12px 24px}
+  #wrap{position:relative; display:flex; gap:16px; flex-wrap:wrap; justify-content:center; padding:0 12px 24px}
+  /* en jeu : la colonne flotte à droite, le plateau est centré dans l'espace restant */
+  #gamepanel{position:absolute; right:12px; top:0}
+  body:not(.editing):not(.campediting) #wrap{padding-right:280px}
   #board{background:#0e0b07; border:1px solid #3a2c1c; border-radius:8px; touch-action:none; display:block}
   #boardwrap{position:relative; align-self:flex-start}
   #scene{position:absolute; left:10px; right:10px; bottom:10px; display:none; z-index:5;
@@ -163,7 +166,7 @@
       </div>
     </div>
 
-    <div class="panel">
+    <div class="panel" id="gamepanel">
       <h2>Unité</h2>
       <div id="turninfo" class="hint" style="margin-bottom:6px"></div>
       <div id="sel">Clique une unité bleue.</div>
@@ -182,9 +185,6 @@
       <div id="log" class="hint"></div>
 
       <div class="row" style="margin-top:14px"><label><input type="checkbox" id="togglefog" checked> Brouillard de guerre</label></div>
-
-      <h2 style="margin-top:14px">Survol</h2>
-      <div id="info">Passe la souris sur la carte.</div>
     </div>
 
     <!-- Panneau de l'éditeur (affiché en mode édition) -->
@@ -1482,7 +1482,7 @@
     // fenêtre de jeu = ce qui tient à l'écran (place pour la colonne de droite + marges)
     let top = 80;                                        // hauteur réservée au-dessus (roster…)
     try{ const r = canvas.getBoundingClientRect(); if (r && r.top > 0) top = r.top; }catch(e){}
-    const availW = Math.max(360, (window.innerWidth || 1200) - 380);
+    const availW = Math.max(360, (window.innerWidth || 1200) - 300);        // place pour la colonne de droite
     const availH = Math.max(320, (window.innerHeight || 800) - top - 28);   // garde une marge en bas
     baseScale = Math.min(availW / mw, availH / mh);     // ajuste la carte à la fenêtre (peut agrandir un petit plateau)
     boardCssW = Math.round(mw * baseScale);
@@ -2014,6 +2014,7 @@
     const { mx, my } = evtPos(e);
     hover = pickTile(mx, my);
     const info = document.getElementById("info");
+    if (!info){ draw(); return; }                 // section « Survol » retirée : on garde juste le survol visuel
     if (hover){
       if (!isExplored(hover.col, hover.row)){
         info.innerHTML = `Tuile <code>(${hover.col}, ${hover.row})</code><br><span style="color:#7a6c58">Zone inexplorée</span>`;
@@ -2657,7 +2658,7 @@
 
   canvas.addEventListener("mousemove", onMove);
   canvas.addEventListener("mouseleave", () => { if (editMode) return; hover = null; draw();
-    document.getElementById("info").textContent = "Passe la souris sur la carte."; });
+    const info = document.getElementById("info"); if (info) info.textContent = "Passe la souris sur la carte."; });
   canvas.addEventListener("click", onClick);
   canvas.addEventListener("touchstart", (e) => { if (editMode) return; e.preventDefault(); onMove(e); onClick(e); }, { passive:false });
   // molette : zoom centré sur la souris (hors éditeur de campagne)
