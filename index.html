@@ -245,7 +245,7 @@
     <div class="panel" id="editor">
       <h2>Mission</h2>
       <div class="erow"><button id="ed-play">💾 Enregistrer &amp; tester</button> <button id="ed-quit">Quitter</button></div>
-      <div class="erow"><select id="ed-missions" style="flex:1"></select> <button id="ed-loadmission" style="flex:0 0 auto;width:auto">Charger</button></div>
+      <div class="erow"><select id="ed-missions" style="flex:1"></select> <button id="ed-loadmission" style="flex:0 0 auto;width:auto">Charger</button> <button id="ed-delmission" title="Supprimer du dépôt la mission sélectionnée" style="flex:0 0 auto;width:auto">🗑</button></div>
 
       <h2 style="margin-top:12px">Éditeur de mission</h2>
       <div class="erow"><label>Nom <input id="ed-name" type="text" placeholder="nom de la mission…"></label></div>
@@ -2912,6 +2912,7 @@
     if (ci) ci.value = COLS; if (ri) ri.value = ROWS; if (ni) ni.value = editorName;
     syncFullHeal(); updateExport(); draw(); refreshTrigEditor();
   });
+  onEd("ed-delmission", () => deleteMissionFromRepo());
   // ---- éditeur d'évènements (triggers) ------------------------------------
   const tval = (id) => { const e = document.getElementById(id); return e ? String(e.value).trim() : ""; };
   const tchk = (id) => { const e = document.getElementById(id); return e ? e.checked : false; };
@@ -3310,11 +3311,14 @@ Stiff: Enough. I've decided.`;
 
   // menu « Missions » du jeu : missions du dépôt (missions/list.json)
   let repoMissions = [];
+  const sortMissions = () => repoMissions.sort((a, b) =>
+    (a.name || a.file).localeCompare(b.name || b.file, "fr", { sensitivity:"base", numeric:true }));
   async function fetchRepoMissions(){
     try{
       const t = await repoFetchText("missions/list.json");
-      if (t){ const l = JSON.parse(t); if (Array.isArray(l))
-        repoMissions = l.map(x => typeof x === "string" ? { file:x, name:x.split("/").pop().replace(/\.json$/,"") } : x); }
+      if (t){ const l = JSON.parse(t); if (Array.isArray(l)){
+        repoMissions = l.map(x => typeof x === "string" ? { file:x, name:x.split("/").pop().replace(/\.json$/,"") } : x);
+        sortMissions(); } }
     }catch(e){}
   }
   function refreshMissionMenu(){
@@ -3361,6 +3365,43 @@ Stiff: Enough. I've decided.`;
       throw new Error(`${r.status} ${(await r.text()).slice(0,160)}`);
     }
   }
+  async function ghDeleteFile(path, message, branch, cfg){
+    const c = cfg || ghCfg(); const { repo, token } = c;
+    const prev = await ghGetFile(path, branch, c);
+    if (!prev) return false;                       // déjà absent
+    const r = await fetch(`https://api.github.com/repos/${repo}/contents/${path}`,
+      { method:"DELETE", headers:{ Authorization:"Bearer "+token, Accept:"application/vnd.github+json" },
+        body:JSON.stringify({ message, sha:prev.sha, branch }) });
+    if (r.ok) return true;
+    throw new Error(`${r.status} ${(await r.text()).slice(0,160)}`);
+  }
+  // supprime du dépôt la mission sélectionnée (fichier + entrée de list.json)
+  async function deleteMissionFromRepo(){
+    const status = document.getElementById("gh-status"); const set = (m) => { if (status) status.textContent = m; };
+    const { repo, token, branch } = ghCfg();
+    if (!token || !repo || !branch){ set("Renseigne token / dépôt / branche pour supprimer."); return; }
+    const esel = document.getElementById("ed-missions");
+    const file = esel && esel.value;
+    if (!file){ set("Choisis d'abord une mission dans la liste."); return; }
+    const it = repoMissions.find(m => m.file === file);
+    const label = it ? it.name : file;
+    if (!confirm(`Supprimer définitivement la mission « ${label} » (${file}) du dépôt ?`)) return;
+    try{
+      try{ localStorage.setItem("mgf_gh", JSON.stringify({ repo, branch })); localStorage.setItem("mgf_gh_token", token); }catch(e){}
+      set("Suppression de " + file + "…");
+      await ghDeleteFile("missions/" + file, "Suppression mission : " + label, branch);
+      set("Mise à jour de list.json…");
+      const cur = await ghGetFile("missions/list.json", branch);
+      let list = [];
+      if (cur){ try{ const p = JSON.parse(cur.text); if (Array.isArray(p)) list = p; }catch(e){} }
+      list = list.map(x => typeof x === "string" ? { file:x.split("/").pop(), name:x.split("/").pop().replace(/\.json$/, "") } : x)
+                 .filter(x => x.file !== file);
+      await ghPutFile("missions/list.json", JSON.stringify(list, null, 1), "list.json : − " + label, branch);
+      repoMissions = repoMissions.filter(m => m.file !== file);
+      refreshMissionMenu();
+      set("✓ Supprimé : " + label + " (" + file + ").");
+    }catch(e){ set("Échec : " + e.message); }
+  }
   async function publishToRepo(){
     const status = document.getElementById("gh-status"); const set = (m) => { if (status) status.textContent = m; };
     const { repo, token, branch } = ghCfg();
@@ -3394,6 +3435,7 @@ Stiff: Enough. I've decided.`;
       await ghPutFile("missions/list.json", JSON.stringify(list, null, 1), "list.json : " + name, branch);
       const ix = repoMissions.findIndex(it => it.file === file);
       if (ix >= 0) repoMissions[ix] = entry; else repoMissions.push(entry);
+      sortMissions();
       refreshMissionMenu();
       set("✓ Publié : " + name + " (" + file + "). Jouable tout de suite (lecture via l'API GitHub, sans attendre le build Pages).");
       return true;
