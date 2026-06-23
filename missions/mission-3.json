@@ -1145,21 +1145,8 @@
    "team": "enemy",
    "col": 15,
    "row": 11,
-   "pod": 0
-  },
-  {
-   "cls": "garde",
-   "team": "enemy",
-   "col": 15,
-   "row": 10,
-   "pod": 0
-  },
-  {
-   "cls": "garde",
-   "team": "enemy",
-   "col": 14,
-   "row": 11,
-   "pod": 0
+   "pod": 0,
+   "facing": 3.141592653589793
   },
   {
    "cls": "sergent",
@@ -1209,6 +1196,21 @@
    "col": 11,
    "row": 17,
    "pod": 1,
+   "facing": 2.0943951023931953
+  },
+  {
+   "cls": "archer",
+   "team": "enemy",
+   "col": 12,
+   "row": 10,
+   "pod": 0
+  },
+  {
+   "cls": "garde",
+   "team": "enemy",
+   "col": 13,
+   "row": 11,
+   "pod": 0,
    "facing": 2.0943951023931953
   }
  ],
