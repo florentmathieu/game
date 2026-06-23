@@ -2239,6 +2239,34 @@
     u.hasFacing = true;
     recomputeVision(); refreshAll();
   }
+  // charge en mêlée : rejoint une case adjacente à l'ennemi (si atteignable, en gardant un PA) puis frappe
+  function tryChargeMelee(mover, enemy){
+    if (!mover || !mover.weapons.melee || !reach || enemy.hp <= 0) return false;
+    if (!playerCanSee(enemy)) return false;
+    let best = null, bestCost = Infinity;
+    for (const [dc, dr] of NEI[enemy.row & 1]){
+      const c = enemy.col + dc, r = enemy.row + dr;
+      if (c < 0 || c >= COLS || r < 0 || r >= ROWS) continue;
+      if (c === mover.col && r === mover.row) continue;          // déjà adjacent → géré par l'attaque directe
+      const d = reach.dist[key(c, r)];
+      if (d === undefined) continue;                              // case non atteignable ce tour
+      if (apForMove(mover, d) >= mover.ap) continue;              // il faut garder un PA pour frapper
+      if (d < bestCost){ bestCost = d; best = [c, r]; }
+    }
+    if (!best) return false;
+    setMode(mover, "melee");
+    const path = buildPath(reach.prev, best[0], best[1]);
+    spendMove(mover, reach.dist[key(best[0], best[1])]);
+    const stop = executeMove(mover, path);
+    if (mover.hp <= 0){ refreshAll(); afterPlayerAction(); return true; }
+    reach = computeReach(mover);
+    refreshAll();
+    animateMove(mover, path.slice(0, stop + 1), () => {
+      if (canAttack(mover, enemy)) doAttack(mover, enemy);        // frappe à l'arrivée si toujours possible
+      refreshAll(); afterPlayerAction();
+    });
+    return true;
+  }
   function onClick(e){
     if (editMode || campMode || gameOver || busy()) return;
     const { mx, my } = evtPos(e);
@@ -2266,6 +2294,11 @@
     }
     // clic sur un ennemi attaquable -> attaque directe (arme active)
     if (selected && u && canAttack(selected, u)){ doAttack(selected, u); refreshAll(); afterPlayerAction(); return; }
+    // clic sur un ennemi proche, hors de portée immédiate -> charge en mêlée (rejoint + frappe)
+    if (selected && u && u.team !== selected.team && u.hp > 0){
+      tryChargeMelee(selected, u);                 // charge si atteignable ; sinon on ne désélectionne pas
+      return;
+    }
     // clic sur une case atteignable -> déplacement (résolu, puis animé)
     if (selected && reach && reach.dist[key(t.col, t.row)] !== undefined){
       const mover = selected;
