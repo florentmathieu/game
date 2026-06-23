@@ -2329,7 +2329,7 @@
       const tag = u.hp <= 0 ? "tombé" : u.overwatch ? "vigilance" : u.bracing ? "en garde" : `PA ${u.ap}/${AP_MAX}`;
       return `<div class="${cls}" data-i="${i}">`
         + `<div class="nm"><span>${u.name}</span><span>${Math.max(0,u.hp)}/${u.maxHp}</span></div>`
-        + `<div class="role">${u.role || ""} · ${u.weapons.ranged ? "arbalète" : (u.weapons.melee && u.weapons.melee.flank) ? "dagues" : "épée"}${u.shieldBlock ? " + bouclier" : u.parry ? " + parade" : ""}</div>`
+        + `<div class="role">${u.role || ""}</div>`
         + `<div class="hpbar"><div class="hpfill" style="width:${100*Math.max(0,u.hp)/u.maxHp}%"></div></div>`
         + `<div class="tags">${tag}</div></div>`;
     }).join("");
