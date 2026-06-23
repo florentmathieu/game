@@ -181,12 +181,7 @@
       <h2 style="margin-top:14px">Journal</h2>
       <div id="log" class="hint"></div>
 
-      <h2 style="margin-top:14px">Carte</h2>
-      <div class="row"><button id="regen">Régénérer la carte</button></div>
-      <div class="row"><label><input type="checkbox" id="togglefog" checked> Brouillard de guerre</label></div>
-      <div class="row" id="missionrow" style="display:none"><select id="missionsel" style="flex:1"></select> <button id="loadsel" style="width:auto;flex:0 0 auto">Charger</button></div>
-      <div class="row" id="camprow" style="display:none"><select id="campsel" style="flex:1"></select> <button id="campplay" style="width:auto;flex:0 0 auto">▶ Jouer</button></div>
-      <div class="row"><button id="opencamp">🎬 Éditeur de campagne</button></div>
+      <div class="row" style="margin-top:14px"><label><input type="checkbox" id="togglefog" checked> Brouillard de guerre</label></div>
 
       <h2 style="margin-top:14px">Survol</h2>
       <div id="info">Passe la souris sur la carte.</div>
@@ -1506,12 +1501,14 @@
     panX = cw <= boardCssW ? (boardCssW - cw) / 2 : Math.min(0, Math.max(boardCssW - cw, panX));
     panY = ch <= boardCssH ? (boardCssH - ch) / 2 : Math.min(0, Math.max(boardCssH - ch, panY));
   }
-  function resetCamera(){ zoom = 1; panX = 0; panY = 0; clampPan(); }
+  // flèches de déplacement : visibles seulement quand on est zoomé (inutiles à pleine vue)
+  function updatePanpad(){ const pad = document.getElementById("panpad"); if (pad && pad.style) pad.style.display = zoom > ZOOM_MIN ? "" : "none"; }
+  function resetCamera(){ zoom = 1; panX = 0; panY = 0; clampPan(); updatePanpad(); }
   function zoomAt(mx, my, factor){
     const wx = (mx - panX) / camScale(), wy = (my - panY) / camScale();
     zoom = Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, zoom * factor));
     panX = mx - wx * camScale(); panY = my - wy * camScale();
-    clampPan(); draw();
+    clampPan(); updatePanpad(); draw();
   }
   function panBy(dx, dy){ panX += dx; panY += dy; clampPan(); draw(); }
 
@@ -2685,7 +2682,7 @@
     }
   }
 
-  document.getElementById("regen").addEventListener("click", () => { if (busy()) return; generate(); placeUnits(); selectUnit(units.find(u => u.team === "player")); renderLog(); });
+  { const rg = document.getElementById("regen"); if (rg) rg.addEventListener("click", () => { if (busy()) return; generate(); placeUnits(); selectUnit(units.find(u => u.team === "player")); renderLog(); }); }
   { const fg = document.getElementById("togglefog"); if (fg) fg.addEventListener("change", () => { opts.fog = fg.checked; refreshAll(); }); }
   document.getElementById("endturn").addEventListener("click", () => { if (!busy()) endPlayerTurn(); });
   document.getElementById("act-shoot").addEventListener("click", () => enterTargeting("ranged"));
