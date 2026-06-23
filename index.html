@@ -294,7 +294,8 @@
         <option value="cracker">Cracker</option>
         <option value="move">Déplacement</option>
         <option value="enter">Entre dans une zone</option>
-        <option value="spotted">Pod repéré</option>
+        <option value="spotted">Pod repéré (toute alerte)</option>
+        <option value="discovered">Découvert (réveil de pod sans attaque)</option>
         <option value="win">Victoire</option>
         <option value="lose">Défaite</option>
       </select></label></div>
@@ -308,7 +309,7 @@
       <div class="erow tc" data-for="cracker"><label style="flex:1">ennemis touchés = <input id="trig-enemiesHit" type="number" min="0" style="width:56px"></label></div>
       <div class="erow tc" data-for="wounded"><label style="flex:1">PV cible ≤ <input id="trig-hppct" type="number" min="0" max="100" style="width:56px"> %</label></div>
       <div class="erow tc" data-for="turn"><label style="flex:1">tour n° <input id="trig-turn" type="number" min="1" style="width:56px"></label></div>
-      <div class="erow tc" data-for="spotted"><label style="flex:1">pod n° <input id="trig-pod" type="number" min="0" style="width:56px"></label></div>
+      <div class="erow tc" data-for="spotted discovered"><label style="flex:1">pod n° <input id="trig-pod" type="number" min="0" style="width:56px"></label></div>
       <div id="trig-lines" class="hint"></div>
       <div class="erow"><input id="trig-who" placeholder="qui parle (défaut : acteur)" list="ed-names" style="flex:1"></div>
       <div class="erow"><input id="trig-text" placeholder="réplique…" style="flex:1"><button id="trig-addline" style="flex:0 0 auto;width:auto">+ ligne</button></div>
@@ -850,7 +851,7 @@
         if (e.team !== opp || e.hp <= 0 || !fov.has(key(e.col, e.row))) continue;
         if (e.stealth && !frontalOf(u, e)) continue;   // furtif (assassin) : perçu seulement de face
         if (e.stealth) stealthSeen.add(e);
-        if (wakeFoes) wake(u);                          // l'ennemi qui perçoit un joueur s'éveille (et son pod)
+        if (wakeFoes) wake(u, "sight");                 // l'ennemi qui perçoit un joueur s'éveille (et son pod)
       }
     }
     return { tiles, stealthSeen };
@@ -873,16 +874,25 @@
   }
 
   // Réveille un pod entier (les copains) — ou une unité isolée endormie.
-  function wakePod(pid){
+  // `cause` : "sight" (repéré à vue, sans attaque) ou "noise" (bruit/combat).
+  function wakePod(pid, cause){
     const fresh = pid !== undefined && !podAlerted.has(pid);
     podAlerted.add(pid);
     for (const u of units) if (u.team === "enemy" && u.pod === pid){ if (fresh && u.hp > 0) pushAlert(u.col, u.row); u.asleep = false; }
-    if (fresh){ spottedFlash(); emit("spotted", { pod: pid, actorTeam: "enemy" }); }
+    if (fresh){
+      spottedFlash();
+      emit("spotted", { pod: pid, actorTeam: "enemy", by: cause || "noise" });
+      if (cause === "sight") emit("discovered", { pod: pid, actorTeam: "enemy" });   // réveil sans attaque
+    }
   }
-  function wake(u){
+  function wake(u, cause){
     if (u.team !== "enemy") return;
-    if (u.pod !== undefined){ wakePod(u.pod); }
-    else if (u.asleep){ u.asleep = false; pushAlert(u.col, u.row); spottedFlash(); emit("spotted", { actorTeam: "enemy" }); }
+    if (u.pod !== undefined){ wakePod(u.pod, cause); }
+    else if (u.asleep){
+      u.asleep = false; pushAlert(u.col, u.row); spottedFlash();
+      emit("spotted", { actorTeam: "enemy", by: cause || "noise" });
+      if (cause === "sight") emit("discovered", { actorTeam: "enemy" });
+    }
   }
   // un bruit (combat, explosion) réveille les pods ennemis dont un membre est à portée
   function makeNoise(col, row, radius){
@@ -890,7 +900,7 @@
     pushNoise(col, row, radius);   // onde sonore visible
     for (const e of units){
       if (e.team !== "enemy" || e.hp <= 0) continue;
-      if (cubeDist(offsetToCube(col, row), offsetToCube(e.col, e.row)) <= radius) wake(e);
+      if (cubeDist(offsetToCube(col, row), offsetToCube(e.col, e.row)) <= radius) wake(e, "noise");
     }
   }
 
