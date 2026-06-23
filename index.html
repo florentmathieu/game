@@ -2480,9 +2480,15 @@
       if (u === selected && !unitDone(u)) rotateUnit(u); else selectUnit(u);
       return;
     }
-    // clic sur un ennemi hors visée -> rappel : il faut d'abord choisir une action
+    // clic sur un ennemi -> déclenche l'action par défaut (1 : tir si dispo, sinon mêlée) sur cette cible
     if (selected && u && u.team !== selected.team && u.hp > 0){
-      flash("Choisis une action (1 Épée / 1 Tirer) puis vise l'ennemi"); return;
+      if (selected.ap <= 0){ flash("Plus de PA ce tour"); return; }
+      const w = selected.weapons, ammoOk = (selected.clip === undefined || selected.ammo > 0);
+      const mode = (w.ranged && ammoOk) ? "ranged" : (w.melee ? "melee" : null);
+      if (!mode){ flash("Aucune arme disponible"); return; }
+      enterTargeting(mode);
+      if (targeting) executeAttack(u);    // attaque directe ou charge ; message clair si hors d'atteinte
+      return;
     }
     // clic sur une case atteignable -> déplacement (résolu, puis animé)
     if (selected && reach && reach.dist[key(t.col, t.row)] !== undefined){
