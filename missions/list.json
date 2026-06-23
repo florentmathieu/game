@@ -94,5 +94,9 @@
  {
   "file": "mission-24.json",
   "name": "Mission 24"
+ },
+ {
+  "file": "infiltration-2.json",
+  "name": "Infiltration 2"
  }
 ]
