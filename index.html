@@ -82,6 +82,7 @@
   body.campediting #campeditor{display:block}
   body.campediting .panel:not(#campeditor){display:none}
   body.campediting #roster{display:none}
+  body.campediting #boardwrap{max-height:calc(100vh - 28px); overflow-y:auto; overflow-x:hidden}
   #campcont{position:absolute; inset:0; display:none; flex-direction:column; align-items:center;
     justify-content:center; gap:18px; background:rgba(8,6,3,.78); color:#e8ddc8; z-index:30;
     font-family:Georgia,"Times New Roman",serif; text-align:center; padding:24px}
@@ -335,7 +336,6 @@
 
       <h2 style="margin-top:12px">Nœuds</h2>
       <div class="erow"><button id="camp-addtext">＋ Texte</button> <button id="camp-addmission">＋ Mission</button> <button id="camp-addchoice">＋ Choix</button></div>
-      <div class="erow"><label style="flex:1">Hauteur du plan</label> <button id="camp-shorter" style="flex:0 0 auto;width:auto" title="Réduire la hauteur">▲ −</button> <button id="camp-taller" style="flex:0 0 auto;width:auto" title="Agrandir la hauteur">▼ +</button></div>
       <div class="hint">Glisse les nœuds pour les ranger. Tire un fil depuis la pastille du bas
         (<span style="color:#7fb0e0">→</span> suite, <span style="color:#5fd07f">✓</span> victoire,
         <span style="color:#e0705f">✕</span> défaite, <span style="color:#d0b25f">＋</span> ajoute une route depuis un
@@ -3301,19 +3301,13 @@ Stiff: Enough. I've decided.`;
   };
 
   // ====================== CAMPAGNE : éditeur visuel + exécution ============
-  const campCanvasW = 920; let campCanvasH = 620;   // hauteur ajustable (boutons + auto-fit)
-  // agrandit la hauteur pour englober tous les nœuds (+ marge)
+  const campCanvasW = 920; let campCanvasH = 640;   // hauteur ajustée aux nœuds ; l'éditeur a un ascenseur
+  // adapte la hauteur du plan aux nœuds (+ marge en bas pour pouvoir en descendre de nouveaux)
   function campFitHeight(){
-    let maxB = 560;
+    let maxB = 540;
     for (const n of campaign.nodes) maxB = Math.max(maxB, n.y + CAMP_H);
-    const h = Math.round(maxB + 90);
-    if (h > campCanvasH){ campCanvasH = h; setupCampCanvas(); }
-  }
-  function campSetHeight(h){
-    let minB = 560;                                  // pas plus court que le nœud le plus bas
-    for (const n of campaign.nodes) minB = Math.max(minB, n.y + CAMP_H + 30);
-    campCanvasH = Math.max(420, Math.min(4000, Math.max(minB, h)));
-    setupCampCanvas(); draw();
+    const h = Math.max(640, Math.round(maxB + 200));
+    if (h !== campCanvasH){ campCanvasH = h; setupCampCanvas(); }
   }
   const uid = () => "n" + Math.random().toString(36).slice(2, 7);
   const campNodeById = (id) => campaign.nodes.find(n => n.id === id) || null;
@@ -3558,8 +3552,9 @@ Stiff: Enough. I've decided.`;
     let h = "";
     if (n.type === "text"){
       const txtOpts = repoTexts.map(t => `<option value="${t.file}" ${t.file === n.file ? "selected" : ""}>${escHTML(t.name)}</option>`).join("");
+      h += `<div class="erow"><label style="flex:1">Nom du nœud <input id="cn-title" type="text" value="${escHTML(n.title || "")}" placeholder="ex. Avant Mission 2"></label></div>`;
       h += `<div class="erow"><label style="flex:1">Fichier texte <select id="cn-file">${txtOpts || `<option value="">(aucun .txt)</option>`}</select></label></div>`;
-      h += `<div class="hint">Les fichiers <code>.txt</code> proposés sont listés dans <code>texts/list.json</code> (ajoute-y tes fichiers).</div>`;
+      h += `<div class="hint">Le nom s'affiche sur le nœud. Les <code>.txt</code> proposés sont listés dans <code>texts/list.json</code>.</div>`;
       h += `<div class="erow"><label style="flex:1">Suite → <select id="cn-next">${optList(n.next)}</select></label></div>`;
     } else if (n.type === "choice"){
       h += `<div class="erow"><label style="flex:1">Titre <input id="cn-title" type="text" value="${escHTML(n.title || "")}"></label></div>`;
@@ -3590,7 +3585,7 @@ Stiff: Enough. I've decided.`;
     box.innerHTML = h;
     const on = (id, ev, fn) => { const el = document.getElementById(id); if (el) el.addEventListener(ev, fn); };
     on("cn-title", "input", e => { n.title = e.target.value; draw(); });
-    on("cn-file", "change", e => { n.file = e.target.value; const t = repoTexts.find(x => x.file === n.file); if (t) n.title = t.name; draw(); });
+    on("cn-file", "change", e => { n.file = e.target.value; const t = repoTexts.find(x => x.file === n.file); if (t && !(n.title || "").trim()) n.title = t.name; renderCampForm(); draw(); });
     on("cn-next", "change", e => { n.next = e.target.value || null; draw(); });
     on("cn-mission", "change", e => { n.mission = e.target.value; const m = repoMissions.find(x => x.file === n.mission); if (m && (!n.name || n.name === "Mission")) n.name = m.name; renderCampForm(); draw(); });
     on("cn-name", "input", e => { n.name = e.target.value; draw(); });
@@ -3820,8 +3815,6 @@ Stiff: Enough. I've decided.`;
   onEd("camp-addtext", () => addCampNode("text"));
   onEd("camp-addmission", () => addCampNode("mission"));
   onEd("camp-addchoice", () => addCampNode("choice"));
-  onEd("camp-taller", () => campSetHeight(campCanvasH + 240));
-  onEd("camp-shorter", () => campSetHeight(campCanvasH - 240));
   onEd("camp-test", () => startCampaign(campaign));
   onEd("camp-publish", () => saveCampaign());
   { const ni = document.getElementById("camp-name"); if (ni) ni.addEventListener("input", () => { campaign.name = ni.value.trim(); }); }
