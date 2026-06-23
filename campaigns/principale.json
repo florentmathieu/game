@@ -14,13 +14,48 @@
   {
    "id": "np7rcb",
    "type": "mission",
-   "x": 250,
-   "y": 40,
+   "x": 64,
+   "y": 131,
    "mission": "mission-1.json",
    "name": "Mission 1",
+   "win": "nzwgeo",
+   "lose": null,
+   "intro": "Scene1.txt"
+  },
+  {
+   "id": "nzwgeo",
+   "type": "choice",
+   "x": 127,
+   "y": 231,
+   "title": "Choix",
+   "options": [
+    "ncnhre",
+    "nlqxlk"
+   ]
+  },
+  {
+   "id": "ncnhre",
+   "type": "mission",
+   "x": 56,
+   "y": 322,
+   "mission": "mission-2.json",
+   "name": "Infiltration 2",
+   "desc": "Coucou",
    "win": null,
    "lose": null,
    "intro": "Scene1.txt"
+  },
+  {
+   "id": "nlqxlk",
+   "type": "mission",
+   "x": 299,
+   "y": 362,
+   "mission": "mission-7.json",
+   "name": "Mission 7",
+   "desc": "",
+   "win": null,
+   "lose": null,
+   "intro": "texts/demo-interlude.txt"
   }
  ]
 }
