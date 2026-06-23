@@ -17,11 +17,18 @@
   h1{font-size:1.2rem; margin:14px 0 2px; color:var(--accent); letter-spacing:1px}
   .sub{color:var(--muted); font-size:.78rem; margin-bottom:10px}
   #wrap{position:relative; display:flex; gap:16px; flex-wrap:wrap; justify-content:center; padding:0 12px 24px}
-  /* en jeu : la colonne flotte à droite, le plateau est centré dans l'espace restant */
-  #gamepanel{position:absolute; right:12px; top:0}
-  body:not(.editing):not(.campediting) #wrap{padding-right:280px}
   #board{background:#0e0b07; border:1px solid #3a2c1c; border-radius:8px; touch-action:none; display:block}
   #boardwrap{position:relative; align-self:flex-start}
+  /* EN JEU : plateau plein écran ; colonne à droite et persos à gauche en surimpression */
+  body:not(.editing):not(.campediting) #wrap{padding:0}
+  body:not(.editing):not(.campediting) #boardwrap{position:fixed; inset:0}
+  body:not(.editing):not(.campediting) #board{border:none; border-radius:0}
+  body:not(.editing):not(.campediting) #gamepanel{position:fixed; right:8px; top:8px; z-index:15;
+    max-height:calc(100vh - 16px); overflow-y:auto; background:rgba(20,16,11,.82);
+    box-shadow:0 6px 24px rgba(0,0,0,.5); backdrop-filter:blur(2px)}
+  body:not(.editing):not(.campediting) #roster{position:fixed; left:8px; top:8px; z-index:15; margin:0;
+    flex-direction:column; align-items:stretch; gap:8px; padding:8px; max-height:calc(100vh - 16px); overflow-y:auto;
+    background:rgba(14,11,7,.62); border-radius:10px; box-shadow:0 6px 24px rgba(0,0,0,.5); backdrop-filter:blur(2px)}
   #scene{position:absolute; left:10px; right:10px; bottom:10px; display:none; z-index:5;
     background:rgba(10,8,5,.88); border:1px solid #5a4530; border-radius:8px; padding:14px 16px 12px;
     color:#d8cdb4; font-family:Georgia,"Times New Roman",serif; box-shadow:0 6px 24px rgba(0,0,0,.55)}
@@ -1479,14 +1486,17 @@
   const mapPxH = () => MARGIN*2 + HEX_V*(ROWS-1) + SIZE*2;
   function setupCanvas(){
     const mw = mapPxW(), mh = mapPxH();
-    // fenêtre de jeu = ce qui tient à l'écran (place pour la colonne de droite + marges)
-    let top = 80;                                        // hauteur réservée au-dessus (roster…)
-    try{ const r = canvas.getBoundingClientRect(); if (r && r.top > 0) top = r.top; }catch(e){}
-    const availW = Math.max(360, (window.innerWidth || 1200) - 300);        // place pour la colonne de droite
-    const availH = Math.max(320, (window.innerHeight || 800) - top - 28);   // garde une marge en bas
-    baseScale = Math.min(availW / mw, availH / mh);     // ajuste la carte à la fenêtre (peut agrandir un petit plateau)
-    boardCssW = Math.round(mw * baseScale);
-    boardCssH = Math.round(mh * baseScale);
+    const winW = window.innerWidth || 1200, winH = window.innerHeight || 800;
+    let availW, availH, fullscreen;
+    if (editMode){                                       // éditeur : on laisse la place aux colonnes d'édition
+      let top = 80; try{ const r = canvas.getBoundingClientRect(); if (r && r.top > 0) top = r.top; }catch(e){}
+      availW = Math.max(360, winW - 580); availH = Math.max(320, winH - top - 28); fullscreen = false;
+    } else {                                             // en jeu : plein écran navigateur
+      availW = winW; availH = winH; fullscreen = true;
+    }
+    baseScale = Math.min(availW / mw, availH / mh);      // ajuste la carte (agrandit un petit plateau)
+    boardCssW = fullscreen ? winW : Math.round(mw * baseScale);
+    boardCssH = fullscreen ? winH : Math.round(mh * baseScale);
     const dpr = window.devicePixelRatio || 1;
     canvas.style.width = boardCssW + "px"; canvas.style.height = boardCssH + "px";
     canvas.width = Math.round(boardCssW*dpr); canvas.height = Math.round(boardCssH*dpr);
@@ -2433,6 +2443,7 @@
     opts.fog = false; opts.showGrid = true; opts.showLevels = true;
     if (!tiles.length){ blankMap(); }
     document.body.classList.add("editing");
+    setupCanvas();                       // l'éditeur n'est pas plein écran : on recalcule la taille
     const ci = document.getElementById("ed-cols"), ri = document.getElementById("ed-rows"), ni = document.getElementById("ed-name");
     if (ci) ci.value = COLS; if (ri) ri.value = ROWS; if (ni) ni.value = editorName;
     // recharge les réglages de publication (token/dépôt/branche) propres à ce navigateur
@@ -2450,6 +2461,7 @@
     editMode = false; painting = false;
     opts.fog = true; opts.showGrid = false; opts.showLevels = false;
     document.body.classList.remove("editing");
+    setupCanvas();                       // retour au plein écran de jeu
   }
 
   // pose la carte courante de l'éditeur comme partie jouable
