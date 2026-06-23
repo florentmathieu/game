@@ -1,6 +1,6 @@
 {
  "name": "Principale",
- "start": "ncnhre",
+ "start": "nlqxlk",
  "nodes": [
   {
    "id": "nae6ji",
@@ -43,19 +43,19 @@
    "desc": "Coucou",
    "win": null,
    "lose": null,
-   "intro": "Scene1.txt"
+   "intro": null
   },
   {
    "id": "nlqxlk",
    "type": "mission",
    "x": 273,
    "y": 443,
-   "mission": "mission-7.json",
+   "mission": "mission-1.json",
    "name": "Mission 7",
    "desc": "",
    "win": null,
    "lose": null,
-   "intro": "texts/demo-interlude.txt"
+   "intro": null
   },
   {
    "id": "n35tql",
