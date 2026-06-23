@@ -170,6 +170,7 @@
           <li>Clique une <b>action</b> puis <b>Tab</b> pour changer de cible · <b>Entrée</b> valide</li>
           <li><b>Échap</b> — annule l'action en cours, ou ouvre/ferme ce menu</li>
           <li>Clique une <b>case</b> surlignée pour t'y déplacer</li>
+          <li>Re-clique ton <b>perso sélectionné</b> pour le faire pivoter</li>
         </ul>
         <button id="pause-close">Reprendre ▶</button>
       </div>
@@ -1079,10 +1080,12 @@
     checkEnd();
   }
 
-  // ---- Réactions : tir de vigilance (overwatch) + attaque d'opportunité à l'épée -------
+  // ---- Réactions : vigilance (overwatch) en tir OU en mêlée -------
   // Mode de riposte d'une unité W contre un mobile M, ou null si pas de réaction possible.
-  //  - épée : toute unité avec une épée menace une case adjacente (opportunité), même sans vigilance ;
-  //  - tir  : seulement en vigilance, dans la portée, à vue et avec une ligne de tir dégagée.
+  // Toujours nécessiter la vigilance (plus d'attaque d'opportunité automatique — réintroduite
+  // plus tard via un perk) :
+  //  - mêlée : en vigilance « épée/dagues », sur une case adjacente ;
+  //  - tir   : en vigilance « tir », dans la portée, à vue et avec une ligne de tir dégagée.
   function reactionMode(w, m){
     if (w.hp <= 0 || m.hp <= 0 || w.reacted) return null;
     if (w.team === "enemy" && !enemyActive(w)) return null;     // un ennemi dormant/endormi ne réagit pas
@@ -1090,7 +1093,7 @@
       const seen = w.team === "enemy" ? enemyCanSee(m) : playerCanSee(m);
       if (!seen) return null;
     }
-    if (w.weapons.melee && hexDistUnits(w, m) === 1) return "melee";   // attaque d'opportunité (entrée OU sortie d'adjacence)
+    if (w.overwatch && w.mode === "melee" && w.weapons.melee && hexDistUnits(w, m) === 1) return "melee";   // vigilance épée/dagues
     if (w.overwatch && w.weapons.ranged && (w.clip === undefined || w.ammo > 0)
         && hexDistUnits(w, m) <= w.weapons.ranged.range
         && cubeDist(offsetToCube(w.col, w.row), offsetToCube(m.col, m.row)) <= VISION
@@ -2230,6 +2233,12 @@
   let flashMsg = "";
   function flash(m){ flashMsg = m; setTimeout(() => { flashMsg = ""; const el = document.getElementById("info"); if (el && el.textContent === m) el.textContent = "Passe la souris sur la carte."; }, 1500); const el = document.getElementById("info"); if (el) el.textContent = m; }
 
+  // fait pivoter une unité d'un cran (60°) ; gratuit, tant qu'elle n'a pas fini d'agir
+  function rotateUnit(u){
+    u.facing = normAng((Math.round((u.facing || 0) / (Math.PI/3)) + 1) * (Math.PI/3));
+    u.hasFacing = true;
+    recomputeVision(); refreshAll();
+  }
   function onClick(e){
     if (editMode || campMode || gameOver || busy()) return;
     const { mx, my } = evtPos(e);
@@ -2250,8 +2259,11 @@
       if (u && targeting.targets.includes(u)){ targeting.idx = targeting.targets.indexOf(u); confirmTarget(); return; }
       targeting = null;
     }
-    // clic sur une unité joueur -> sélection
-    if (u && u.team === "player"){ selectUnit(u); return; }
+    // clic sur une unité joueur -> sélection ; re-clic sur l'unité déjà active (et pas épuisée) -> elle se tourne
+    if (u && u.team === "player"){
+      if (u === selected && !unitDone(u)) rotateUnit(u); else selectUnit(u);
+      return;
+    }
     // clic sur un ennemi attaquable -> attaque directe (arme active)
     if (selected && u && canAttack(selected, u)){ doAttack(selected, u); refreshAll(); afterPlayerAction(); return; }
     // clic sur une case atteignable -> déplacement (résolu, puis animé)
