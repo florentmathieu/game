@@ -2020,21 +2020,37 @@
       for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++){
         if (!isVisible(c, r) || cubeDist(src, offsetToCube(c, r)) > cr.range) continue;
         const { x, y } = tileCenter(c, r);
-        fillHex(x, y, SIZE); ctx.fillStyle = "rgba(255,155,74,0.12)"; ctx.fill();
+        fillHex(x, y, SIZE); ctx.fillStyle = "rgba(255,155,74,0.10)"; ctx.fill();   // portée de jet
       }
       if (hover){
         const hc = offsetToCube(hover.col, hover.row);
         if (cubeDist(src, hc) <= cr.range){
+          // zone de CHUTE possible (dispersion) : c'est là que la bombe peut atterrir
           for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++){
-            if (cubeDist(offsetToCube(c, r), hc) <= cr.radius){
+            if (cubeDist(offsetToCube(c, r), hc) <= cr.scatter && !tiles[r][c].obstacle){
               const { x, y } = tileCenter(c, r); fillHex(x, y, SIZE);
-              ctx.fillStyle = "rgba(255,107,74,0.30)"; ctx.fill();
-              ctx.lineWidth = 1.2; ctx.strokeStyle = "rgba(255,140,90,0.6)"; ctx.stroke();
+              ctx.fillStyle = "rgba(255,150,60,0.16)"; ctx.fill();
+              ctx.lineWidth = 1; ctx.strokeStyle = "rgba(255,170,90,0.45)"; ctx.setLineDash([3,3]); ctx.stroke(); ctx.setLineDash([]);
             }
           }
+          // case visée
           const ctr = tileCenter(hover.col, hover.row);
-          ctx.lineWidth = 2; ctx.strokeStyle = "#ff6b4a"; ctx.setLineDash([4,3]);
-          ctx.beginPath(); ctx.arc(ctr.x, ctr.y, SIZE*0.5, 0, Math.PI*2); ctx.stroke(); ctx.setLineDash([]);
+          ctx.lineWidth = 1.5; ctx.strokeStyle = "rgba(255,150,90,0.7)"; ctx.setLineDash([4,3]);
+          ctx.beginPath(); ctx.arc(ctr.x, ctr.y, SIZE*0.45, 0, Math.PI*2); ctx.stroke(); ctx.setLineDash([]);
+          // la bombe qui se promène + l'aire qu'elle couvrirait en explosant ici
+          const bt = crackerHopTile;
+          if (bt){
+            const bc = offsetToCube(bt.col, bt.row);
+            for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++){
+              if (cubeDist(offsetToCube(c, r), bc) <= cr.radius){
+                const { x, y } = tileCenter(c, r); fillHex(x, y, SIZE);
+                ctx.fillStyle = "rgba(255,90,60,0.28)"; ctx.fill();
+              }
+            }
+            const p = tileCenter(bt.col, bt.row);
+            ctx.font = `${Math.round(SIZE*1.15)}px sans-serif`; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+            ctx.fillText("💣", p.x, p.y);
+          }
         }
       }
     }
@@ -2236,7 +2252,7 @@
   function refreshAll(){ updateSel(); renderRoster(); draw(); }
 
   function selectUnit(u){
-    selected = u; targeting = null; throwing = false; usingItem = null;
+    selected = u; targeting = null; throwing = false; usingItem = null; stopCrackerHop();
     reach = u ? computeReach(u) : null;
     refreshAll();
   }
@@ -2319,12 +2335,33 @@
   }
 
   // ---- Cracker (grenade) : vise une case, dispersion ±scatter, dégâts en rayon ----
+  // une « bombe » se promène de case en case dans la zone de chute possible, pour rappeler
+  // que l'impact est aléatoire (et non que toute la zone est touchée).
+  let crackerHopTile = null, crackerHopTimer = null;
+  function crackerScatterTiles(){
+    if (!throwing || !selected || !hover || !selected.weapons.cracker) return [];
+    const cr = selected.weapons.cracker, src = offsetToCube(selected.col, selected.row);
+    const hc = offsetToCube(hover.col, hover.row);
+    if (!isVisible(hover.col, hover.row) || cubeDist(src, hc) > cr.range) return [];
+    const out = [];
+    for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++)
+      if (cubeDist(offsetToCube(c, r), hc) <= cr.scatter && !tiles[r][c].obstacle) out.push({ col:c, row:r });
+    return out;
+  }
+  function crackerHop(){
+    if (!throwing){ stopCrackerHop(); return; }
+    const cands = crackerScatterTiles();
+    crackerHopTile = cands.length ? cands[Math.floor(Math.random()*cands.length)] : null;
+    draw();
+  }
+  function startCrackerHop(){ if (!crackerHopTimer && typeof setInterval === "function") crackerHopTimer = setInterval(crackerHop, 240); }
+  function stopCrackerHop(){ if (crackerHopTimer){ clearInterval(crackerHopTimer); crackerHopTimer = null; } crackerHopTile = null; }
   function enterThrow(){
     if (!selected || selected.ap <= 0 || gameOver || busy()) return;
     if (!selected.weapons.cracker || selected.crackers <= 0) return;
-    throwing = true; targeting = null; refreshAll();
+    throwing = true; targeting = null; startCrackerHop(); refreshAll();
   }
-  function cancelThrow(){ if (throwing){ throwing = false; refreshAll(); } }
+  function cancelThrow(){ if (throwing){ throwing = false; stopCrackerHop(); refreshAll(); } }
   function throwTiles(){
     // cases visées possibles : à portée, vues
     const cr = selected.weapons.cracker, out = [];
@@ -2366,7 +2403,7 @@
     recomputeVision(); checkEnd();
   }
   function doThrow(tc, tr){       // jet du joueur
-    const thrower = selected; throwing = false;
+    const thrower = selected; throwing = false; stopCrackerHop();
     resolveThrow(thrower, tc, tr);
     if (selected && selected.hp > 0) reach = computeReach(selected);
     refreshAll(); afterPlayerAction();
@@ -2482,7 +2519,7 @@
           cubeDist(offsetToCube(selected.col, selected.row), offsetToCube(t.col, t.row)) <= selected.weapons.cracker.range){
         doThrow(t.col, t.row); return;
       }
-      throwing = false; refreshAll(); return;
+      throwing = false; stopCrackerHop(); refreshAll(); return;
     }
     // en mode visée : clic sur un ennemi -> on l'attaque (ou on charge) ; sinon clic = on sort de la visée
     if (targeting){
