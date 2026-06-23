@@ -2054,26 +2054,26 @@
       + (u.bracing ? `<br><span style="color:#8fd3ff">En garde.</span>` : ``)
       + (u.overwatch ? `<br><span style="color:#7fe0d0">En vigilance.</span>` : ``);
   }
-  function showUnitTip(u, cx, cy){
+  // affiche la fiche, ancrée à un élément (chip du roster) ; fixe tant qu'on survole
+  function showFiche(u, anchorEl){
     const el = document.getElementById("unittip"); if (!el || !el.style) return;
-    if (!u){ el.style.display = "none"; return; }
+    if (!u || !anchorEl || !anchorEl.getBoundingClientRect){ el.style.display = "none"; return; }
     el.innerHTML = unitStatsHTML(u);
     el.style.display = "block";
-    const pad = 14, w = el.offsetWidth || 230, h = el.offsetHeight || 120;
-    let x = cx + pad, y = cy + pad;
-    if (x + w > window.innerWidth) x = cx - pad - w;
+    const w = el.offsetWidth || 230, h = el.offsetHeight || 120;
+    const r = anchorEl.getBoundingClientRect();
+    let x = r.right + 8;                                  // à droite du chip (le roster est à gauche)
+    if (x + w > window.innerWidth) x = r.left - 8 - w;    // sinon à gauche
+    if (x < 6) x = 6;
+    let y = r.top;
     if (y + h > window.innerHeight) y = window.innerHeight - h - 6;
-    if (y < 6) y = 6; if (x < 6) x = 6;
+    if (y < 6) y = 6;
     el.style.left = x + "px"; el.style.top = y + "px";
   }
   function onMove(e){
     if (editMode || campMode) return;           // l'éditeur gère son propre survol (pointer events)
     const { mx, my } = evtPos(e);
     hover = pickTile(mx, my);
-    const u = hover ? unitAt(hover.col, hover.row) : null;
-    const seen = u && (u.team === "player" || (isVisible(u.col, u.row) && playerCanSee(u)));
-    const p = e.touches ? e.touches[0] : e;
-    showUnitTip(seen ? u : null, p.clientX || 0, p.clientY || 0);
     draw();
   }
 
@@ -2381,6 +2381,7 @@
   function renderRoster(){
     const el = document.getElementById("roster");
     if (!el) return;
+    showFiche(null);                         // évite une fiche figée sur un chip recréé
     const ps = units.filter(u => u.team === "player");
     el.innerHTML = ps.map((u, i) => {
       const cls = "chip" + (u === selected ? " active" : "") + (u.hp <= 0 ? " dead" : (u.ap <= 0 && !u.overwatch ? " acted" : ""));
@@ -2393,6 +2394,8 @@
     }).join("");
     for (const chip of (el.querySelectorAll ? el.querySelectorAll(".chip") : [])){
       chip.addEventListener("click", () => { const u = ps[+chip.dataset.i]; if (u && u.hp > 0 && !anim) selectUnit(u); });
+      chip.addEventListener("mouseenter", () => showFiche(ps[+chip.dataset.i], chip));   // fiche au survol du nom
+      chip.addEventListener("mouseleave", () => showFiche(null));
     }
   }
 
@@ -2717,7 +2720,7 @@
     }); }
 
   canvas.addEventListener("mousemove", onMove);
-  canvas.addEventListener("mouseleave", () => { if (editMode) return; hover = null; showUnitTip(null); draw(); });
+  canvas.addEventListener("mouseleave", () => { if (editMode) return; hover = null; draw(); });
   canvas.addEventListener("click", onClick);
   canvas.addEventListener("touchstart", (e) => { if (editMode) return; e.preventDefault(); onMove(e); onClick(e); }, { passive:false });
   // molette : zoom centré sur la souris (hors éditeur de campagne)
