@@ -92,6 +92,12 @@
   .chip .tags{font-size:.66rem; color:#7fe0d0; margin-top:3px; min-height:.8em}
   button:disabled{opacity:.4; cursor:default}
   button.armed{background:#5a3030; border-color:#a05050}
+  /* éditeur : sous-sections repliables */
+  .panel h2.sect-h{cursor:pointer; user-select:none}
+  .panel h2.sect-h .caret{display:inline-block; width:.9em; font-size:.78em; color:var(--accent);
+    transition:transform .12s; transform:rotate(0deg)}
+  .panel h2.sect-h.collapsed .caret{transform:rotate(-90deg)}
+  .sect-body.collapsed{display:none}
   /* éditeur */
   #editor,#editorEvents{display:none}
   body.editing #editor,body.editing #editorEvents{display:block}
@@ -2814,6 +2820,39 @@
     const { mx, my } = evtPos(e); const t = pickTile(mx, my);
     if (t && unitAt(t.col, t.row)){ removeUnitAt(t.col, t.row); updateExport(); draw(); }
   });
+
+  // rend chaque sous-section d'un panneau (délimitée par un <h2>) repliable
+  function makeCollapsible(panel, storeKey){
+    if (!panel || !panel.children) return;
+    let store = {};
+    try { store = JSON.parse(localStorage.getItem(storeKey) || "{}"); } catch (e) {}
+    const groups = [];
+    let cur = null;
+    Array.from(panel.children).forEach(el => {
+      if (el.tagName === "H2"){ cur = { head: el, body: [] }; groups.push(cur); }
+      else if (cur){ cur.body.push(el); }
+    });
+    groups.forEach(g => {
+      const label = g.head.textContent.trim();
+      const body = document.createElement("div");
+      body.className = "sect-body";
+      g.head.after(body);
+      g.body.forEach(el => body.appendChild(el));
+      g.head.classList.add("sect-h");
+      const caret = document.createElement("span");
+      caret.className = "caret"; caret.textContent = "▾";
+      g.head.insertBefore(caret, g.head.firstChild);
+      const apply = (col) => { body.classList.toggle("collapsed", col); g.head.classList.toggle("collapsed", col); };
+      apply(!!store[label]);
+      g.head.addEventListener("click", () => {
+        const col = !body.classList.contains("collapsed");
+        apply(col); store[label] = col;
+        try { localStorage.setItem(storeKey, JSON.stringify(store)); } catch (e) {}
+      });
+    });
+  }
+  makeCollapsible(document.getElementById("editor"), "mgf_ed_fold");
+  makeCollapsible(document.getElementById("editorEvents"), "mgf_edev_fold");
 
   const onEd = (id, fn) => { const el = document.getElementById(id); if (el) el.addEventListener("click", fn); };
   onEd("openeditor", () => enterEditor());
