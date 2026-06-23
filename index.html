@@ -3345,7 +3345,17 @@ Stiff: Enough. I've decided.`;
     try{ localStorage.setItem("mgf_gh", JSON.stringify({ repo, branch })); localStorage.setItem("mgf_gh_token", token); }catch(e){}
     const name = (editorName || "").trim();
     if (!name) { set("Donne un nom à la mission avant d'enregistrer."); return false; }
-    const file = (name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "") || "mission") + ".json";
+    const slug = (name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "") || "mission") + ".json";
+    // mission de même nom déjà au dépôt ? on propose d'écraser (ou d'annuler) plutôt que de créer un doublon
+    const nameKey = name.toLowerCase();
+    const dup = repoMissions.find(it => ((it.name || "").trim().toLowerCase() === nameKey) || it.file === slug);
+    let file = slug;
+    if (dup){
+      if (!confirm(`Une mission « ${name} » existe déjà (${dup.file}). L'écraser ?`)) {
+        set("Enregistrement annulé."); return false;
+      }
+      file = dup.file;   // on réécrit le fichier existant pour éviter un doublon de nom
+    }
     try{
       set("Publication de " + file + "…");
       await ghPutFile("missions/" + file, JSON.stringify(serializeMission(name), null, 1), "Mission : " + name, branch);
