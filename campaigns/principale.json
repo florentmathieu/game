@@ -1,6 +1,6 @@
 {
  "name": "Principale",
- "start": "np7rcb",
+ "start": "ncnhre",
  "nodes": [
   {
    "id": "nae6ji",
@@ -38,12 +38,12 @@
    "type": "mission",
    "x": 34,
    "y": 430,
-   "mission": "mission-2.json",
+   "mission": "mission-1.json",
    "name": "Infiltration 2",
    "desc": "Coucou",
    "win": null,
    "lose": null,
-   "intro": "Scene1.txt"
+   "intro": null
   },
   {
    "id": "nlqxlk",
