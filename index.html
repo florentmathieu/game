@@ -1016,34 +1016,35 @@
   }
 
   // Ligne de tir : un relief plus haut ou un couvert total NON adjacent à la cible bloque le tir.
-  // distance d'un point au segment [A,B] (en pixels carte)
-  function ptSegDist(px, py, ax, ay, bx, by){
-    const dx = bx-ax, dy = by-ay, L2 = dx*dx + dy*dy || 1;
-    let t = ((px-ax)*dx + (py-ay)*dy) / L2; t = Math.max(0, Math.min(1, t));
-    return Math.hypot(px - (ax+t*dx), py - (ay+t*dy));
-  }
-  // tolérance : un objet ne bloque le tir que si le trajet passe assez au centre de sa case
-  // (un simple frôlement de bord/coin laisse passer la flèche).
-  const LOF_TOL = SIZE * 0.55;
-  // renvoie la case (décor) qui coupe le trajet att→tgt, ou null si la voie est libre
-  function losBlocker(att, tgt){
-    const a = offsetToCube(att.col, att.row), b = offsetToCube(tgt.col, tgt.row);
-    const N = cubeDist(a, b);
-    if (N <= 1) return null;
-    const maxE = Math.max(elevOf(att), elevOf(tgt));
-    const A = tileCenter(att.col, att.row), B = tileCenter(tgt.col, tgt.row);
+  // cherche le premier décor qui coupe une trajectoire cube a→b (échantillonnée)
+  function sampleBlocker(a, b, N, maxE, bRef){
     for (let i = 1; i < N; i++){
       const cb = cubeRound(cubeLerp(a, b, i / N));
       const o = cubeToOffset(cb.x, cb.z);
       const t = tileAt(o.col, o.row);
       if (!t) continue;
-      const blocks = t.elev > maxE || (t.obstacle && t.cover === "full" && cubeDist(offsetToCube(o.col,o.row), b) > 1);
-      if (!blocks) continue;
-      const P = tileCenter(o.col, o.row);
-      if (ptSegDist(P.x, P.y, A.x, A.y, B.x, B.y) < LOF_TOL) return o;   // vraiment sur le trajet
-      // sinon : effleurement, on tolère
+      if (t.elev > maxE) return o;
+      if (t.obstacle && t.cover === "full" && cubeDist(offsetToCube(o.col,o.row), bRef) > 1) return o;
     }
     return null;
+  }
+  // Ligne de tir tolérante : on teste deux trajectoires légèrement décalées de part et d'autre.
+  // Si UN côté est dégagé, la flèche passe (frôlement d'un coin). Si les DEUX sont bloqués
+  // (ex. passage entre deux rochers contigus), le tir est coupé. Renvoie une case bloquante ou null.
+  function losBlocker(att, tgt){
+    const a = offsetToCube(att.col, att.row), b = offsetToCube(tgt.col, tgt.row);
+    const N = cubeDist(a, b);
+    if (N <= 1) return null;
+    const maxE = Math.max(elevOf(att), elevOf(tgt));
+    const dir = { x:b.x-a.x, y:b.y-a.y, z:b.z-a.z };
+    const rot = { x:-dir.z, y:-dir.x, z:-dir.y };                 // ~perpendiculaire (rotation 60°)
+    const len = (Math.abs(rot.x)+Math.abs(rot.y)+Math.abs(rot.z))/2 || 1, k = 0.45/len;
+    const off = { x:rot.x*k, y:rot.y*k, z:rot.z*k };
+    const add = (p, s) => ({ x:p.x+off.x*s, y:p.y+off.y*s, z:p.z+off.z*s });
+    const blkL = sampleBlocker(add(a,1), add(b,1), N, maxE, b);
+    const blkR = sampleBlocker(add(a,-1), add(b,-1), N, maxE, b);
+    if (!blkL || !blkR) return null;                             // un côté dégagé → ça passe
+    return sampleBlocker(a, b, N, maxE, b) || blkL;              // les deux bloqués → obstacle représentatif
   }
   function lineOfFire(att, tgt){ return !losBlocker(att, tgt); }
 
