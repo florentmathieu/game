@@ -1016,20 +1016,36 @@
   }
 
   // Ligne de tir : un relief plus haut ou un couvert total NON adjacent à la cible bloque le tir.
-  function lineOfFire(att, tgt){
+  // distance d'un point au segment [A,B] (en pixels carte)
+  function ptSegDist(px, py, ax, ay, bx, by){
+    const dx = bx-ax, dy = by-ay, L2 = dx*dx + dy*dy || 1;
+    let t = ((px-ax)*dx + (py-ay)*dy) / L2; t = Math.max(0, Math.min(1, t));
+    return Math.hypot(px - (ax+t*dx), py - (ay+t*dy));
+  }
+  // tolérance : un objet ne bloque le tir que si le trajet passe assez au centre de sa case
+  // (un simple frôlement de bord/coin laisse passer la flèche).
+  const LOF_TOL = SIZE * 0.55;
+  // renvoie la case (décor) qui coupe le trajet att→tgt, ou null si la voie est libre
+  function losBlocker(att, tgt){
     const a = offsetToCube(att.col, att.row), b = offsetToCube(tgt.col, tgt.row);
     const N = cubeDist(a, b);
-    if (N <= 1) return true;
+    if (N <= 1) return null;
+    const maxE = Math.max(elevOf(att), elevOf(tgt));
+    const A = tileCenter(att.col, att.row), B = tileCenter(tgt.col, tgt.row);
     for (let i = 1; i < N; i++){
       const cb = cubeRound(cubeLerp(a, b, i / N));
       const o = cubeToOffset(cb.x, cb.z);
       const t = tileAt(o.col, o.row);
       if (!t) continue;
-      if (t.elev > Math.max(elevOf(att), elevOf(tgt))) return false;
-      if (t.obstacle && t.cover === "full" && cubeDist(offsetToCube(o.col,o.row), b) > 1) return false;
+      const blocks = t.elev > maxE || (t.obstacle && t.cover === "full" && cubeDist(offsetToCube(o.col,o.row), b) > 1);
+      if (!blocks) continue;
+      const P = tileCenter(o.col, o.row);
+      if (ptSegDist(P.x, P.y, A.x, A.y, B.x, B.y) < LOF_TOL) return o;   // vraiment sur le trajet
+      // sinon : effleurement, on tolère
     }
-    return true;
+    return null;
   }
+  function lineOfFire(att, tgt){ return !losBlocker(att, tgt); }
 
   // Détail de la précision, pour l'affichage comme pour le tir.
   // Le type d'arme (et non la distance) décide si le couvert s'applique : l'épée (mêlée) l'ignore.
@@ -1972,7 +1988,19 @@
           ctx.fillStyle = "#000"; ctx.fillRect(b.x-16, b.y-SIZE*1.25, 32, 14);
           ctx.fillStyle = "#ffd479"; ctx.font = "bold 11px sans-serif"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
           ctx.fillText(bd.chance + "%", b.x, b.y - SIZE*1.25 + 7);
-        } else {                                       // impossible : réticule rouge + croix
+        } else {                                       // impossible : on montre pourquoi
+          // tir bloqué par le décor : trajectoire + objet qui coupe la ligne
+          const blk = (targeting.mode === "ranged" && selected.weapons.ranged && playerCanSee(aim)
+                       && hexDistUnits(selected, aim) <= selected.range) ? losBlocker(selected, aim) : null;
+          if (blk){
+            ctx.lineWidth = 2; ctx.strokeStyle = "rgba(224,83,74,0.9)"; ctx.setLineDash([5,4]);
+            ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke(); ctx.setLineDash([]);
+            const pb = tileCenter(blk.col, blk.row);
+            fillHex(pb.x, pb.y, SIZE); ctx.fillStyle = "rgba(224,83,74,0.30)"; ctx.fill();
+            ctx.lineWidth = 2.5; ctx.strokeStyle = "#e0534a"; ctx.stroke();
+            ctx.fillStyle = "#ffd479"; ctx.font = "bold 15px sans-serif"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+            ctx.fillText("✸", pb.x, pb.y);                // point d'interférence trajet/objet
+          }
           ctx.lineWidth = 2.5; ctx.strokeStyle = "#e0534a"; ctx.setLineDash([]);
           ctx.beginPath(); ctx.arc(b.x, b.y, SIZE*0.85, 0, Math.PI*2); ctx.stroke();
           const s = SIZE*0.48;
@@ -2299,7 +2327,11 @@
   // exécute l'attaque (ou la charge) contre `enemy` ; feedback si impossible
   function executeAttack(enemy){
     const m = selected, plan = attackPlan(enemy);
-    if (!plan){ flash("Cible hors d'atteinte"); return false; }
+    if (!plan){
+      const blocked = targeting && targeting.mode === "ranged" && m.weapons.ranged && playerCanSee(enemy)
+        && hexDistUnits(m, enemy) <= m.range && losBlocker(m, enemy);
+      flash(blocked ? "Tir bloqué par un obstacle" : "Cible hors d'atteinte"); return false;
+    }
     targeting = null;
     if (plan.kind === "direct"){ doAttack(m, enemy); refreshAll(); afterPlayerAction(); return true; }
     setMode(m, "melee");                               // charge en mêlée : on rejoint puis on frappe
