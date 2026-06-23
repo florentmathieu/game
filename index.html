@@ -228,6 +228,7 @@
 
       <h2 style="margin-top:12px">Éditeur de mission</h2>
       <div class="erow"><label>Nom <input id="ed-name" type="text" placeholder="nom de la mission…"></label></div>
+      <div class="erow"><label><input type="checkbox" id="ed-fullheal"> Commencer tous soignés (ignore les PV reportés)</label></div>
       <div class="erow">Taille
         <input id="ed-cols" type="number" min="6" max="40" value="20" title="colonnes"> ×
         <input id="ed-rows" type="number" min="6" max="40" value="20" title="lignes">
@@ -356,7 +357,7 @@
   // ---- Paramètres de la grille --------------------------------------------
   let COLS = 20, ROWS = 20;                       // taille de la carte (modifiable : éditeur / missions)
   const SIZE = 20, LEVELS = 7, MARGIN = 14;
-  const VISION = 8;          // rayon de vision : au moins égal à la course max (2 + 2*3 = 8)
+  const VISION = 9;          // rayon de vision (= course max 8 + 1 case de marge)
   const ROCK_RATE = 0.07;    // proportion de cases occupées par un rocher (couvert total)
   const WALL_RATE = 0.16;    // densité de murets (couvert partiel) posés sur les arêtes
   const HEIGHT_BONUS = 6;    // % de précision par niveau d'écart de hauteur (plafonné)
@@ -502,6 +503,7 @@
   let painting = false;      // glisser-peindre en cours
   let lastPaint = null;      // dernière case peinte pendant un glisser (évite la sur-application)
   let editorName = "";   // pas de nom par défaut : il faut le saisir pour enregistrer
+  let missionFullHeal = false;   // mission : l'escouade démarre à PV pleins (ignore les PV reportés)
   const busy = () => anim || enemyPhase || introActive;
   const sleep = (ms) => new Promise(res => setTimeout(res, ms));
   function animateMoveP(u, pts){ return new Promise(res => animateMove(u, pts, res)); }
@@ -742,6 +744,7 @@
         if (u.hasFacing) o.facing = u.facing;
         return o;
       }),
+      ...(missionFullHeal ? { fullHeal: true } : {}),   // démarrage à PV pleins
       ...(triggers.length ? { triggers } : {}),   // évènements scriptés de la mission
       ...(zones.length ? { zones: zones.map(z => ({ name:z.name, tiles:z.tiles })) } : {}),
     };
@@ -756,8 +759,9 @@
     triggers = Array.isArray(m.triggers) ? m.triggers : [];   // chargé avant placeUnitsFrom (émet "start")
     zones = Array.isArray(m.zones) ? m.zones.map(z => ({ name:z.name, tiles:(z.tiles||[]).map(t => [t[0], t[1]]) })) : [];
     editZone = zones.length ? zones[0].name : null;
+    missionFullHeal = !!m.fullHeal;
     placeUnitsFrom(m.units || []);   // resolveCls gère cls et anciens « type »
-    if (campRun){ applyCarry(); recomputeVision(); }   // persistance des PV en campagne
+    if (campRun && !m.fullHeal){ applyCarry(); recomputeVision(); }   // persistance des PV (sauf mission « tous soignés »)
   }
 
   // ---- Brouillard de guerre : vision des unités joueur --------------------
@@ -2666,6 +2670,7 @@
     setupCanvas();                       // l'éditeur n'est pas plein écran : on recalcule la taille
     const ci = document.getElementById("ed-cols"), ri = document.getElementById("ed-rows"), ni = document.getElementById("ed-name");
     if (ci) ci.value = COLS; if (ri) ri.value = ROWS; if (ni) ni.value = editorName;
+    { const fh = document.getElementById("ed-fullheal"); if (fh) fh.checked = missionFullHeal; }
     // recharge les réglages de publication (token/dépôt/branche) propres à ce navigateur
     try{
       const tok = localStorage.getItem("mgf_gh_token"); if (tok){ const tf = document.getElementById("gh-token"); if (tf) tf.value = tok; }
@@ -2758,6 +2763,8 @@
   onEd("ed-gen", () => { generateElevation(); updateExport(); draw(); });
   onEd("ed-clearunits", () => { units = []; updateExport(); draw(); });
   { const ni = document.getElementById("ed-name"); if (ni) ni.addEventListener("input", () => { editorName = ni.value.trim(); updateExport(); }); }
+  { const fh = document.getElementById("ed-fullheal"); if (fh) fh.addEventListener("change", () => { missionFullHeal = fh.checked; updateExport(); }); }
+  function syncFullHeal(){ const fh = document.getElementById("ed-fullheal"); if (fh) fh.checked = missionFullHeal; }
   for (const b of document.querySelectorAll(".etool")) b.addEventListener("click", () => setTool(editTool === b.dataset.tool ? "" : b.dataset.tool));
   for (const b of document.querySelectorAll(".eteam")) b.addEventListener("click", () => {
     placeTeam = b.dataset.team;
@@ -2771,7 +2778,7 @@
     applyMission(m); editorName = m.name || editorName;
     const ci = document.getElementById("ed-cols"), ri = document.getElementById("ed-rows"), ni = document.getElementById("ed-name");
     if (ci) ci.value = COLS; if (ri) ri.value = ROWS; if (ni) ni.value = editorName;
-    updateExport(); draw(); refreshTrigEditor();
+    syncFullHeal(); updateExport(); draw(); refreshTrigEditor();
   });
   // ---- éditeur d'évènements (triggers) ------------------------------------
   const tval = (id) => { const e = document.getElementById(id); return e ? String(e.value).trim() : ""; };
@@ -2883,7 +2890,7 @@
       const f = e.target.files[0]; if (!f) return; const rd = new FileReader();
       rd.onload = () => { try{ const m = JSON.parse(rd.result); editorName = m.name || editorName;
           if (editMode){ applyMission(m); const ci=document.getElementById("ed-cols"),ri=document.getElementById("ed-rows"),ni=document.getElementById("ed-name");
-            if(ci)ci.value=COLS; if(ri)ri.value=ROWS; if(ni)ni.value=editorName; updateExport(); draw(); refreshTrigEditor(); }
+            if(ci)ci.value=COLS; if(ri)ri.value=ROWS; if(ni)ni.value=editorName; syncFullHeal(); updateExport(); draw(); refreshTrigEditor(); }
           else startMission(m);
         }catch(err){ alert("JSON invalide : " + err.message); } };
       rd.readAsText(f); e.target.value = "";
