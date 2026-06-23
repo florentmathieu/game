@@ -2958,6 +2958,11 @@ Stiff: Enough. I've decided.`;
   function drawCampaign(){
     const choosing = !!campChoosing;
     const selSet = choosing ? new Set(campChoosing.options) : null;
+    // en jeu, on ne révèle que le parcours déjà emprunté + le choix courant + ses routes ;
+    // le futur (au-delà des routes proposées) reste caché.
+    const visited = (choosing && campRun && campRun.visited) ? campRun.visited : new Set();
+    const visible = choosing ? new Set([...visited, campChoosing.nodeId, ...campChoosing.options]) : null;
+    const shown = (id) => !choosing || visible.has(id);
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     ctx.fillStyle = "#14100b"; ctx.fillRect(0, 0, campCanvasW, campCanvasH);
     ctx.fillStyle = "#1d160e";                                   // pointillé de fond
@@ -2965,7 +2970,8 @@ Stiff: Enough. I've decided.`;
       ctx.beginPath(); ctx.arc(x, y, 1, 0, Math.PI*2); ctx.fill(); }
     // liens
     for (const n of campaign.nodes) for (const p of campPorts(n)){
-      const t = campNodeById(portTarget(n, p.key)); if (!t) continue;
+      const tid = portTarget(n, p.key); const t = campNodeById(tid); if (!t) continue;
+      if (choosing && !(visible.has(n.id) && visible.has(tid))) continue;   // pas de lien vers le futur
       const lit = choosing && campChoosing.nodeId === n.id;     // routes proposées en surbrillance
       ctx.globalAlpha = !choosing || lit ? 1 : 0.18;
       drawCampLink(p.x, p.y, campInPoint(t).x, campInPoint(t).y, p.color, false);
@@ -2977,12 +2983,13 @@ Stiff: Enough. I've decided.`;
     }
     // nœuds
     for (const n of campaign.nodes){
+      if (!shown(n.id)) continue;                               // futur caché pendant le choix
       const isStart = campaign.start === n.id, isSel = campSel === n, isLinkHover = campHover === n && campLink;
       const selectable = choosing && selSet.has(n.id);
       const isCur = choosing && campChoosing.nodeId === n.id;
-      const dim = choosing && !selectable && !isCur;
+      const dim = choosing && !selectable && !isCur;            // parcours passé : visible mais atténué
       ctx.save();
-      ctx.globalAlpha = dim ? 0.32 : 1;
+      ctx.globalAlpha = dim ? 0.55 : 1;
       rrect(n.x, n.y, CAMP_W, CAMP_H, 9);
       ctx.fillStyle = NODE_FILL(n.type); ctx.fill();
       const hot = selectable && campHoverNode === n;
@@ -3283,6 +3290,7 @@ Stiff: Enough. I've decided.`;
     hideCampCont();
     const n = campNodeById(id);
     if (!n){ endCampaign(true); return; }
+    if (campRun && campRun.visited) campRun.visited.add(id);    // mémorise le parcours déjà emprunté
     if (n.type === "choice"){ openParcours(n, false); return; }
     if (n.type === "text"){ await campPlayText(n); runCampNode(n.next); return; }
     // nœud mission
@@ -3313,7 +3321,7 @@ Stiff: Enough. I've decided.`;
   function startCampaign(camp, fromId){
     if (!camp || !camp.nodes || !camp.nodes.length){ alert("Campagne vide."); return; }
     const startId = (fromId && camp.nodes.some(n => n.id === fromId)) ? fromId : camp.start;
-    campaign = camp; campRun = { camp, nodeId:null }; campEnded = false; campChoosing = null;
+    campaign = camp; campRun = { camp, nodeId:null, visited:new Set() }; campEnded = false; campChoosing = null;
     resetCarry();                                   // nouvelle campagne : escouade au complet
     if (campMode) leaveCampEditor(); else setupCanvas();
     hideCampCont();
