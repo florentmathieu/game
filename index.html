@@ -375,7 +375,8 @@
   // ---- Paramètres de la grille --------------------------------------------
   let COLS = 20, ROWS = 20;                       // taille de la carte (modifiable : éditeur / missions)
   const SIZE = 20, LEVELS = 7, MARGIN = 14;
-  const VISION = 9;          // rayon de vision (= course max 8 + 1 case de marge)
+  const VISION = 9;          // rayon de vision/brouillard du JOUEUR (voit le terrain un peu plus loin)
+  const ENEMY_VISION = 7;    // détection d'un ennemi éveillé (< vision joueur : on les repère avant qu'ils nous voient)
   const SLEEP_VISION = 3;    // portée de détection d'un ennemi ENDORMI (courte : permet l'approche furtive)
   const ROCK_RATE = 0.07;    // proportion de cases occupées par un rocher (couvert total)
   const WALL_RATE = 0.16;    // densité de murets (couvert partiel) posés sur les arêtes
@@ -817,7 +818,7 @@
     const o = tileCenter(u.col, u.row);
     const src = offsetToCube(u.col, u.row);
     const vis = new Set([key(u.col, u.row)]);
-    const range = u.asleep ? SLEEP_VISION : VISION;   // endormi : détection courte (approche furtive possible)
+    const range = u.asleep ? SLEEP_VISION : (u.team === "enemy" ? ENEMY_VISION : VISION);   // endormi : courte ; ennemi éveillé : < joueur
     const fc = Math.cos(u.facing || 0), fs = Math.sin(u.facing || 0);
     const within = [];
     for (let r = Math.max(0, u.row - range); r <= Math.min(ROWS-1, u.row + range); r++)
