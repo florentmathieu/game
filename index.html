@@ -3095,11 +3095,11 @@ Stiff: Enough. I've decided.`;
   }
   function refreshMissionMenu(){
     const sel = document.getElementById("missionsel"), row = document.getElementById("missionrow");
-    if (!sel) return;
-    const opts = [`<option value="">— Missions —</option>`];
-    for (const it of repoMissions) opts.push(`<option value="${it.file}">${it.name}</option>`);
-    sel.innerHTML = opts.join("");
-    if (row) row.style.display = repoMissions.length ? "" : "none";
+    if (sel){                                            // menu de jeu (peut avoir été retiré)
+      sel.innerHTML = [`<option value="">— Missions —</option>`]
+        .concat(repoMissions.map(it => `<option value="${it.file}">${it.name}</option>`)).join("");
+      if (row) row.style.display = repoMissions.length ? "" : "none";
+    }
     // menu de chargement de l'éditeur
     const esel = document.getElementById("ed-missions");
     if (esel) esel.innerHTML = repoMissions.length
