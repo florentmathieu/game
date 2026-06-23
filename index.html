@@ -3161,12 +3161,12 @@ Stiff: Enough. I've decided.`;
     for (let i = 0; i <= body.length; i++){
       el.innerHTML = prefixHTML + whoHTML + escHTML(body.slice(0, i));
       if (i === body.length) break;
-      const ch = body[i];
+      const ch = body[i - 1];             // la pause suit le caractère qu'on vient d'afficher
       let d = 30;
-      if (ch === "…") d = 650;            // ellipse : longue suspension
-      else if (ch === ".") d = 230;       // les « ... » s'égrènent plus lentement
-      else if (",;:!?".includes(ch)) d = 130;
-      else if (ch === " ") d = 20;
+      if (ch === "…") d = 650;            // ellipse : longue suspension après
+      else if (ch === ".") d = 230;       // on souffle après le point
+      else if (ch && ",;:!?".includes(ch)) d = 130;
+      else if (body[i] === " ") d = 20;   // espace à venir : on l'enchaîne vite
       await sleepI(d);
     }
   }
