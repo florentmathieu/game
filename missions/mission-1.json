@@ -863,8 +863,8 @@
   {
    "cls": "archer",
    "team": "enemy",
-   "col": 6,
-   "row": 10,
+   "col": 5,
+   "row": 11,
    "pod": 0,
    "facing": 2.0943951023931953
   },
@@ -888,8 +888,8 @@
   {
    "cls": "brute",
    "team": "enemy",
-   "col": 4,
-   "row": 10,
+   "col": 3,
+   "row": 11,
    "facing": 1.0471975511965976
   }
  ],
