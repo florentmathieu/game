@@ -1485,8 +1485,10 @@
   function setupCanvas(){
     const mw = mapPxW(), mh = mapPxH();
     // fenêtre de jeu = ce qui tient à l'écran (place pour la colonne de droite + marges)
+    let top = 80;                                        // hauteur réservée au-dessus (roster…)
+    try{ const r = canvas.getBoundingClientRect(); if (r && r.top > 0) top = r.top; }catch(e){}
     const availW = Math.max(360, (window.innerWidth || 1200) - 380);
-    const availH = Math.max(360, (window.innerHeight || 800) - 36);
+    const availH = Math.max(320, (window.innerHeight || 800) - top - 28);   // garde une marge en bas
     baseScale = Math.min(availW / mw, availH / mh);     // ajuste la carte à la fenêtre (peut agrandir un petit plateau)
     boardCssW = Math.round(mw * baseScale);
     boardCssH = Math.round(mh * baseScale);
