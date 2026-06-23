@@ -117,6 +117,11 @@
   #turnbanner.show{opacity:1; transform:translate(-50%,-50%) scale(1)}
   #turnbanner.enemy{color:#ff8b86; border-color:#7a3530}
   #turnbanner.player{color:#9adf9a; border-color:#3a6a40}
+  #unittip{position:fixed; z-index:45; pointer-events:none; display:none; max-width:250px;
+    background:rgba(10,8,5,.95); border:1px solid #5a4530; border-radius:8px; padding:8px 11px;
+    color:#e8ddc8; font-size:.8rem; line-height:1.55; box-shadow:0 6px 22px rgba(0,0,0,.55)}
+  #unittip b{color:#ffd479}
+  #unittip code{color:#e8ddc8}
   .erow{display:flex; align-items:center; gap:6px; margin:6px 0; flex-wrap:wrap}
   .erow input[type=text]{flex:1}
   .erow input[type=number]{width:54px}
@@ -181,6 +186,7 @@
         <button data-dir="right" class="pan-right" title="droite">▶</button>
       </div>
       <div id="turnbanner"></div>
+      <div id="unittip"></div>
     </div>
 
     <div class="panel" id="gamepanel">
@@ -188,13 +194,13 @@
       <div id="turninfo" class="hint" style="margin-bottom:6px"></div>
       <div id="sel">Clique une unité bleue.</div>
       <div id="actions">
-        <button id="act-shoot"><span>🏹 Tirer <small id="dmg-shoot" class="dmg"></small></span><span class="te end">&gt;|</span></button>
-        <button id="act-melee"><span><span id="lbl-melee">⚔️ Épée</span> <small id="dmg-melee" class="dmg"></small></span><span class="te end">&gt;|</span></button>
-        <button id="act-ow-shoot"><span>👁️ Vigilance — tir <small id="dmg-ows" class="dmg"></small></span><span class="te end">&gt;|</span></button>
-        <button id="act-ow-melee"><span><span id="lbl-owm">👁️ Vigilance — épée</span> <small id="dmg-owm" class="dmg"></small></span><span class="te end">&gt;|</span></button>
-        <button id="act-reload"><span>🔄 Recharger</span><span class="te">&gt;</span></button>
-        <button id="act-brace"><span>🛡️ Brace</span><span class="te">&gt;</span></button>
-        <button id="act-cracker"><span>💣 Cracker <small id="dmg-cracker" class="dmg"></small></span><span class="te end">&gt;|</span></button>
+        <button id="act-shoot" title="Tir à distance sur une cible visible, dans la portée et à découvert. Termine le tour de l'unité (&gt;|)."><span>🏹 Tirer <small id="dmg-shoot" class="dmg"></small></span><span class="te end">&gt;|</span></button>
+        <button id="act-melee" title="Attaque au corps à corps une cible adjacente (clique aussi un ennemi proche pour charger). Termine le tour (&gt;|)."><span><span id="lbl-melee">⚔️ Épée</span> <small id="dmg-melee" class="dmg"></small></span><span class="te end">&gt;|</span></button>
+        <button id="act-ow-shoot" title="Vigilance — tir : l'unité tient en joue et riposte au premier ennemi qui bouge dans sa ligne de tir. Termine le tour (&gt;|)."><span>👁️ Vigilance — tir <small id="dmg-ows" class="dmg"></small></span><span class="te end">&gt;|</span></button>
+        <button id="act-ow-melee" title="Vigilance — épée/dagues : l'unité riposte à un ennemi qui s'approche au contact. Termine le tour (&gt;|)."><span><span id="lbl-owm">👁️ Vigilance — épée</span> <small id="dmg-owm" class="dmg"></small></span><span class="te end">&gt;|</span></button>
+        <button id="act-reload" title="Recharge l'arme à distance (1 PA, ne termine pas forcément le tour)."><span>🔄 Recharger</span><span class="te">&gt;</span></button>
+        <button id="act-brace" title="En garde : +défense jusqu'au début de ton prochain tour (1 PA)."><span>🛡️ Brace</span><span class="te">&gt;</span></button>
+        <button id="act-cracker" title="Lance un cracker explosif sur une zone (dégâts en aire, ignore les couverts). Termine le tour (&gt;|)."><span>💣 Cracker <small id="dmg-cracker" class="dmg"></small></span><span class="te end">&gt;|</span></button>
       </div>
       <div class="row"><button id="endturn">Fin de tour ▶ (phase ennemie)</button></div>
 
@@ -2033,49 +2039,41 @@
   }
 
   // ---- Interactions -------------------------------------------------------
+  // fiche d'une unité (affichée au survol sur la carte) — sans position/altitude
+  function unitStatsHTML(u){
+    const wn = u.wtype === "ranged" ? (u.clip !== undefined ? "arbalète" : "arc") : (u.flank ? "dagues" : "épée");
+    return `<b>${u.name}</b> — PV <code>${Math.max(0,u.hp)}/${u.maxHp}</code>`
+      + `<br>PA <code>${u.ap}/${AP_MAX}</code> · mouvement libre <code>${freeOf(u)}</code>${u.ap>0?` (+${u.ap}×${u.mob} via PA)`:``}`
+      + `<br>arme : <code>${wn}</code> · précision <code>${u.aim}%</code>`
+      + `<br>portée <code>${u.range}</code> · dégâts <code>${u.dmgMin}–${u.dmgMax}</code>`
+      + (u.clip !== undefined ? `<br>munitions : <code>${u.ammo}/${u.clip}</code>` : ``)
+      + (u.weapons.cracker ? `<br>crackers : <code>${u.crackers}</code>` : ``)
+      + (u.shieldBlock ? `<br>bouclier : <code>${u.shieldBlock}%</code> (CàC + tir)` : ``)
+      + (u.parry ? `<br>parade : <code>${u.parry}%</code> (CàC)` : ``)
+      + (u.flank ? `<br>dos : <code>+${u.flank.back}</code> · flanc : <code>+${u.flank.side}</code>` : ``)
+      + (u.bracing ? `<br><span style="color:#8fd3ff">En garde.</span>` : ``)
+      + (u.overwatch ? `<br><span style="color:#7fe0d0">En vigilance.</span>` : ``);
+  }
+  function showUnitTip(u, cx, cy){
+    const el = document.getElementById("unittip"); if (!el || !el.style) return;
+    if (!u){ el.style.display = "none"; return; }
+    el.innerHTML = unitStatsHTML(u);
+    el.style.display = "block";
+    const pad = 14, w = el.offsetWidth || 230, h = el.offsetHeight || 120;
+    let x = cx + pad, y = cy + pad;
+    if (x + w > window.innerWidth) x = cx - pad - w;
+    if (y + h > window.innerHeight) y = window.innerHeight - h - 6;
+    if (y < 6) y = 6; if (x < 6) x = 6;
+    el.style.left = x + "px"; el.style.top = y + "px";
+  }
   function onMove(e){
     if (editMode || campMode) return;           // l'éditeur gère son propre survol (pointer events)
     const { mx, my } = evtPos(e);
     hover = pickTile(mx, my);
-    const info = document.getElementById("info");
-    if (!info){ draw(); return; }                 // section « Survol » retirée : on garde juste le survol visuel
-    if (hover){
-      if (!isExplored(hover.col, hover.row)){
-        info.innerHTML = `Tuile <code>(${hover.col}, ${hover.row})</code><br><span style="color:#7a6c58">Zone inexplorée</span>`;
-      } else {
-        const t = tiles[hover.row][hover.col];
-        const u = unitAt(hover.col, hover.row);
-        let s = `Tuile <code>(${hover.col}, ${hover.row})</code><br>Altitude : <code>${t.elev}</code> / ${LEVELS-1}`;
-        if (t.obstacle) s += `<br><code>Rocher</code> — couvert total, bloque la vue`;
-        let nWalls = 0;
-        for (const [dc, dr] of NEI[hover.row & 1])
-          if (hasWall(hover.col, hover.row, hover.col+dc, hover.row+dr)) nWalls++;
-        if (nWalls) s += `<br><code>Muret</code> ×${nWalls} — couvert partiel (protège le côté bas)`;
-        if (u && isVisible(hover.col, hover.row)){
-          s += `<br>Occupée par : <code>${u.name}</code> (PV ${Math.max(0,u.hp)}/${u.maxHp})`;
-          if (selected && canAttack(selected, u)){
-            const bd = hitBreakdown(selected, u);
-            const hsign = bd.height >= 0 ? "+" : "";
-            s += `<br><b style="color:#ff8b86">${bd.melee ? "Épée" : "Tir"} : ${bd.chance}% de toucher</b>`
-               + `<br><span style="color:#9a8a74">base ${bd.base}`
-               + (bd.cover ? ` · couvert −${bd.cover}` : ``)
-               + (bd.dh ? ` · hauteur ${hsign}${bd.height} (Δ${bd.dh})` : ``)
-               + (bd.def ? ` · garde −${bd.def}` : ``)
-               + (bd.melee ? ` · corps à corps` : ``) + `</span>`
-               + ((u.shieldBlock || (bd.melee && u.parry)) ? `<br><span style="color:#9a8a74">cible : ${u.shieldBlock?`bouclier ${u.shieldBlock}%`:``}${(u.shieldBlock&&bd.melee&&u.parry)?` · `:``}${(bd.melee&&u.parry)?`parade ${u.parry}%`:``}</span>` : ``)
-               + (() => { const fb = flankBonus(selected, u); const f = (selected.flank && bd.melee) ? flankOf(selected, u) : null;
-                          return fb ? `<br><span style="color:#9adf9a">${f === "back" ? "dans le dos" : "de flanc"} : +${fb} dégâts</span>` : ``; })()
-               + `<br><span style="color:#9a8a74">dégâts ${selected.dmgMin}–${selected.dmgMax} · clic pour ${bd.melee ? "frapper" : "tirer"}</span>`;
-          }
-        }
-        if (selected && reach && reach.dist[key(hover.col,hover.row)] !== undefined){
-          const cst = reach.dist[key(hover.col,hover.row)];
-          const ap = apForMove(selected, cst);
-          s += `<br>Trajet : <code>${cst}</code> mouvement · <b style="color:${ap?'#e0a85f':'#7fd3ec'}">${ap} PA</b>`;
-        }
-        info.innerHTML = s;
-      }
-    } else info.textContent = "Passe la souris sur la carte.";
+    const u = hover ? unitAt(hover.col, hover.row) : null;
+    const seen = u && (u.team === "player" || (isVisible(u.col, u.row) && playerCanSee(u)));
+    const p = e.touches ? e.touches[0] : e;
+    showUnitTip(seen ? u : null, p.clientX || 0, p.clientY || 0);
     draw();
   }
 
@@ -2320,20 +2318,13 @@
     let html = "";
     if (!selected){ html = "Clique une unité bleue."; }
     else {
-      const wn = selected.wtype === "ranged" ? (selected.clip !== undefined ? "arbalète" : "arc") : (selected.flank ? "dagues" : "épée");
       html = `<code>${selected.name}</code> — PV <code>${Math.max(0,selected.hp)}/${selected.maxHp}</code>`
-        + `<br>PA <code>${selected.ap}/${AP_MAX}</code> · mouvement libre <code>${freeOf(selected)}</code>${selected.ap>0?` (+${selected.ap}×${selected.mob} via PA)`:``}`
-        + `<br>arme : <code>${wn}</code> · précision <code>${selected.aim}%</code>`
-        + `<br>portée <code>${selected.range}</code> · dégâts <code>${selected.dmgMin}–${selected.dmgMax}</code>`
-        + (selected.clip !== undefined ? `<br>munitions : <code>${selected.ammo}/${selected.clip}</code>${selected.ammo<=0?` <span style="color:#e0a85f">(recharger)</span>`:``}` : ``)
-        + (selected.weapons.cracker ? `<br>crackers : <code>${selected.crackers}</code>` : ``)
-        + (selected.shieldBlock ? `<br>bouclier : <code>${selected.shieldBlock}%</code> (CàC + tir)` : ``)
-        + (selected.parry ? `<br>parade : <code>${selected.parry}%</code> (CàC)` : ``)
-        + (selected.flank ? `<br>dos : <code>+${selected.flank.back}</code> · flanc : <code>+${selected.flank.side}</code>` : ``)
-        + `<br>position <code>(${selected.col}, ${selected.row})</code> · altitude <code>${elevOf(selected)}</code>`
+        + `<br>PA <code>${selected.ap}/${AP_MAX}</code> · mouvement libre <code>${freeOf(selected)}</code>`
+        + (selected.clip !== undefined && selected.ammo <= 0 ? `<br><span style="color:#e0a85f">arme vide — recharger</span>` : ``)
         + (selected.bracing ? `<br><span style="color:#8fd3ff">En garde (+${DEF_BRACE} défense).</span>` : ``)
         + (selected.overwatch ? `<br><span style="color:#7fe0d0">En vigilance.</span>`
-           : selected.ap <= 0 ? `<br><span style="color:#c98f3c">Plus de PA ce tour.</span>` : ``);
+           : selected.ap <= 0 ? `<br><span style="color:#c98f3c">Plus de PA ce tour.</span>` : ``)
+        + `<br><span style="color:#7a6c58;font-size:.9em">Survole une unité pour sa fiche.</span>`;
       if (targeting && targeting.targets.length){
         const tgt = targeting.targets[targeting.idx];
         const bd = hitBreakdown(selected, tgt);
@@ -2726,8 +2717,7 @@
     }); }
 
   canvas.addEventListener("mousemove", onMove);
-  canvas.addEventListener("mouseleave", () => { if (editMode) return; hover = null; draw();
-    const info = document.getElementById("info"); if (info) info.textContent = "Passe la souris sur la carte."; });
+  canvas.addEventListener("mouseleave", () => { if (editMode) return; hover = null; showUnitTip(null); draw(); });
   canvas.addEventListener("click", onClick);
   canvas.addEventListener("touchstart", (e) => { if (editMode) return; e.preventDefault(); onMove(e); onClick(e); }, { passive:false });
   // molette : zoom centré sur la souris (hors éditeur de campagne)
