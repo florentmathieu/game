@@ -90,6 +90,15 @@
   #pause-close{background:#15110c; color:#e8ddc8; border:1px solid #5a4530; border-radius:6px;
     padding:10px 24px; font-size:1rem; letter-spacing:2px; cursor:pointer; width:auto}
   #pause-close:hover{background:#241a12}
+  #panpad button{position:absolute; z-index:20; width:32px; height:32px; border-radius:8px;
+    background:rgba(20,16,11,.55); color:#d8cdb4; border:1px solid #5a4530; cursor:pointer;
+    font-size:.85rem; line-height:1; padding:0; opacity:.55; touch-action:none}
+  #panpad button:hover{opacity:1; background:#241a12}
+  .pan-up{top:8px; left:50%; transform:translateX(-50%)}
+  .pan-down{bottom:8px; left:50%; transform:translateX(-50%)}
+  .pan-left{left:8px; top:50%; transform:translateY(-50%)}
+  .pan-right{right:8px; top:50%; transform:translateY(-50%)}
+  body.editing #panpad,body.campediting #panpad{display:none}
   .erow{display:flex; align-items:center; gap:6px; margin:6px 0; flex-wrap:wrap}
   .erow input[type=text]{flex:1}
   .erow input[type=number]{width:54px}
@@ -145,6 +154,12 @@
           <li>Clique une <b>case</b> surlignée pour t'y déplacer</li>
         </ul>
         <button id="pause-close">Reprendre ▶</button>
+      </div>
+      <div id="panpad">
+        <button data-dir="up" class="pan-up" title="haut">▲</button>
+        <button data-dir="down" class="pan-down" title="bas">▼</button>
+        <button data-dir="left" class="pan-left" title="gauche">◀</button>
+        <button data-dir="right" class="pan-right" title="droite">▶</button>
       </div>
     </div>
 
@@ -388,6 +403,12 @@
   let targeting = null;         // mode ciblage : { targets:[unités], idx }
   let throwing = false;         // mode lancer de cracker (vise une case)
   const FX_DUR = 280;
+  // ---- Caméra du plateau : zoom (molette, centré souris) + déplacement (flèches/pavé) ----
+  let zoom = 1;                 // facteur de zoom au-dessus de l'ajustement écran (1 = carte entière)
+  let panX = 0, panY = 0;       // décalage écran (px CSS) du contenu
+  let baseScale = 1;            // échelle d'ajustement de la carte à la fenêtre
+  let boardCssW = 0, boardCssH = 0;  // taille CSS du canvas (fenêtre de jeu)
+  const ZOOM_MIN = 1, ZOOM_MAX = 4;
   // ---- Évènements scriptés (dialogues/triggers paramétrables par mission) ----
   let triggers = [];                 // règles {on, match, say, once, priority} (mission.triggers)
   let zones = [];                    // zones nommées { name, tiles:[[c,r],…] } pour l'évènement "enter"
@@ -1458,14 +1479,39 @@
   }
 
   // ---- Rendu --------------------------------------------------------------
+  // taille naturelle (px) de la carte au zoom 1
+  const mapPxW = () => MARGIN*2 + HEX_W*COLS + HEX_W/2;
+  const mapPxH = () => MARGIN*2 + HEX_V*(ROWS-1) + SIZE*2;
   function setupCanvas(){
-    const w = MARGIN*2 + HEX_W*COLS + HEX_W/2;
-    const h = MARGIN*2 + HEX_V*(ROWS-1) + SIZE*2;
+    const mw = mapPxW(), mh = mapPxH();
+    // fenêtre de jeu = ce qui tient à l'écran (place pour la colonne de droite + marges)
+    const availW = Math.max(360, (window.innerWidth || 1200) - 380);
+    const availH = Math.max(360, (window.innerHeight || 800) - 36);
+    baseScale = Math.min(availW / mw, availH / mh);     // ajuste la carte à la fenêtre (peut agrandir un petit plateau)
+    boardCssW = Math.round(mw * baseScale);
+    boardCssH = Math.round(mh * baseScale);
     const dpr = window.devicePixelRatio || 1;
-    canvas.style.width = w + "px"; canvas.style.height = h + "px";
-    canvas.width = Math.round(w*dpr); canvas.height = Math.round(h*dpr);
+    canvas.style.width = boardCssW + "px"; canvas.style.height = boardCssH + "px";
+    canvas.width = Math.round(boardCssW*dpr); canvas.height = Math.round(boardCssH*dpr);
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    resetCamera();
   }
+  // ---- caméra : conversions et bornes ----
+  const camScale = () => baseScale * zoom;                       // échelle effective écran↔carte
+  const screenToWorld = (mx, my) => ({ x:(mx - panX) / camScale(), y:(my - panY) / camScale() });
+  function clampPan(){
+    const cw = mapPxW() * camScale(), ch = mapPxH() * camScale();
+    panX = cw <= boardCssW ? (boardCssW - cw) / 2 : Math.min(0, Math.max(boardCssW - cw, panX));
+    panY = ch <= boardCssH ? (boardCssH - ch) / 2 : Math.min(0, Math.max(boardCssH - ch, panY));
+  }
+  function resetCamera(){ zoom = 1; panX = 0; panY = 0; clampPan(); }
+  function zoomAt(mx, my, factor){
+    const wx = (mx - panX) / camScale(), wy = (my - panY) / camScale();
+    zoom = Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, zoom * factor));
+    panX = mx - wx * camScale(); panY = my - wy * camScale();
+    clampPan(); draw();
+  }
+  function panBy(dx, dy){ panX += dx; panY += dy; clampPan(); draw(); }
 
   function fillHex(cx, cy, s){
     const c = hexCorners(cx, cy, s);
@@ -1672,11 +1718,12 @@
   function draw(){
     if (campMode || campChoosing){ drawCampaign(); return; }
     ctx.clearRect(0, 0, canvas.width, canvas.height);
-    let shaken = false;
+    ctx.save();                                          // repère « monde » : secousse + caméra (zoom/pan)
     if (typeof performance !== "undefined" && performance.now() < shakeUntil){
       const k = (shakeUntil - performance.now()) / 260 * shakeMag;
-      ctx.save(); ctx.translate((Math.random()*2-1)*k, (Math.random()*2-1)*k); shaken = true;
+      ctx.translate((Math.random()*2-1)*k, (Math.random()*2-1)*k);
     }
+    ctx.translate(panX, panY); ctx.scale(camScale(), camScale());
 
     // 1) sol (avec brouillard de guerre et obstacles)
     for (let row = 0; row < ROWS; row++){
@@ -1909,6 +1956,7 @@
       ctx.stroke();
     }
 
+    ctx.restore();                                       // fin du repère monde → overlays en coordonnées écran
     // 8) bannière de fin de partie
     if (gameOver){
       const w = canvas.width / (window.devicePixelRatio || 1);
@@ -1921,7 +1969,6 @@
       ctx.fillStyle = "#e8ddc8"; ctx.font = "16px 'Trebuchet MS',sans-serif";
       ctx.fillText("« Régénérer la carte » pour rejouer", w/2, h/2 + 22);
     }
-    if (shaken) ctx.restore();
     // vignette rouge clignotante quand on vient d'être repérés
     if (typeof performance !== "undefined" && performance.now() < spotUntil){
       const sp = (spotUntil - performance.now()) / 900;     // 1 → 0
@@ -1942,7 +1989,8 @@
   }
 
   // ---- Sélection de tuile à partir de la souris ---------------------------
-  function pickTile(mx, my){
+  function pickTile(sx, sy){
+    const w = screenToWorld(sx, sy), mx = w.x, my = w.y;
     const approxRow = Math.round((my - MARGIN - SIZE) / HEX_V);
     let best = null, bestD = Infinity;
     for (let row = Math.max(0,approxRow-1); row <= Math.min(ROWS-1,approxRow+1); row++){
@@ -2302,9 +2350,10 @@
     dedupeNames();
   }
   // arête (muret) la plus proche du curseur, parmi les voisins de la case survolée
-  function editComputeEdge(mx, my){
+  function editComputeEdge(sx, sy){
     editHoverEdge = null;
     if (!hover) return;
+    const w = screenToWorld(sx, sy), mx = w.x, my = w.y;
     const a = tileCenter(hover.col, hover.row);
     let best = null, bd = Infinity;
     for (const [dc, dr] of NEI[hover.row & 1]){
@@ -2612,6 +2661,27 @@
     document.getElementById("info").textContent = "Passe la souris sur la carte."; });
   canvas.addEventListener("click", onClick);
   canvas.addEventListener("touchstart", (e) => { if (editMode) return; e.preventDefault(); onMove(e); onClick(e); }, { passive:false });
+  // molette : zoom centré sur la souris (hors éditeur de campagne)
+  canvas.addEventListener("wheel", (e) => {
+    if (campMode || campChoosing) return;
+    e.preventDefault();
+    const { mx, my } = evtPos(e);
+    zoomAt(mx, my, e.deltaY < 0 ? 1.15 : 1/1.15);
+  }, { passive:false });
+  // ré-ajuste la fenêtre de jeu quand la taille de l'écran change
+  window.addEventListener("resize", () => { if (campMode || campChoosing) return; setupCanvas(); draw(); });
+  // petites flèches sur les bords pour se déplacer (en plus du pavé directionnel)
+  { const pad = document.getElementById("panpad");
+    if (pad) for (const b of pad.querySelectorAll("button")){
+      const step = 90;
+      const go = () => { const d = b.dataset.dir;
+        panBy(d === "left" ? step : d === "right" ? -step : 0, d === "up" ? step : d === "down" ? -step : 0); };
+      let timer = null;
+      b.addEventListener("pointerdown", (e) => { e.preventDefault(); go(); timer = setInterval(go, 110); });
+      const stop = () => { if (timer){ clearInterval(timer); timer = null; } };
+      b.addEventListener("pointerup", stop); b.addEventListener("pointerleave", stop); b.addEventListener("pointercancel", stop);
+    }
+  }
 
   document.getElementById("regen").addEventListener("click", () => { if (busy()) return; generate(); placeUnits(); selectUnit(units.find(u => u.team === "player")); renderLog(); });
   { const fg = document.getElementById("togglefog"); if (fg) fg.addEventListener("change", () => { opts.fog = fg.checked; refreshAll(); }); }
@@ -2636,6 +2706,12 @@
   if (typeof window !== "undefined" && window.addEventListener)
     window.addEventListener("keydown", (e) => {
       if (e.key === "Tab"){ e.preventDefault(); if (busy()) return; targeting ? cycleTarget(e.shiftKey ? -1 : 1) : cycleUnit(e.shiftKey ? -1 : 1); }
+      else if (e.key && e.key.indexOf("Arrow") === 0){    // pavé directionnel : déplacement de la caméra
+        if (campMode || campChoosing || introActive || pauseOpen) return;
+        e.preventDefault(); const s = 70;
+        if (e.key === "ArrowLeft") panBy(s, 0); else if (e.key === "ArrowRight") panBy(-s, 0);
+        else if (e.key === "ArrowUp") panBy(0, s); else if (e.key === "ArrowDown") panBy(0, -s);
+      }
       else if (e.key === "Enter"){ if (targeting) confirmTarget(); }
       else if (e.key === "Escape"){
         if (pauseOpen){ setPauseMenu(false); }
