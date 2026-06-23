@@ -29,11 +29,11 @@
   body:not(.editing):not(.campediting) #roster{position:fixed; left:8px; top:8px; z-index:15; margin:0;
     flex-direction:column; align-items:stretch; gap:8px; padding:8px; max-height:calc(100vh - 16px); overflow-y:auto;
     background:rgba(14,11,7,.62); border-radius:10px; box-shadow:0 6px 24px rgba(0,0,0,.5); backdrop-filter:blur(2px)}
-  #scene{position:absolute; left:10px; right:10px; bottom:10px; display:none; z-index:5;
+  #scene{position:absolute; left:20%; right:20%; bottom:10px; display:none; z-index:5;
     background:rgba(10,8,5,.88); border:1px solid #5a4530; border-radius:8px; padding:14px 16px 12px;
     color:#d8cdb4; font-family:Georgia,"Times New Roman",serif; box-shadow:0 6px 24px rgba(0,0,0,.55)}
   #scenetext{min-height:3em; line-height:1.6; white-space:pre-wrap; font-size:1rem}
-  #combatline{position:absolute; left:10px; right:10px; bottom:10px; display:none; z-index:6;
+  #combatline{position:absolute; left:20%; right:20%; bottom:10px; display:none; z-index:6;
     background:rgba(10,8,5,.9); border:1px solid #5a4530; border-radius:8px; padding:11px 14px;
     color:#e8ddc8; font-family:Georgia,"Times New Roman",serif; font-size:1rem; line-height:1.5;
     box-shadow:0 6px 24px rgba(0,0,0,.55); opacity:0; transition:opacity .25s}
@@ -249,6 +249,8 @@
       <div class="tools">
         <button class="eteam on" data-team="player">🔵 Allié</button>
         <button class="eteam" data-team="enemy">🔴 Ennemi</button>
+        <button class="eteam" data-team="neutral" title="PNJ neutre à défendre : l'ennemi l'attaque ; le perdre = défaite">🟡 PNJ (défendre)</button>
+        <button class="eteam" data-team="hostage" title="Otage : l'ennemi ne l'attaque pas, mais le perdre (tir ami, cracker) = défaite">🟣 Otage</button>
       </div>
       <h2 style="margin-top:12px">Classes</h2>
       <div class="tools">
@@ -706,6 +708,7 @@
       if (u){
         if (it.pod !== undefined) u.pod = it.pod;
         if (it.asleep) u.asleep = true;
+        if (it.hostage && u.team === "neutral") u.hostage = true;
         if (it.facing !== undefined){ u.facing = it.facing; u.hasFacing = true; }
         units.push(u);
       }
@@ -736,6 +739,7 @@
       rocks, walls: [...walls],
       units: units.map(u => {
         const o = { cls:u.cls, team:u.team, col:u.col, row:u.row };
+        if (u.hostage) o.hostage = true;
         if (u.named) o.name = u.name;
         if (u.over && u.over.hp) o.hp = u.over.hp;
         if (u.over && u.over.aim) o.aim = u.over.aim;
@@ -1035,7 +1039,7 @@
   function nearestOpposing(u){
     let best = null, bd = Infinity;
     for (const o of units){
-      if (o.hp <= 0 || o.team === u.team) continue;
+      if (o.hp <= 0 || !hostile(u, o)) continue;
       // on ne s'oriente pas vers un furtif (assassin) qu'on ne perçoit pas (sinon on le « repère » en se tournant)
       if (o.stealth){ const seen = u.team === "enemy" ? enemyCanSee(o) : playerCanSee(o); if (!seen) continue; }
       const d = hexDistUnits(u, o); if (d < bd){ bd = d; best = o; }
@@ -1090,11 +1094,19 @@
     return { melee, base: att.aim, cover, height, dh, def, chance };
   }
 
+  // relations : le joueur ne vise que l'ennemi ; l'ennemi vise les joueurs et les PNJ « à défendre »
+  // mais PAS les otages ; les neutres n'attaquent personne.
+  function hostile(a, b){
+    if (!a || !b) return false;
+    if (a.team === "enemy") return b.team === "player" || (b.team === "neutral" && !b.hostage);
+    if (a.team === "player") return b.team === "enemy";
+    return false;
+  }
   function canAttack(att, tgt){
     if (!att || att.hp <= 0) return false;
     if (att.ap <= 0) return false;                                      // besoin d'un PA (les deux camps)
     if (att.wtype === "ranged" && att.clip !== undefined && att.ammo <= 0) return false; // arme à chargeur vide
-    if (!tgt || tgt.team === att.team || tgt.hp <= 0) return false;
+    if (!tgt || tgt.hp <= 0 || !hostile(att, tgt)) return false;
     // chaque camp ne peut viser que ce que son équipe voit
     const seen = att.team === "player" ? playerCanSee(tgt) : enemyCanSee(tgt);
     if (!seen) return false;
@@ -1212,11 +1224,17 @@
     return path.length - 1;
   }
 
+  function loseBattle(msg){
+    gameOver = "lose"; pushLog(msg, "enemy"); emit("lose", {});
+    if (campRun && !campEnded){ campEnded = true; campMissionEnd("lose"); }
+  }
   function checkEnd(){
     const players = units.some(u => u.team === "player" && u.hp > 0);
     const enemies = units.some(u => u.team === "enemy" && u.hp > 0);
-    if (!enemies){ gameOver = "win"; pushLog("— Victoire : tous les ennemis sont éliminés —", "player"); emit("win", {}); if (campRun && !campEnded){ campEnded = true; saveCarry(); addItem("potion", 1); lastLoot = ITEMS.potion; pushLog("🎁 Butin : Potion de soin", "player"); campMissionEnd("win"); } }
-    else if (!players){ gameOver = "lose"; pushLog("— Défaite : toute l'escouade est tombée —", "enemy"); emit("lose", {}); if (campRun && !campEnded){ campEnded = true; campMissionEnd("lose"); } }
+    const neutralLost = units.some(u => u.team === "neutral" && u.hp <= 0);       // un PNJ protégé est tombé
+    if (neutralLost){ loseBattle("— Défaite : un PNJ à protéger est tombé —"); }
+    else if (!enemies){ gameOver = "win"; pushLog("— Victoire : tous les ennemis sont éliminés —", "player"); emit("win", {}); if (campRun && !campEnded){ campEnded = true; saveCarry(); addItem("potion", 1); lastLoot = ITEMS.potion; pushLog("🎁 Butin : Potion de soin", "player"); campMissionEnd("win"); } }
+    else if (!players){ loseBattle("— Défaite : toute l'escouade est tombée —"); }
   }
 
   // ====================== ÉVÈNEMENTS / TRIGGERS ============================
@@ -1421,19 +1439,20 @@
       if (!e.asleep && e.range > 1 && (e.clip === undefined || e.ammo > 0)) e.overwatch = true;
       e.ap = 0; return;
     }
-    // l'IA ne connaît que les joueurs que son camp voit (brouillard ennemi)
-    const players = units.filter(u => u.team === "player" && u.hp > 0 && enemyCanSee(u));
-    if (!players.length){ await searchAct(e); return; }   // personne en vue : fouille la dernière position connue
+    // l'IA chasse les joueurs et les PNJ « à défendre » (pas les otages) qu'elle voit ; seuls les joueurs ripostent
+    const targets = units.filter(u => u.hp > 0 && enemyCanSee(u) && (u.team === "player" || (u.team === "neutral" && !u.hostage)));
+    const threats = targets.filter(u => u.team === "player");
+    if (!targets.length){ await searchAct(e); return; }   // personne en vue : fouille la dernière position connue
 
     // cracker : si une case de jet touche un bon groupe (ou une cible bien à couvert), on lance
     if (e.weapons.cracker && e.crackers > 0 && e.ap > 0){
-      const g = bestGrenade(e, players);
+      const g = bestGrenade(e, targets);
       if (g) { resolveThrow(e, g.col, g.row); await sleep(450); return; }
     }
 
     // cible de référence (la plus proche) pour le calcul d'angle d'encerclement
-    let primary = players[0], pd = Infinity;
-    for (const p of players){ const d = hexDistUnits(e, p); if (d < pd){ pd = d; primary = p; } }
+    let primary = targets[0], pd = Infinity;
+    for (const p of targets){ const d = hexDistUnits(e, p); if (d < pd){ pd = d; primary = p; } }
     const pc = tileCenter(primary.col, primary.row);
     const allies = units.filter(o => o !== e && o.team === "enemy" && o.hp > 0);
 
@@ -1445,11 +1464,12 @@
     let best = [e.col, e.row, 0], bestScore = -Infinity;
     for (const [c, row, cost] of cands){
       let offense = 0, threat = 0, nearest = Infinity;
-      for (const p of players){
-        offense = Math.max(offense, shotChanceFrom(c, row, e, p.col, p.row));   // ce que JE peux faire
-        threat  = Math.max(threat,  shotChanceFrom(p.col, p.row, p, c, row));   // ce que JE subirais
+      for (const p of targets){
+        offense = Math.max(offense, shotChanceFrom(c, row, e, p.col, p.row));   // ce que JE peux faire (joueurs + neutres)
         nearest = Math.min(nearest, cubeDist(offsetToCube(c, row), offsetToCube(p.col, p.row)));
       }
+      for (const p of threats)                                                  // ce que JE subirais (joueurs seulement)
+        threat = Math.max(threat, shotChanceFrom(p.col, p.row, p, c, row));
       // il faut garder un PA pour tirer : si le trajet coûte 2 PA, on ne pourra pas attaquer
       if (apForMove(e, cost) > 1 || (e.wtype === "ranged" && e.clip !== undefined && e.ammo <= 0)) offense = 0;
       // coordination : éviter de s'agglutiner, et préférer un angle différent des alliés
@@ -1486,7 +1506,7 @@
     if (t){ doAttack(e, t); await sleep(380); return; }
     // se mettre en garde si on a un bouclier et qu'on est exposé au feu
     if (e.shieldBlock > 0 && e.ap > 0 && !e.bracing &&
-        players.some(p => shotChanceFrom(p.col, p.row, p, e.col, e.row) > 0)){
+        threats.some(p => shotChanceFrom(p.col, p.row, p, e.col, e.row) > 0)){
       e.ap -= 1; e.bracing = true; pushLog(`▼ ${e.name} se met en garde`, "enemy");
     }
     holdOrWatch(e);
@@ -1929,11 +1949,12 @@
       ctx.beginPath();
       ctx.moveTo(x + Math.cos(u.facing)*SIZE*0.4, y + Math.sin(u.facing)*SIZE*0.4);
       ctx.lineTo(x + Math.cos(u.facing)*SIZE*0.85, y + Math.sin(u.facing)*SIZE*0.85);
-      ctx.lineWidth = 3; ctx.strokeStyle = u.team === "player" ? "#bfe6ff" : "#f0b0ac"; ctx.stroke();
+      const noseCol = u.team === "player" ? "#bfe6ff" : u.team === "neutral" ? (u.hostage ? "#e9c6ee" : "#f0d89a") : "#f0b0ac";
+      ctx.lineWidth = 3; ctx.strokeStyle = noseCol; ctx.stroke();
 
       const undetected = u.stealth && u.team === "player" && !enemyStealthSeen.has(u);   // notre assassin non repéré : jeton un peu grisé
       ctx.beginPath(); ctx.arc(x, y, SIZE*0.55, 0, Math.PI*2);
-      ctx.fillStyle = undetected ? "#6f97ad" : (u.team === "player" ? "#5fb0d8" : "#d8635f");
+      ctx.fillStyle = undetected ? "#6f97ad" : (u.team === "player" ? "#5fb0d8" : u.team === "neutral" ? (u.hostage ? "#c98fd0" : "#e0b84a") : "#d8635f");
       const actedAlpha = (u.team === "player" && u.ap <= 0 && !u.overwatch && !u.bracing) ? 0.5 : 1;
       ctx.globalAlpha = undetected ? Math.min(actedAlpha, 0.78) : actedAlpha; ctx.fill(); ctx.globalAlpha = 1;
       ctx.lineWidth = u === selected ? 3 : 1.5;
@@ -2580,7 +2601,9 @@
   function placeEditUnit(cls, c, r, team){
     removeUnitAt(c, r);
     const t = tiles[r][c]; if (t.obstacle){ t.obstacle = false; delete t.cover; }
-    const u = buildUnit(cls, c, r, team); if (u) units.push(u);
+    const hostage = team === "hostage";                       // « otage » = neutre que l'IA n'attaque pas
+    const u = buildUnit(cls, c, r, hostage ? "neutral" : team);
+    if (u){ if (hostage) u.hostage = true; units.push(u); }
     dedupeNames();
   }
   // arête (muret) la plus proche du curseur, parmi les voisins de la case survolée
@@ -2640,6 +2663,7 @@
     const u = unitAt(hover.col, hover.row);
     let s = `(${hover.col}, ${hover.row}) · altitude ${t.elev}${t.obstacle ? " · rocher" : ""}`;
     if (u && u.team === "enemy") s += ` · ${u.name}${u.pod !== undefined ? " · pod " + u.pod : ""}${u.asleep ? " · 💤 endormi" : ""}`;
+    else if (u && u.team === "neutral") s += ` · ${u.name} · ${u.hostage ? "🟣 otage" : "🟡 PNJ à défendre"}`;
     el.textContent = s;
   }
 
