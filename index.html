@@ -3309,6 +3309,8 @@ Stiff: Enough. I've decided.`;
     const h = Math.max(640, Math.round(maxB + 200));
     if (h !== campCanvasH){ campCanvasH = h; setupCampCanvas(); }
   }
+  // sauvegarde locale du brouillon d'édition (restauré au rechargement, sans dépendre de Pages)
+  function campSaveDraft(){ try{ localStorage.setItem("mgf_camp_draft", JSON.stringify(campaign)); }catch(e){} }
   const uid = () => "n" + Math.random().toString(36).slice(2, 7);
   const campNodeById = (id) => campaign.nodes.find(n => n.id === id) || null;
   const campLabel = (n) => !n ? "?" :
@@ -3516,9 +3518,9 @@ Stiff: Enough. I've decided.`;
       const { mx, my } = evtPos(e); const t = campNodeAt(mx, my);
       if (t && t.id !== campLink.node.id) portSet(campLink.node, campLink.key, t.id);
       else if (!t && campLink.key !== "opt:add") portSet(campLink.node, campLink.key, null);  // lâché dans le vide : coupe
-      campLink = null; campHover = null; renderCampForm(); draw();
+      campLink = null; campHover = null; renderCampForm(); draw(); campSaveDraft();
     }
-    if (campDrag){ campDrag = null; campFitHeight(); draw(); }   // un nœud descendu agrandit le plan
+    if (campDrag){ campDrag = null; campFitHeight(); draw(); campSaveDraft(); }   // un nœud descendu agrandit le plan
   });
 
   function addCampNode(type){
@@ -3528,7 +3530,7 @@ Stiff: Enough. I've decided.`;
     else if (type === "choice"){ n.title = "Choix"; n.options = []; }
     else { n.mission = repoMissions[0] ? repoMissions[0].file : ""; n.name = repoMissions[0] ? repoMissions[0].name : "Mission"; n.desc = ""; n.win = null; n.lose = null; }
     if (!campaign.start) campaign.start = n.id;
-    campaign.nodes.push(n); campSel = n; campFitHeight(); renderCampForm(); draw();
+    campaign.nodes.push(n); campSel = n; campFitHeight(); renderCampForm(); draw(); campSaveDraft();
   }
   function deleteCampNode(n){
     campaign.nodes = campaign.nodes.filter(x => x !== n);
@@ -3538,7 +3540,7 @@ Stiff: Enough. I've decided.`;
     }
     if (campaign.start === n.id) campaign.start = campaign.nodes[0] ? campaign.nodes[0].id : null;
     if (campSel === n) campSel = null;
-    renderCampForm(); draw();
+    renderCampForm(); draw(); campSaveDraft();
   }
   // formulaire d'édition du nœud sélectionné
   function renderCampForm(){
@@ -3583,7 +3585,8 @@ Stiff: Enough. I've decided.`;
       h += `<div class="erow"><button id="cn-preview">${previewing ? "✕ Fermer l'aperçu" : "👁 Aperçu du parcours"}</button></div>`;
     }
     box.innerHTML = h;
-    const on = (id, ev, fn) => { const el = document.getElementById(id); if (el) el.addEventListener(ev, fn); };
+    // chaque interaction du formulaire enregistre le brouillon local
+    const on = (id, ev, fn) => { const el = document.getElementById(id); if (el) el.addEventListener(ev, e => { fn(e); campSaveDraft(); }); };
     on("cn-title", "input", e => { n.title = e.target.value; draw(); });
     on("cn-file", "change", e => { n.file = e.target.value; const t = repoTexts.find(x => x.file === n.file); if (t && !(n.title || "").trim()) n.title = t.name; renderCampForm(); draw(); });
     on("cn-next", "change", e => { n.next = e.target.value || null; draw(); });
@@ -3595,8 +3598,8 @@ Stiff: Enough. I've decided.`;
     on("cn-win", "change", e => { n.win = e.target.value || null; draw(); });
     on("cn-lose", "change", e => { n.lose = e.target.value || null; draw(); });
     on("cn-optadd", "change", e => { if (e.target.value){ (n.options = n.options || []).push(e.target.value); renderCampForm(); draw(); } });
-    for (const el of box.querySelectorAll(".cn-opt")) el.addEventListener("change", e => { n.options[+e.target.dataset.i] = e.target.value || null; n.options = n.options.filter(Boolean); renderCampForm(); draw(); });
-    for (const el of box.querySelectorAll(".cn-optdel")) el.addEventListener("click", e => { n.options.splice(+e.target.dataset.i, 1); renderCampForm(); draw(); });
+    for (const el of box.querySelectorAll(".cn-opt")) el.addEventListener("change", e => { n.options[+e.target.dataset.i] = e.target.value || null; n.options = n.options.filter(Boolean); renderCampForm(); draw(); campSaveDraft(); });
+    for (const el of box.querySelectorAll(".cn-optdel")) el.addEventListener("click", e => { n.options.splice(+e.target.dataset.i, 1); renderCampForm(); draw(); campSaveDraft(); });
     on("cn-start", "click", () => { campaign.start = n.id; renderCampForm(); draw(); });
     on("cn-del", "click", () => deleteCampNode(n));
     on("cn-testhere", "click", () => startCampaign(campaign, n.id));
@@ -3817,13 +3820,13 @@ Stiff: Enough. I've decided.`;
   onEd("camp-addchoice", () => addCampNode("choice"));
   onEd("camp-test", () => startCampaign(campaign));
   onEd("camp-publish", () => saveCampaign());
-  { const ni = document.getElementById("camp-name"); if (ni) ni.addEventListener("input", () => { campaign.name = ni.value.trim(); }); }
+  { const ni = document.getElementById("camp-name"); if (ni) ni.addEventListener("input", () => { campaign.name = ni.value.trim(); campSaveDraft(); }); }
   onEd("camp-loadbtn", async () => {
     const f = document.getElementById("camp-load").value; if (!f) return;
     const c = await loadCampaignFile(f);
     if (c){ campaign = { name:c.name || "", start:c.start || null, nodes:Array.isArray(c.nodes) ? c.nodes : [] };
       campSel = null; const ni = document.getElementById("camp-name"); if (ni) ni.value = campaign.name;
-      campFitHeight(); renderCampForm(); draw(); }
+      campFitHeight(); renderCampForm(); draw(); campSaveDraft(); }
     else alert("Campagne introuvable.");
   });
   onEd("campplay", async () => {
@@ -3832,7 +3835,10 @@ Stiff: Enough. I've decided.`;
     if (c) startCampaign(c); else alert("Campagne introuvable.");
   });
   fetchCampaigns().then(refreshCampaignMenu);
-  // campagne active par défaut : la Principale (éditeur pré-rempli ; « new game » la lance)
+  // brouillon d'édition local : on restaure le dernier état de l'éditeur (indépendant de Pages)
+  try{ const d = JSON.parse(localStorage.getItem("mgf_camp_draft") || "null");
+    if (d && Array.isArray(d.nodes) && d.nodes.length) campaign = { name:d.name || "", start:d.start || null, nodes:d.nodes }; }catch(e){}
+  // campagne active par défaut : la Principale (seulement si pas de brouillard) (« new game » la lance)
   loadCampaignFile("principale.json").then(c => {
     if (c && !campaign.nodes.length){
       campaign = { name:c.name || "", start:c.start || null, nodes:Array.isArray(c.nodes) ? c.nodes : [] };
