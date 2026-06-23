@@ -3398,6 +3398,14 @@ Stiff: Enough. I've decided.`;
     if (c) startCampaign(c); else alert("Campagne introuvable.");
   });
   fetchCampaigns().then(refreshCampaignMenu);
+  // campagne active par défaut : la Principale (éditeur pré-rempli ; « new game » la lance)
+  loadCampaignFile("principale.json").then(c => {
+    if (c && !campaign.nodes.length){
+      campaign = { name:c.name || "", start:c.start || null, nodes:Array.isArray(c.nodes) ? c.nodes : [] };
+      const ni = document.getElementById("camp-name"); if (ni) ni.value = campaign.name;
+      if (campMode){ renderCampForm(); draw(); }
+    }
+  });
 
   const params = new URLSearchParams(location.search);
   if (params.get("edit") !== null){ enterEditor(); }
