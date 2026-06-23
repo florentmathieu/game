@@ -229,6 +229,7 @@
       <h2 style="margin-top:12px">Éditeur de mission</h2>
       <div class="erow"><label>Nom <input id="ed-name" type="text" placeholder="nom de la mission…"></label></div>
       <div class="erow"><label><input type="checkbox" id="ed-fullheal"> Commencer tous soignés (ignore les PV reportés)</label></div>
+      <div class="erow"><label title="Nombre minimum de PNJ neutres à garder en vie (vide = tous). Défaite si on descend en dessous.">PNJ à protéger ≥ <input id="ed-protect" type="number" min="0" placeholder="tous" style="width:64px"></label></div>
       <div class="erow">Taille
         <input id="ed-cols" type="number" min="6" max="40" value="20" title="colonnes"> ×
         <input id="ed-rows" type="number" min="6" max="40" value="20" title="lignes">
@@ -506,6 +507,7 @@
   let lastPaint = null;      // dernière case peinte pendant un glisser (évite la sur-application)
   let editorName = "";   // pas de nom par défaut : il faut le saisir pour enregistrer
   let missionFullHeal = false;   // mission : l'escouade démarre à PV pleins (ignore les PV reportés)
+  let missionProtect = null;     // mission : nb min. de PNJ neutres à garder en vie (null = tous)
   const busy = () => anim || enemyPhase || introActive;
   const sleep = (ms) => new Promise(res => setTimeout(res, ms));
   function animateMoveP(u, pts){ return new Promise(res => animateMove(u, pts, res)); }
@@ -749,6 +751,8 @@
         return o;
       }),
       ...(missionFullHeal ? { fullHeal: true } : {}),   // démarrage à PV pleins
+      ...(missionProtect != null ? { protect: missionProtect } : {}),   // PNJ neutres à garder en vie
+
       ...(triggers.length ? { triggers } : {}),   // évènements scriptés de la mission
       ...(zones.length ? { zones: zones.map(z => ({ name:z.name, tiles:z.tiles })) } : {}),
     };
@@ -764,6 +768,7 @@
     zones = Array.isArray(m.zones) ? m.zones.map(z => ({ name:z.name, tiles:(z.tiles||[]).map(t => [t[0], t[1]]) })) : [];
     editZone = zones.length ? zones[0].name : null;
     missionFullHeal = !!m.fullHeal;
+    missionProtect = (typeof m.protect === "number") ? m.protect : null;
     placeUnitsFrom(m.units || []);   // resolveCls gère cls et anciens « type »
     if (campRun && !m.fullHeal){ applyCarry(); recomputeVision(); }   // persistance des PV (sauf mission « tous soignés »)
   }
@@ -1231,8 +1236,14 @@
   function checkEnd(){
     const players = units.some(u => u.team === "player" && u.hp > 0);
     const enemies = units.some(u => u.team === "enemy" && u.hp > 0);
-    const neutralLost = units.some(u => u.team === "neutral" && u.hp <= 0);       // un PNJ protégé est tombé
-    if (neutralLost){ loseBattle("— Défaite : un PNJ à protéger est tombé —"); }
+    // objectif de protection : garder au moins `required` PNJ neutres en vie (par défaut : tous)
+    const neutralTotal = units.filter(u => u.team === "neutral").length;
+    const neutralAlive = units.filter(u => u.team === "neutral" && u.hp > 0).length;
+    const required = Math.min(neutralTotal, missionProtect != null ? missionProtect : neutralTotal);
+    if (neutralTotal && neutralAlive < required){
+      loseBattle(required >= neutralTotal ? "— Défaite : un PNJ à protéger est tombé —"
+                                          : `— Défaite : trop de PNJ perdus (${neutralAlive}/${required} requis) —`);
+    }
     else if (!enemies){ gameOver = "win"; pushLog("— Victoire : tous les ennemis sont éliminés —", "player"); emit("win", {}); if (campRun && !campEnded){ campEnded = true; saveCarry(); addItem("potion", 1); lastLoot = ITEMS.potion; pushLog("🎁 Butin : Potion de soin", "player"); campMissionEnd("win"); } }
     else if (!players){ loseBattle("— Défaite : toute l'escouade est tombée —"); }
   }
@@ -2694,7 +2705,7 @@
     setupCanvas();                       // l'éditeur n'est pas plein écran : on recalcule la taille
     const ci = document.getElementById("ed-cols"), ri = document.getElementById("ed-rows"), ni = document.getElementById("ed-name");
     if (ci) ci.value = COLS; if (ri) ri.value = ROWS; if (ni) ni.value = editorName;
-    { const fh = document.getElementById("ed-fullheal"); if (fh) fh.checked = missionFullHeal; }
+    syncFullHeal();
     // recharge les réglages de publication (token/dépôt/branche) propres à ce navigateur
     try{
       const tok = localStorage.getItem("mgf_gh_token"); if (tok){ const tf = document.getElementById("gh-token"); if (tf) tf.value = tok; }
@@ -2788,7 +2799,11 @@
   onEd("ed-clearunits", () => { units = []; updateExport(); draw(); });
   { const ni = document.getElementById("ed-name"); if (ni) ni.addEventListener("input", () => { editorName = ni.value.trim(); updateExport(); }); }
   { const fh = document.getElementById("ed-fullheal"); if (fh) fh.addEventListener("change", () => { missionFullHeal = fh.checked; updateExport(); }); }
-  function syncFullHeal(){ const fh = document.getElementById("ed-fullheal"); if (fh) fh.checked = missionFullHeal; }
+  { const pr = document.getElementById("ed-protect"); if (pr) pr.addEventListener("input", () => { const v = pr.value.trim(); missionProtect = v === "" ? null : Math.max(0, +v|0); updateExport(); }); }
+  function syncFullHeal(){
+    const fh = document.getElementById("ed-fullheal"); if (fh) fh.checked = missionFullHeal;
+    const pr = document.getElementById("ed-protect"); if (pr) pr.value = missionProtect != null ? missionProtect : "";
+  }
   for (const b of document.querySelectorAll(".etool")) b.addEventListener("click", () => setTool(editTool === b.dataset.tool ? "" : b.dataset.tool));
   for (const b of document.querySelectorAll(".eteam")) b.addEventListener("click", () => {
     placeTeam = b.dataset.team;
