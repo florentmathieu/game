@@ -38,12 +38,12 @@
    "type": "mission",
    "x": 34,
    "y": 430,
-   "mission": "mission-1.json",
+   "mission": "mission-2.json",
    "name": "Infiltration 2",
    "desc": "Coucou",
    "win": null,
    "lose": null,
-   "intro": null
+   "intro": "Scene1.txt"
   },
   {
    "id": "nlqxlk",
