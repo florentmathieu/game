@@ -5,8 +5,8 @@
   {
    "id": "nae6ji",
    "type": "text",
-   "x": 26,
-   "y": 12,
+   "x": 399,
+   "y": 24,
    "file": "texts/Opening.txt",
    "title": "Ouverture",
    "next": "np7rcb"
@@ -14,8 +14,8 @@
   {
    "id": "np7rcb",
    "type": "mission",
-   "x": 42,
-   "y": 86,
+   "x": 390,
+   "y": 120,
    "mission": "mission-1.json",
    "name": "Mission 1",
    "win": "n35tql",
@@ -25,8 +25,8 @@
   {
    "id": "nzwgeo",
    "type": "choice",
-   "x": 79,
-   "y": 263,
+   "x": 379,
+   "y": 381,
    "title": "Choix",
    "options": [
     "ngsz1k",
@@ -36,8 +36,8 @@
   {
    "id": "ncnhre",
    "type": "mission",
-   "x": 18,
-   "y": 434,
+   "x": 173,
+   "y": 667,
    "mission": "mission-2.json",
    "name": "Infiltration 2",
    "desc": "Coucou",
@@ -49,8 +49,8 @@
   {
    "id": "nlqxlk",
    "type": "mission",
-   "x": 225,
-   "y": 438,
+   "x": 487,
+   "y": 672,
    "mission": "mission-1.json",
    "name": "Mission 7",
    "desc": "",
@@ -62,8 +62,8 @@
   {
    "id": "n35tql",
    "type": "text",
-   "x": 69,
-   "y": 178,
+   "x": 383,
+   "y": 223,
    "file": "texts/Interlude1.txt",
    "title": "Interlude 1",
    "next": "nzwgeo"
@@ -71,8 +71,8 @@
   {
    "id": "nl7vay",
    "type": "text",
-   "x": 101,
-   "y": 533,
+   "x": 363,
+   "y": 787,
    "file": "texts/Interlude3.txt",
    "title": "Interlude 3",
    "next": "njlbw3"
@@ -80,8 +80,8 @@
   {
    "id": "ngsz1k",
    "type": "text",
-   "x": 31,
-   "y": 353,
+   "x": 189,
+   "y": 537,
    "file": "texts/Interlude2.txt",
    "title": "Interlude 2",
    "next": "ncnhre"
@@ -89,8 +89,8 @@
   {
    "id": "nvzf7j",
    "type": "text",
-   "x": 221,
-   "y": 354,
+   "x": 484,
+   "y": 524,
    "file": "texts/Interlude2bis.txt",
    "title": "Interlude 2 bis",
    "next": "nlqxlk"
@@ -98,8 +98,8 @@
   {
    "id": "njlbw3",
    "type": "mission",
-   "x": 530,
-   "y": 446,
+   "x": 377,
+   "y": 884,
    "mission": "mission-7.json",
    "name": "Mission 3",
    "desc": "",
@@ -110,8 +110,8 @@
   {
    "id": "niu7qi",
    "type": "text",
-   "x": 553,
-   "y": 554,
+   "x": 397,
+   "y": 972,
    "file": "texts/Interlude4.txt",
    "title": "Interlude 4",
    "next": null
