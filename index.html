@@ -2945,13 +2945,18 @@ Stiff: Enough. I've decided.`;
   }
   async function ghPutFile(path, contentStr, message, branch, cfg){
     const c = cfg || ghCfg(); const { repo, token } = c;
-    const prev = await ghGetFile(path, branch, c);
-    const body = { message, content:b64enc(contentStr), branch };
-    if (prev) body.sha = prev.sha;
-    const r = await fetch(`https://api.github.com/repos/${repo}/contents/${path}`,
-      { method:"PUT", headers:{ Authorization:"Bearer "+token, Accept:"application/vnd.github+json" }, body:JSON.stringify(body) });
-    if (!r.ok) throw new Error(`${r.status} ${(await r.text()).slice(0,160)}`);
-    return r.json();
+    // relit le sha et réessaie en cas de conflit (409/422) : un commit concurrent
+    // sur la branche peut rendre le sha obsolète entre la lecture et l'écriture.
+    for (let attempt = 0; attempt < 4; attempt++){
+      const prev = await ghGetFile(path, branch, c);
+      const body = { message, content:b64enc(contentStr), branch };
+      if (prev) body.sha = prev.sha;
+      const r = await fetch(`https://api.github.com/repos/${repo}/contents/${path}`,
+        { method:"PUT", headers:{ Authorization:"Bearer "+token, Accept:"application/vnd.github+json" }, body:JSON.stringify(body) });
+      if (r.ok) return r.json();
+      if ((r.status === 409 || r.status === 422) && attempt < 3){ await new Promise(res => setTimeout(res, 400 * (attempt + 1))); continue; }
+      throw new Error(`${r.status} ${(await r.text()).slice(0,160)}`);
+    }
   }
   async function publishToRepo(){
     const status = document.getElementById("gh-status"); const set = (m) => { if (status) status.textContent = m; };
