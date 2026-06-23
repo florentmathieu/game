@@ -413,8 +413,9 @@
   let introActive = true;    // true tant que l'ouverture (écran noir + scène) est affichée (entrées bloquées)
   let firstGame = true;      // la scène sous la map ne joue qu'à la toute première partie
   let editMode = false;      // éditeur de mission actif
-  let editTool = "elev+";    // outil d'édition courant
+  let editTool = "";         // outil d'édition courant ("" = aucun)
   let editHoverEdge = null;  // arête survolée (pour poser un muret)
+  let editDragUnit = null;   // unité en cours de glisser-déposer (clic gauche, sans outil)
   let painting = false;      // glisser-peindre en cours
   let lastPaint = null;      // dernière case peinte pendant un glisser (évite la sur-application)
   let editorName = "";   // pas de nom par défaut : il faut le saisir pour enregistrer
@@ -1867,6 +1868,12 @@
           ctx.fillText(z.name, p.x, p.y); }
       });
     }
+    if (editMode && editDragUnit && hover){      // cible du glisser-déposer d'unité
+      const p = tileCenter(hover.col, hover.row);
+      const free = !tiles[hover.row][hover.col].obstacle && (!unitAt(hover.col, hover.row) || unitAt(hover.col, hover.row) === editDragUnit);
+      fillHex(p.x, p.y, SIZE); ctx.lineWidth = 2.5; ctx.setLineDash([]);
+      ctx.strokeStyle = free ? "#ffd479" : "#e0705f"; ctx.stroke();
+    }
     if (editMode && editTool === "wall" && editHoverEdge){
       const [c1, r1, c2, r2] = editHoverEdge;
       const a = tileCenter(c1, r1), b = tileCenter(c2, r2);
@@ -2287,7 +2294,7 @@
     editHoverEdge = best;
   }
   function editApply(isDown){
-    if (!hover) return;
+    if (!hover || !editTool) return;
     const c = hover.col, r = hover.row, t = tiles[r][c], k = key(c, r);
     if (editTool === "wall"){
       if (isDown && editHoverEdge){ const w = wallKey(...editHoverEdge); walls.has(w) ? walls.delete(w) : walls.add(w); }
@@ -2402,6 +2409,10 @@
     if (!editMode || (e.button !== undefined && e.button !== 0)) return;   // seul le clic gauche peint/pose
     e.preventDefault();
     const { mx, my } = evtPos(e); hover = pickTile(mx, my); editComputeEdge(mx, my);
+    if (!editTool){                              // aucun outil : glisser-déposer l'unité sous le curseur
+      editDragUnit = hover ? unitAt(hover.col, hover.row) : null;
+      draw(); editInfo(); return;
+    }
     painting = true; lastPaint = null; editApply(true); updateExport(); draw(); editInfo();
   });
   canvas.addEventListener("pointermove", (e) => {
@@ -2410,7 +2421,15 @@
     if (painting){ editApply(false); updateExport(); }
     draw(); editInfo();
   });
-  const endPaint = () => { if (editMode && painting){ painting = false; lastPaint = null; updateExport(); } };
+  const endPaint = () => {
+    if (editMode && editDragUnit){                // lâcher l'unité glissée sur la case survolée (si libre)
+      if (hover && !tiles[hover.row][hover.col].obstacle && !unitAt(hover.col, hover.row)){
+        editDragUnit.col = hover.col; editDragUnit.row = hover.row;
+      }
+      editDragUnit = null; updateExport(); draw(); editInfo(); return;
+    }
+    if (editMode && painting){ painting = false; lastPaint = null; updateExport(); }
+  };
   window.addEventListener("pointerup", endPaint);
   window.addEventListener("pointercancel", endPaint);
   // clic droit sur une unité : on la retire (quel que soit l'outil actif)
@@ -2434,7 +2453,7 @@
   onEd("ed-gen", () => { generateElevation(); updateExport(); draw(); });
   onEd("ed-clearunits", () => { units = []; updateExport(); draw(); });
   { const ni = document.getElementById("ed-name"); if (ni) ni.addEventListener("input", () => { editorName = ni.value.trim(); updateExport(); }); }
-  for (const b of document.querySelectorAll(".etool")) b.addEventListener("click", () => setTool(b.dataset.tool));
+  for (const b of document.querySelectorAll(".etool")) b.addEventListener("click", () => setTool(editTool === b.dataset.tool ? "" : b.dataset.tool));
   for (const b of document.querySelectorAll(".eteam")) b.addEventListener("click", () => {
     placeTeam = b.dataset.team;
     for (const x of document.querySelectorAll(".eteam")) x.classList.toggle("on", x === b);
@@ -2586,7 +2605,7 @@
     window.addEventListener("keydown", (e) => {
       if (e.key === "Tab"){ e.preventDefault(); if (busy()) return; targeting ? cycleTarget(e.shiftKey ? -1 : 1) : cycleUnit(e.shiftKey ? -1 : 1); }
       else if (e.key === "Enter"){ if (targeting) confirmTarget(); }
-      else if (e.key === "Escape"){ cancelTargeting(); cancelThrow(); }
+      else if (e.key === "Escape"){ if (editMode){ setTool(""); editDragUnit = null; editInfo(); } else { cancelTargeting(); cancelThrow(); } }
     });
 
   // ---- Écran d'ouverture --------------------------------------------------
