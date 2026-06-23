@@ -27,7 +27,7 @@
    "type": "choice",
    "x": 377,
    "y": 317,
-   "title": "Choix",
+   "title": "What to do?",
    "options": [
     "ngsz1k",
     "nvzf7j"
@@ -92,7 +92,7 @@
    "x": 477,
    "y": 428,
    "file": "texts/Interlude2bis.txt",
-   "title": "Renforts",
+   "title": "Reinforcements",
    "next": "nlqxlk"
   },
   {
