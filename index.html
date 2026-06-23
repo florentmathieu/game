@@ -2591,6 +2591,14 @@
     const isDagger = !!(w && w.melee && w.melee.flank);
     const im = document.getElementById("ico-melee"); if (im) im.textContent = isDagger ? "🗡️" : "⚔️";
     const io = document.getElementById("ico-owm");   if (io) io.textContent = isDagger ? "👁🗡️" : "👁⚔️";
+    if (isDagger) {
+      const fk = w.melee.flank;
+      melee.title = `🗡️ Dagues — corps à corps silencieux (exécution discrète). Bonus de flanquement : dos +${fk.back} dégâts, flanc +${fk.side}. Clique un ennemi proche pour charger. Termine le tour.`;
+      owM.title   = `👁 Vigilance — dagues : riposte silencieuse à un ennemi qui s'approche au contact. Bonus de flanquement : dos +${fk.back} dégâts, flanc +${fk.side}. Termine le tour.`;
+    } else {
+      melee.title = `⚔️ Épée — attaque au corps à corps (clique un ennemi proche pour charger). Termine le tour.`;
+      owM.title   = `👁 Vigilance — épée : riposte à un ennemi qui s'approche au contact. Termine le tour.`;
+    }
     const armedMode = targeting ? selected.mode : null;
     shoot.classList.toggle("armed", armedMode === "ranged");
     melee.classList.toggle("armed", armedMode === "melee");
