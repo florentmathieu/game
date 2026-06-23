@@ -805,7 +805,9 @@
       if (inShadow(ang)) continue;        // dans l'ombre d'un rocher plus proche
       vis.add(key(c, r));
       if (isOpaque(c, r)){
-        const sigma = Math.atan2(SIZE * 0.85, Math.hypot(p.x - o.x, p.y - o.y)); // demi-largeur angulaire
+        // demi-largeur angulaire = rayon de l'hex (sommet) : silhouette réelle du rocher,
+        // pour que des rochers contigus projettent une ombre continue (rien ne « fuit » derrière un mur)
+        const sigma = Math.atan2(SIZE, Math.hypot(p.x - o.x, p.y - o.y));
         addSpan(ang - sigma, ang + sigma);
       }
     }
