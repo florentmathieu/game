@@ -210,6 +210,7 @@
         <button id="act-reload" title="Recharge l'arme à distance (1 PA, ne termine pas forcément le tour)."><span><span class="num"></span>🔄 Recharger</span><span class="te">&gt;</span></button>
         <button id="act-brace" title="En garde : +défense jusqu'au début de ton prochain tour (1 PA)."><span><span class="num"></span>🛡️ Brace</span><span class="te">&gt;</span></button>
         <button id="act-cracker" title="Lance un cracker explosif sur une zone (dégâts en aire, ignore les couverts). Termine le tour (&gt;|)."><span><span class="num"></span>💣 Cracker <small id="dmg-cracker" class="dmg"></small></span><span class="te end">&gt;|</span></button>
+        <button id="act-item" title="Utilise un objet de l'inventaire (1 PA) : choisis ensuite l'allié à soigner."><span><span class="num"></span>🧪 Objet <small id="cnt-item" class="dmg"></small></span><span class="te">&gt;</span></button>
       </div>
       <div class="row"><button id="endturn"><span class="num">0 -</span> Fin de tour ▶ (phase ennemie)</button></div>
 
@@ -357,7 +358,7 @@
   const VISION = 8;          // rayon de vision : au moins égal à la course max (2 + 2*3 = 8)
   const ROCK_RATE = 0.07;    // proportion de cases occupées par un rocher (couvert total)
   const WALL_RATE = 0.16;    // densité de murets (couvert partiel) posés sur les arêtes
-  const HEIGHT_BONUS = 12;   // % de précision gagné par niveau d'écart de hauteur
+  const HEIGHT_BONUS = 6;    // % de précision par niveau d'écart de hauteur (plafonné)
   const FREE_MP = 2;         // mouvement gratuit par tour (en cases)
   const AP_MAX = 2;          // points d'action par tour
   const MOB_AP = 3;          // mouvement (MP) débloqué par point d'action converti
@@ -464,7 +465,16 @@
       if (u.hp <= 0) u.dead = true;
     }
   }
-  function resetCarry(){ carryHP = {}; try{ localStorage.removeItem("mgf_carry"); }catch(e){} }
+  function resetCarry(){ carryHP = {}; try{ localStorage.removeItem("mgf_carry"); }catch(e){} resetInventory(); }
+  // ---- Inventaire d'escouade (objets gagnés en butin, partagés par les trois) ----
+  const ITEMS = { potion: { name:"Potion de soin", icon:"🧪", heal:6 } };
+  let inventory = {};                          // { potion: n }
+  const invCount = (id) => inventory[id] || 0;
+  const invTotal = () => Object.values(inventory).reduce((a, b) => a + b, 0);
+  function saveInv(){ try{ localStorage.setItem("mgf_inv", JSON.stringify(inventory)); }catch(e){} }
+  function addItem(id, n){ inventory[id] = invCount(id) + (n || 1); saveInv(); }
+  function resetInventory(){ inventory = {}; try{ localStorage.removeItem("mgf_inv"); }catch(e){} }
+  let usingItem = null;                        // objet en cours d'utilisation (ciblage d'un allié)
   // ---- Campagne : enchaînement de nœuds « texte » et « mission » -----------
   let campMode = false;          // éditeur de campagne actif
   let campaign = { name:"", start:null, nodes:[] };
@@ -473,6 +483,7 @@
   let campLink = null;           // { node, key, x, y } fil de liaison en cours
   let campHover = null;          // nœud survolé pendant un drag de fil
   let campRun = null;            // exécution en cours : { camp, nodeId } ou null
+  let lastLoot = null;           // dernier butin gagné (pour l'écran de fin de mission)
   let campEnded = false;         // évite de relancer l'enchaînement plusieurs fois
   let campChoosing = null;       // menu de parcours actif : { nodeId, options:[ids], preview }
   let campHoverNode = null;      // nœud survolé dans le menu de parcours (pour le descriptif)
@@ -700,6 +711,7 @@
     for (const u of units){ if (tiles[u.row] && tiles[u.row][u.col]){ tiles[u.row][u.col].obstacle = false; delete tiles[u.row][u.col].cover; } }
     for (const u of units){ if (u.hasFacing) continue; const o = nearestOpposing(u); if (o) faceTowards(u, o.col, o.row); }
     selected = null; reach = null; log = []; turn = 1; gameOver = null;
+    targeting = null; throwing = false; usingItem = null;
     explored = new Set(); lastSeen = new Map(); podAlerted = new Set();
     firedTriggers = new Set(); battleFlags = { firstOffense: false };  // reset des évènements
     speechQueue = []; if (speechTimer && typeof clearTimeout === "function") clearTimeout(speechTimer); speechTimer = null;
@@ -1058,7 +1070,7 @@
     const melee = att.wtype === "melee";
     const cover = melee ? 0 : coverPenalty(tgt, att.col, att.row);   // le corps à corps ignore le couvert
     const dh = elevOf(att) - elevOf(tgt);
-    const height = dh * HEIGHT_BONUS;                                // avantage proportionnel à l'écart
+    const height = Math.max(-3, Math.min(3, dh)) * HEIGHT_BONUS;     // avantage de hauteur, plafonné à ±18%
     const def = defenseOf(tgt);                                      // cible en garde (brace)
     const chance = Math.max(5, Math.min(95, Math.round(att.aim - cover + height - def)));
     return { melee, base: att.aim, cover, height, dh, def, chance };
@@ -1083,18 +1095,22 @@
     if (att.wtype === "ranged" && att.clip !== undefined) att.ammo--;  // un coup consommé (arme à chargeur)
     const chance = reaction ? Math.max(5, bd.chance - 15) : bd.chance; // riposte moins précise
     const hit = Math.random()*100 < chance;
-    let dmg = 0, saveTxt = "";
+    let dmg = 0, saveTxt = "", dmgDetail = "";
     if (hit){
       if (tgt.shieldBlock > 0 && Math.random()*100 < tgt.shieldBlock) saveTxt = "bloqué 🛡";        // bouclier (CàC + tir)
       else if (bd.melee && tgt.parry > 0 && Math.random()*100 < tgt.parry) saveTxt = "paré 🗡";      // parade (CàC seulement)
       else {
-        dmg = att.dmgMin + Math.floor(Math.random()*(att.dmgMax-att.dmgMin+1)) + flankBonus(att, tgt);
+        const roll = att.dmgMin + Math.floor(Math.random()*(att.dmgMax-att.dmgMin+1));
+        const fb = flankBonus(att, tgt), f = (att.flank && bd.melee) ? flankOf(att, tgt) : null;
+        dmg = roll + fb;
         tgt.hp -= dmg;
+        if (fb) dmgDetail = ` [${roll} + ${fb} ${f === "back" ? "dos" : "flanc"}]`;   // détail du calcul
       }
     }
     const dead = tgt.hp <= 0;
+    const koMark = tgt.team === "player" ? " ✚ K.O." : " ✝";          // KO (allié) vs mort (ennemi)
     const verb = reaction ? "⚡ attaque d'opportunité sur" : (bd.melee ? "frappe" : "tire sur");
-    const res = !hit ? "raté" : saveTxt ? saveTxt : `touché ${dmg}${dead ? " ✝" : ""}`;
+    const res = !hit ? "raté" : saveTxt ? saveTxt : `touché ${dmg}${dmgDetail}${dead ? koMark : ""}`;
     pushLog(`${att.team === "player" ? "▲" : "▼"} ${att.name} ${verb} ${tgt.name} (${chance}%) : ${res}`, att.team);
     if (!reaction){ att.ap = 0; att.freeAvail = false; }   // une attaque épuise le tour (PA + mouvement libre) ; une riposte n'épuise rien
     const silent = att.wtype === "melee" && att.flank;   // dagues = silencieuses (exécution discrète)
@@ -1185,7 +1201,7 @@
   function checkEnd(){
     const players = units.some(u => u.team === "player" && u.hp > 0);
     const enemies = units.some(u => u.team === "enemy" && u.hp > 0);
-    if (!enemies){ gameOver = "win"; pushLog("— Victoire : tous les ennemis sont éliminés —", "player"); emit("win", {}); if (campRun && !campEnded){ campEnded = true; saveCarry(); campMissionEnd("win"); } }
+    if (!enemies){ gameOver = "win"; pushLog("— Victoire : tous les ennemis sont éliminés —", "player"); emit("win", {}); if (campRun && !campEnded){ campEnded = true; saveCarry(); addItem("potion", 1); lastLoot = ITEMS.potion; pushLog("🎁 Butin : Potion de soin", "player"); campMissionEnd("win"); } }
     else if (!players){ gameOver = "lose"; pushLog("— Défaite : toute l'escouade est tombée —", "enemy"); emit("lose", {}); if (campRun && !campEnded){ campEnded = true; campMissionEnd("lose"); } }
   }
 
@@ -1861,12 +1877,18 @@
     for (const u of units){
       let { x, y } = tileCenter(u.col, u.row);
       if (anim && u === anim.mover){ const p = animPos(); x = p.x; y = p.y; }
-      if (u.hp <= 0){                                   // corps : grisé, toujours dessiné
-        ctx.globalAlpha = 0.55;
+      if (u.hp <= 0){                                   // unité à terre : symbole différent allié/ennemi
+        ctx.globalAlpha = 0.6;
         ctx.beginPath(); ctx.arc(x, y, SIZE*0.42, 0, Math.PI*2); ctx.fillStyle = "#444"; ctx.fill();
-        ctx.lineWidth = 2; ctx.strokeStyle = u.team === "player" ? "#3a6076" : "#6a3a3a";
-        ctx.beginPath(); ctx.moveTo(x-5,y-5); ctx.lineTo(x+5,y+5); ctx.moveTo(x+5,y-5); ctx.lineTo(x-5,y+5); ctx.stroke();
-        ctx.globalAlpha = 1;
+        ctx.lineWidth = 2.6; ctx.lineCap = "round";
+        if (u.team === "player"){                        // K.O. (récupérable) : croix de soin
+          ctx.strokeStyle = "#86bce6";
+          ctx.beginPath(); ctx.moveTo(x, y-6); ctx.lineTo(x, y+6); ctx.moveTo(x-6, y); ctx.lineTo(x+6, y); ctx.stroke();
+        } else {                                         // mort : croix en X
+          ctx.strokeStyle = "#d88a8a";
+          ctx.beginPath(); ctx.moveTo(x-5, y-5); ctx.lineTo(x+5, y+5); ctx.moveTo(x+5, y-5); ctx.lineTo(x-5, y+5); ctx.stroke();
+        }
+        ctx.lineCap = "butt"; ctx.globalAlpha = 1;
         continue;
       }
       if (u.team === "enemy" && !playerCanSee(u)) continue;   // ennemi furtif caché sauf perçu de face
@@ -1962,6 +1984,14 @@
       ctx.beginPath(); ctx.arc(o.x, o.y, selected.range * HEX_W, 0, Math.PI*2); ctx.stroke(); ctx.setLineDash([]);
     }
 
+    // utilisation d'objet : on cercle les alliés (cibles de soin)
+    if (usingItem){
+      for (const a of units) if (a.team === "player" && a.hp > 0){
+        const p = tileCenter(a.col, a.row);
+        ctx.lineWidth = 2.5; ctx.strokeStyle = "rgba(122,223,122,0.85)"; ctx.setLineDash([4,3]);
+        ctx.beginPath(); ctx.arc(p.x, p.y, SIZE*0.8, 0, Math.PI*2); ctx.stroke(); ctx.setLineDash([]);
+      }
+    }
     // visée active : repères sur les cibles atteignables, tracé/réticule sur la cible visée
     if (targeting && selected){
       for (const tg of targeting.targets){           // cibles atteignables : petit cercle vert
@@ -2144,7 +2174,7 @@
   function refreshAll(){ updateSel(); renderRoster(); draw(); }
 
   function selectUnit(u){
-    selected = u; targeting = null; throwing = false;
+    selected = u; targeting = null; throwing = false; usingItem = null;
     reach = u ? computeReach(u) : null;
     refreshAll();
   }
@@ -2178,6 +2208,28 @@
     executeAttack(targeting.targets[targeting.idx]);
   }
   function cancelTargeting(){ if (targeting){ targeting = null; refreshAll(); } }
+
+  // ---- Objets de l'inventaire (action à 1 PA) ----
+  function useItemStart(){
+    if (!selected || selected.ap <= 0 || gameOver || busy()) return;
+    if (!invCount("potion")){ flash("Aucun objet"); return; }
+    usingItem = "potion"; targeting = null; throwing = false;
+    flash("Choisis un allié à soigner"); refreshAll();
+  }
+  function cancelItem(){ if (usingItem){ usingItem = null; refreshAll(); } }
+  function applyItem(target){
+    const id = usingItem, it = ITEMS[id]; if (!it || !target || target.team !== "player" || target.hp <= 0) return;
+    if (id === "potion"){
+      if (target.hp >= target.maxHp){ flash(`${target.name} est déjà au max`); return; }   // pas de gâchis
+      const heal = Math.min(it.heal, target.maxHp - target.hp);
+      target.hp += heal; inventory[id]--; saveInv();
+      selected.ap -= 1;                                  // utiliser un objet coûte 1 PA
+      usingItem = null;
+      pushLog(`▲ ${selected.name} utilise ${it.name} sur ${target.name} : +${heal} PV`, "player");
+      flash(`${target.name} : +${heal} PV`);
+    }
+    refreshAll(); afterPlayerAction();
+  }
 
   function doOverwatch(mode){
     if (!selected || selected.ap <= 0 || gameOver || busy()) return;
@@ -2243,7 +2295,7 @@
         if (u.hp <= 0){ u.hp = 0; u.dead = true; killed++; }
         emit("wounded", { targetName:u.name, targetCls:u.cls, targetTeam:u.team, byName:thrower.name,
           hp:Math.max(0,u.hp), maxHp:u.maxHp, hpPct:Math.round(100*Math.max(0,u.hp)/u.maxHp), killed:u.hp<=0 });
-        pushLog(`   💥 ${u.name} : ${dmg} dégâts${u.hp<=0?" ✝":""}`, u.team);
+        pushLog(`   💥 ${u.name} : ${dmg} dégâts${u.hp<=0?(u.team==="player"?" ✚ K.O.":" ✝"):""}`, u.team);
       }
     }
     makeNoise(ic, ir, NOISE_CRACKER);   // l'explosion réveille les pods alentour
@@ -2356,6 +2408,12 @@
     if (!t) return;
     const u = unitAt(t.col, t.row);
 
+    // mode « utiliser un objet » : clic sur un allié vivant -> on l'applique
+    if (usingItem){
+      if (u && u.team === "player" && u.hp > 0) applyItem(u);
+      else { usingItem = null; refreshAll(); }
+      return;
+    }
     // mode lancer de cracker : clic sur une case à portée et vue -> on lance
     if (throwing){
       if (selected && isVisible(t.col, t.row) &&
@@ -2406,8 +2464,11 @@
         + (selected.bracing ? `<br><span style="color:#8fd3ff">En garde (+${DEF_BRACE} défense).</span>` : ``)
         + (selected.overwatch ? `<br><span style="color:#7fe0d0">En vigilance.</span>`
            : selected.ap <= 0 ? `<br><span style="color:#c98f3c">Plus de PA ce tour.</span>` : ``)
+        + (invTotal() ? `<br>Inventaire : ${Object.keys(inventory).filter(id=>inventory[id]>0).map(id=>`${ITEMS[id].icon} ${ITEMS[id].name} ×${inventory[id]}`).join(" · ")}` : ``)
         + `<br><span style="color:#7a6c58;font-size:.9em">Survole une unité pour sa fiche.</span>`;
-      if (targeting){
+      if (usingItem){
+        html += `<br><b style="color:#9adf9a">🧪 Choisis un allié à soigner</b><br><span style="color:#9a8a74">clique un allié · Échap annule</span>`;
+      } else if (targeting){
         if (targeting.targets.length){
           const tgt = targeting.targets[targeting.idx];
           const plan = attackPlan(tgt);
@@ -2436,6 +2497,7 @@
     const reload = document.getElementById("act-reload");
     const brace = document.getElementById("act-brace");
     const cracker = document.getElementById("act-cracker");
+    const item = document.getElementById("act-item");
     if (!shoot) return;
     const ready = selected && selected.hp > 0 && selected.ap > 0 && !gameOver && !busy();
     const w = selected && selected.weapons;
@@ -2448,6 +2510,7 @@
     show(reload,  ready && selected.clip !== undefined && selected.ammo < selected.clip);
     show(brace,   ready && selected.shieldBlock > 0 && !selected.bracing);
     show(cracker, ready && w.cracker && selected.crackers > 0);
+    if (item){ show(item, ready && invTotal() > 0); const ci = document.getElementById("cnt-item"); if (ci) ci.textContent = invCount("potion") ? "×" + invCount("potion") : ""; item.classList.toggle("armed", !!usingItem); }
     // libellé de mêlée selon l'arme (épée vs dagues)
     const isDagger = !!(w && w.melee && w.melee.flank);
     const lm = document.getElementById("lbl-melee");
@@ -2467,7 +2530,8 @@
     // numéros clavier : 1,2,3… sur les actions disponibles, dans l'ordre
     actionKeyMap = {};
     let n = 0;
-    for (const b of [shoot, melee, owS, owM, reload, brace, cracker]){
+    for (const b of [shoot, melee, owS, owM, reload, brace, cracker, item]){
+      if (!b) continue;
       const numEl = b.querySelector && b.querySelector(".num");
       if (b.style.display !== "none"){ n++; actionKeyMap[n] = b; if (numEl) numEl.textContent = n + " -"; }
       else if (numEl) numEl.textContent = "";
@@ -2481,7 +2545,7 @@
     const ps = units.filter(u => u.team === "player");
     el.innerHTML = ps.map((u, i) => {
       const cls = "chip" + (u === selected ? " active" : "") + (u.hp <= 0 ? " dead" : (u.ap <= 0 && !u.overwatch ? " acted" : ""));
-      const tag = u.hp <= 0 ? "tombé" : u.overwatch ? "vigilance" : u.bracing ? "en garde" : `PA ${u.ap}/${AP_MAX}`;
+      const tag = u.hp <= 0 ? "K.O." : u.overwatch ? "vigilance" : u.bracing ? "en garde" : `PA ${u.ap}/${AP_MAX}`;
       return `<div class="${cls}" data-i="${i}">`
         + `<div class="nm"><span>${u.name}</span><span>${Math.max(0,u.hp)}/${u.maxHp}</span></div>`
         + `<div class="role">${u.role || ""}</div>`
@@ -2851,6 +2915,7 @@
   document.getElementById("act-reload").addEventListener("click", doReload);
   document.getElementById("act-brace").addEventListener("click", doBrace);
   document.getElementById("act-cracker").addEventListener("click", enterThrow);
+  { const ib = document.getElementById("act-item"); if (ib) ib.addEventListener("click", useItemStart); }
 
   // menu des contrôles (pause) accessible en jeu via Échap
   let pauseOpen = false;
@@ -2899,7 +2964,7 @@
         else if (campChoosing && campChoosing.preview){ campChoosing = null; campHoverNode = null; setupCampCanvas(); draw(); }
         else if (editMode){ setTool(""); editDragUnit = null; editInfo(); }
         else if (campMode || campChoosing){ /* éditeur/parcours : rien */ }
-        else if (targeting || throwing){ cancelTargeting(); cancelThrow(); }   // annule l'action en cours
+        else if (targeting || throwing || usingItem){ cancelTargeting(); cancelThrow(); cancelItem(); }   // annule l'action en cours
         else if (!introActive){ setPauseMenu(true); }                          // sinon : menu des contrôles
       }
     });
@@ -3604,8 +3669,10 @@ Stiff: Enough. I've decided.`;
     const node = campNodeById(campRun.nodeId);
     const nextId = node ? node[result] : null;
     if (result === "win"){
-      if (nextId) showCampCont("Mission accomplie.", "Continuer ▶", () => runCampNode(nextId));
-      else showCampCont("Campagne terminée — victoire !", "Retour au menu", () => endCampaign(true));
+      const loot = lastLoot ? `<br><span style="color:#9adf9a">🎁 Butin : ${lastLoot.icon} ${lastLoot.name}</span>` : "";
+      lastLoot = null;
+      if (nextId) showCampCont("Mission accomplie." + loot, "Continuer ▶", () => runCampNode(nextId));
+      else showCampCont("Campagne terminée — victoire !" + loot, "Retour au menu", () => endCampaign(true));
     } else {
       if (nextId) showCampCont("Mission échouée…", "Continuer ▶", () => runCampNode(nextId));
       else showCampCont("Mission échouée…", "↻ Réessayer", () => runCampNode(campRun.nodeId));
