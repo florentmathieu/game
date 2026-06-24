@@ -646,7 +646,11 @@
   // Applique l'arme active aux stats de combat (+ bonus de flanc éventuel des dagues).
   function applyWeapon(u){
     const w = u.weapons[u.mode] || u.weapons.melee || u.weapons.ranged;
-    u.aim = w.aim; u.dmgMin = w.dmgMin; u.dmgMax = w.dmgMax; u.range = w.range || 1; u.wtype = w.type;
+    const malus = u.team === "enemy" ? 1 : 0;          // ennemis : -1 dégât (équilibrage), reflété dans les stats affichées
+    u.aim = w.aim;
+    u.dmgMin = Math.max(0, w.dmgMin - malus);
+    u.dmgMax = Math.max(u.dmgMin, w.dmgMax - malus);
+    u.range = w.range || 1; u.wtype = w.type;
     u.flank = w.flank || null; u.bare = !!w.bare;
   }
   function setMode(u, mode){ if (u.weapons[mode]){ u.mode = mode; applyWeapon(u); } }
@@ -1188,10 +1192,9 @@
       else {
         const roll = att.dmgMin + Math.floor(Math.random()*(att.dmgMax-att.dmgMin+1));
         const fb = flankBonus(att, tgt), f = (att.flank && bd.melee) ? flankOf(att, tgt) : null;
-        const malus = att.team === "enemy" ? 1 : 0;        // ennemis : -1 dégât (équilibrage)
-        dmg = Math.max(malus ? 1 : 0, roll + fb - malus);
+        dmg = roll + fb;
         tgt.hp -= dmg;
-        if (fb) dmgDetail = ` [${roll} + ${fb} ${f === "back" ? "dos" : "flanc"}${malus ? " − 1" : ""}]`;   // détail du calcul
+        if (fb) dmgDetail = ` [${roll} + ${fb} ${f === "back" ? "dos" : "flanc"}]`;   // détail du calcul
       }
     }
     const dead = tgt.hp <= 0;
