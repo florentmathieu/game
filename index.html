@@ -17,7 +17,18 @@
   input[type=text],input[type=password]{ background:#1c150e;color:var(--ink);border:1px solid #5a4530;border-radius:6px;padding:4px }
   .row{ display:flex; align-items:center; gap:6px; margin:4px 0; flex-wrap:wrap } input[type=range]{ flex:1 }
   .leg{ display:flex; align-items:center; gap:6px; margin:2px 0; font-size:.74rem } .sw{ width:13px;height:13px;border-radius:3px;border:1px solid #00000066 }
-  .hint{ color:#9a8a74; font-size:.72rem; margin-top:4px } .editonly{display:block} .playonly{display:block} body.play .editonly{display:none} body:not(.play) .playonly{display:none}
+  .hint{ color:#9a8a74; font-size:.72rem; margin-top:4px }
+  /* trois vues : mission (éditeur), campaign (éditeur), play (jeu) — pilotées par l'URL */
+  .editonly,.playonly,#tab-mission,#tab-camp{ display:none }
+  body.view-mission .editonly,body.view-campaign .editonly{ display:block }
+  body.view-mission #tab-mission{ display:block }
+  body.view-campaign #tab-camp{ display:block }
+  body.view-play .playonly{ display:block }
+  body.view-campaign #board{ display:none }
+  #mode{ display:none } body.view-mission #mode,body.testing.view-play #mode{ display:inline-block }
+  body:not(.view-play) #title{ display:none !important }
+  #nav{ gap:4px } #nav a{ color:#caa24a; text-decoration:none; border:1px solid #5a4530; border-radius:6px; padding:4px 9px; font-size:.82rem }
+  #nav a.cur{ background:#5a4a20; color:#ffd479 } #nav a:hover{ background:#241a12 }
   #export{ width:100%; height:70px; background:#0b0906;color:#9fd3ec;border:1px solid #3a2c1c;border-radius:6px;font-size:.66rem;display:none }
   #log{ max-height:120px; overflow:auto; font-size:.74rem; border-top:1px solid #3a2c1c; margin-top:6px; padding-top:5px } #log div{margin:1px 0} .pl{color:#9fd3ec}.en{color:#e8a39f}
   #over{ position:fixed; inset:0; background:rgba(0,0,0,.72); display:none; align-items:center; justify-content:center; flex-direction:column; gap:14px; z-index:9 } #over.show{display:flex} #over h2{font-size:2rem;margin:0}
@@ -45,9 +56,11 @@
 <canvas id="board" width="720" height="560"></canvas>
 <div class="panel">
   <h1>Cœur maillage</h1>
-  <div class="row"><button id="mode">▶ Jouer</button></div>
+  <div class="row" id="nav"><a href="?edit" id="nav-m">🗺 Mission</a><a href="?campaign" id="nav-c">🎬 Campagne</a><a href="?play" id="nav-p">▶ Jouer</a></div>
+  <div class="row"><button id="mode">▶ Tester la mission</button></div>
 
   <div class="editonly">
+    <div id="tab-mission">
     <h2>1 · Forme (zones + distorsion)</h2>
     <div class="row" id="zones"></div>
     <div class="row"><label style="flex:1">Distorsion <input id="dist" type="range" min="0" max="100" value="28"></label><span id="distv">28%</span></div>
@@ -80,6 +93,8 @@
     <input id="gh-token" type="password" placeholder="token GitHub (Contents: write)" style="width:100%;margin:2px 0">
     <div class="row"><input id="gh-repo" type="text" value="florentmathieu/game" style="flex:1"><input id="gh-branch" type="text" placeholder="branche" style="flex:1"></div>
     <div class="hint" id="gh-status"></div>
+    </div>
+    <div id="tab-camp" style="display:none">
     <h2>Campagne (nœuds : textes / missions / choix)</h2>
     <div class="row"><input id="cname" type="text" placeholder="nom de la campagne" style="flex:1"></div>
     <div class="row"><button id="cadd-text">+ Texte</button><button id="cadd-mission">+ Mission</button><button id="cadd-choice">+ Choix</button></div>
@@ -89,6 +104,7 @@
     <select id="cmsel" style="display:none"></select>
     <div class="row"><button id="csave">💾 Campagne</button><select id="cloadsel" style="flex:1"></select><button id="cload">📂</button><button id="cplay">▶ Jouer</button></div>
     <div class="hint" id="cstatus"></div>
+    </div>
   </div>
 
   <div class="playonly">
@@ -439,10 +455,12 @@
       if(n.type==="choice"){ const od=d.querySelector(`[data-opts="${n.id}"]`); (n.options||[]).forEach((opt,oi)=>{ const r=document.createElement("div"); r.className="row"; r.innerHTML=`→ <select data-optsel="${n.id}" data-oi="${oi}">${idOpts(opt,false)}</select><button data-optdel="${n.id}" data-oi="${oi}">✕</button>`; od.appendChild(r); }); }
     });
     el.querySelectorAll("[data-del]").forEach(b=>b.onclick=()=>{campNodes=campNodes.filter(n=>n.id!==b.dataset.del);if(campStart===b.dataset.del)campStart=campNodes[0]?campNodes[0].id:"";renderNodes();});
-    el.querySelectorAll("input[data-f],select[data-f]").forEach(inp=>{const set=()=>{const n=campNode(inp.dataset.id);if(!n)return;const f=inp.dataset.f;n[f]=(inp.value===""&&(f==="next"||f==="win"||f==="lose"))?null:inp.value;};inp.tagName==="SELECT"?inp.onchange=set:inp.oninput=set;});
+    el.querySelectorAll("input[data-f],select[data-f]").forEach(inp=>{const set=()=>{const n=campNode(inp.dataset.id);if(!n)return;const f=inp.dataset.f;n[f]=(inp.value===""&&(f==="next"||f==="win"||f==="lose"))?null:inp.value;saveCampDraft();};inp.tagName==="SELECT"?inp.onchange=set:inp.oninput=set;});
     el.querySelectorAll("[data-addopt]").forEach(b=>b.onclick=()=>{const n=campNode(b.dataset.addopt);n.options=n.options||[];n.options.push(campNodes[0]?campNodes[0].id:"");renderNodes();});
     el.querySelectorAll("[data-optsel]").forEach(s=>s.onchange=()=>{const n=campNode(s.dataset.optsel);n.options[+s.dataset.oi]=s.value;});
-    el.querySelectorAll("[data-optdel]").forEach(b=>b.onclick=()=>{const n=campNode(b.dataset.optdel);n.options.splice(+b.dataset.oi,1);renderNodes();}); drawGraph(); }
+    el.querySelectorAll("[data-optdel]").forEach(b=>b.onclick=()=>{const n=campNode(b.dataset.optdel);n.options.splice(+b.dataset.oi,1);renderNodes();}); drawGraph(); saveCampDraft(); }
+  function saveCampDraft(){ try{ localStorage.setItem("mgf_camp_draft_mesh", JSON.stringify({name:cname.value,start:campStart,nodes:campNodes})); }catch(e){} }
+  function loadCampDraft(){ try{ const d=JSON.parse(localStorage.getItem("mgf_camp_draft_mesh")||"null"); if(d&&Array.isArray(d.nodes)&&d.nodes.length) return d; }catch(e){} return null; }
   // graphe visuel de la campagne (nœuds déplaçables, liens colorés)
   const cg=document.getElementById("cgraph"),cgx=cg?cg.getContext("2d"):null; let cgDrag=null,cgOff=[0,0];
   function drawGraph(){ if(!cgx)return; campNodes.forEach((n,i)=>{ if(n.x==null){n.x=14+(i%3)*88;n.y=14+Math.floor(i/3)*46;} });
@@ -454,7 +472,8 @@
   if(cg){ cg.addEventListener("pointerdown",e=>{const r=cg.getBoundingClientRect();const mx=e.clientX-r.left,my=e.clientY-r.top;cgDrag=campNodes.find(n=>mx>=n.x&&mx<=n.x+68&&my>=n.y&&my<=n.y+24);if(cgDrag)cgOff=[mx-cgDrag.x,my-cgDrag.y];});
     cg.addEventListener("pointermove",e=>{if(!cgDrag)return;const r=cg.getBoundingClientRect();cgDrag.x=Math.max(0,Math.min(cg.width-68,e.clientX-r.left-cgOff[0]));cgDrag.y=Math.max(0,Math.min(cg.height-24,e.clientY-r.top-cgOff[1]));drawGraph();});
     window.addEventListener("pointerup",()=>{cgDrag=null;}); }
-  { const cs=document.getElementById("cstart"); if(cs)cs.onchange=e=>{campStart=e.target.value;}; }
+  { const cs=document.getElementById("cstart"); if(cs)cs.onchange=e=>{campStart=e.target.value;saveCampDraft();}; }
+  if(cname)cname.oninput=saveCampDraft;
   document.getElementById("cadd-text").onclick=()=>{const n={id:newId(),type:"text",text:"",next:null};campNodes.push(n);if(!campStart)campStart=n.id;renderNodes();};
   document.getElementById("cadd-mission").onclick=()=>{const n={id:newId(),type:"mission",mission:(repoMissionList[0]?repoMissionList[0].file:""),intro:"",outro:"",win:null,lose:null};campNodes.push(n);if(!campStart)campStart=n.id;renderNodes();};
   document.getElementById("cadd-choice").onclick=()=>{const n={id:newId(),type:"choice",title:"",options:[]};campNodes.push(n);if(!campStart)campStart=n.id;renderNodes();};
@@ -469,14 +488,20 @@
       if(list.some(x=>x.file===file))list=list.map(x=>x.file===file?{file,name}:x);else list.push({file,name});
       await ghPut("campaigns-mesh/list.json",JSON.stringify(list),"list camp : "+name,cfg); fillCampLoad(list); cstatus.textContent="✓ Campagne publiée."; }catch(e){cstatus.textContent="Échec : "+e.message;} }
   document.getElementById("csave").onclick=campSave;
-  document.getElementById("cplay").onclick=()=>{ if(!campNodes.length){cstatus.textContent="Ajoute au moins un nœud.";return;} if(!campNode(campStart)){cstatus.textContent="Choisis un nœud de départ.";return;} startCampaign({name:cname.value,start:campStart,nodes:campNodes}); };
+  document.getElementById("cplay").onclick=()=>{ if(!campNodes.length){cstatus.textContent="Ajoute au moins un nœud.";return;} if(!campNode(campStart)){cstatus.textContent="Choisis un nœud de départ.";return;} startCampaign({name:cname.value,start:campStart,nodes:campNodes},"campaign"); };
   function showCampText(text,cb){ const el=document.getElementById("camptext"),btn=document.getElementById("camptext-btn"); document.getElementById("camptext-body").textContent=text; btn.style.display=""; el.classList.add("show"); btn.onclick=()=>{el.classList.remove("show");if(cb)cb();}; }
   function showChoice(n){ const el=document.getElementById("camptext"),body=document.getElementById("camptext-body"),btn=document.getElementById("camptext-btn"); btn.style.display="none";
     body.innerHTML=`<div style="margin-bottom:12px">${esc(n.title||"Quelle route ?")}</div>`+(n.options||[]).map(oid=>{const tn=campRun.camp.nodes.find(x=>x.id===oid);return `<button class="opt" data-go="${oid}">${tn?nodeLabel(tn):oid}</button>`;}).join(""); el.classList.add("show");
     body.querySelectorAll("[data-go]").forEach(b=>b.onclick=()=>{el.classList.remove("show");btn.style.display="";runNode(b.dataset.go);}); }
   function applyCarry(){ if(!campRun)return; for(const u of units)if(u.team==="player"){const c=campRun.carry[u.name];if(c!=null)u.hp=Math.max(1,Math.min(u.max,c));} }
   function saveCarry(){ if(!campRun)return; for(const u of units)if(u.team==="player")campRun.carry[u.name]=Math.max(0,u.hp); }
-  function startCampaign(camp){ campRun={camp,carry:{},nodeId:null}; mode="play"; document.body.classList.add("play"); document.getElementById("mode").textContent="✎ Éditer"; runNode(camp.start); }
+  function setView(v){ document.body.classList.remove("view-mission","view-campaign","view-play"); document.body.classList.add("view-"+v); mode=(v==="play")?"play":"edit";
+    const cur={mission:"nav-m",campaign:"nav-c",play:"nav-p"}[v]; ["nav-m","nav-c","nav-p"].forEach(id=>{const a=document.getElementById(id);if(a)a.classList.toggle("cur",id===cur);}); }
+  function startCampaign(camp,from){ campRun={camp,carry:{},nodeId:null,from:from||"campaign"}; document.body.classList.remove("testing"); setView("play"); runNode(camp.start); }
+  async function startPlay(){ let camp=loadCampDraft();
+    if(!camp){ const t=await fetchText("campaigns-mesh/principale.json",ghCfg()); if(t){try{camp=JSON.parse(t);}catch(e){}} }
+    if(camp&&Array.isArray(camp.nodes)&&camp.nodes.length){ startCampaign({name:camp.name||"",start:camp.start||(camp.nodes[0]&&camp.nodes[0].id),nodes:camp.nodes},"play"); }
+    else { document.body.classList.add("testing"); setView("play"); startGame(); } }
   function runNode(id){ if(!campRun)return; const n=campRun.camp.nodes.find(x=>x.id===id); if(!n){endCampaignRun("Campagne terminée.");return;} campRun.nodeId=id;
     if(n.type==="text"){showCampText(n.text||"…",()=>runNode(n.next));return;}
     if(n.type==="choice"){showChoice(n);return;}
@@ -487,7 +512,9 @@
   function campEnd(t){ const win=t.indexOf("Victoire")===0, n=campRun.camp.nodes.find(x=>x.id===campRun.nodeId);
     if(win){ saveCarry(); const after=()=>{ if(n&&n.win)runNode(n.win); else endCampaignRun("Campagne terminée — victoire !"); }; if(n&&n.outro)showCampText(n.outro,after); else after(); }
     else { if(n&&n.lose)runNode(n.lose); else showCampText("Mission échouée…",()=>loadMissionNode(n,true)); } }
-  function endCampaignRun(msg){ showCampText(msg,()=>{ campRun=null; mode="edit"; document.body.classList.remove("play"); document.getElementById("mode").textContent="▶ Jouer"; refresh(); }); }
+  function endCampaignRun(msg){ const from=campRun?campRun.from:"campaign"; showCampText(msg,()=>{ campRun=null;
+    if(from==="play"){ setView("play"); const t=document.getElementById("title"); if(t)t.style.display="flex"; }
+    else { setView("campaign"); refresh(); } }); }
   renderNodes(); fetchCampaigns();
 
   // ===== jeu =====
@@ -509,8 +536,9 @@
     banner("À votre tour","player"); emit("start",{}); emit("turn",{turn:1}); }
   document.getElementById("end").onclick=()=>{if(!over&&turn==="player"&&mode==="play")endTurn();};
   document.getElementById("overbtn").onclick=()=>{ if(mode==="play")startGame(); };
-  document.getElementById("mode").onclick=()=>{ mode=mode==="edit"?"play":"edit"; document.body.classList.toggle("play",mode==="play");
-    document.getElementById("mode").textContent=mode==="edit"?"▶ Jouer":"✎ Éditer"; if(mode==="play")startGame(); else{sel=null;campRun=null;refresh();} };
+  document.getElementById("mode").onclick=()=>{ const btn=document.getElementById("mode");
+    if(document.body.classList.contains("testing")){ document.body.classList.remove("testing"); campRun=null; sel=null; setView("mission"); btn.textContent="▶ Tester la mission"; refresh(); }
+    else { document.body.classList.add("testing"); setView("play"); btn.textContent="✎ Éditer la mission"; startGame(); } };
 
   // ===== polish : bannière de tour, fiche au survol, raccourcis clavier =====
   function banner(text,cls){ const el=document.getElementById("banner"); el.textContent=text; el.style.background=cls==="enemy"?"#5a2a2a":"#2a4a5a"; el.classList.remove("show"); void el.offsetWidth; el.classList.add("show"); }
@@ -543,9 +571,16 @@
     let draft=null; try{ draft=JSON.parse(localStorage.getItem("mgf_mesh_draft")||"null"); }catch(e){}
     if(draft&&draft.cells&&draft.cells.length){ try{ applyMissionObj(draft); }catch(e){ defaultBoard(); } }
     else defaultBoard();
+    // restaure le brouillon de campagne dans l'éditeur
+    const cd=loadCampDraft(); if(cd){ cname.value=cd.name||""; campNodes=cd.nodes||[]; campStart=cd.start||(campNodes[0]&&campNodes[0].id)||""; renderNodes(); }
+    // routage par URL : ?edit = éditeur de mission, ?campaign = éditeur de campagne, défaut = page de jeu
+    const params=new URLSearchParams(location.search);
+    const view=params.has("edit")?"mission":params.has("campaign")?"campaign":"play";
+    setView(view);
     refresh();
   }
-  { const tb=document.getElementById("title-btn"); if(tb)tb.onclick=()=>{const t=document.getElementById("title");if(t)t.style.display="none";}; }
+  { const tb=document.getElementById("title-btn"); if(tb)tb.onclick=()=>{ const t=document.getElementById("title"); if(t)t.style.display="none";
+      if(document.body.classList.contains("view-play")&&!campRun) startPlay(); }; }
   init();
 })();
 </script>
