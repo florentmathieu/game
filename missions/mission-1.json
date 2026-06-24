@@ -910,22 +910,6 @@
    "on": "cracker",
    "match": {
     "first": true,
-    "enemiesHit": 2
-   },
-   "say": [
-    "Merry",
-    "Hi 'em both!"
-   ],
-   "id": "Stiff",
-   "requires": [
-    "I owe you ten",
-    "Gizz."
-   ]
-  },
-  {
-   "on": "cracker",
-   "match": {
-    "first": true,
     "enemiesHit": 1
    },
    "say": [
@@ -941,6 +925,24 @@
    "say": [
     "Stiff",
     "Careful. There should be more."
+   ]
+  },
+  {
+   "on": "cracker",
+   "match": {
+    "zone": "zone 1",
+    "first": true,
+    "enemiesHit": 2
+   },
+   "lines": [
+    [
+     "Merry",
+     "Hit 'em both!"
+    ],
+    [
+     "Stiff",
+     "I owe you ten, Gizz."
+    ]
    ]
   }
  ],
