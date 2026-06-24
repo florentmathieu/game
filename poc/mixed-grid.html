@@ -1,0 +1,208 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>POC — terrain mixte hexagones / carrés / pentagones</title>
+<style>
+  :root{ --bg:#0e0b07; --pan:#15110c; --acc:#caa24a; --ink:#e8ddc8; }
+  *{ box-sizing:border-box }
+  body{ margin:0; background:var(--bg); color:var(--ink); font-family:system-ui,Segoe UI,Roboto,sans-serif;
+        display:flex; gap:14px; padding:14px; align-items:flex-start }
+  #board{ background:#0b0906; border:1px solid #3a2c1c; border-radius:8px; touch-action:none }
+  .panel{ width:330px; background:var(--pan); border:1px solid #3a2c1c; border-radius:10px; padding:12px; font-size:.86rem; line-height:1.5 }
+  h1{ font-size:1rem; color:var(--acc); margin:0 0 6px; letter-spacing:.5px }
+  h2{ font-size:.82rem; color:var(--acc); margin:14px 0 4px; text-transform:uppercase; letter-spacing:1px }
+  .row{ display:flex; align-items:center; gap:8px; margin:6px 0 }
+  label{ display:flex; align-items:center; gap:6px }
+  input[type=range]{ flex:1 }
+  button{ background:#1c150e; color:var(--ink); border:1px solid #5a4530; border-radius:6px; padding:5px 9px; cursor:pointer }
+  button:hover{ background:#241a12 }
+  .leg{ display:flex; align-items:center; gap:7px; margin:3px 0; font-size:.8rem }
+  .sw{ width:16px; height:16px; border-radius:3px; border:1px solid #00000066 }
+  code{ background:#241a12; padding:0 4px; border-radius:4px; color:#ffd479 }
+  .hint{ color:#9a8a74; font-size:.76rem }
+  ul{ margin:4px 0; padding-left:18px } li{ margin:3px 0 }
+  #status{ min-height:2.4em; color:#9fd3ec }
+</style>
+</head>
+<body>
+<canvas id="board" width="760" height="720"></canvas>
+<div class="panel">
+  <h1>Terrain mixte — hexa / carrés / pentagones</h1>
+  <div class="hint">POC isolé. Le plateau n'est plus une grille à coordonnées (offset/cube hex) mais un
+  <b>graphe de cellules polygonales</b> : chaque cellule porte sa géométrie et sa liste de voisins
+  (déduite des arêtes partagées).</div>
+
+  <h2>Démo</h2>
+  <div id="status">Clique une cellule pour la sélectionner.</div>
+  <div class="row"><label style="flex:1">Points de mouvement
+    <input id="mp" type="range" min="1" max="12" value="6"></label><span id="mpv">6</span></div>
+  <div class="row">
+    <label><input id="links" type="checkbox"> arêtes du graphe</label>
+    <label><input id="los" type="checkbox" checked> ligne de vue</label>
+  </div>
+  <div class="hint">Clic gauche = sélectionner • Clic droit = (dé)poser un obstacle • survol = portée/distance/LdV.</div>
+
+  <h2>Terrain</h2>
+  <div class="leg"><span class="sw" style="background:#3a6e4c"></span> praticable (coût 1)</div>
+  <div class="leg"><span class="sw" style="background:#7a6326"></span> accidenté (coût 2)</div>
+  <div class="leg"><span class="sw" style="background:#2c3a52"></span> obstacle (infranchissable, bloque la vue)</div>
+
+  <h2>Impacts moteur</h2>
+  <ul id="impacts"></ul>
+</div>
+<script>
+(function(){
+  const cv = document.getElementById("board"), ctx = cv.getContext("2d");
+  const S = 46, OX = 40, OY = 28;
+  const TWO = Math.PI*2;
+
+  // ----- construction du terrain mixte -----------------------------------
+  // Chaque cellule : { id, type, poly:[[x,y]…], cx, cy, terrain }
+  const cells = [];
+  function add(type, poly, terrain){
+    let sx=0, sy=0; for(const p of poly){ sx+=p[0]; sy+=p[1]; }
+    cells.push({ id:cells.length, type, poly, cx:sx/poly.length, cy:sy/poly.length, terrain: terrain||"plain", nb:[] });
+  }
+  // 1) bloc de CARRÉS (gauche) : 4 colonnes × 8 rangées, côté S
+  for (let i=0;i<4;i++) for (let j=0;j<8;j++){
+    const x=OX+i*S, y=OY+j*S;
+    add("carré", [[x,y],[x+S,y],[x+S,y+S],[x,y+S]]);
+  }
+  // 2) bande de PENTAGONES (« home plate ») reliant carrés ↔ hexes
+  const px = OX+4*S;
+  for (let j=0;j<8;j++){
+    const y=OY+j*S;
+    add("pentagone", [[px,y],[px+0.62*S,y],[px+S,y+0.5*S],[px+0.62*S,y+S],[px,y+S]]);
+  }
+  // 3) bloc d'HEXAGONES (droite, pointe en haut) : 3 colonnes × 6 rangées
+  const w = Math.sqrt(3)*S;                       // largeur d'un hexa pointe-en-haut
+  const hx0 = OX+5.05*S, hy0 = OY+0.55*S;
+  function hexPoly(cx,cy){ const p=[]; for(let k=0;k<6;k++){ const a=Math.PI/180*(60*k-90); p.push([cx+S*Math.cos(a), cy+S*Math.sin(a)]); } return p; }
+  for (let j=0;j<6;j++) for (let i=0;i<3;i++){
+    const cx = hx0 + w*i + (j&1?w/2:0) + S*0.866;
+    const cy = hy0 + 1.5*S*j + S;
+    add("hexagone", hexPoly(cx,cy));
+  }
+
+  // ----- adjacence : arêtes partagées (proximité des milieux d'arêtes) ----
+  function edgeMids(c){ const m=[], p=c.poly; for(let i=0;i<p.length;i++){ const a=p[i],b=p[(i+1)%p.length];
+      m.push({ mx:(a[0]+b[0])/2, my:(a[1]+b[1])/2, len:Math.hypot(a[0]-b[0],a[1]-b[1]) }); } return m; }
+  const mids = cells.map(edgeMids);
+  for (let i=0;i<cells.length;i++) for (let j=i+1;j<cells.length;j++){
+    let linked=false;
+    for (const ei of mids[i]){ for (const ej of mids[j]){
+      if (Math.hypot(ei.mx-ej.mx, ei.my-ej.my) < S*0.42 && Math.abs(ei.len-ej.len) < S*0.7){ linked=true; break; }
+    } if (linked) break; }
+    if (linked){ cells[i].nb.push(j); cells[j].nb.push(i); }
+  }
+
+  // ----- géométrie utilitaire --------------------------------------------
+  function pointIn(poly, x, y){ let c=false; for(let i=0,j=poly.length-1;i<poly.length;j=i++){
+      const xi=poly[i][0],yi=poly[i][1],xj=poly[j][0],yj=poly[j][1];
+      if (((yi>y)!=(yj>y)) && (x < (xj-xi)*(y-yi)/(yj-yi)+xi)) c=!c; } return c; }
+  function cellAt(x,y){ for(const c of cells) if (pointIn(c.poly,x,y)) return c; return null; }
+  const cost = (c) => c.terrain==="obstacle" ? Infinity : c.terrain==="rough" ? 2 : 1;
+
+  // ----- Dijkstra sur le graphe (remplace le Dijkstra hex) ----------------
+  function reachFrom(start, budget){
+    const dist = new Array(cells.length).fill(Infinity); dist[start.id]=0;
+    const pq=[[0,start.id]];
+    while(pq.length){
+      let b=0; for(let i=1;i<pq.length;i++) if(pq[i][0]<pq[b][0]) b=i;
+      const [d,id]=pq.splice(b,1)[0]; if(d>dist[id]) continue;
+      for(const n of cells[id].nb){ const c=cost(cells[n]); if(c===Infinity) continue;
+        const nd=d+c; if(nd<=budget && nd<dist[n]){ dist[n]=nd; pq.push([nd,n]); } }
+    }
+    return dist;
+  }
+  // distance de graphe (nb de pas) — pour l'affichage au survol
+  function hops(a,b){
+    const seen=new Array(cells.length).fill(-1); seen[a.id]=0; const q=[a.id];
+    while(q.length){ const id=q.shift(); if(id===b.id) return seen[id];
+      for(const n of cells[id].nb){ if(cost(cells[n])===Infinity) continue; if(seen[n]<0){ seen[n]=seen[id]+1; q.push(n); } } }
+    return -1;
+  }
+  // ligne de vue : échantillonnage centre→centre, bloquée par une cellule-obstacle traversée
+  function lineOfSight(a,b){
+    const N=24; for(let k=1;k<N;k++){ const t=k/N, x=a.cx+(b.cx-a.cx)*t, y=a.cy+(b.cy-a.cy)*t;
+      const c=cellAt(x,y); if(c && c!==a && c!==b && c.terrain==="obstacle") return false; }
+    return true;
+  }
+
+  // ----- terrain de départ (varié) ---------------------------------------
+  for (const c of cells){ if ((c.cx*c.cy|0)%7===0) c.terrain="rough"; }
+  cells[18].terrain="obstacle"; cells[19].terrain="obstacle"; cells[34].terrain="obstacle";
+  if (cells[52]) cells[52].terrain="obstacle";
+
+  // ----- état / rendu -----------------------------------------------------
+  let sel = cells[10] || cells[0], hover = null;
+  const mp = document.getElementById("mp"), mpv=document.getElementById("mpv");
+  const linksCb=document.getElementById("links"), losCb=document.getElementById("los");
+  const fill = { plain:"#3a6e4c", rough:"#7a6326", obstacle:"#2c3a52" };
+  const tint = { hexagone:"#cfe8ff", "carré":"#ffe1b0", pentagone:"#e9c6ee" };
+
+  function draw(){
+    ctx.clearRect(0,0,cv.width,cv.height);
+    const dist = sel ? reachFrom(sel, +mp.value) : [];
+    for (const c of cells){
+      ctx.beginPath(); c.poly.forEach((p,i)=> i?ctx.lineTo(p[0],p[1]):ctx.moveTo(p[0],p[1])); ctx.closePath();
+      ctx.fillStyle = fill[c.terrain]||fill.plain; ctx.fill();
+      if (sel && dist[c.id] !== undefined && dist[c.id] < Infinity){
+        ctx.fillStyle = "rgba(122,223,122,"+(0.42 - 0.025*dist[c.id])+")"; ctx.fill();
+      }
+      ctx.lineWidth=1.4; ctx.strokeStyle="#0c0a07"; ctx.stroke();
+      // marqueur de type (couleur par forme)
+      ctx.fillStyle = tint[c.type]||"#fff"; ctx.globalAlpha=.5;
+      ctx.beginPath(); ctx.arc(c.cx,c.cy,3,0,TWO); ctx.fill(); ctx.globalAlpha=1;
+    }
+    if (linksCb.checked){
+      ctx.strokeStyle="rgba(255,212,121,0.35)"; ctx.lineWidth=1;
+      for(const c of cells) for(const n of c.nb) if(n>c.id){ ctx.beginPath(); ctx.moveTo(c.cx,c.cy); ctx.lineTo(cells[n].cx,cells[n].cy); ctx.stroke(); }
+    }
+    if (sel){ outline(sel,"#ffffff",3); }
+    if (hover && hover!==sel){
+      outline(hover,"#ffd479",2);
+      if (losCb.checked && sel){ const v=lineOfSight(sel,hover);
+        ctx.strokeStyle=v?"#79e08a":"#e0635f"; ctx.lineWidth=2; ctx.setLineDash(v?[]:[5,4]);
+        ctx.beginPath(); ctx.moveTo(sel.cx,sel.cy); ctx.lineTo(hover.cx,hover.cy); ctx.stroke(); ctx.setLineDash([]); }
+    }
+  }
+  function outline(c,col,lw){ ctx.beginPath(); c.poly.forEach((p,i)=> i?ctx.lineTo(p[0],p[1]):ctx.moveTo(p[0],p[1])); ctx.closePath();
+    ctx.lineWidth=lw; ctx.strokeStyle=col; ctx.stroke(); }
+
+  function setStatus(){
+    if (!sel){ document.getElementById("status").textContent=""; return; }
+    let s = `Sélection : ${sel.type} #${sel.id} — ${sel.nb.length} voisins`;
+    if (hover && hover!==sel){ const h=hops(sel,hover); s += ` · vers ${hover.type} #${hover.id} : ${h<0?"∅":h+" pas"}, LdV ${lineOfSight(sel,hover)?"oui":"non"}`; }
+    document.getElementById("status").textContent = s;
+  }
+
+  cv.addEventListener("mousemove", e=>{ const r=cv.getBoundingClientRect(); hover=cellAt(e.clientX-r.left,e.clientY-r.top); setStatus(); draw(); });
+  cv.addEventListener("click", e=>{ const r=cv.getBoundingClientRect(); const c=cellAt(e.clientX-r.left,e.clientY-r.top); if(c){ sel=c; setStatus(); draw(); } });
+  cv.addEventListener("contextmenu", e=>{ e.preventDefault(); const r=cv.getBoundingClientRect(); const c=cellAt(e.clientX-r.left,e.clientY-r.top);
+    if(c){ c.terrain = c.terrain==="obstacle" ? "plain" : "obstacle"; draw(); } });
+  mp.addEventListener("input", ()=>{ mpv.textContent=mp.value; draw(); });
+  linksCb.addEventListener("change", draw); losCb.addEventListener("change", draw);
+
+  // ----- liste d'impacts --------------------------------------------------
+  const impacts = [
+    "Coordonnées : <code>offsetToCube</code>/<code>cubeDist</code>/<code>NEI[r&1]</code>/<code>key(c,r)</code> disparaissent — chaque cellule a une <b>liste de voisins</b> explicite.",
+    "Distance : <code>hexDistUnits</code> → BFS/Dijkstra sur le graphe (plus de formule cube).",
+    "Déplacement : <code>computeReach</code>/<code>moveCost</code> deviennent un Dijkstra générique pondéré par cellule (déjà le cas, mais l'altitude/diagonales changent).",
+    "Champ de vision : le shadowcasting angulaire hex tombe — passage à un <b>raycast géométrique</b> centre→centre (cellules opaques), plus coûteux.",
+    "Couvert & flanc : <code>flankOf</code>/<code>coverInDir</code> reposaient sur 6 directions ; il faut raisonner par <b>arête</b> (normale d'arête) et angle réel.",
+    "Rendu : <code>tileCenter</code>/<code>fillHex</code>/<code>drawWalls</code> → tracé de <b>polygones quelconques</b> ; les murets sont des arêtes du graphe.",
+    "Portées (tir/cracker/bruit) en « cases » deviennent ambiguës (cellules de tailles variées) → préférer une portée en <b>distance euclidienne</b> ou en pas de graphe.",
+    "Éditeur & format mission : <code>elev/rocks/walls</code> en tableaux [col][row] → liste de cellules + arêtes ; le pinceau et l'export JSON changent de modèle.",
+    "Pathfinding diagonal/coût d'entrée : le coût par arête (et non par case) permet des cellules hétérogènes proprement.",
+    "Bon point : la logique de jeu de haut niveau (PA, tours, triggers, IA cible/score) reste quasi inchangée si elle s'appuie sur <code>neighbors()</code> / <code>dist()</code> abstraits.",
+  ];
+  document.getElementById("impacts").innerHTML = impacts.map(t=>`<li>${t}</li>`).join("");
+
+  setStatus(); draw();
+})();
+</script>
+</body>
+</html>
