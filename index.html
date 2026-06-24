@@ -2273,7 +2273,9 @@
     refreshAll();
   }
   function cycleUnit(dir){
-    const ps = units.filter(u => u.team === "player" && u.hp > 0);
+    const living = units.filter(u => u.team === "player" && u.hp > 0);
+    const active = living.filter(u => u.ap > 0 && !u.overwatch && !u.bracing);   // pas encore fini leur tour
+    const ps = active.length ? active : living;                                  // repli : tout le monde si plus personne d'actif
     if (!ps.length) return;
     let i = ps.indexOf(selected);
     i = (i < 0) ? 0 : (i + dir + ps.length) % ps.length;
