@@ -235,8 +235,8 @@
     cells.forEach((c,i)=>{const p=c.poly;for(let k=0;k<p.length;k++){const a=p[k],b=p[(k+1)%p.length];const key=Math.round((a[0]+b[0])/5)+","+Math.round((a[1]+b[1])/5);if(!map.has(key)){map.set(key,[]);segOf.set(key,[a,b]);}map.get(key).push(i);edgeKeys.push([i,k,key]);}});
     wallSeg=new Map();
     for(const [key,arr] of map.entries())for(let a=0;a<arr.length;a++)for(let b=a+1;b<arr.length;b++){const x=arr[a],y=arr[b];if(x!==y&&!cells[x].nb.includes(y)){cells[x].nb.push(y);cells[y].nb.push(x);wallSeg.set(wkey(x,y),segOf.get(key));}}
-    // voisin partageant chaque arête de polygone (même bucket) — robuste pour tracer les contours
-    for(const [i,k,key] of edgeKeys){ const arr=map.get(key); let other=-1; for(const j of arr)if(j!==i){other=j;break;} cells[i].edgeNb[k]=other; } }
+    // voisin réel partageant chaque arête : échantillon géométrique juste à l'extérieur de l'arête (robuste pour les contours)
+    cells.forEach(c=>{ const p=c.poly; for(let k=0;k<p.length;k++){ const a=p[k],b=p[(k+1)%p.length],mx=(a[0]+b[0])/2,my=(a[1]+b[1])/2; let dx=mx-c.cx,dy=my-c.cy; const L=Math.hypot(dx,dy)||1; dx/=L;dy/=L; const o=cellAtXY(mx+dx*3.5,my+dy*3.5); c.edgeNb[k]=(o&&o.id!==c.id)?o.id:-1; } }); }
 
   // ===== géométrie utilitaire =====
   function pointIn(poly,x,y){let c=false;for(let i=0,j=poly.length-1;i<poly.length;j=i++){const xi=poly[i][0],yi=poly[i][1],xj=poly[j][0],yj=poly[j][1];if(((yi>y)!=(yj>y))&&(x<(xj-xi)*(y-yi)/(yj-yi)+xi))c=!c;}return c;}
@@ -347,7 +347,7 @@
     u.hp=Math.min(u.max,u.hp+6); inv.potion--; sel.ap-=1; usingItem=false; log(`▲ ${sel.name} soigne ${u.name} : +PV`,"player"); refresh(); }
 
   // ===== brouillard / tours =====
-  let visible=new Set(), turn="player", sel=null, over=false, amode=null, hoverCell=null, aimTarget=null;
+  let visible=new Set(), turn="player", sel=null, over=false, amode=null, hoverCell=null, aimTarget=null, introBlocking=false;
   function computeVis(){visible=new Set();for(const u of units)if(u.team==="player"&&u.hp>0)for(const c of cells)if(hops(u.cell,c.id)<=7&&los(u.cell,c.id))visible.add(c.id);}
   const seen=u=>visible.has(u.cell);
   const defaultAttack=u=>(u.w.ranged&&(u.clip===undefined||u.ammo>0))?"ranged":"melee";
@@ -355,7 +355,9 @@
   function end(t){over=true;emit(t.indexOf("Victoire")===0?"win":"lose",{});if(campRun){campEnd(t);return;}document.getElementById("overtxt").textContent=t;document.getElementById("over").classList.add("show");draw();}
   function log(m,team){if(mode!=="play")return;const el=document.getElementById("log");const d=document.createElement("div");d.className=team==="player"?"pl":"en";d.textContent=m;el.prepend(d);}
   function setMsg(t){document.getElementById("msg").textContent=t;}
-  function refresh(){ if(mode==="play"){computeVis();detectEnemies();detectNeutralPods();} else visible=new Set(cells.map(c=>c.id)); draw(); if(mode==="play"){renderActs();renderRoster();maybeAutoEnd();} else { renderCounts(); saveDraft(); } }
+  function refresh(){ if(mode==="play"){computeVis();detectEnemies();detectNeutralPods();
+      if(turn==="player"&&!over&&sel&&(sel.hp<=0||(sel.ap<=0&&!sel.freeAvail))){ const nxt=units.find(u=>u.team==="player"&&u.hp>0&&!(u.ap<=0&&!u.freeAvail)); if(nxt){sel=nxt;amode=null;aimTarget=null;throwing=false;usingItem=false;} }   // unité épuisée → passe à la suivante
+    } else visible=new Set(cells.map(c=>c.id)); draw(); if(mode==="play"){renderActs();renderRoster();maybeAutoEnd();} else { renderCounts(); saveDraft(); } }
   // roster des soldats (haut-gauche) : nom, PV, PA ; clic = sélection
   function renderRoster(){ const el=document.getElementById("roster"); if(!el)return; el.innerHTML="";
     units.filter(u=>u.team==="player").forEach(u=>{ const d=document.createElement("div");
@@ -417,15 +419,15 @@
     else if(editTool==="erase"){ units=units.filter(u=>u.cell!==id); }
     refresh();
   }
-  function playClick(X,Y){if(over||turn!=="player")return;const cell=cellAtXY(X,Y);if(!cell)return;const id=cell.id;const u=uAt(id);
+  function playClick(X,Y){if(over||turn!=="player"||introBlocking)return;const cell=cellAtXY(X,Y);if(!cell)return;const id=cell.id;const u=uAt(id);
     if(throwing&&sel){const cr=sel.w.cracker;if(cr&&sel.crackers>0&&sel.ap>0&&hops(sel.cell,id)<=cr.range&&los(sel.cell,id))resolveThrow(sel,id);else setMsg("Cracker : hors de portée / sans vue.");return;}
     if(usingItem&&sel){if(u&&u.team==="player")applyItem(u);else setMsg("Choisis un allié (soi ou adjacent).");return;}
     if(u&&u.team==="player"){sel=u;amode=null;aimTarget=null;throwing=false;usingItem=false;refresh();return;}if(!sel)return;
-    if(u&&u.team==="enemy"&&u.hp>0&&seen(u)){const m=amode||defaultAttack(sel);if(sel.ap>0&&sel.w[m]&&inRange(sel,u,m))doAttack(sel,u,m);else setMsg("Hors de portée / vue.");return;}
+    if(u&&hostile(sel,u)&&u.hp>0&&seen(u)){ let m=(amode&&sel.w[amode]&&inRange(sel,u,amode))?amode:["ranged","melee"].find(mm=>sel.w[mm]&&(mm!=="ranged"||sel.clip===undefined||sel.ammo>0)&&inRange(sel,u,mm)); if(m&&sel.ap>0)doAttack(sel,u,m); else setMsg("Hors de portée / vue."); return; }
     const d=reach(sel);if(d[id]!==undefined){moveAlong(sel,id);if(!over)emit("move",{actorName:sel.name,actorCls:sel.cls,actorTeam:"player"});refresh();}}
 
   // ===== rendu =====
-  const terrFill={plain:"#3a6e4c",rough:"#7a6326",wall:"#3a6e4c",cover:"#46663f"};
+  const terrFill={plain:"#3a6e4c",rough:"#7a6326",wall:"#585048",cover:"#46663f"};
   // tas de rochers au centre d'une cellule (terrain « rocher »), bien visible sur le sol normal
   function drawRock(c){ const x=c.cx,y=c.cy,s=16;
     const blob=(ox,oy,r)=>{for(let a=0;a<6;a++){const an=a/6*TWO+0.4;const px=x+ox+Math.cos(an)*r,py=y+oy+Math.sin(an)*r;a?ctx.lineTo(px,py):ctx.moveTo(px,py);}ctx.closePath();};
@@ -456,7 +458,9 @@
       // aperçu du chemin vers la case survolée (mauve) + liseré mauve de la case
       if(hoverCell!=null&&d[hoverCell]!==undefined&&hoverCell!==sel.cell){ const path=pathTo(sel,hoverCell);
         if(path){ ctx.strokeStyle="#c77dff"; ctx.lineWidth=3.5; ctx.beginPath(); for(let i=0;i<path.length;i++){const cc=cells[path[i]]; i?ctx.lineTo(cc.cx,cc.cy):ctx.moveTo(cc.cx,cc.cy);} ctx.stroke(); }
-        poly(cells[hoverCell]); ctx.strokeStyle="#c77dff"; ctx.lineWidth=3; ctx.stroke(); } }
+        poly(cells[hoverCell]); ctx.strokeStyle="#c77dff"; ctx.lineWidth=3; ctx.stroke(); }
+      // ligne de visée vers la cible proposée (mode attaque)
+      if(amode&&aimTarget&&aimTarget.hp>0&&cells[aimTarget.cell]){ const A=cells[sel.cell],B=cells[aimTarget.cell]; ctx.strokeStyle="#ff7a6a"; ctx.lineWidth=2.5; ctx.setLineDash([7,5]); ctx.beginPath(); ctx.moveTo(A.cx,A.cy); ctx.lineTo(B.cx,B.cy); ctx.stroke(); ctx.setLineDash([]); } }
     // murets (couvert partiel) tracés sur les arêtes partagées
     walls.forEach(k=>{const s=wallSeg.get(k);if(!s)return;if(mode==="play"){const ab=k.split("-");if(!visible.has(+ab[0])&&!visible.has(+ab[1]))return;}ctx.beginPath();ctx.moveTo(s[0][0],s[0][1]);ctx.lineTo(s[1][0],s[1][1]);ctx.lineWidth=5;ctx.lineCap="round";ctx.strokeStyle="#d9cdb4";ctx.stroke();ctx.lineCap="butt";});
     if(mode==="edit"&&editTool==="muret"&&hoverEdge){const s=wallSeg.get(hoverEdge);if(s){ctx.beginPath();ctx.moveTo(s[0][0],s[0][1]);ctx.lineTo(s[1][0],s[1][1]);ctx.lineWidth=5;ctx.lineCap="round";ctx.strokeStyle="rgba(255,212,121,.5)";ctx.stroke();ctx.lineCap="butt";}}
@@ -680,15 +684,22 @@
   // lecteur de texte paginé : pages séparées par une ligne « _ », « Nom : … » en doré, bouton « … » pour passer.
   const escTxt=s=>(s||"").replace(/[&<>]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;"}[c]));
   function fmtPage(s){ return s.split("\n").map(l=>l.replace(/\s+$/,"")).filter(l=>l.length).map(l=>{ const m=l.match(/^([\wÀ-ÿ '.\-]{1,18}):\s(.*)$/); return m?`<span class="sp-who">${escTxt(m[1])}</span> ${escTxt(m[2])}`:escTxt(l); }).join("<br>"); }
-  function playText(text,bottom,cb){ const pages=(text||"…").replace(/\r/g,"").split(/\n[ \t]*_[ \t]*\n/).filter(p=>p.trim().length)||["…"]; let p=0;
-    const full=document.getElementById("camptext"),fbody=document.getElementById("camptext-body"),fbtn=document.getElementById("camptext-btn");
-    const box=document.getElementById("storybox"),sbody=document.getElementById("storybox-body"),sbtn=document.getElementById("storybox-btn");
-    if(!pages.length)pages.push("…");
-    function show(){ const html=fmtPage(pages[p]); const last=p>=pages.length-1;
-      if(bottom){ full.classList.remove("show"); sbody.innerHTML=html; sbtn.textContent=last?"Continuer ▶":"…"; box.classList.add("show"); sbtn.onclick=adv; }
-      else { box.classList.remove("show"); fbody.innerHTML=html; fbtn.style.display=""; fbtn.textContent=last?"Continuer ▶":"…"; full.classList.add("show"); fbtn.onclick=adv; } }
-    function adv(){ p++; if(p>=pages.length){ full.classList.remove("show"); box.classList.remove("show"); if(cb)cb(); } else show(); }
-    show(); }
+  const parseLines=s=>s.split("\n").map(l=>l.replace(/\s+$/,"")).filter(l=>l.length).map(l=>{const m=l.match(/^([\wÀ-ÿ '.\-]{1,18}):\s(.*)$/);return m?{who:m[1],text:m[2]}:{who:null,text:l};});
+  const lineHTML=ln=>(ln.who?`<span class="sp-who">${escTxt(ln.who)}</span> `:"")+escTxt(ln.text);
+  // lecteur de texte paginé qui se DÉROULE caractère par caractère ; « … » révèle la page d'un coup puis passe.
+  function playText(text,bottom,cb){ const pages=(text||"…").replace(/\r/g,"").split(/\n[ \t]*_[ \t]*\n/).filter(p=>p.trim().length); if(!pages.length)pages.push("…"); let p=0,timer=null,done=false;
+    const full=document.getElementById("camptext"),fbtn=document.getElementById("camptext-btn"),box=document.getElementById("storybox");
+    const body=()=>document.getElementById(bottom?"storybox-body":"camptext-body"), btn=()=>document.getElementById(bottom?"storybox-btn":"camptext-btn");
+    function showPage(){ done=false; (bottom?full:box).classList.remove("show"); if(!bottom)fbtn.style.display=""; (bottom?box:full).classList.add("show");
+      const lines=parseLines(pages[p]); let li=0,ci=0,prefix=""; btn().textContent="…"; btn().onclick=skipOrNext;
+      (function tick(){ if(li>=lines.length){ done=true; btn().textContent=(p>=pages.length-1)?"Continuer ▶":"…"; return; }
+        const ln=lines[li]; if(ci===0&&li>0)prefix+="<br>"; const whoHTML=ln.who?`<span class="sp-who">${escTxt(ln.who)}</span> `:"";
+        body().innerHTML=prefix+whoHTML+escTxt(ln.text.slice(0,ci));
+        if(ci>=ln.text.length){ prefix+=whoHTML+escTxt(ln.text); li++; ci=0; timer=setTimeout(tick,200); return; }
+        const ch=ln.text[ci++]; let dd=22; if(ch==="…")dd=520; else if(ch===".")dd=210; else if(",;:!?".includes(ch))dd=120; timer=setTimeout(tick,dd); })(); }
+    function skipOrNext(){ if(timer){clearTimeout(timer);timer=null;} if(!done){ body().innerHTML=parseLines(pages[p]).map(lineHTML).join("<br>"); done=true; btn().textContent=(p>=pages.length-1)?"Continuer ▶":"…"; return; }
+      p++; if(p>=pages.length){ full.classList.remove("show"); box.classList.remove("show"); if(cb)cb(); } else showPage(); }
+    showPage(); }
   function showCampText(text,cb){ playText(text,false,cb); }
   function hideStory(){ document.getElementById("storybox").classList.remove("show"); }
   function showChoice(n){ const el=document.getElementById("camptext"),body=document.getElementById("camptext-body"),btn=document.getElementById("camptext-btn"); btn.style.display="none";
@@ -712,7 +723,8 @@
     try{applyMissionObj(JSON.parse(t));}catch(e){showCampText("Mission illisible.",()=>endCampaignRun("Fin."));return;}
     const begin=()=>{ startGame(); applyCarry(); refresh(); };
     begin();   // la carte d'abord ; le texte d'intro est superposé en bas, par-dessus le jeu
-    if(!retry){ resolveText(n.intro,n.introFile).then(txt=>{ if(txt)playText(txt,true,hideStory); }); } }
+    if(!retry&&(n.intro||n.introFile)){ introBlocking=true;   // on ne peut pas jouer avant d'avoir lu toute l'intro
+      resolveText(n.intro,n.introFile).then(txt=>{ if(txt)playText(txt,true,()=>{introBlocking=false;hideStory();setMsg("");}); else {introBlocking=false;} }); } }
   function campEnd(t){ const win=t.indexOf("Victoire")===0, n=campRun.camp.nodes.find(x=>x.id===campRun.nodeId);
     if(win){ saveCarry(); const after=()=>{ if(n&&n.win)runNode(n.win); else endCampaignRun("Campagne terminée — victoire !"); }; resolveText(n&&n.outro,n&&n.outroFile).then(txt=>{ if(txt)playText(txt,true,after); else after(); }); }
     else { if(n&&n.lose)runNode(n.lose); else showCampText("Mission échouée…",()=>loadMissionNode(n,true)); } }
@@ -769,7 +781,7 @@
     f.innerHTML=h; f.style.display="block"; f.style.left=(e.clientX+14)+"px"; f.style.top=(e.clientY+14)+"px"; });
   cv.addEventListener("mouseleave",()=>{document.getElementById("fiche").style.display="none"; if(mode==="play"&&hoverCell!=null){hoverCell=null;draw();}});
   function cycleSel(dir){ if(mode!=="play"||turn!=="player")return; const ps=units.filter(u=>u.team==="player"&&u.hp>0); if(!ps.length)return; let i=ps.indexOf(sel); i=(i<0?0:(i+dir+ps.length)%ps.length); sel=ps[i]; amode=null;aimTarget=null;throwing=false;usingItem=false; refresh(); }
-  window.addEventListener("keydown",e=>{ if(mode!=="play"||document.getElementById("camptext").classList.contains("show"))return;
+  window.addEventListener("keydown",e=>{ if(mode!=="play"||introBlocking||document.getElementById("camptext").classList.contains("show"))return;
     if(e.key==="Tab"){e.preventDefault(); if(amode&&cycleTarget(e.shiftKey?-1:1))return; cycleSel(e.shiftKey?-1:1);}   // en visée : Tab change de cible, sinon d'unité
     else if(e.key==="Escape"){amode=null;aimTarget=null;throwing=false;usingItem=false;setMsg("");refresh();}
     else if(e.key==="Enter"){e.preventDefault(); if(amode&&aimTarget&&aimTarget.hp>0&&inRange(sel,aimTarget,amode)){doAttack(sel,aimTarget,amode);} else if(!over&&turn==="player")endTurn();}
