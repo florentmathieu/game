@@ -724,5 +724,6 @@
    "row": 6,
    "name": "Stiff"
   }
- ]
+ ],
+ "fullHeal": true
 }
