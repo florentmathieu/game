@@ -1162,7 +1162,8 @@
     const hit = Math.random()*100 < chance;
     let dmg = 0, saveTxt = "", dmgDetail = "";
     if (hit){
-      if (tgt.shieldBlock > 0 && Math.random()*100 < tgt.shieldBlock) saveTxt = "bloqué 🛡";        // bouclier (CàC + tir)
+      const fromBack = flankOf(att, tgt) === "back";                                                // on ne bloque pas un coup porté de dos
+      if (!fromBack && tgt.shieldBlock > 0 && Math.random()*100 < tgt.shieldBlock) saveTxt = "bloqué 🛡";  // bouclier (CàC + tir)
       else if (bd.melee && tgt.parry > 0 && Math.random()*100 < tgt.parry) saveTxt = "paré 🗡";      // parade (CàC seulement)
       else {
         const roll = att.dmgMin + Math.floor(Math.random()*(att.dmgMax-att.dmgMin+1));
