@@ -14,6 +14,7 @@
   #turn{ font-weight:bold; color:#ffd479 } #msg{ min-height:2.2em; color:#9fd3ec; margin:3px 0 }
   button{ background:#1c150e; color:var(--ink); border:1px solid #5a4530; border-radius:6px; padding:5px 8px; cursor:pointer; font-size:.82rem; margin:1px } button:hover{ background:#241a12 } button.on{ background:#5a4a20; border-color:#caa24a } button:disabled{opacity:.4}
   select{ background:#1c150e;color:var(--ink);border:1px solid #5a4530;border-radius:6px;padding:4px }
+  input[type=text],input[type=password]{ background:#1c150e;color:var(--ink);border:1px solid #5a4530;border-radius:6px;padding:4px }
   .row{ display:flex; align-items:center; gap:6px; margin:4px 0; flex-wrap:wrap } input[type=range]{ flex:1 }
   .leg{ display:flex; align-items:center; gap:6px; margin:2px 0; font-size:.74rem } .sw{ width:13px;height:13px;border-radius:3px;border:1px solid #00000066 }
   .hint{ color:#9a8a74; font-size:.72rem; margin-top:4px } .editonly{display:block} .playonly{display:block} body.play .editonly{display:none} body:not(.play) .playonly{display:none}
@@ -45,6 +46,13 @@
     <div class="row"><button id="doexport">⬇ Exporter</button><button id="doimport">⬆ Charger</button><button id="dosave">💾 Fichier</button><button id="doload">📂 Ouvrir</button><input id="dofile" type="file" accept=".json,application/json" style="display:none"></div>
     <textarea id="export" placeholder="JSON de mission — « Exporter » remplit ; colle ici puis « Charger »."></textarea>
     <div class="hint" id="counts"></div>
+    <h2>Dépôt (GitHub)</h2>
+    <div class="row"><input id="mname" type="text" placeholder="nom de la mission" style="flex:1"></div>
+    <div class="row"><select id="repo-missions" style="flex:1"></select><button id="repo-load">Charger</button></div>
+    <div class="row"><button id="repo-save">💾 Enregistrer dans le dépôt</button></div>
+    <input id="gh-token" type="password" placeholder="token GitHub (Contents: write)" style="width:100%;margin:2px 0">
+    <div class="row"><input id="gh-repo" type="text" value="florentmathieu/game" style="flex:1"><input id="gh-branch" type="text" placeholder="branche" style="flex:1"></div>
+    <div class="hint" id="gh-status"></div>
   </div>
 
   <div class="playonly">
@@ -252,6 +260,37 @@
   document.getElementById("dosave").onclick=()=>{ const a=document.createElement("a"); a.href="data:application/json;charset=utf-8,"+encodeURIComponent(JSON.stringify(exportObj())); a.download="mission-maillage.json"; a.click(); };
   document.getElementById("doload").onclick=()=>document.getElementById("dofile").click();
   document.getElementById("dofile").onchange=e=>{ const f=e.target.files[0]; if(!f)return; const rd=new FileReader(); rd.onload=()=>{ document.getElementById("export").value=rd.result; importMission(); }; rd.readAsText(f); };
+
+  // ===== dépôt GitHub (mêmes identifiants que l'éditeur hex) =====
+  const mname=document.getElementById("mname"),ghTok=document.getElementById("gh-token"),ghRepo=document.getElementById("gh-repo"),ghBr=document.getElementById("gh-branch"),ghSt=document.getElementById("gh-status"),repoSel=document.getElementById("repo-missions");
+  const b64enc=s=>{const by=new TextEncoder().encode(s);let bin="";for(const c of by)bin+=String.fromCharCode(c);return btoa(bin);};
+  const b64dec=s=>{const bin=atob((s||"").replace(/\n/g,""));return new TextDecoder().decode(Uint8Array.from(bin,c=>c.charCodeAt(0)));};
+  function ghCfg(){ let repo=(ghRepo.value||"").trim(),token=(ghTok.value||"").trim(),branch=(ghBr.value||"").trim();
+    try{const c=JSON.parse(localStorage.getItem("mgf_gh")||"{}");if(!repo)repo=c.repo||"";if(!branch)branch=c.branch||"";if(!token)token=localStorage.getItem("mgf_gh_token")||"";}catch(e){}
+    return {repo,token,branch:branch||"claude/intelligent-hypatia-nojupi"}; }
+  async function ghGet(path,ref,cfg){ const r=await fetch(`https://api.github.com/repos/${cfg.repo}/contents/${path}?ref=${encodeURIComponent(ref)}&_=${Date.now()}`,{headers:{Authorization:"Bearer "+cfg.token,Accept:"application/vnd.github+json"},cache:"no-store"}); if(r.status===200){const j=await r.json();return{sha:j.sha,text:b64dec(j.content)};} return null; }
+  async function ghPut(path,content,msg,cfg){ for(let a=0;a<4;a++){ const prev=await ghGet(path,cfg.branch,cfg); const body={message:msg,content:b64enc(content),branch:cfg.branch}; if(prev)body.sha=prev.sha;
+    const r=await fetch(`https://api.github.com/repos/${cfg.repo}/contents/${path}`,{method:"PUT",headers:{Authorization:"Bearer "+cfg.token,Accept:"application/vnd.github+json"},body:JSON.stringify(body)}); if(r.ok)return r.json();
+    if((r.status===409||r.status===422)&&a<3){await new Promise(res=>setTimeout(res,400*(a+1)));continue;} throw new Error(r.status+" "+(await r.text()).slice(0,120)); } }
+  async function fetchText(path,cfg){ if(cfg&&cfg.token&&cfg.repo){try{const f=await ghGet(path,cfg.branch,cfg);if(f)return f.text;}catch(e){}} try{const r=await fetch(path+"?_="+Date.now(),{cache:"no-store"});if(r.ok)return await r.text();}catch(e){} return null; }
+  function fillRepoMenu(list){ repoSel.innerHTML=list.length?list.map(x=>`<option value="${x.file}">${x.name}</option>`).join(""):`<option value="">(aucune mission)</option>`; }
+  async function fetchRepoMissions(){ const t=await fetchText("missions-mesh/list.json",ghCfg()); let list=[]; if(t){try{const p=JSON.parse(t);if(Array.isArray(p))list=p;}catch(e){}} fillRepoMenu(list); }
+  async function publishToRepo(){ const cfg=ghCfg(),name=(mname.value||"").trim();
+    if(!name){ghSt.textContent="Donne un nom à la mission.";return;} if(!cfg.token){ghSt.textContent="Token GitHub requis.";return;} if(!cfg.repo||!cfg.branch){ghSt.textContent="Dépôt/branche requis.";return;}
+    try{localStorage.setItem("mgf_gh",JSON.stringify({repo:cfg.repo,branch:cfg.branch}));localStorage.setItem("mgf_gh_token",cfg.token);}catch(e){}
+    const file=(name.toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/(^-|-$)/g,"")||"mission")+".json"; const m=exportObj(); m.name=name;
+    try{ ghSt.textContent="Publication de "+file+"…"; await ghPut("missions-mesh/"+file,JSON.stringify(m),"Mission maillage : "+name,cfg);
+      const cur=await ghGet("missions-mesh/list.json",cfg.branch,cfg); let list=[]; if(cur){try{const p=JSON.parse(cur.text);if(Array.isArray(p))list=p;}catch(e){}}
+      if(list.some(x=>x.file===file))list=list.map(x=>x.file===file?{file,name}:x); else list.push({file,name});
+      await ghPut("missions-mesh/list.json",JSON.stringify(list),"list maillage : "+name,cfg);
+      fillRepoMenu(list); repoSel.value=file; ghSt.textContent="✓ Publié : "+name+" ("+file+"). Jouable via l'API sans attendre le build.";
+    }catch(e){ ghSt.textContent="Échec : "+e.message; } }
+  async function loadFromRepo(){ const f=repoSel.value; if(!f)return; const t=await fetchText("missions-mesh/"+f,ghCfg()); if(!t){ghSt.textContent="Introuvable : "+f;return;}
+    try{ const m=JSON.parse(t); applyMissionObj(m); mname.value=m.name||""; ghSt.textContent="Chargé : "+f; }catch(e){ ghSt.textContent="JSON invalide."; } }
+  document.getElementById("repo-save").onclick=publishToRepo;
+  document.getElementById("repo-load").onclick=loadFromRepo;
+  try{ const tok=localStorage.getItem("mgf_gh_token"); if(tok)ghTok.value=tok; const c=JSON.parse(localStorage.getItem("mgf_gh")||"{}"); if(c.repo)ghRepo.value=c.repo; ghBr.value=c.branch||"claude/intelligent-hypatia-nojupi"; }catch(e){}
+  fetchRepoMissions();
 
   // ===== jeu =====
   function renderActs(){const el=document.getElementById("acts");el.innerHTML="";document.getElementById("ap").textContent=sel?`${sel.ap}/${AP_MAX}`:"–";if(!sel||turn!=="player")return;
