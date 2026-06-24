@@ -89,6 +89,7 @@ Tout est enregistré dans la mission. (On peut aussi éditer le JSON à la main,
 - **`wounded`** — une unité encaisse des dégâts. `target`, `by` (`byName`), `hp`, `maxHp`,
   `hpPct` (0–100), `killed`. Ex. seuil de PV : `"hpPct": { "max": 30 }`.
 - **`cracker`** — un cracker explose. `actor`, `enemiesHit`, `alliesHit`, `killed`, `first`.
+- **`friendlyfire`** — `actor` blesse une unité de son propre camp (ou le joueur touche un PNJ/otage). `actor`, `target` (la **victime**, nom **ou** classe), `targetTeam`, `weapon`, `dmg`, `killed`. *(pour l'instant seul le cracker en inflige ; généralisable aux futures attaques via `emitFriendlyFire`)*
 - **`move`** — une unité finit un déplacement. `actor`, `col`, `row`, `steps`.
 - **`enter`** — une unité **entre dans une zone**. `actor` (vide = n'importe qui), `zone`, `col`, `row`.
 - **`spotted`** — un pod **ennemi** se réveille (quelle qu'en soit la cause) **ou** le joueur repère à vue un pod de **PNJ/otages**. `pod`, `actorTeam` (`"enemy"` / `"neutral"`), `by` (`"sight"` = repéré à vue, `"noise"` = bruit/combat).

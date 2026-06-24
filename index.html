@@ -320,6 +320,7 @@
         <option value="kill">Mise à mort</option>
         <option value="wounded">Unité blessée</option>
         <option value="cracker">Cracker</option>
+        <option value="friendlyfire">Tir ami (allié/PNJ touché)</option>
         <option value="move">Déplacement</option>
         <option value="enter">Entre dans une zone</option>
         <option value="spotted">Pod repéré (toute alerte)</option>
@@ -327,12 +328,12 @@
         <option value="win">Victoire</option>
         <option value="lose">Défaite</option>
       </select></label></div>
-      <div class="erow tc" data-for="attack kill wounded move cracker enter"><input id="trig-actor" placeholder="acteur (nom/classe, vide = n'importe qui)" list="ed-names" style="flex:1"></div>
+      <div class="erow tc" data-for="attack kill wounded move cracker enter friendlyfire"><input id="trig-actor" placeholder="acteur (nom/classe, vide = n'importe qui)" list="ed-names" style="flex:1"></div>
       <div class="erow tc" data-for="enter"><label style="flex:1">zone <select id="trig-zone"></select></label></div>
-      <div class="erow tc" data-for="attack kill wounded"><input id="trig-target" placeholder="cible (nom/classe)" list="ed-names" style="flex:1"></div>
+      <div class="erow tc" data-for="attack kill wounded friendlyfire"><input id="trig-target" placeholder="cible/victime (nom/classe)" list="ed-names" style="flex:1"></div>
       <div class="erow tc" data-for="attack"><label style="flex:1">résultat <select id="trig-result"><option value="">—</option><option>hit</option><option>miss</option><option>blocked</option></select></label></div>
-      <div class="erow tc" data-for="attack kill"><label style="flex:1">arme <select id="trig-weapon"><option value="">—</option><option>épée</option><option>dagues</option><option>arbalète</option><option>arc</option><option>cracker</option></select></label></div>
-      <div class="erow tc" data-for="attack"><label style="flex:1">tue ? <select id="trig-killed"><option value="">—</option><option value="true">oui</option><option value="false">non</option></select></label></div>
+      <div class="erow tc" data-for="attack kill friendlyfire"><label style="flex:1">arme <select id="trig-weapon"><option value="">—</option><option>épée</option><option>dagues</option><option>arbalète</option><option>arc</option><option>cracker</option><option>mains nues</option></select></label></div>
+      <div class="erow tc" data-for="attack friendlyfire"><label style="flex:1">tue ? <select id="trig-killed"><option value="">—</option><option value="true">oui</option><option value="false">non</option></select></label></div>
       <div class="erow tc" data-for="attack cracker"><label><input type="checkbox" id="trig-first"> 1re action de la bataille</label></div>
       <div class="erow tc" data-for="cracker"><label style="flex:1">ennemis touchés = <input id="trig-enemiesHit" type="number" min="0" style="width:56px"></label></div>
       <div class="erow tc" data-for="wounded"><label style="flex:1">PV cible ≤ <input id="trig-hppct" type="number" min="0" max="100" style="width:56px"> %</label></div>
@@ -2423,6 +2424,16 @@
     return out;
   }
   // Résout un jet de cracker par n'importe quelle unité (joueur ou IA).
+  // Tir ami : `actor` blesse une unité qu'il n'aurait pas dû viser (même camp, ou PNJ/otage
+  // touché par le joueur). Point central réutilisable par toute source de dégâts (cracker… et demain d'autres).
+  function emitFriendlyFire(actor, victim, weapon, dmg, killed){
+    if (!actor || !victim || actor === victim || hostile(actor, victim)) return;
+    emit("friendlyfire", {
+      actorName:actor.name, actorCls:actor.cls, actorTeam:actor.team,
+      targetName:victim.name, targetCls:victim.cls, targetTeam:victim.team,
+      weapon, dmg, killed: !!killed,
+    });
+  }
   function resolveThrow(thrower, tc, tr){
     const cr = thrower.weapons.cracker;
     faceTowards(thrower, tc, tr);                                       // se tourne vers le jet
@@ -2445,6 +2456,7 @@
         if (u.hp <= 0){ u.hp = 0; u.dead = true; killed++; }
         emit("wounded", { targetName:u.name, targetCls:u.cls, targetTeam:u.team, byName:thrower.name,
           hp:Math.max(0,u.hp), maxHp:u.maxHp, hpPct:Math.round(100*Math.max(0,u.hp)/u.maxHp), killed:u.hp<=0 });
+        emitFriendlyFire(thrower, u, "cracker", dmg, u.hp <= 0);   // touche un allié / PNJ / otage
         pushLog(`   💥 ${u.name} : ${dmg} dégâts${u.hp<=0?(u.team==="player"?" ✚ K.O.":" ✝"):""}`, u.team);
       }
     }
