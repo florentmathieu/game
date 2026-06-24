@@ -2118,9 +2118,9 @@
       ctx.beginPath(); ctx.arc(o.x, o.y, selected.range * HEX_W, 0, Math.PI*2); ctx.stroke(); ctx.setLineDash([]);
     }
 
-    // utilisation d'objet : on cercle les alliés (cibles de soin)
+    // utilisation d'objet : on cercle les alliés soignables (soi-même ou un allié adjacent)
     if (usingItem){
-      for (const a of units) if (a.team === "player" && a.hp > 0){
+      for (const a of units) if (a.team === "player" && a.hp > 0 && (a === selected || hexDistUnits(selected, a) <= 1)){
         const p = tileCenter(a.col, a.row);
         ctx.lineWidth = 2.5; ctx.strokeStyle = "rgba(122,223,122,0.85)"; ctx.setLineDash([4,3]);
         ctx.beginPath(); ctx.arc(p.x, p.y, SIZE*0.8, 0, Math.PI*2); ctx.stroke(); ctx.setLineDash([]);
@@ -2355,6 +2355,7 @@
   function cancelItem(){ if (usingItem){ usingItem = null; refreshAll(); } }
   function applyItem(target){
     const id = usingItem, it = ITEMS[id]; if (!it || !target || target.team !== "player" || target.hp <= 0) return;
+    if (target !== selected && hexDistUnits(selected, target) > 1){ flash("Potion : soi-même ou un allié adjacent"); return; }
     if (id === "potion"){
       if (target.hp >= target.maxHp){ flash(`${target.name} est déjà au max`); return; }   // pas de gâchis
       const heal = Math.min(it.heal, target.maxHp - target.hp);
@@ -3938,7 +3939,8 @@ Stiff: Enough. I've decided.`;
     if (skipBtn) skipBtn.style.display = "none";
     const txt = node.file ? await loadDialogue(node.file, node.text || "") : (node.text || "");
     await playDialogue(txt, introTextEl, waitBtn);
-    if (introEl) introEl.style.display = "none";
+    // on NE cache PAS l'écran noir ici : le nœud suivant gère la transition (carte chargée sous l'écran noir,
+    // ou texte suivant) pour éviter de voir une fraction de seconde le contenu précédent.
     introActive = false;
   }
   // menu de parcours : laisse le joueur choisir une route entre plusieurs missions
@@ -3961,15 +3963,27 @@ Stiff: Enough. I've decided.`;
     const n = campNodeById(id);
     if (!n){ endCampaign(true); return; }
     if (campRun && campRun.visited) campRun.visited.add(id);    // mémorise le parcours déjà emprunté
-    if (n.type === "choice"){ openParcours(n, false); return; }
-    if (n.type === "text"){ await campPlayText(n); runCampNode(n.next); return; }
-    // nœud mission
+    if (n.type === "choice"){ if (introEl) introEl.style.display = "none"; openParcours(n, false); return; }
+    if (n.type === "text"){
+      // texte déjà vu dans cette partie (ex. rejeu après défaite) : on le saute
+      if (campRun && campRun.seenText && campRun.seenText.has("t:" + n.id)){ await runCampNode(n.next); return; }
+      await campPlayText(n);
+      if (campRun && campRun.seenText) campRun.seenText.add("t:" + n.id);
+      await runCampNode(n.next); return;
+    }
+    // nœud mission : on garde l'écran noir tant que la carte n'est pas chargée+appliquée (pas de flash de la précédente)
     campRun.nodeId = n.id; campEnded = false;
+    if (introEl) introEl.style.display = "";
+    if (introTextEl) introTextEl.innerHTML = "";
+    if (skipBtn) skipBtn.style.display = "none";
+    if (panelEl) panelEl.style.display = "none";
     const m = await loadMissionFromUrl(n.mission && n.mission.includes("/") ? n.mission : "missions/" + n.mission);
-    if (!m){ alert("Mission introuvable : " + n.mission); endCampaign(false); return; }
-    const playIntro = !!n.intro && !skipIntro;      // on saute le texte d'intro quand on rejoue après une défaite
-    startMission(m, playIntro);                     // banderole « À votre tour » différée s'il y a une intro
+    if (!m){ if (introEl) introEl.style.display = "none"; if (panelEl) panelEl.style.display = ""; alert("Mission introuvable : " + n.mission); endCampaign(false); return; }
+    const seen = campRun && campRun.seenText && campRun.seenText.has("i:" + n.id);
+    const playIntro = !!n.intro && !skipIntro && !seen;   // on saute l'intro au rejeu après défaite ou si déjà vue
+    startMission(m, playIntro);                     // applique la carte sous l'écran noir puis le retire (pas de flash)
     if (playIntro){                                 // texte joué sous la carte avant de rendre la main
+      if (campRun && campRun.seenText) campRun.seenText.add("i:" + n.id);
       introActive = true; skipReq = false;
       if (panelEl) panelEl.style.display = "none";
       await runSceneFile(n.intro);
@@ -4002,7 +4016,7 @@ Stiff: Enough. I've decided.`;
   function startCampaign(camp, fromId){
     if (!camp || !camp.nodes || !camp.nodes.length){ alert("Campagne vide."); return; }
     const startId = (fromId && camp.nodes.some(n => n.id === fromId)) ? fromId : camp.start;
-    campaign = camp; campRun = { camp, nodeId:null, visited:new Set() }; campEnded = false; campChoosing = null;
+    campaign = camp; campRun = { camp, nodeId:null, visited:new Set(), seenText:new Set() }; campEnded = false; campChoosing = null;
     resetCarry();                                   // nouvelle campagne : escouade au complet
     if (campMode) leaveCampEditor(); else setupCanvas();
     hideCampCont();
@@ -4012,6 +4026,7 @@ Stiff: Enough. I've decided.`;
     campRun = null; campEnded = false; campChoosing = null; hideCampCont();
     setupCanvas();
     introActive = false;
+    if (introEl) introEl.style.display = "none";   // retire l'écran noir éventuellement laissé par un texte final
     if (panelEl) panelEl.style.display = "";
     generate(); placeUnits();
     selectUnit(units.find(u => u.team === "player")); renderLog(); refreshAll();
