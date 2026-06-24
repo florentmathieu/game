@@ -74,11 +74,11 @@
   #cdetail .opt-row{ display:flex; gap:5px; align-items:center; margin:3px 0 }
   #camptext .opt{ display:block; margin:4px auto; min-width:240px }
   #camptext{ position:fixed; inset:0; background:#000; color:#d8cdb4; display:none; flex-direction:column; align-items:center; justify-content:center; gap:20px; z-index:10; padding:40px }
-  #camptext.show{ display:flex } #camptext-body{ max-width:620px; font-size:1.15rem; line-height:1.7; text-align:left }
+  #camptext.show{ display:flex } #camptext-body{ width:min(620px,92vw); font-size:1.15rem; line-height:1.7; text-align:left }
   .sp-who{ color:#ffd479; font-weight:bold }
   #storybox{ position:fixed; left:50%; transform:translateX(-50%); bottom:18px; width:min(720px,92vw); display:none; z-index:9;
     background:rgba(10,8,5,.82); border:1px solid #5a4530; border-radius:10px; padding:13px 18px; color:#e8ddc8; font-family:Georgia,serif; box-shadow:0 8px 28px rgba(0,0,0,.6) }
-  #storybox.show{ display:block } #storybox-body{ font-size:1.05rem; line-height:1.6; min-height:1.6em }
+  #storybox.show{ display:block } #storybox-body{ font-size:1.05rem; line-height:1.6; min-height:1.6em; text-align:left }
   #storybox-btn{ float:right; margin-top:8px; color:#caa24a; background:#1c150e; border:1px solid #5a4530; border-radius:6px; padding:3px 13px; font-weight:bold; cursor:pointer }
   #fiche{ position:fixed; pointer-events:none; display:none; z-index:11; background:rgba(10,8,5,.96); border:1px solid #5a4530; border-radius:8px; padding:7px 10px; font-size:.78rem; color:#e8ddc8; max-width:230px; box-shadow:0 6px 18px rgba(0,0,0,.5) }
   #banner{ position:fixed; top:18px; left:50%; transform:translateX(-50%); z-index:11; display:none; padding:8px 18px; border-radius:8px; color:#fff; font-weight:bold; font-size:1.05rem; letter-spacing:1px; box-shadow:0 6px 18px rgba(0,0,0,.5) }
@@ -130,11 +130,16 @@
     <div class="hint" id="counts"></div>
     </div>
     <div id="me-right">
+    <h2>Zones de déclenchement</h2>
+    <div class="row"><input id="tzname" type="text" value="A" maxlength="10" placeholder="nom zone" style="width:90px"><button id="tzpaint" data-tool="tzone">🎯 Peindre</button><button id="tzerase" data-tool="tzone-erase">🧹 Effacer</button></div>
+    <div class="hint">Peins des cases puis crée un évènement « Entrée en zone » : il se déclenche quand une unité y pénètre.</div>
     <h2>Évènements (dialogues)</h2>
     <div id="triglist" class="hint"></div>
-    <div class="row"><select id="t-on"><option value="start">Début</option><option value="turn">Début de tour</option><option value="attack">Attaque</option><option value="kill">Mise à mort</option><option value="wounded">Blessé</option><option value="move">Déplacement</option><option value="win">Victoire</option><option value="lose">Défaite</option></select></div>
-    <div class="row"><input id="t-actor" type="text" placeholder="acteur (nom/classe)" style="flex:1"><input id="t-target" type="text" placeholder="cible" style="flex:1"></div>
+    <div class="row"><select id="t-on"><option value="start">Début</option><option value="turn">Début de tour</option><option value="enter">Entrée en zone</option><option value="attack">Attaque</option><option value="kill">Mise à mort</option><option value="wounded">Blessé</option><option value="move">Déplacement</option><option value="win">Victoire</option><option value="lose">Défaite</option></select></div>
+    <div class="row"><input id="t-actor" type="text" placeholder="acteur (nom/classe)" style="flex:1"><input id="t-zone" type="text" placeholder="zone (ex: A)" style="flex:1"></div>
+    <div class="row"><input id="t-target" type="text" placeholder="cible (nom/classe)" style="flex:1"></div>
     <div class="row"><select id="t-result"><option value="">résultat —</option><option>hit</option><option>miss</option><option>blocked</option></select><select id="t-killed"><option value="">tue ? —</option><option value="true">oui</option><option value="false">non</option></select></div>
+    <div class="row"><label style="display:flex;align-items:center;gap:5px;font-size:.85rem"><input type="checkbox" id="t-once" checked> une seule fois</label><label style="display:flex;align-items:center;gap:5px;font-size:.85rem"><input type="checkbox" id="t-first"> 1ʳᵉ action du tour</label></div>
     <div class="row"><input id="t-who" type="text" placeholder="qui parle" style="flex:1"><input id="t-text" type="text" placeholder="réplique…" style="flex:2"></div>
     <div class="row"><button id="t-add">+ Ajouter l'évènement</button></div>
     </div>
@@ -167,7 +172,7 @@
 <div id="combatline"></div>
 <div id="fiche"></div>
 <div id="banner"></div>
-<div id="title"><h1>MALAZAN</h1><div id="title-sub">Tactique sur terrain mixte — hexagones, carrés &amp; pentagones</div><div id="title-hint">Édite un terrain (zones d'influence + distorsion), pose tes soldats, et joue.</div><button id="title-btn">Entrer ▶</button></div>
+<div id="title"><button id="title-btn">New game</button></div>
 <div id="camptext"><div id="camptext-body"></div><button id="camptext-btn">Continuer ▶</button></div>
 <div id="storybox"><div id="storybox-body"></div><button id="storybox-btn">…</button></div>
 <div id="over"><h2 id="overtxt"></h2><button id="overbtn">Rejouer</button></div>
@@ -261,7 +266,7 @@
   // ===== unités =====
   let units=[], podAlerted=new Set(), neutralSeen=new Set();
   function U(team,cls,cell,opts){opts=opts||{};const t=CLASSES[cls];const wtype=t.w.ranged?"ranged":"melee";const w=t.w[wtype];
-    const u={team,cls,name:opts.name||t.name,cell,hp:t.hp,max:t.hp,ap:AP_MAX,freeAvail:true,mob:t.mob,facing:team==="enemy"?Math.PI:0,wtype,flank:w.flank||null,shieldBlock:t.shieldBlock||0,parry:t.parry||0,w:t.w,overwatch:false,reacted:false,owMode:null};
+    const u={team,cls,name:opts.name||t.name,cell,hp:t.hp,max:t.hp,ap:AP_MAX,freeAvail:true,mob:t.mob,facing:opts.facing!=null?opts.facing:(team==="enemy"?Math.PI:0),wtype,flank:w.flank||null,shieldBlock:t.shieldBlock||0,parry:t.parry||0,w:t.w,overwatch:false,reacted:false,owMode:null};
     if(w.clip!==undefined){u.clip=w.clip;u.ammo=w.clip;} if(t.crackers)u.crackers=t.crackers;
     if(opts.pod!=null&&opts.pod!=="")u.pod=+opts.pod; if(opts.asleep&&team==="enemy"){u.asleep=true;u._asleep0=true;} if(opts.hostage&&team==="neutral")u.hostage=true;
     return u; }
@@ -305,7 +310,7 @@
     for(const n of T.nb){ if(!wallBetween(tgt.cell,n))continue; if(T.elev>cells[n].elev)continue; let dx=cells[n].cx-T.cx,dy=cells[n].cy-T.cy; const dl=Math.hypot(dx,dy)||1; dx/=dl;dy/=dl; const align=ax*dx+ay*dy; if(align<=0)continue; best=Math.max(best,(COVER_PEN/2)*align); }
     return Math.round(best); }
   function chance(att,tgt,m){const w=att.w[m];let cover=0;if(w.type==="ranged"){if(cells[tgt.cell].terr==="cover")cover=COVER_PEN;cover=Math.max(cover,muretCover(tgt,att));}const dh=Math.max(-3,Math.min(3,cells[att.cell].elev-cells[tgt.cell].elev))*HEIGHT_BONUS;const pb=w.type==="ranged"?(PB[hops(att.cell,tgt.cell)]||0):0;return Math.max(5,Math.min(95,Math.round(w.aim-cover+dh-pb)));}
-  function doAttack(att,tgt,m,reaction){const w=att.w[m];att.facing=ang(att.cell,tgt.cell);if(!reaction){att.ap=0;att.freeAvail=false;}if(w.type==="ranged"&&att.clip!==undefined)att.ammo--;
+  function doAttack(att,tgt,m,reaction){const w=att.w[m];att.facing=ang(att.cell,tgt.cell);if(!reaction){att.ap=0;att.freeAvail=false;turnActions++;}if(w.type==="ranged"&&att.clip!==undefined)att.ammo--;
     const ch=Math.max(5,chance(att,tgt,m)-(reaction?15:0)),hit=RND()*100<ch,back=flankOf(att,tgt)==="back";let txt,result,dmg=0;
     if(!hit){txt="raté";result="miss";}
     else if(!back&&tgt.shieldBlock&&RND()*100<tgt.shieldBlock){txt="bloqué 🛡";result="blocked";}
@@ -319,10 +324,10 @@
     checkEnd();refresh();}
 
   // ===== évènements scriptés (triggers) + dialogues =====
-  let triggers=[], fired=new Set(), turnNum=1, speechQ=[], speechT=null;
+  let triggers=[], fired=new Set(), turnNum=1, turnActions=0, speechQ=[], speechT=null;
   function trigMatch(t,ctx){const M=t.match||{};for(const k in M){const want=M[k];if(k==="actor"||k==="target"){if(want!==ctx[k+"Name"]&&want!==ctx[k+"Cls"])return false;}else if(ctx[k]!==want)return false;}return true;}
-  function emit(type,ctx){ctx=ctx||{};ctx.type=type;let best=null,bp=-1e9,bid=-1;
-    for(let i=0;i<triggers.length;i++){const t=triggers[i],id=t.id!=null?t.id:i;if(t.on!==type)continue;if(t.once!==false&&fired.has(id))continue;if(!trigMatch(t,ctx))continue;const p=t.priority||0;if(p>bp){bp=p;best=t;bid=id;}}
+  function emit(type,ctx){ctx=ctx||{};ctx.type=type;ctx.firstAction=turnActions<=1;let best=null,bp=-1e9,bid=-1;   // firstAction : aucune action encore jouée (ou celle en cours est la 1ʳᵉ) ce tour-ci
+    for(let i=0;i<triggers.length;i++){const t=triggers[i],id=t.id!=null?t.id:i;if(t.on!==type)continue;if(t.once!==false&&fired.has(id))continue;if(t.firstAction&&!ctx.firstAction)continue;if(!trigMatch(t,ctx))continue;const p=t.priority||0;if(p>bp){bp=p;best=t;bid=id;}}
     if(!best)return;fired.add(bid);if(best.lines)for(const ln of best.lines)sayLine(ln,ctx);else if(best.say)sayLine(best.say,ctx);}
   function sayLine(ln,ctx){if(Array.isArray(ln))say(ln[0]||ctx.actorName,ln[1]);else if(typeof ln==="string")say(ctx.actorName,ln);else if(ln)say(ln.who||ctx.actorName,ln.text);}
   function say(who,text){const u=units.find(x=>x.name===who);log(`💬 ${who||"—"} : ${text}`,u&&u.team==="enemy"?"enemy":"player");speechQ.push({who:who||"—",text});if(!speechT)showSpeech();}
@@ -333,9 +338,11 @@
   // ===== vigilance (overwatch) + déplacement avec réactions =====
   function reactTo(mover){ for(const o of units){ if(o.hp>0&&o.team!==mover.team&&hostile(o,mover)&&o.overwatch&&!o.reacted&&inRange(o,mover,o.owMode||o.wtype)){ o.reacted=true; doAttack(o,mover,o.owMode||o.wtype,true); if(mover.hp<=0)return true; } } return false; }
   let anim=null;
-  function moveAlong(u,dest){ const cost=reach(u)[dest]; if(cost===undefined)return; const path=pathTo(u,dest); if(!path)return;
+  function moveAlong(u,dest){ const cost=reach(u)[dest]; if(cost===undefined)return; const path=pathTo(u,dest); if(!path)return; turnActions++;   // un déplacement = une action du tour
     u.ap-=apForMove(u,cost); if(u.ap<0)u.ap=0; u.freeAvail=false; const visited=[u.cell];
-    for(let k=1;k<path.length;k++){ u.facing=ang(u.cell,path[k]); u.cell=path[k]; visited.push(path[k]); if(reactTo(u)){startAnim(u,visited);return;} if(over){startAnim(u,visited);return;} }
+    for(let k=1;k<path.length;k++){ u.facing=ang(u.cell,path[k]); u.cell=path[k]; visited.push(path[k]);
+      { const zc=cells[u.cell]; if(zc&&zc.zone)emit("enter",{zone:zc.zone,actorName:u.name,actorCls:u.cls,actorTeam:u.team}); }   // entrée dans une zone de déclenchement
+      if(reactTo(u)){startAnim(u,visited);return;} if(over){startAnim(u,visited);return;} }
     startAnim(u,visited); }
   function startAnim(u,ids){ if(typeof requestAnimationFrame==="undefined"||typeof performance==="undefined"||ids.length<2)return;
     anim={u,pts:ids.map(id=>cells[id]?[cells[id].cx,cells[id].cy]:[0,0]),t0:performance.now(),dur:160*(ids.length-1),t:0};
@@ -344,7 +351,7 @@
   function doOverwatch(m){ if(!sel||sel.ap<=0||!sel.w[m])return; sel.overwatch=true; sel.owMode=m; sel.ap=0; sel.freeAvail=false; sel.reacted=false; amode=null; setMsg("En vigilance — réagira au mouvement ennemi."); refresh(); }
   // ===== cracker (aire) =====
   let throwing=false, usingItem=false, inv={potion:2};
-  function resolveThrow(thrower,target){ const cr=thrower.w.cracker; thrower.crackers--; thrower.ap=0; thrower.freeAvail=false; throwing=false;
+  function resolveThrow(thrower,target){ const cr=thrower.w.cracker; thrower.crackers--; thrower.ap=0; thrower.freeAvail=false; throwing=false; turnActions++;
     const cand=cells.filter(c=>passable(c.id)&&hops(target,c.id)<=cr.scatter); const imp=cand.length?cand[Math.floor(RND()*cand.length)].id:target;
     let enemiesHit=0,alliesHit=0,killed=0;
     for(const u of units){ if(u.hp<=0)continue; if(hops(imp,u.cell)<=cr.radius){ const dmg=cr.dmgMin+Math.floor(RND()*(cr.dmgMax-cr.dmgMin+1)); u.hp-=dmg; if(u.team===thrower.team)alliesHit++; else enemiesHit++;
@@ -355,7 +362,7 @@
     emit("cracker",{actorName:thrower.name,actorCls:thrower.cls,actorTeam:thrower.team,enemiesHit,alliesHit,killed}); checkEnd(); refresh(); }
   // ===== objet : potion (soi ou allié adjacent) =====
   function applyItem(u){ if(!sel||u.team!=="player"||u.hp<=0||sel.ap<=0)return; if(u!==sel&&hops(sel.cell,u.cell)>1){setMsg("Potion : soi-même ou un allié adjacent.");return;} if(inv.potion<=0){setMsg("Plus de potion.");return;} if(u.hp>=u.max){setMsg(`${u.name} est déjà au max.`);return;}
-    u.hp=Math.min(u.max,u.hp+6); inv.potion--; sel.ap-=1; usingItem=false; log(`▲ ${sel.name} soigne ${u.name} : +PV`,"player"); refresh(); }
+    turnActions++; u.hp=Math.min(u.max,u.hp+6); inv.potion--; sel.ap-=1; usingItem=false; log(`▲ ${sel.name} soigne ${u.name} : +PV`,"player"); refresh(); }
 
   // ===== brouillard / tours =====
   let visible=new Set(), turn="player", sel=null, over=false, amode=null, hoverCell=null, aimTarget=null, introBlocking=false;
@@ -383,8 +390,8 @@
     if(w.type==="ranged"){ if(hops(fromCell,tgtCell)>(w.range||1)||!los(fromCell,tgtCell))return 0; } else if(hops(fromCell,tgtCell)>1)return 0;
     return chance({cell:fromCell,w:att.w,clip:att.clip,ammo:att.ammo,team:att.team},{cell:tgtCell},m); }
   function bestEnemyTarget(e){ let best=null,bk=-1e9; for(const p of units){ if(!hostile(e,p)||p.hp<=0||!inRange(e,p,e.wtype))continue; const k=shotFrom(e.cell,e,p.cell,e.wtype)*1000-p.hp; if(k>bk){bk=k;best=p;} } return best; }
-  function endTurn(){turn="enemy";sel=null;amode=null;aimTarget=null;for(const u of units)if(u.team==="enemy"){u.ap=AP_MAX;u.freeAvail=true;u.overwatch=false;u.reacted=false;}banner("Tour de l'ennemi","enemy");refresh();const foes=units.filter(u=>u.team==="enemy"&&u.hp>0);let i=0;
-    (function step(){if(over)return;if(i>=foes.length){for(const u of units)if(u.team==="player"){u.ap=AP_MAX;u.freeAvail=true;u.overwatch=false;u.reacted=false;}turn="player";turnNum++;setMsg("");banner("Tour du joueur","player");refresh();emit("turn",{turn:turnNum});return;}
+  function endTurn(){turn="enemy";turnActions=0;sel=null;amode=null;aimTarget=null;for(const u of units)if(u.team==="enemy"){u.ap=AP_MAX;u.freeAvail=true;u.overwatch=false;u.reacted=false;}banner("Tour de l'ennemi","enemy");refresh();const foes=units.filter(u=>u.team==="enemy"&&u.hp>0);let i=0;
+    (function step(){if(over)return;if(i>=foes.length){for(const u of units)if(u.team==="player"){u.ap=AP_MAX;u.freeAvail=true;u.overwatch=false;u.reacted=false;}turn="player";turnNum++;turnActions=0;setMsg("");banner("Tour du joueur","player");refresh();emit("turn",{turn:turnNum});return;}
       const e=foes[i++];if(e.hp<=0){step();return;} e.overwatch=false; if(!enemyActive(e)){e.ap=0;step();return;}   // pas alerté = ne bouge pas
       const tgts=units.filter(p=>p.hp>0&&hostile(e,p)); if(!tgts.length){step();return;}
       // évalue chaque case atteignable : offense (mon meilleur tir d'ici) − menace subie − distance + relief
@@ -431,6 +438,7 @@
     if(editTool==="pod"||editTool==="sleep"){ const c=cellAtXY(X,Y); const u=c&&uAt(c.id); if(u&&u.team==="enemy"){
         if(editTool==="pod")u.pod=(u.pod===undefined)?0:(u.pod>=4?undefined:u.pod+1);
         else { u._asleep0=!u._asleep0; u.asleep=u._asleep0; } refresh(); } return; }
+    if(editTool==="tzone"||editTool==="tzone-erase"){ const c=cellAtXY(X,Y); if(c){ c.zone=(editTool==="tzone")?((document.getElementById("tzname").value||"A").trim()||"A"):undefined; refresh(); } return; }   // peint / efface une zone de déclenchement
     if(editTool==="gomme-t"){ const c=cellAtXY(X,Y); if(!c){return;}   // gomme : retire d'abord un muret tout proche, sinon remet le sol normal
       let bestK=null,bd=14; for(const n of c.nb){ const key=wkey(c.id,n); if(!walls.has(key))continue; const s=wallSeg.get(key); if(!s)continue; const dd=distToSeg(X,Y,s[0],s[1]); if(dd<bd){bd=dd;bestK=key;} }
       if(bestK)walls.delete(bestK); else if(c.terr!=="plain")c.terr="plain"; refresh(); return; }
@@ -465,11 +473,16 @@
     const showZones=mode==="edit"&&editTool.startsWith("zone:");
     if(showZones)for(let r=0;r<ROWS;r++)for(let c=0;c<COLS;c++){ctx.fillStyle=ZCOL[infl[r][c]];ctx.fillRect(c*MC,r*MC,MC,MC);}
     const d=(mode==="play"&&sel&&turn==="player"&&!over)?reach(sel):null;
-    for(const c of cells){ const unseen=mode==="play"&&!visible.has(c.id); poly(c); ctx.fillStyle=terrFill[c.terr]; ctx.fill();
+    for(const c of cells){ const vis=visible.has(c.id);
+      const rockEdge=mode==="play"&&c.terr==="wall"&&!vis&&c.nb.some(n=>visible.has(n));   // rocher en lisière de vision : on le voit, mais pas les cases derrière
+      const unseen=mode==="play"&&!vis&&!rockEdge; poly(c); ctx.fillStyle=terrFill[c.terr]; ctx.fill();
       if(!unseen){ const k=(c.elev-1)*0.16; if(k>0){ctx.fillStyle="rgba(255,250,235,"+Math.min(0.5,k)+")";ctx.fill();} else if(k<0){ctx.fillStyle="rgba(0,0,0,"+Math.min(0.5,-k)+")";ctx.fill();} }
       if(unseen){ctx.fillStyle="rgba(8,7,5,0.93)";ctx.fill();}                  // brouillard : cache vraiment le terrain
       ctx.lineWidth=1; ctx.strokeStyle=unseen?"#0a0806":"#0c0a07"; ctx.stroke();
       if(c.terr==="wall"&&!unseen){ drawRock(c); } }   // 🪨 rocher seulement sur les cases visibles (caché par le brouillard)
+    if(mode==="edit"){ ctx.textAlign="center"; ctx.textBaseline="middle"; ctx.font="bold 11px system-ui";   // zones de déclenchement : visibles seulement dans l'éditeur
+      for(const c of cells)if(c.zone){ poly(c); ctx.fillStyle="rgba(96,165,250,.22)"; ctx.fill(); ctx.fillStyle="#dcebff"; ctx.fillText(c.zone,c.cx,c.cy); }
+      ctx.textAlign="start"; ctx.textBaseline="alphabetic"; }
     // portée de déplacement : 3 contours imbriqués — bleu=gratuit (0 PA), orange=1 PA, rouge=2 PA
     if(d){ ctx.lineJoin="round"; const tier=cid=>{const a=apForMove(sel,d[cid]); return a<=0?0:(a>=sel.ap?2:1);}; const cols=["#5fb0d8","#e2a03c","#d8635f"]; const occCells=occ();   // bleu=gratuit, rouge=limite (tout le PA restant), orange=entre
       // une case fait partie du palier t si atteignable<=t, OU occupée par une unité mais entourée par le palier (pour éviter trous & cernes autour des persos)
@@ -510,7 +523,7 @@
   const distEl=document.getElementById("dist"),dens=document.getElementById("dens"),uteam=document.getElementById("uteam"),ucls=document.getElementById("ucls"),upod=document.getElementById("upod"),uasleep=document.getElementById("uasleep"),uhostage=document.getElementById("uhostage"),uname=document.getElementById("uname");
   Object.keys(CLASSES).forEach(k=>{const o=document.createElement("option");o.value=k;o.textContent=CLASSES[k].name;ucls.appendChild(o);});
   function btnRow(host,items){ host.innerHTML=""; items.forEach(([label,tool])=>{const b=document.createElement("button");b.textContent=label;b.dataset.tool=tool;b.className=editTool===tool?"on":"";b.onclick=()=>{editTool=tool;syncTools();refresh();};host.appendChild(b);}); }
-  function syncTools(){ document.querySelectorAll("#zones button,#terr button,#relief button,#tplace,#terase,#tpod,#tsleep").forEach(b=>b.classList.toggle("on",b.dataset.tool===editTool)); }
+  function syncTools(){ document.querySelectorAll("#zones button,#terr button,#relief button,#tplace,#terase,#tpod,#tsleep,#tzpaint,#tzerase").forEach(b=>b.classList.toggle("on",b.dataset.tool===editTool)); }
   btnRow(document.getElementById("zones"),[["⬛","zone:square"],["⬡","zone:hex"],["⬠","zone:pentagon"],["🔀","zone:mix"]]);
   btnRow(document.getElementById("terr"),[["🟩 Sol","terr:plain"],["⛰ Accidenté","terr:rough"],["🪨 Rocher","terr:wall"],["🧱 Muret","muret"],["🧹 Gomme","gomme-t"]]);
   btnRow(document.getElementById("relief"),[["⬆ élever","elev+"],["⬇ abaisser","elev-"]]);
@@ -519,21 +532,23 @@
   document.getElementById("terase").onclick=()=>{editTool="erase";syncTools();};
   document.getElementById("tpod").onclick=()=>{editTool="pod";syncTools();};
   document.getElementById("tsleep").onclick=()=>{editTool="sleep";syncTools();};
+  document.getElementById("tzpaint").onclick=()=>{editTool="tzone";syncTools();};
+  document.getElementById("tzerase").onclick=()=>{editTool="tzone-erase";syncTools();};
 
   // re-maille en conservant (keep) terrain, relief, murets et unités par projection géométrique
   function snapBoard(){ return {
-    cells:cells.map(c=>({cx:c.cx,cy:c.cy,terr:c.terr,elev:c.elev})),
+    cells:cells.map(c=>({cx:c.cx,cy:c.cy,terr:c.terr,elev:c.elev,zone:c.zone})),
     walls:[...walls].map(k=>wallSeg.get(k)).filter(Boolean).map(s=>[(s[0][0]+s[1][0])/2,(s[0][1]+s[1][1])/2]),
-    units:units.map(u=>({team:u.team,cls:u.cls,name:u.name,pod:u.pod,asleep:u._asleep0,hostage:u.hostage,cx:cells[u.cell]?cells[u.cell].cx:0,cy:cells[u.cell]?cells[u.cell].cy:0})) }; }
+    units:units.map(u=>({team:u.team,cls:u.cls,name:u.name,pod:u.pod,asleep:u._asleep0,hostage:u.hostage,facing:u.facing,cx:cells[u.cell]?cells[u.cell].cx:0,cy:cells[u.cell]?cells[u.cell].cy:0})) }; }
   function restoreBoard(s){ if(!s||!s.cells.length)return;
     const near=(arr,x,y)=>{let bi=0,bd=1e9;for(let i=0;i<arr.length;i++){const d=(arr[i].cx-x)**2+(arr[i].cy-y)**2;if(d<bd){bd=d;bi=i;}}return bi;};
-    cells.forEach(c=>{const o=s.cells[near(s.cells,c.cx,c.cy)];c.terr=o.terr;c.elev=o.elev;});
+    cells.forEach(c=>{const o=s.cells[near(s.cells,c.cx,c.cy)];c.terr=o.terr;c.elev=o.elev;c.zone=o.zone;});
     walls=new Set();
     if(s.walls.length){ const mids=[]; cells.forEach(c=>{for(const n of c.nb)if(n>c.id){const sg=wallSeg.get(wkey(c.id,n));if(sg)mids.push([wkey(c.id,n),(sg[0][0]+sg[1][0])/2,(sg[0][1]+sg[1][1])/2]);}});
       s.walls.forEach(m=>{let bk=null,bd=1e9;mids.forEach(([k,mx,my])=>{const d=(mx-m[0])**2+(my-m[1])**2;if(d<bd){bd=d;bk=k;}});if(bk&&bd<(MC*0.5)**2)walls.add(bk);}); }
     const used=new Set(); units=[];
     s.units.forEach(su=>{ const ord=cells.map((c,i)=>[(c.cx-su.cx)**2+(c.cy-su.cy)**2,i]).sort((a,b)=>a[0]-b[0]);
-      for(const [,i] of ord){ if(used.has(i)||cells[i].terr==="wall")continue; used.add(i); units.push(U(su.team,su.cls,i,{name:su.name,pod:su.pod,asleep:su.asleep,hostage:su.hostage})); break; } }); }
+      for(const [,i] of ord){ if(used.has(i)||cells[i].terr==="wall")continue; used.add(i); units.push(U(su.team,su.cls,i,{name:su.name,pod:su.pod,asleep:su.asleep,hostage:su.hostage,facing:su.facing})); break; } }); }
   function rebuildShape(keep){ const snap=keep?snapBoard():null; genMesh(); if(snap)restoreBoard(snap); else{units=[];walls=new Set();} refresh(); }
   // génère un profil de terrain : collines (relief), rochers, couverts et murets épars
   function autoTerrain(){ if(!cells.length)return; seed=(seed*1103515245+12345)&0x7fffffff; const rnd=mk((seed^0x9e3779b9)>>>0);
@@ -561,16 +576,16 @@
     document.getElementById("counts").textContent=`${cells.length} cellules · ${np} alliés · ${ne} ennemis`; }
   // sérialisation : cellules (polygone + terrain + relief) + unités + paramètres de forme (pour re-mailler)
   function exportObj(){ return { name:((mname&&mname.value)||"").trim()||"mission-maillage", form:{infl,dist:+distEl.value,dens:+dens.value,seed},
-    cells:cells.map(c=>({poly:c.poly.map(p=>[Math.round(p[0]),Math.round(p[1])]),terr:c.terr,elev:c.elev})),
+    cells:cells.map(c=>{const o={poly:c.poly.map(p=>[Math.round(p[0]),Math.round(p[1])]),terr:c.terr,elev:c.elev};if(c.zone)o.zone=c.zone;return o;}),
     walls:[...walls],
-    units:units.map(u=>{const o={team:u.team,cls:u.cls,cell:u.cell};if(u.name!==CLASSES[u.cls].name)o.name=u.name;if(u.pod!==undefined)o.pod=u.pod;if(u.asleep)o.asleep=true;if(u.hostage)o.hostage=true;return o;}),
+    units:units.map(u=>{const o={team:u.team,cls:u.cls,cell:u.cell};if(u.name!==CLASSES[u.cls].name)o.name=u.name;if(u.pod!==undefined)o.pod=u.pod;if(u.asleep)o.asleep=true;if(u.hostage)o.hostage=true;if(u.facing!=null)o.facing=u.facing;return o;}),
     triggers:triggers }; }
   function applyMissionObj(m){ resetView();
     if(!m||!Array.isArray(m.cells))throw new Error("format invalide");
-    cells=m.cells.map((c,i)=>{const ct=polyCentroid(c.poly);return {id:i,poly:c.poly,cx:ct[0],cy:ct[1],nb:[],terr:c.terr||"plain",elev:c.elev||0};});
+    cells=m.cells.map((c,i)=>{const ct=polyCentroid(c.poly);return {id:i,poly:c.poly,cx:ct[0],cy:ct[1],nb:[],terr:c.terr||"plain",elev:c.elev||0,zone:c.zone};});
     buildAdj();
     walls=new Set((Array.isArray(m.walls)?m.walls:[]).filter(k=>wallSeg.has(k)));
-    units=(m.units||[]).map(u=>U(u.team,u.cls,u.cell,{name:u.name,pod:u.pod,asleep:u.asleep,hostage:u.hostage})).filter(u=>cells[u.cell]);
+    units=(m.units||[]).map(u=>U(u.team,u.cls,u.cell,{name:u.name,pod:u.pod,asleep:u.asleep,hostage:u.hostage,facing:u.facing})).filter(u=>cells[u.cell]);
     triggers=Array.isArray(m.triggers)?m.triggers:[]; renderTrigList();
     if(m.form){ if(m.form.infl){infl=m.form.infl; ROWS=infl.length; COLS=(infl[0]&&infl[0].length)||COLS; W=COLS*MC;H=ROWS*MC; cv.width=W;cv.height=H;
         const bw=document.getElementById("bw"),bh=document.getElementById("bh"); if(bw)bw.value=COLS; if(bh)bh.value=ROWS; }
@@ -613,14 +628,14 @@
   fetchRepoMissions();
 
   // ===== éditeur d'évènements =====
-  const tOn=document.getElementById("t-on"),tActor=document.getElementById("t-actor"),tTarget=document.getElementById("t-target"),tResult=document.getElementById("t-result"),tKilled=document.getElementById("t-killed"),tWho=document.getElementById("t-who"),tText=document.getElementById("t-text");
+  const tOn=document.getElementById("t-on"),tActor=document.getElementById("t-actor"),tZone=document.getElementById("t-zone"),tTarget=document.getElementById("t-target"),tResult=document.getElementById("t-result"),tKilled=document.getElementById("t-killed"),tOnce=document.getElementById("t-once"),tFirst=document.getElementById("t-first"),tWho=document.getElementById("t-who"),tText=document.getElementById("t-text");
   function renderTrigList(){const el=document.getElementById("triglist");if(!el)return;
-    el.innerHTML=triggers.length?triggers.map((t,i)=>{const mm=Object.entries(t.match||{}).map(([k,v])=>k+":"+v).join(" ");const say=t.say?`${t.say[0]||"?"} : "${t.say[1]}"`:(t.lines?t.lines.length+" répliques":"");return `<div><button class="tdel" data-i="${i}">✕</button> <b>${t.on}</b> ${mm} → 💬 ${say}</div>`;}).join(""):"(aucun évènement)";
+    el.innerHTML=triggers.length?triggers.map((t,i)=>{const mm=Object.entries(t.match||{}).map(([k,v])=>k+":"+v).join(" ");const flags=(t.once===false?"":" ⟲1×")+(t.firstAction?" ⚑1ʳᵉ":"");const say=t.say?`${t.say[0]||"?"} : "${t.say[1]}"`:(t.lines?t.lines.length+" répliques":"");return `<div><button class="tdel" data-i="${i}">✕</button> <b>${t.on}</b> ${mm}${flags} → 💬 ${say}</div>`;}).join(""):"(aucun évènement)";
     el.querySelectorAll(".tdel").forEach(b=>b.onclick=()=>{triggers.splice(+b.dataset.i,1);renderTrigList();saveDraft();});}
   function addTrig(){const on=tOn.value,m={};const setF=(el,k)=>{const v=(el.value||"").trim();if(v)m[k]=v;};
-    setF(tActor,"actor");setF(tTarget,"target");if(tResult.value)m.result=tResult.value;if(tKilled.value)m.killed=tKilled.value==="true";
+    setF(tActor,"actor");setF(tZone,"zone");setF(tTarget,"target");if(tResult.value)m.result=tResult.value;if(tKilled.value)m.killed=tKilled.value==="true";
     const text=(tText.value||"").trim();if(!text){alert("Écris une réplique.");return;}
-    const t={on};if(Object.keys(m).length)t.match=m;t.say=[(tWho.value||"").trim(),text];triggers.push(t);tText.value="";renderTrigList();saveDraft();}
+    const t={on};if(Object.keys(m).length)t.match=m;t.once=tOnce.checked;if(tFirst.checked)t.firstAction=true;t.say=[(tWho.value||"").trim(),text];triggers.push(t);tText.value="";renderTrigList();saveDraft();}
   document.getElementById("t-add").onclick=addTrig;
   renderTrigList();
 
@@ -780,7 +795,7 @@
   function startGame(){ resetView(); { const t=document.getElementById("title"); if(t)t.style.display="none"; }   // une partie démarre : on retire l'écran-titre
     if(!units.some(u=>u.team==="player")||!units.some(u=>u.team==="enemy")){ setMsg("Place au moins 1 allié et 1 ennemi (mode Éditer)."); }
     for(const u of units){u.hp=u.max;u.ap=AP_MAX;u.freeAvail=true;u.overwatch=false;u.reacted=false;u.asleep=!!u._asleep0;if(u.clip!==undefined)u.ammo=u.clip;if(u.crackers!==undefined)u.crackers=CLASSES[u.cls].crackers;} turn="player";over=false;sel=null;amode=null;aimTarget=null;throwing=false;usingItem=false;inv={potion:campRun?(campRun.potions||0):0};
-    fired=new Set(); podAlerted=new Set(); neutralSeen=new Set(); turnNum=1; speechQ=[]; if(speechT){clearTimeout(speechT);speechT=null;} document.getElementById("combatline").style.display="none";
+    fired=new Set(); podAlerted=new Set(); neutralSeen=new Set(); turnNum=1; turnActions=0; speechQ=[]; if(speechT){clearTimeout(speechT);speechT=null;} document.getElementById("combatline").style.display="none";
     document.getElementById("over").classList.remove("show");document.getElementById("log").innerHTML="";setMsg("");refresh();
     banner("Tour du joueur","player"); emit("start",{}); emit("turn",{turn:1}); }
   document.getElementById("end").onclick=()=>{if(!over&&turn==="player"&&mode==="play")endTurn();};
