@@ -113,7 +113,7 @@
     <div class="row"><label>pod <input id="upod" type="text" placeholder="–" style="width:36px"></label>
       <label><input id="uasleep" type="checkbox">💤 endormi</label><label><input id="uhostage" type="checkbox">🟣 otage</label></div>
     <div class="row"><button id="tplace" data-tool="unit">Poser l'unité</button><button id="terase" data-tool="erase">Gomme</button></div>
-    <div class="hint">Avec « Poser l'unité » : clic sur une case vide pour poser, <b>glisser</b> une unité pour la déplacer, <b>clic droit</b> pour la supprimer.</div>
+    <div class="hint">Avec « Poser l'unité » : clic sur une case vide pour poser, <b>clic sur une unité</b> pour la pivoter (45°), <b>glisser</b> pour la déplacer, <b>clic droit</b> pour la supprimer.</div>
     <h2>Évènements (dialogues)</h2>
     <div id="triglist" class="hint"></div>
     <div class="row"><select id="t-on"><option value="start">Début</option><option value="turn">Début de tour</option><option value="attack">Attaque</option><option value="kill">Mise à mort</option><option value="wounded">Blessé</option><option value="move">Déplacement</option><option value="win">Victoire</option><option value="lose">Défaite</option></select></div>
@@ -220,8 +220,9 @@
     for(let j=-1;j*Math.min(g,h)<H+g;j++)for(let i=-1;i*g<W+g;i++){
       let x=i*g,y=j*g; let t=typeAt(Math.max(0,Math.min(W-1,i*g)),Math.max(0,Math.min(H-1,j*g))),amp=dist*g*0.42;
       if(t==="mix"){const pick=Math.floor(rnd()*3);t=["square","hex","pentagon"][pick];}
-      if(t==="hex"){x=i*g+(j&1?g/2:0);y=j*h;}else if(t==="pentagon"){x=i*g+(j&1?g/2:0);amp+=g*0.3;}
-      x+=jit(amp);y+=jit(amp); if(x>-g&&x<W+g&&y>-g&&y<H+g)seeds.push([x,y]);
+      if(t==="hex"){x=i*g+(j&1?g/2:0);y=j*h;}else if(t==="pentagon"){x=i*g+(j&1?g/2:0);amp+=g*0.16;}   // pentagones moins « jittés »
+      x+=jit(amp);y+=jit(amp);
+      if(x>-g&&x<W+g&&y>-g&&y<H+g){ const md2=(g*0.5)**2; let ok=true; for(const s of seeds){const dx=s[0]-x,dy=s[1]-y;if(dx*dx+dy*dy<md2){ok=false;break;}} if(ok)seeds.push([x,y]); }   // rejette les graines trop proches → plus de cellules en éclats
     }
     const box=[[0,0],[W,0],[W,H],[0,H]];
     function clip(poly,p,q){const mx=(p[0]+q[0])/2,my=(p[1]+q[1])/2,nx=p[0]-q[0],ny=p[1]-q[1],ins=v=>(v[0]-mx)*nx+(v[1]-my)*ny>=0,out=[];
@@ -395,7 +396,7 @@
       if(bestCell!==e.cell){ moveAlong(e,bestCell); refresh(); setTimeout(finish,(anim?anim.dur+150:200)); } else finish(); })();}   // attendre la fin du glissement avant d'attaquer
 
   // ===== interactions =====
-  let painting=false, dragU=null, dragXY=null;
+  let painting=false, dragU=null, dragXY=null, dragStart=null, dragMoved=false;
   // coordonnées canevas réelles : on remet à l'échelle car le canevas peut être affiché plus petit que son bitmap
   function evXY(e){ const r=cv.getBoundingClientRect(); const bx=(e.clientX-r.left)*(cv.width/(r.width||cv.width)),by=(e.clientY-r.top)*(cv.height/(r.height||cv.height)); return [(bx-panX)/zoom,(by-panY)/zoom]; }
   cv.addEventListener("wheel",e=>{ e.preventDefault(); const r=cv.getBoundingClientRect(); const bx=(e.clientX-r.left)*(cv.width/(r.width||cv.width)),by=(e.clientY-r.top)*(cv.height/(r.height||cv.height));
@@ -405,13 +406,16 @@
     if(mode!=="edit"){ if(e.button===0)playClick(X,Y); return; }
     if(e.button===2){ const cell=cellAtXY(X,Y),u=cell&&uAt(cell.id); if(u){units=units.filter(x=>x!==u);refresh();} return; }
     const cell=cellAtXY(X,Y),u=cell&&uAt(cell.id);
-    if(u&&editTool==="unit"){ dragU=u; dragXY=[X,Y]; draw(); return; }   // glisser-déposer une unité existante
+    if(u&&editTool==="unit"){ dragU=u; dragXY=[X,Y]; dragStart=[X,Y]; dragMoved=false; draw(); return; }   // attrape l'unité : glisser = déplacer, simple clic = pivoter
     painting=true; editAt(X,Y); });
   cv.addEventListener("pointermove",e=>{ if(mode!=="edit")return; const [X,Y]=evXY(e);
-    if(dragU){ dragXY=[X,Y]; draw(); return; }
+    if(dragU){ if(dragStart&&Math.hypot(X-dragStart[0],Y-dragStart[1])>5)dragMoved=true; dragXY=[X,Y]; draw(); return; }
     if(editTool==="muret"){ const k=edgeAt(X,Y); if(k!==hoverEdge){hoverEdge=k;draw();} return; }   // muret : pose au clic, pas en glissé
     if(painting)editAt(X,Y); });
-  window.addEventListener("pointerup",e=>{ if(dragU){ const [X,Y]=evXY(e),cell=cellAtXY(X,Y); if(cell){const o=uAt(cell.id); if(!o||o===dragU)dragU.cell=cell.id;} dragU=null; dragXY=null; refresh(); } painting=false; });
+  window.addEventListener("pointerup",e=>{ if(dragU){ const [X,Y]=evXY(e);
+      if(dragMoved){ const cell=cellAtXY(X,Y); if(cell){const o=uAt(cell.id); if(!o||o===dragU)dragU.cell=cell.id;} }   // déplacé
+      else { dragU.facing=norm((dragU.facing||0)+Math.PI/4); }   // simple clic = pivote l'unité (45°)
+      dragU=null; dragXY=null; dragMoved=false; refresh(); } painting=false; });
   function editAt(X,Y){
     if(editTool.startsWith("zone:")){ const c=Math.floor(X/MC),r=Math.floor(Y/MC); if(c<0||c>=COLS||r<0||r>=ROWS)return; const t=editTool.slice(5); if(infl[r][c]!==t){infl[r][c]=t;rebuildShape(true);} return; }
     if(editTool==="muret"){ const k=edgeAt(X,Y); if(k){ walls.has(k)?walls.delete(k):walls.add(k); refresh(); } return; }
