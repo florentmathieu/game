@@ -140,7 +140,8 @@
     <div class="row"><input id="t-target" type="text" placeholder="cible (nom/classe)" style="flex:1"></div>
     <div class="row"><select id="t-result"><option value="">résultat —</option><option>hit</option><option>miss</option><option>blocked</option></select><select id="t-killed"><option value="">tue ? —</option><option value="true">oui</option><option value="false">non</option></select></div>
     <div class="row"><label style="display:flex;align-items:center;gap:5px;font-size:.85rem"><input type="checkbox" id="t-once" checked> une seule fois</label><label style="display:flex;align-items:center;gap:5px;font-size:.85rem"><input type="checkbox" id="t-first"> 1ʳᵉ action du tour</label></div>
-    <div class="row"><input id="t-who" type="text" placeholder="qui parle" style="flex:1"><input id="t-text" type="text" placeholder="réplique…" style="flex:2"></div>
+    <div class="row"><input id="t-who" type="text" placeholder="qui parle" style="flex:1"><input id="t-text" type="text" placeholder="réplique…" style="flex:2"><button id="t-addline" title="Empiler une réplique de plus">＋</button></div>
+    <div id="t-lines" class="hint"></div>
     <div class="row"><button id="t-add">+ Ajouter l'évènement</button></div>
     </div>
     </div>
@@ -282,7 +283,7 @@
   function wakeEnemy(e,cause,by){ if(e.team!=="enemy")return; if(e.pod!==undefined)wakePod(e.pod,cause,by);
     else if(e.asleep){e.asleep=false;if(by)e.facing=ang(e.cell,by.cell);log(`⚠ ${e.name} réveillé`,"enemy");emit("spotted",{actorTeam:"enemy",by:cause});if(cause==="sight")emit("discovered",{actorTeam:"enemy"});} }
   function detectEnemies(){ for(const e of units)if(e.team==="enemy"&&e.hp>0){ const vis=e.asleep?SLEEP_VIS:ENEMY_VIS;
-    for(const p of units)if(p.team==="player"&&p.hp>0&&hops(e.cell,p.cell)<=vis&&los(e.cell,p.cell)){ wakeEnemy(e,"sight",p); break; } } }
+    for(const p of units)if(p.team==="player"&&p.hp>0&&hops(e.cell,p.cell)<=vis&&los(e.cell,p.cell)&&flankOf(p,e)!=="back"){ wakeEnemy(e,"sight",p); break; } } }   // pas de réveil à vue depuis le quart arrière (angle mort)
   function detectNeutralPods(){ for(const u of units)if(u.team==="neutral"&&u.hp>0&&u.pod!==undefined&&!neutralSeen.has(u.pod)&&visible.has(u.cell)){
     neutralSeen.add(u.pod); log("🔎 Pod de PNJ/otages découvert","player"); emit("spotted",{pod:u.pod,actorTeam:"neutral",by:"sight"}); emit("discovered",{pod:u.pod,actorTeam:"neutral"}); } }
 
@@ -350,7 +351,16 @@
   function animPos(){ const n=anim.pts.length-1,seg=Math.min(n-1e-9,anim.t*n),i=Math.floor(seg),f=seg-i,a=anim.pts[i],b=anim.pts[i+1]; return [a[0]+(b[0]-a[0])*f,a[1]+(b[1]-a[1])*f]; }
   function doOverwatch(m){ if(!sel||sel.ap<=0||!sel.w[m])return; sel.overwatch=true; sel.owMode=m; sel.ap=0; sel.freeAvail=false; sel.reacted=false; amode=null; setMsg("En vigilance — réagira au mouvement ennemi."); refresh(); }
   // ===== cracker (aire) =====
-  let throwing=false, usingItem=false, inv={potion:2};
+  let throwing=false, usingItem=false, inv={potion:2}, crackerJit=null, crackerTimer=null;
+  // aperçu du cracker : la zone d'arrivée « tremble » de case en case parmi les dispersions possibles autour de la case visée
+  function crackerJitTick(){ crackerTimer=null; if(!throwing||!sel){ crackerJit=null; return; }
+    const cr=sel.w.cracker;
+    if(cr&&hoverCell!=null&&cells[hoverCell]&&hops(sel.cell,hoverCell)<=cr.range&&los(sel.cell,hoverCell)){
+      const cand=cells.filter(c=>passable(c.id)&&hops(hoverCell,c.id)<=cr.scatter);   // dispersion (random visuel, n'entame pas la RNG de jeu)
+      crackerJit=cand.length?cand[Math.floor(Math.random()*cand.length)].id:hoverCell;
+    } else crackerJit=null;
+    draw(); crackerTimer=setTimeout(crackerJitTick,150); }
+  function startCrackerJit(){ if(!crackerTimer)crackerJitTick(); }
   function resolveThrow(thrower,target){ const cr=thrower.w.cracker; thrower.crackers--; thrower.ap=0; thrower.freeAvail=false; throwing=false; turnActions++;
     const cand=cells.filter(c=>passable(c.id)&&hops(target,c.id)<=cr.scatter); const imp=cand.length?cand[Math.floor(RND()*cand.length)].id:target;
     let enemiesHit=0,alliesHit=0,killed=0;
@@ -382,7 +392,7 @@
       d.className="rost"+(u===sel?" sel":"")+(u.hp<=0?" dead":((u.ap<=0&&turn==="player")?" spent":""));
       d.innerHTML=`<div><b>${u.name}</b> <span class="sub">${CLASSES[u.cls].name}</span></div>`
         +`<div class="hpbar"><i style="width:${Math.max(0,u.hp)/u.max*100}%"></i></div>`
-        +`<div class="st">PV ${Math.max(0,u.hp)}/${u.max} · PA ${u.hp>0?u.ap+"/"+AP_MAX:"–"}${u.overwatch?" · 👁":""}${u.crackers?" · 💣"+u.crackers:""}</div>`;
+        +`<div class="st">PV ${Math.max(0,u.hp)}/${u.max} · PA ${u.hp>0?u.ap+"/"+AP_MAX:"–"}${u.overwatch?(u.owMode==="ranged"?" · 👁🏹":" · 👁"):""}${u.crackers?" · 💣"+u.crackers:""}</div>`;
       d.onclick=()=>{ if(u.hp>0&&turn==="player"&&!over){ sel=u; amode=null;throwing=false;usingItem=false; refresh(); } };
       el.appendChild(d); }); }
   // chance de toucher qu'aurait `att` (positionné en fromCell) sur une cible en tgtCell — sert offense ET menace
@@ -498,6 +508,11 @@
         poly(cells[hoverCell]); ctx.strokeStyle="#c77dff"; ctx.lineWidth=3; ctx.stroke(); }
       // ligne de visée vers la cible proposée (mode attaque)
       if(amode&&aimTarget&&aimTarget.hp>0&&cells[aimTarget.cell]){ const A=cells[sel.cell],B=cells[aimTarget.cell]; ctx.strokeStyle="#ff7a6a"; ctx.lineWidth=2.5; ctx.setLineDash([7,5]); ctx.beginPath(); ctx.moveTo(A.cx,A.cy); ctx.lineTo(B.cx,B.cy); ctx.stroke(); ctx.setLineDash([]); } }
+    // aperçu cracker : zone d'arrivée (rayon) qui tremble de case en case autour de la case visée
+    if(mode==="play"&&throwing&&sel&&hoverCell!=null&&cells[hoverCell]){ const cr=sel.w.cracker;
+      if(cr&&hops(sel.cell,hoverCell)<=cr.range&&los(sel.cell,hoverCell)){ const center=(crackerJit!=null&&cells[crackerJit])?crackerJit:hoverCell;
+        ctx.fillStyle="rgba(232,99,95,.32)"; for(const c of cells)if(hops(center,c.id)<=cr.radius){ poly(c); ctx.fill(); }
+        poly(cells[hoverCell]); ctx.strokeStyle="#ffd479"; ctx.lineWidth=2.5; ctx.setLineDash([6,4]); ctx.stroke(); ctx.setLineDash([]); } }
     // murets (couvert partiel) tracés sur les arêtes partagées
     walls.forEach(k=>{const s=wallSeg.get(k);if(!s)return;if(mode==="play"){const ab=k.split("-");if(!visible.has(+ab[0])&&!visible.has(+ab[1]))return;}ctx.beginPath();ctx.moveTo(s[0][0],s[0][1]);ctx.lineTo(s[1][0],s[1][1]);ctx.lineWidth=5;ctx.lineCap="round";ctx.strokeStyle="#d9cdb4";ctx.stroke();ctx.lineCap="butt";});
     if(mode==="edit"&&editTool==="muret"&&hoverEdge){const s=wallSeg.get(hoverEdge);if(s){ctx.beginPath();ctx.moveTo(s[0][0],s[0][1]);ctx.lineTo(s[1][0],s[1][1]);ctx.lineWidth=5;ctx.lineCap="round";ctx.strokeStyle="rgba(255,212,121,.5)";ctx.stroke();ctx.lineCap="butt";}}
@@ -632,10 +647,19 @@
   function renderTrigList(){const el=document.getElementById("triglist");if(!el)return;
     el.innerHTML=triggers.length?triggers.map((t,i)=>{const mm=Object.entries(t.match||{}).map(([k,v])=>k+":"+v).join(" ");const flags=(t.once===false?"":" ⟲1×")+(t.firstAction?" ⚑1ʳᵉ":"");const say=t.say?`${t.say[0]||"?"} : "${t.say[1]}"`:(t.lines?t.lines.length+" répliques":"");return `<div><button class="tdel" data-i="${i}">✕</button> <b>${t.on}</b> ${mm}${flags} → 💬 ${say}</div>`;}).join(""):"(aucun évènement)";
     el.querySelectorAll(".tdel").forEach(b=>b.onclick=()=>{triggers.splice(+b.dataset.i,1);renderTrigList();saveDraft();});}
+  let trigLines=[];   // répliques empilées pour le prochain évènement
+  function renderTrigLines(){const el=document.getElementById("t-lines");if(!el)return;
+    el.innerHTML=trigLines.map((l,i)=>`<div><button class="tldel" data-i="${i}">✕</button> <b>${l.who||"—"}</b> : ${l.text}</div>`).join("");
+    el.querySelectorAll(".tldel").forEach(b=>b.onclick=()=>{trigLines.splice(+b.dataset.i,1);renderTrigLines();});}
+  function addLine(){const text=(tText.value||"").trim();if(!text){alert("Écris une réplique.");return;}trigLines.push({who:(tWho.value||"").trim(),text});tText.value="";tText.focus();renderTrigLines();}
   function addTrig(){const on=tOn.value,m={};const setF=(el,k)=>{const v=(el.value||"").trim();if(v)m[k]=v;};
     setF(tActor,"actor");setF(tZone,"zone");setF(tTarget,"target");if(tResult.value)m.result=tResult.value;if(tKilled.value)m.killed=tKilled.value==="true";
-    const text=(tText.value||"").trim();if(!text){alert("Écris une réplique.");return;}
-    const t={on};if(Object.keys(m).length)t.match=m;t.once=tOnce.checked;if(tFirst.checked)t.firstAction=true;t.say=[(tWho.value||"").trim(),text];triggers.push(t);tText.value="";renderTrigList();saveDraft();}
+    const lines=trigLines.slice();const cur=(tText.value||"").trim();if(cur)lines.push({who:(tWho.value||"").trim(),text:cur});
+    if(!lines.length){alert("Écris au moins une réplique.");return;}
+    const t={on};if(Object.keys(m).length)t.match=m;t.once=tOnce.checked;if(tFirst.checked)t.firstAction=true;
+    if(lines.length===1)t.say=[lines[0].who,lines[0].text];else t.lines=lines.map(l=>[l.who,l.text]);
+    triggers.push(t);tText.value="";trigLines=[];renderTrigLines();renderTrigList();saveDraft();}
+  document.getElementById("t-addline").onclick=addLine;
   document.getElementById("t-add").onclick=addTrig;
   renderTrigList();
 
@@ -785,9 +809,9 @@
     if(sel){ const canShoot=sel.w.ranged&&(sel.clip===undefined||sel.ammo>0);
       if(canShoot)aim("🏹","Tir","ranged");
       if(sel.w.melee)aim(sel.flank?"🗡":"⚔️",sel.flank?"Dagues":"Mêlée","melee");
-      if(sel.ap>0&&canShoot)btn("👁","Vigilance — tir",sel.overwatch&&sel.owMode==="ranged",()=>doOverwatch("ranged"));
+      if(sel.ap>0&&canShoot)btn("👁🏹","Vigilance — tir",sel.overwatch&&sel.owMode==="ranged",()=>doOverwatch("ranged"));
       if(sel.ap>0&&sel.w.melee)btn("👁","Vigilance — mêlée",sel.overwatch&&sel.owMode==="melee",()=>doOverwatch("melee"));
-      if(sel.w.cracker&&sel.crackers>0&&sel.ap>0)btn("💣","Cracker ×"+sel.crackers,throwing,()=>{throwing=!throwing;usingItem=false;amode=null;setMsg(throwing?"Clique une case cible (aire).":"");renderActs();});
+      if(sel.w.cracker&&sel.crackers>0&&sel.ap>0)btn("💣","Cracker ×"+sel.crackers,throwing,()=>{throwing=!throwing;usingItem=false;amode=null;setMsg(throwing?"Clique une case cible (aire — la zone d'arrivée est incertaine).":"");if(throwing)startCrackerJit();else{crackerJit=null;draw();}renderActs();});
       if(inv.potion>0&&sel.ap>0)btn("🧪","Potion ×"+inv.potion,usingItem,()=>{usingItem=!usingItem;throwing=false;amode=null;setMsg(usingItem?"Clique un allié (soi/adjacent).":"");renderActs();});
       if(sel.clip!==undefined&&sel.ammo<sel.clip&&sel.ap>0)btn("🔄","Recharger",false,()=>{sel.ap--;sel.ammo=sel.clip;refresh();}); }
     // Fin de tour = bouton 0, toujours en dernier
@@ -815,7 +839,7 @@
     const m=u.w.ranged?"ranged":"melee",w=u.w[m]; const wn=u.w.ranged?(u.clip!==undefined?"arbalète":"arc"):(u.flank?"dagues":(w.bare?"mains nues":"épée"));
     const h=`<b>${u.name}</b> · ${CLASSES[u.cls].name}<br>PV ${Math.max(0,u.hp)}/${u.max} · ${wn} (${w.aim}%) · portée ${w.range||1}`
         +(u.shieldBlock?` · 🛡 ${u.shieldBlock}%`:"")+(u.parry?` · 🗡 parade ${u.parry}%`:"")+(u.flank?` · dos +${u.flank.back}/flanc +${u.flank.side}`:"")
-        +(u.crackers?` · 💣×${u.crackers}`:"")+(u.asleep?" · 💤":"")+(u.pod!==undefined?` · pod ${u.pod}`:"")+(u.overwatch?" · 👁":"");
+        +(u.crackers?` · 💣×${u.crackers}`:"")+(u.asleep?" · 💤":"")+(u.pod!==undefined?` · pod ${u.pod}`:"")+(u.overwatch?(u.owMode==="ranged"?" · 👁🏹":" · 👁"):"");
     f.innerHTML=h; f.style.display="block"; f.style.left=(e.clientX+14)+"px"; f.style.top=(e.clientY+14)+"px"; });
   cv.addEventListener("mouseleave",()=>{document.getElementById("fiche").style.display="none"; if(mode==="play"&&hoverCell!=null){hoverCell=null;draw();}});
   function cycleSel(dir){ if(mode!=="play"||turn!=="player")return; const ps=units.filter(u=>u.team==="player"&&u.hp>0); if(!ps.length)return; let i=ps.indexOf(sel); i=(i<0?0:(i+dir+ps.length)%ps.length); sel=ps[i]; amode=null;aimTarget=null;throwing=false;usingItem=false; refresh(); }
