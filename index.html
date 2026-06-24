@@ -353,7 +353,13 @@
     const d=reach(sel);if(d[id]!==undefined){moveAlong(sel,id);if(!over)emit("move",{actorName:sel.name,actorCls:sel.cls,actorTeam:"player"});refresh();}}
 
   // ===== rendu =====
-  const terrFill={plain:"#3a6e4c",rough:"#7a6326",wall:"#2c3a52",cover:"#46663f"};
+  const terrFill={plain:"#3a6e4c",rough:"#7a6326",wall:"#2a2620",cover:"#46663f"};
+  // petit tas de rochers au centre d'une cellule (terrain « rocher »)
+  function drawRock(c){ const x=c.cx,y=c.cy,s=12;
+    const blob=(ox,oy,r)=>{for(let a=0;a<6;a++){const an=a/6*TWO+0.4;const px=x+ox+Math.cos(an)*r,py=y+oy+Math.sin(an)*r;a?ctx.lineTo(px,py):ctx.moveTo(px,py);}ctx.closePath();};
+    ctx.fillStyle="#54565c"; ctx.beginPath(); blob(-s*0.4,s*0.18,s*0.55); blob(s*0.38,s*0.22,s*0.5); blob(0,-s*0.22,s*0.62); ctx.fill();
+    ctx.strokeStyle="#2c2d31"; ctx.lineWidth=1; ctx.stroke();
+    ctx.fillStyle="#74777e"; ctx.beginPath(); blob(0,-s*0.3,s*0.4); ctx.fill(); }
   const ZCOL={square:"rgba(255,225,176,.13)",hex:"rgba(207,232,255,.13)",pentagon:"rgba(233,198,238,.13)",mix:"rgba(255,255,255,.07)"};
   function poly(c){ctx.beginPath();c.poly.forEach((p,i)=>i?ctx.lineTo(p[0],p[1]):ctx.moveTo(p[0],p[1]));ctx.closePath();}
   function draw(){
@@ -361,13 +367,15 @@
     const showZones=mode==="edit"&&editTool.startsWith("zone:");
     if(showZones)for(let r=0;r<ROWS;r++)for(let c=0;c<COLS;c++){ctx.fillStyle=ZCOL[infl[r][c]];ctx.fillRect(c*MC,r*MC,MC,MC);}
     const d=(mode==="play"&&sel&&turn==="player"&&!over)?reach(sel):null;
-    for(const c of cells){poly(c);ctx.fillStyle=terrFill[c.terr];ctx.fill();
-      if(c.elev>0){ctx.fillStyle="rgba(255,255,255,"+(0.06*c.elev)+")";ctx.fill();}
-      if(d&&d[c.id]!==undefined){ctx.fillStyle="rgba(122,223,122,0.30)";ctx.fill();}
-      if(mode==="play"&&!visible.has(c.id)){ctx.fillStyle="rgba(0,0,0,0.55)";ctx.fill();}
-      ctx.lineWidth=1;ctx.strokeStyle="#0c0a07";ctx.stroke();}
+    for(const c of cells){ const unseen=mode==="play"&&!visible.has(c.id); poly(c); ctx.fillStyle=terrFill[c.terr]; ctx.fill();
+      if(c.elev>0&&!unseen){ctx.fillStyle="rgba(255,255,255,"+(0.06*c.elev)+")";ctx.fill();}
+      if(c.terr==="wall"&&!unseen)drawRock(c);                                  // 🪨 vrai rocher (caché par le brouillard)
+      poly(c);                                                                  // ré-arme le chemin de la cellule (drawRock a fait beginPath)
+      if(unseen){ctx.fillStyle="rgba(8,7,5,0.93)";ctx.fill();}                  // brouillard : cache vraiment le terrain
+      if(d&&d[c.id]!==undefined){ctx.fillStyle="rgba(122,223,122,0.34)";ctx.fill();}  // déplacements toujours par-dessus le brouillard
+      ctx.lineWidth=1; ctx.strokeStyle=unseen?"#0a0806":"#0c0a07"; ctx.stroke(); }
     // murets (couvert partiel) tracés sur les arêtes partagées
-    walls.forEach(k=>{const s=wallSeg.get(k);if(!s)return;ctx.beginPath();ctx.moveTo(s[0][0],s[0][1]);ctx.lineTo(s[1][0],s[1][1]);ctx.lineWidth=5;ctx.lineCap="round";ctx.strokeStyle="#caa24a";ctx.stroke();ctx.lineCap="butt";});
+    walls.forEach(k=>{const s=wallSeg.get(k);if(!s)return;if(mode==="play"){const ab=k.split("-");if(!visible.has(+ab[0])&&!visible.has(+ab[1]))return;}ctx.beginPath();ctx.moveTo(s[0][0],s[0][1]);ctx.lineTo(s[1][0],s[1][1]);ctx.lineWidth=5;ctx.lineCap="round";ctx.strokeStyle="#caa24a";ctx.stroke();ctx.lineCap="butt";});
     if(mode==="edit"&&editTool==="muret"&&hoverEdge){const s=wallSeg.get(hoverEdge);if(s){ctx.beginPath();ctx.moveTo(s[0][0],s[0][1]);ctx.lineTo(s[1][0],s[1][1]);ctx.lineWidth=5;ctx.lineCap="round";ctx.strokeStyle="rgba(255,212,121,.5)";ctx.stroke();ctx.lineCap="butt";}}
     if(showZones){ctx.strokeStyle="rgba(202,162,74,.3)";for(let c=1;c<COLS;c++){ctx.beginPath();ctx.moveTo(c*MC,0);ctx.lineTo(c*MC,H);ctx.stroke();}for(let r=1;r<ROWS;r++){ctx.beginPath();ctx.moveTo(0,r*MC);ctx.lineTo(W,r*MC);ctx.stroke();}}
     const ucol=u=>u.team==="player"?"#5fb0d8":u.team==="neutral"?(u.hostage?"#c98fd0":"#e0b84a"):"#d8635f";
