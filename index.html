@@ -25,6 +25,10 @@
   body.view-campaign #tab-camp{ display:block }
   body.view-play .playonly{ display:block }
   body.view-campaign #board{ display:none }
+  /* vue campagne : grande fenêtre (le panneau prend toute la largeur, graphe & liste agrandis) */
+  body.view-campaign .panel{ width:100%; max-width:1100px; margin:0 auto }
+  body.view-campaign #cnodes{ max-height:46vh }
+  body.view-campaign #cgraph{ height:46vh; min-height:340px }
   #mode{ display:none } body.view-mission #mode,body.testing.view-play #mode{ display:inline-block }
   body:not(.view-play) #title{ display:none !important }
   #nav{ gap:4px } #nav a{ color:#caa24a; text-decoration:none; border:1px solid #5a4530; border-radius:6px; padding:4px 9px; font-size:.82rem }
@@ -531,7 +535,7 @@
   function loadCampDraft(){ try{ const d=JSON.parse(localStorage.getItem("mgf_camp_draft_mesh")||"null"); if(d&&Array.isArray(d.nodes)&&d.nodes.length) return d; }catch(e){} return null; }
   // graphe visuel de la campagne (nœuds déplaçables, liens colorés)
   const cg=document.getElementById("cgraph"),cgx=cg?cg.getContext("2d"):null; let cgDrag=null,cgOff=[0,0];
-  function drawGraph(){ if(!cgx)return; campNodes.forEach((n,i)=>{ if(n.x==null){n.x=14+(i%3)*88;n.y=14+Math.floor(i/3)*46;} });
+  function drawGraph(){ if(!cgx)return; const ncol=Math.max(3,Math.floor((cg.width-28)/96)); campNodes.forEach((n,i)=>{ if(n.x==null){n.x=14+(i%ncol)*96;n.y=14+Math.floor(i/ncol)*52;} });
     cgx.clearRect(0,0,cg.width,cg.height); const pos=id=>{const n=campNode(id);return n?[n.x+34,n.y+12]:null;};
     const link=(a,b,col)=>{if(!a||!b)return;cgx.strokeStyle=col;cgx.lineWidth=1.5;cgx.beginPath();cgx.moveTo(a[0],a[1]);cgx.lineTo(b[0],b[1]);cgx.stroke();};
     campNodes.forEach(n=>{const a=pos(n.id);if(n.type==="text"&&n.next)link(a,pos(n.next),"#6aa0d0");if(n.type==="mission"){if(n.win)link(a,pos(n.win),"#6fd06f");if(n.lose)link(a,pos(n.lose),"#e0635f");}if(n.type==="choice")(n.options||[]).forEach(o=>link(a,pos(o),"#caa24a"));});
@@ -564,7 +568,8 @@
   function applyCarry(){ if(!campRun)return; for(const u of units)if(u.team==="player"){const c=campRun.carry[u.name];if(c!=null)u.hp=Math.max(1,Math.min(u.max,c));} }
   function saveCarry(){ if(!campRun)return; for(const u of units)if(u.team==="player")campRun.carry[u.name]=Math.max(0,u.hp); }
   function setView(v){ document.body.classList.remove("view-mission","view-campaign","view-play"); document.body.classList.add("view-"+v); mode=(v==="play")?"play":"edit";
-    const cur={mission:"nav-m",campaign:"nav-c",play:"nav-p"}[v]; ["nav-m","nav-c","nav-p"].forEach(id=>{const a=document.getElementById(id);if(a)a.classList.toggle("cur",id===cur);}); }
+    const cur={mission:"nav-m",campaign:"nav-c",play:"nav-p"}[v]; ["nav-m","nav-c","nav-p"].forEach(id=>{const a=document.getElementById(id);if(a)a.classList.toggle("cur",id===cur);});
+    if(v==="campaign"){ const cg2=document.getElementById("cgraph"); if(cg2&&cg2.getBoundingClientRect){ const w=Math.round(cg2.getBoundingClientRect().width)||880,h=Math.round(cg2.getBoundingClientRect().height)||340; if(w>1){cg2.width=w;cg2.height=h;} if(typeof drawGraph==="function")drawGraph(); } } }
   function startCampaign(camp,from){ campRun={camp,carry:{},nodeId:null,from:from||"campaign"}; document.body.classList.remove("testing"); setView("play"); runNode(camp.start); }
   async function startPlay(){ let camp=loadCampDraft();
     if(!camp){ const t=await fetchText("campaigns-mesh/principale.json",ghCfg()); if(t){try{camp=JSON.parse(t);}catch(e){}} }
