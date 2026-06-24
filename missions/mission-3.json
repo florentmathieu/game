@@ -1214,21 +1214,23 @@
    "name": "Shady"
   },
   {
-   "cls": "sergent",
-   "team": "neutral",
-   "col": 12,
-   "row": 2,
-   "hostage": true
-  },
-  {
-   "cls": "sergent",
+   "cls": "enfant",
    "team": "neutral",
    "col": 13,
    "row": 4,
-   "hostage": true
+   "hostage": true,
+   "facing": 3.141592653589793
   },
   {
-   "cls": "sergent",
+   "cls": "enfant",
+   "team": "neutral",
+   "col": 12,
+   "row": 2,
+   "hostage": true,
+   "facing": 1.0471975511965976
+  },
+  {
+   "cls": "enfant",
    "team": "neutral",
    "col": 10,
    "row": 3,
