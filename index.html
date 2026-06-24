@@ -3024,14 +3024,17 @@
   });
   onEd("trig-add", () => {
     const on = tval("trig-on"), m = {};
-    const setS = (id, key) => { const v = tval(id); if (v) m[key] = v; };
+    // ne lit QUE les champs pertinents pour l'évènement choisi : un champ masqué (ex. « acteur »
+    // pour « découvert ») garde sa valeur d'avant et polluerait le match → le trigger ne matcherait jamais.
+    const relevant = (id) => { const el = document.getElementById(id); const row = el && el.closest && el.closest(".tc"); return !!el && (!row || row.style.display !== "none"); };
+    const setS = (id, key) => { if (relevant(id)){ const v = tval(id); if (v) m[key] = v; } };
     setS("trig-actor", "actor"); setS("trig-target", "target"); setS("trig-result", "result"); setS("trig-weapon", "weapon"); setS("trig-zone", "zone");
-    const killed = tval("trig-killed"); if (killed) m.killed = killed === "true";
-    if (tchk("trig-first")) m.first = true;
-    const eh = tval("trig-enemiesHit"); if (eh !== "") m.enemiesHit = +eh;
-    const hp = tval("trig-hppct"); if (hp !== "") m.hpPct = { max: +hp };
-    const tn = tval("trig-turn"); if (tn !== "") m.turn = +tn;
-    const pod = tval("trig-pod"); if (pod !== "") m.pod = +pod;
+    if (relevant("trig-killed")){ const killed = tval("trig-killed"); if (killed) m.killed = killed === "true"; }
+    if (relevant("trig-first") && tchk("trig-first")) m.first = true;
+    if (relevant("trig-enemiesHit")){ const eh = tval("trig-enemiesHit"); if (eh !== "") m.enemiesHit = +eh; }
+    if (relevant("trig-hppct")){ const hp = tval("trig-hppct"); if (hp !== "") m.hpPct = { max: +hp }; }
+    if (relevant("trig-turn")){ const tn = tval("trig-turn"); if (tn !== "") m.turn = +tn; }
+    if (relevant("trig-pod")){ const pod = tval("trig-pod"); if (pod !== "") m.pod = +pod; }
     const lines = trigLines.slice();
     const text = tval("trig-text"); if (text) lines.push([tval("trig-who"), text]);   // la ligne en cours compte aussi
     const wake = tval("trig-wake"), open = tval("trig-open"), close = tval("trig-close");
