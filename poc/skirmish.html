@@ -10,137 +10,191 @@
   body{ margin:0; background:var(--bg); color:var(--ink); font-family:system-ui,Segoe UI,Roboto,sans-serif;
         display:flex; gap:14px; padding:16px; align-items:flex-start; flex-wrap:wrap }
   #board{ background:#0b0906; border:1px solid #3a2c1c; border-radius:8px; touch-action:none }
-  .panel{ width:260px; background:var(--pan); border:1px solid #3a2c1c; border-radius:10px; padding:14px; font-size:.9rem; line-height:1.5 }
+  .panel{ width:270px; background:var(--pan); border:1px solid #3a2c1c; border-radius:10px; padding:14px; font-size:.9rem; line-height:1.5 }
   h1{ font-size:1.05rem; color:var(--acc); margin:0 0 8px }
   #turn{ font-weight:bold; color:#ffd479 } #msg{ min-height:2.4em; color:#9fd3ec; margin:6px 0 }
   button{ background:#1c150e; color:var(--ink); border:1px solid #5a4530; border-radius:6px; padding:8px 12px; cursor:pointer; font-size:.92rem }
   button:hover{ background:#241a12 }
-  .hint{ color:#9a8a74; font-size:.8rem; margin-top:10px }
+  .leg{ display:flex; align-items:center; gap:7px; margin:3px 0; font-size:.78rem }
+  .sw{ width:15px; height:15px; border-radius:3px; border:1px solid #00000066 }
+  .hint{ color:#9a8a74; font-size:.78rem; margin-top:8px }
   #over{ position:fixed; inset:0; background:rgba(0,0,0,.72); display:none; align-items:center; justify-content:center; flex-direction:column; gap:16px; z-index:9 }
   #over.show{ display:flex } #over h2{ font-size:2rem; margin:0 }
 </style>
 </head>
 <body>
-<canvas id="board" width="576" height="480"></canvas>
+<canvas id="board" width="616" height="440"></canvas>
 <div class="panel">
   <h1>Escarmouche — 2 contre 2</h1>
   <div>Tour : <span id="turn">Toi</span></div>
   <div id="msg">Clique un de tes soldats (bleu).</div>
   <button id="end">Fin de tour ▶</button>
   <button id="reset" style="margin-left:6px">↻ Rejouer</button>
-  <div class="hint">Clique un soldat → cases vertes (déplacement) et ennemis adjacents cerclés de rouge.
-  Clique une case verte pour bouger, un ennemi adjacent pour l'attaquer. Chaque soldat peut bouger
-  <b>et</b> attaquer une fois par tour. Élimine les deux ennemis.</div>
+  <h2 style="font-size:.8rem;color:var(--acc);margin:14px 0 4px;text-transform:uppercase;letter-spacing:1px">Unités</h2>
+  <div class="hint">🗡 mêlée : portée 1, touche à coup sûr. 🏹 tir : portée 6, demande la <b>ligne de vue</b> ; le <b>couvert</b> baisse la précision. Vision limitée : tu ne vois les ennemis que dans ton champ.</div>
+  <h2 style="font-size:.8rem;color:var(--acc);margin:14px 0 4px;text-transform:uppercase;letter-spacing:1px">Terrain</h2>
+  <div class="leg"><span class="sw" style="background:#3a2c1c"></span> mur (bloque passage + vue)</div>
+  <div class="leg"><span class="sw" style="background:#4a5a3a"></span> couvert (−précision au tir)</div>
+  <div class="hint">Clique un soldat → cases vertes (déplacement) ; ennemis visibles à portée cerclés de rouge.
+  Clique une case verte pour bouger, un ennemi pour l'attaquer. Bouge <b>et</b> attaque 1×/tour.</div>
 </div>
 <div id="over"><h2 id="overtxt"></h2><button onclick="location.reload()">Rejouer</button></div>
 <script>
 (function(){
   const cv=document.getElementById("board"), ctx=cv.getContext("2d");
-  const COLS=12, ROWS=10, T=48, MOVE=4, DMG=3;
+  const COLS=14, ROWS=10, T=44, MOVE=4;
   const key=(c,r)=>c+","+r, inB=(c,r)=>c>=0&&c<COLS&&r>=0&&r<ROWS;
   const NB=[[1,0],[-1,0],[0,1],[0,-1]];
 
-  let units, turn, sel, over, msgEl=document.getElementById("msg");
+  // terrain : 0 = sol, 1 = mur (bloque), 2 = couvert (gêne le tir)
+  let grid, units, turn, sel, over, visible;
+  const msgEl=document.getElementById("msg");
+  function freshGrid(){
+    const g=Array.from({length:ROWS},()=>Array(COLS).fill(0));
+    const walls=[[5,2],[5,3],[6,3],[8,6],[8,7],[9,6],[3,7],[10,2]];
+    const cover=[[4,5],[5,5],[9,4],[10,4],[6,1],[7,8]];
+    for(const [c,r] of walls) g[r][c]=1;
+    for(const [c,r] of cover) g[r][c]=2;
+    return g;
+  }
   function fresh(){
     return [
-      {team:"me", name:"A", cell:[1,3], hp:8, max:8},
-      {team:"me", name:"B", cell:[1,6], hp:8, max:8},
-      {team:"foe",name:"X", cell:[10,3],hp:7, max:7},
-      {team:"foe",name:"Y", cell:[10,6],hp:7, max:7},
+      {team:"me", name:"A", ch:"🗡", cell:[1,3], hp:9, max:9, wpn:"melee",  range:1, dmg:4, vis:6},
+      {team:"me", name:"B", ch:"🏹", cell:[1,6], hp:7, max:7, wpn:"ranged", range:6, dmg:3, vis:7},
+      {team:"foe",name:"X", ch:"🗡", cell:[12,3],hp:8, max:8, wpn:"melee",  range:1, dmg:3, vis:6},
+      {team:"foe",name:"Y", ch:"🏹", cell:[12,6],hp:6, max:6, wpn:"ranged", range:6, dmg:2, vis:7},
     ].map((u,i)=>({id:i, moved:false, acted:false, ...u}));
   }
   const at=(c,r)=>units.find(u=>u.hp>0&&u.cell[0]===c&&u.cell[1]===r);
+  const wall=(c,r)=>!inB(c,r)||grid[r][c]===1;
   const occupied=()=>new Set(units.filter(u=>u.hp>0).map(u=>key(...u.cell)));
-  const adjacent=(a,b)=>Math.abs(a.cell[0]-b.cell[0])+Math.abs(a.cell[1]-b.cell[1])===1;
+  const cheb=(a,b)=>Math.max(Math.abs(a[0]-b[0]),Math.abs(a[1]-b[1]));
 
-  // cases atteignables (BFS ≤ MOVE, sans traverser une unité)
+  // ligne de vue : échantillonnage centre→centre, bloquée par un mur traversé
+  function los(a,b){
+    const N=Math.max(2,cheb(a,b)*3);
+    for(let k=1;k<N;k++){ const t=k/N, x=a[0]+(b[0]-a[0])*t, y=a[1]+(b[1]-a[1])*t;
+      const c=Math.round(x), r=Math.round(y); if((c!==a[0]||r!==a[1])&&(c!==b[0]||r!==b[1])&&wall(c,r)) return false; }
+    return true;
+  }
+  // cases atteignables (BFS ≤ MOVE, sans mur ni unité)
   function reach(u){
     const occ=occupied(); const dist={}; dist[key(...u.cell)]=0; const q=[u.cell];
-    while(q.length){ const [c,r]=q.shift(); const d=dist[key(c,r)];
-      if(d>=MOVE) continue;
-      for(const [dc,dr] of NB){ const nc=c+dc,nr=r+dr; if(!inB(nc,nr))continue; const k=key(nc,nr);
+    while(q.length){ const [c,r]=q.shift(); const d=dist[key(c,r)]; if(d>=MOVE)continue;
+      for(const [dc,dr] of NB){ const nc=c+dc,nr=r+dr; if(wall(nc,nr))continue; const k=key(nc,nr);
         if(occ.has(k)||dist[k]!==undefined)continue; dist[k]=d+1; q.push([nc,nr]); } }
     delete dist[key(...u.cell)]; return dist;
   }
-  // distance BFS entre deux cases (pour l'IA), sans traverser d'unité (sauf la cible)
-  function bfsStep(from,toCell){
-    const occ=occupied(); occ.delete(key(...from)); const tk=key(...toCell); occ.delete(tk);
-    const prev={}, seen={}; seen[key(...from)]=true; const q=[from];
+  // chemin BFS (pour l'IA), sans mur ni unité (sauf la cible)
+  function path(from,toCell){
+    const occ=occupied(); occ.delete(key(...from)); occ.delete(key(...toCell));
+    const prev={},seen={}; seen[key(...from)]=true; const q=[from];
     while(q.length){ const [c,r]=q.shift();
-      for(const [dc,dr] of NB){ const nc=c+dc,nr=r+dr; if(!inB(nc,nr))continue; const k=key(nc,nr);
-        if(seen[k]||occ.has(k))continue; seen[k]=true; prev[k]=[c,r]; if(nc===toCell[0]&&nr===toCell[1]){ // reconstruit
-            let cur=[nc,nr],path=[cur]; while(prev[key(...cur)]){cur=prev[key(...cur)];path.unshift(cur);} return path; }
+      for(const [dc,dr] of NB){ const nc=c+dc,nr=r+dr; if(wall(nc,nr))continue; const k=key(nc,nr);
+        if(seen[k]||occ.has(k))continue; seen[k]=true; prev[k]=[c,r];
+        if(nc===toCell[0]&&nr===toCell[1]){ let cur=[nc,nr],p=[cur]; while(prev[key(...cur)]){cur=prev[key(...cur)];p.unshift(cur);} return p; }
         q.push([nc,nr]); } }
     return null;
   }
+  const inRange=(a,b)=> a.wpn==="ranged" ? (cheb(a.cell,b.cell)<=a.range && los(a.cell,b.cell)) : cheb(a.cell,b.cell)<=1;
+  // précision : mêlée sûre ; tir 85% − couvert − distance
+  function hitChance(a,b){
+    if(a.wpn!=="ranged") return 100;
+    let p=85; if(grid[b.cell[1]][b.cell[0]]===2) p-=35; p-=Math.max(0,(cheb(a.cell,b.cell)-3))*5;
+    return Math.max(20,Math.min(100,p));
+  }
+  // brouillard : cases vues par au moins une de tes unités (portée + ligne de vue)
+  function computeVisible(){
+    const v=new Set();
+    for(const u of units) if(u.team==="me"&&u.hp>0){
+      for(let r=0;r<ROWS;r++)for(let c=0;c<COLS;c++)
+        if(cheb(u.cell,[c,r])<=u.vis && los(u.cell,[c,r])) v.add(key(c,r));
+    }
+    return v;
+  }
+  const foeSeen=(u)=>visible.has(key(...u.cell));
 
-  function attack(a,b){ b.hp-=DMG; a.acted=true; a.moved=true;
-    setMsg(`${a.name} attaque ${b.name} (${DMG} dégâts)${b.hp<=0?" — éliminé":""}`); if(b.hp<=0)b.hp=0; checkEnd(); }
+  function attack(a,b){
+    a.acted=true; a.moved=true;
+    const ch=hitChance(a,b), hit=Math.random()*100<ch;
+    if(hit){ b.hp-=a.dmg; setMsg(`${a.name} ${a.wpn==="ranged"?"tire sur":"frappe"} ${b.name} (${ch}%) : ${a.dmg} dégâts${b.hp<=0?" — éliminé":""}`); if(b.hp<=0)b.hp=0; }
+    else setMsg(`${a.name} tire sur ${b.name} (${ch}%) : raté !`);
+    checkEnd();
+  }
   function checkEnd(){
     if(units.filter(u=>u.team==="foe"&&u.hp>0).length===0) return end("Victoire !");
     if(units.filter(u=>u.team==="me"&&u.hp>0).length===0) return end("Défaite…");
   }
   function end(t){ over=true; document.getElementById("overtxt").textContent=t; document.getElementById("over").classList.add("show"); draw(); }
   function setMsg(t){ msgEl.textContent=t; }
+  function refresh(){ visible=computeVisible(); draw(); }
 
   // ----- clic joueur -----
   cv.addEventListener("click",e=>{
     if(over||turn!=="me")return;
     const r=cv.getBoundingClientRect(); const c=Math.floor((e.clientX-r.left)/T), rr=Math.floor((e.clientY-r.top)/T);
     if(!inB(c,rr))return; const u=at(c,rr);
-    if(u&&u.team==="me"){ sel=(u.hp>0)?u:sel; draw(); return; }
+    if(u&&u.team==="me"){ sel=u; draw(); return; }
     if(!sel)return;
-    if(u&&u.team==="foe"&&u.hp>0){ if(!sel.acted&&adjacent(sel,u)) attack(sel,u); else setMsg("Approche-toi pour frapper (case adjacente)."); draw(); return; }
-    if(!sel.moved){ const d=reach(sel); if(d[key(c,rr)]!==undefined){ sel.cell=[c,rr]; sel.moved=true; setMsg(`${sel.name} se déplace.`); draw(); } }
+    if(u&&u.team==="foe"&&u.hp>0&&foeSeen(u)){ if(!sel.acted&&inRange(sel,u)) { attack(sel,u); refresh(); } else setMsg("Hors de portée ou sans ligne de vue."); return; }
+    if(!sel.moved){ const d=reach(sel); if(d[key(c,rr)]!==undefined){ sel.cell=[c,rr]; sel.moved=true; refresh(); } }
+  });
+  cv.addEventListener("mousemove",e=>{
+    if(over||turn!=="me"||!sel||sel.wpn!=="ranged")return;
+    const r=cv.getBoundingClientRect(); const c=Math.floor((e.clientX-r.left)/T), rr=Math.floor((e.clientY-r.top)/T);
+    const u=inB(c,rr)?at(c,rr):null;
+    if(u&&u.team==="foe"&&u.hp>0&&foeSeen(u)&&inRange(sel,u)) setMsg(`Tir sur ${u.name} : ${hitChance(sel,u)}% de toucher`);
   });
   document.getElementById("end").addEventListener("click",()=>{ if(!over&&turn==="me") enemyTurn(); });
   document.getElementById("reset").addEventListener("click",()=>location.reload());
 
   // ----- IA ennemie -----
   function enemyTurn(){
-    turn="foe"; sel=null; document.getElementById("turn").textContent="Ennemi"; draw();
+    turn="foe"; sel=null; document.getElementById("turn").textContent="Ennemi"; refresh();
     const foes=units.filter(u=>u.team==="foe"&&u.hp>0); let i=0;
     (function step(){
       if(over)return;
-      if(i>=foes.length){ for(const u of units){u.moved=false;u.acted=false;} turn="me"; document.getElementById("turn").textContent="Toi"; setMsg("À toi."); draw(); return; }
+      if(i>=foes.length){ for(const u of units){u.moved=false;u.acted=false;} turn="me"; document.getElementById("turn").textContent="Toi"; setMsg("À toi."); refresh(); return; }
       const e=foes[i++]; if(e.hp<=0){step();return;}
-      // cible : allié le plus proche
-      let tgt=null,best=1e9; for(const p of units) if(p.team==="me"&&p.hp>0){ const path=bfsStep(e.cell,p.cell); const d=path?path.length:1e9; if(d<best){best=d;tgt=p;} }
+      let tgt=null,best=1e9; for(const p of units) if(p.team==="me"&&p.hp>0){ const pa=path(e.cell,p.cell); const d=pa?pa.length:1e9; if(d<best){best=d;tgt=p;} }
       if(!tgt){step();return;}
-      if(adjacent(e,tgt)){ attack(e,tgt); draw(); setTimeout(step,450); return; }
-      const path=bfsStep(e.cell,tgt.cell);
-      if(path&&path.length>1){ const stepsAllowed=Math.min(MOVE,path.length-2>=0?path.length-1:0); // ne pas marcher sur la cible
-        let dest=e.cell; for(let k=1;k<=stepsAllowed&&k<path.length-1+1;k++){ const c=path[k]; if(c[0]===tgt.cell[0]&&c[1]===tgt.cell[1])break; dest=c; } e.cell=dest; }
-      draw();
-      if(adjacent(e,tgt)){ setTimeout(()=>{ attack(e,tgt); draw(); setTimeout(step,450); },300); }
-      else setTimeout(step,360);
+      if(inRange(e,tgt)){ attack(e,tgt); refresh(); setTimeout(step,430); return; }
+      const pa=path(e.cell,tgt.cell);
+      if(pa&&pa.length>1){ let dest=e.cell; for(let k=1;k<pa.length&&k<=MOVE;k++){ const c=pa[k]; if(c[0]===tgt.cell[0]&&c[1]===tgt.cell[1])break; dest=c; } e.cell=dest; }
+      refresh();
+      if(inRange(e,tgt)){ setTimeout(()=>{ attack(e,tgt); refresh(); setTimeout(step,430); },300); } else setTimeout(step,360);
     })();
   }
 
   // ----- rendu -----
   function draw(){
     ctx.clearRect(0,0,cv.width,cv.height);
-    const d = (sel&&!sel.moved&&turn==="me") ? reach(sel) : null;
+    const d=(sel&&!sel.moved&&turn==="me")?reach(sel):null;
     for(let r=0;r<ROWS;r++)for(let c=0;c<COLS;c++){
-      ctx.fillStyle=((c+r)&1)?"#1c2a1c":"#22331f"; ctx.fillRect(c*T,r*T,T,T);
-      if(d&&d[key(c,r)]!==undefined){ ctx.fillStyle="rgba(122,223,122,0.32)"; ctx.fillRect(c*T,r*T,T,T); }
+      const t=grid[r][c];
+      ctx.fillStyle = t===1?"#3a2c1c" : t===2?"#4a5a3a" : ((c+r)&1?"#1c2a1c":"#22331f");
+      ctx.fillRect(c*T,r*T,T,T);
+      if(d&&d[key(c,r)]!==undefined){ ctx.fillStyle="rgba(122,223,122,0.30)"; ctx.fillRect(c*T,r*T,T,T); }
+      if(!visible.has(key(c,r))){ ctx.fillStyle="rgba(0,0,0,0.55)"; ctx.fillRect(c*T,r*T,T,T); }   // brouillard
       ctx.strokeStyle="rgba(0,0,0,.35)"; ctx.strokeRect(c*T,r*T,T,T);
     }
     for(const u of units){
       const x=u.cell[0]*T+T/2, y=u.cell[1]*T+T/2;
+      if(u.team==="foe"&&u.hp>0&&!foeSeen(u)) continue;        // ennemi caché par le brouillard
       if(u.hp<=0){ ctx.globalAlpha=.5; ctx.strokeStyle=u.team==="me"?"#86bce6":"#d88a8a"; ctx.lineWidth=3; ctx.beginPath();
         ctx.moveTo(x-7,y-7);ctx.lineTo(x+7,y+7);ctx.moveTo(x+7,y-7);ctx.lineTo(x-7,y+7);ctx.stroke(); ctx.globalAlpha=1; continue; }
-      if(sel&&!sel.acted&&turn==="me"&&u.team==="foe"&&adjacent(sel,u)){ ctx.beginPath();ctx.arc(x,y,T*0.42,0,7);ctx.lineWidth=3;ctx.strokeStyle="#e0635f";ctx.stroke(); }
+      if(sel&&!sel.acted&&turn==="me"&&u.team==="foe"&&inRange(sel,u)){ ctx.beginPath();ctx.arc(x,y,T*0.43,0,7);ctx.lineWidth=3;ctx.strokeStyle="#e0635f";ctx.stroke(); }
       ctx.beginPath(); ctx.arc(x,y,T*0.32,0,7);
       ctx.fillStyle=u.team==="me"?"#5fb0d8":"#d8635f"; ctx.globalAlpha=(u.team==="me"&&u.acted&&turn==="me")?0.5:1; ctx.fill(); ctx.globalAlpha=1;
       ctx.lineWidth=(u===sel)?3:1.5; ctx.strokeStyle=(u===sel)?"#fff":"rgba(0,0,0,.5)"; ctx.stroke();
-      ctx.fillStyle="#0b1117"; ctx.font="bold 15px sans-serif"; ctx.textAlign="center"; ctx.textBaseline="middle"; ctx.fillText(u.name,x,y);
-      const bw=T*0.6,bx=x-bw/2,by=y-T*0.32-7; ctx.fillStyle="rgba(0,0,0,.6)";ctx.fillRect(bx-1,by-1,bw+2,6);
+      ctx.font="15px sans-serif"; ctx.textAlign="center"; ctx.textBaseline="middle"; ctx.fillText(u.ch,x,y);
+      const bw=T*0.62,bx=x-bw/2,by=y-T*0.32-7; ctx.fillStyle="rgba(0,0,0,.6)";ctx.fillRect(bx-1,by-1,bw+2,6);
       ctx.fillStyle="#3a3128";ctx.fillRect(bx,by,bw,4); ctx.fillStyle=u.team==="me"?"#6fd06f":"#e06f6f"; ctx.fillRect(bx,by,bw*Math.max(0,u.hp)/u.max,4);
     }
   }
-  function start(){ units=fresh(); turn="me"; over=false; sel=null;
-    document.getElementById("turn").textContent="Toi"; document.getElementById("over").classList.remove("show"); setMsg("Clique un de tes soldats (bleu)."); draw(); }
+  function start(){ grid=freshGrid(); units=fresh(); turn="me"; over=false; sel=null;
+    document.getElementById("turn").textContent="Toi"; document.getElementById("over").classList.remove("show");
+    setMsg("Clique un de tes soldats (bleu)."); refresh(); }
   start();
 })();
 </script>
