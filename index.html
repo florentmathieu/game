@@ -2765,7 +2765,15 @@
       if (rf && cfg.repo) rf.value = cfg.repo;
       if (bf) bf.value = cfg.branch || "claude/intelligent-hypatia-nojupi";
     }catch(e){}
-    refreshMissionMenu(); fetchRepoMissions().then(refreshMissionMenu);   // liste des missions chargeable
+    refreshMissionMenu();
+    fetchRepoMissions().then(() => {
+      refreshMissionMenu();
+      // ouverture « à blanc » (rechargement de page) : on recharge la dernière mission enregistrée
+      if (!editorName){
+        let last = null; try{ last = localStorage.getItem("mgf_ed_last"); }catch(e){}
+        if (last && repoMissions.some(m => m.file === last)) loadMissionIntoEditor(last);
+      }
+    });
     setTool(editTool); refreshTrigEditor(); updateExport(); draw();
   }
   function leaveEditor(){
@@ -2915,15 +2923,20 @@
     placeTeam = b.dataset.team;
     for (const x of document.querySelectorAll(".eteam")) x.classList.toggle("on", x === b);
   });
-  onEd("ed-publish", () => publishToRepo());
-  onEd("ed-loadmission", async () => {
-    const f = document.getElementById("ed-missions").value; if (!f) return;
-    const m = await loadMissionFromUrl(f.includes("/") ? f : "missions/" + f);
-    if (!m){ alert("Mission introuvable : " + f); return; }
+  async function loadMissionIntoEditor(file){
+    const m = await loadMissionFromUrl(file.includes("/") ? file : "missions/" + file);
+    if (!m) return false;
     applyMission(m); editorName = m.name || editorName;
     const ci = document.getElementById("ed-cols"), ri = document.getElementById("ed-rows"), ni = document.getElementById("ed-name");
     if (ci) ci.value = COLS; if (ri) ri.value = ROWS; if (ni) ni.value = editorName;
+    const esel = document.getElementById("ed-missions"); if (esel) esel.value = file;
     syncFullHeal(); updateExport(); draw(); refreshTrigEditor();
+    return true;
+  }
+  onEd("ed-publish", () => publishToRepo());
+  onEd("ed-loadmission", async () => {
+    const f = document.getElementById("ed-missions").value; if (!f) return;
+    if (!(await loadMissionIntoEditor(f))) alert("Mission introuvable : " + f);
   });
   onEd("ed-delmission", () => deleteMissionFromRepo());
   // ---- éditeur d'évènements (triggers) ------------------------------------
@@ -3411,6 +3424,7 @@ Stiff: Enough. I've decided.`;
                  .filter(x => x.file !== file);
       await ghPutFile("missions/list.json", JSON.stringify(list, null, 1), "list.json : − " + label, branch);
       repoMissions = repoMissions.filter(m => m.file !== file);
+      try{ if (localStorage.getItem("mgf_ed_last") === file) localStorage.removeItem("mgf_ed_last"); }catch(e){}
       refreshMissionMenu();
       set("✓ Supprimé : " + label + " (" + file + ").");
     }catch(e){ set("Échec : " + e.message); }
@@ -3449,6 +3463,7 @@ Stiff: Enough. I've decided.`;
       const ix = repoMissions.findIndex(it => it.file === file);
       if (ix >= 0) repoMissions[ix] = entry; else repoMissions.push(entry);
       sortMissions();
+      try{ localStorage.setItem("mgf_ed_last", file); }catch(e){}   // rechargée par défaut à l'ouverture de l'éditeur
       refreshMissionMenu();
       set("✓ Publié : " + name + " (" + file + "). Jouable tout de suite (lecture via l'API GitHub, sans attendre le build Pages).");
       return true;
