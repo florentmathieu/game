@@ -42,8 +42,8 @@
       <select id="ucls"></select></div>
     <div class="row"><button id="tplace" data-tool="unit">Poser l'unité</button><button id="terase" data-tool="erase">Gomme</button></div>
     <h2>Mission</h2>
-    <div class="row"><button id="doexport">⬇ Exporter (JSON)</button></div>
-    <textarea id="export" readonly></textarea>
+    <div class="row"><button id="doexport">⬇ Exporter</button><button id="doimport">⬆ Charger</button><button id="dosave">💾 Fichier</button><button id="doload">📂 Ouvrir</button><input id="dofile" type="file" accept=".json,application/json" style="display:none"></div>
+    <textarea id="export" placeholder="JSON de mission — « Exporter » remplit ; colle ici puis « Charger »."></textarea>
     <div class="hint" id="counts"></div>
   </div>
 
@@ -157,7 +157,7 @@
   function end(t){over=true;document.getElementById("overtxt").textContent=t;document.getElementById("over").classList.add("show");draw();}
   function log(m,team){if(mode!=="play")return;const el=document.getElementById("log");const d=document.createElement("div");d.className=team==="player"?"pl":"en";d.textContent=m;el.prepend(d);}
   function setMsg(t){document.getElementById("msg").textContent=t;}
-  function refresh(){ if(mode==="play")computeVis(); else visible=new Set(cells.map(c=>c.id)); draw(); if(mode==="play")renderActs(); else renderCounts(); }
+  function refresh(){ if(mode==="play")computeVis(); else visible=new Set(cells.map(c=>c.id)); draw(); if(mode==="play")renderActs(); else { renderCounts(); saveDraft(); } }
   function endTurn(){turn="enemy";sel=null;amode=null;refresh();const foes=units.filter(u=>u.team==="enemy"&&u.hp>0);let i=0;
     (function step(){if(over)return;if(i>=foes.length){for(const u of units){u.ap=AP_MAX;u.freeAvail=true;}turn="player";setMsg("À toi.");refresh();return;}
       const e=foes[i++];if(e.hp<=0){step();return;}
@@ -232,10 +232,26 @@
 
   function renderCounts(){ const np=units.filter(u=>u.team==="player").length,ne=units.filter(u=>u.team==="enemy").length;
     document.getElementById("counts").textContent=`${cells.length} cellules · ${np} alliés · ${ne} ennemis`; }
-  function exportMission(){ const m={name:"mission-maillage",cells:cells.map(c=>({poly:c.poly.map(p=>[Math.round(p[0]),Math.round(p[1])]),terr:c.terr,elev:c.elev})),
-      units:units.map(u=>({team:u.team,cls:u.cls,cell:u.cell}))};
-    const ta=document.getElementById("export");ta.style.display="block";ta.value=JSON.stringify(m); ta.select(); }
+  // sérialisation : cellules (polygone + terrain + relief) + unités + paramètres de forme (pour re-mailler)
+  function exportObj(){ return { name:"mission-maillage", form:{infl,dist:+distEl.value,dens:+dens.value,seed},
+    cells:cells.map(c=>({poly:c.poly.map(p=>[Math.round(p[0]),Math.round(p[1])]),terr:c.terr,elev:c.elev})),
+    units:units.map(u=>({team:u.team,cls:u.cls,cell:u.cell})) }; }
+  function applyMissionObj(m){
+    if(!m||!Array.isArray(m.cells))throw new Error("format invalide");
+    cells=m.cells.map((c,i)=>{let sx=0,sy=0;for(const p of c.poly){sx+=p[0];sy+=p[1];}return {id:i,poly:c.poly,cx:sx/c.poly.length,cy:sy/c.poly.length,nb:[],terr:c.terr||"plain",elev:c.elev||0};});
+    buildAdj();
+    units=(m.units||[]).map(u=>U(u.team,u.cls,u.cell)).filter(u=>cells[u.cell]);
+    if(m.form){ if(m.form.infl)infl=m.form.infl; if(m.form.dist!=null){distEl.value=m.form.dist;document.getElementById("distv").textContent=m.form.dist+"%";} if(m.form.dens!=null){dens.value=m.form.dens;document.getElementById("densv").textContent=m.form.dens;} if(m.form.seed!=null)seed=m.form.seed; }
+    refresh();
+  }
+  function exportMission(){ const ta=document.getElementById("export"); ta.style.display="block"; ta.value=JSON.stringify(exportObj()); ta.select(); saveDraft(); }
+  function importMission(){ try{ applyMissionObj(JSON.parse(document.getElementById("export").value)); setMsg("Mission chargée."); }catch(e){ alert("JSON invalide : "+e.message); } }
+  function saveDraft(){ try{ localStorage.setItem("mgf_mesh_draft", JSON.stringify(exportObj())); }catch(e){} }
   document.getElementById("doexport").onclick=exportMission;
+  document.getElementById("doimport").onclick=importMission;
+  document.getElementById("dosave").onclick=()=>{ const a=document.createElement("a"); a.href="data:application/json;charset=utf-8,"+encodeURIComponent(JSON.stringify(exportObj())); a.download="mission-maillage.json"; a.click(); };
+  document.getElementById("doload").onclick=()=>document.getElementById("dofile").click();
+  document.getElementById("dofile").onchange=e=>{ const f=e.target.files[0]; if(!f)return; const rd=new FileReader(); rd.onload=()=>{ document.getElementById("export").value=rd.result; importMission(); }; rd.readAsText(f); };
 
   // ===== jeu =====
   function renderActs(){const el=document.getElementById("acts");el.innerHTML="";document.getElementById("ap").textContent=sel?`${sel.ap}/${AP_MAX}`:"–";if(!sel||turn!=="player")return;
@@ -251,13 +267,18 @@
   document.getElementById("mode").onclick=()=>{ mode=mode==="edit"?"play":"edit"; document.body.classList.toggle("play",mode==="play");
     document.getElementById("mode").textContent=mode==="edit"?"▶ Jouer":"✎ Éditer"; if(mode==="play")startGame(); else{sel=null;refresh();} };
 
-  // ===== démarrage : une forme + un roster par défaut =====
-  function init(){ genMesh();
+  // ===== démarrage : brouillon mémorisé, sinon une forme + un roster par défaut =====
+  function defaultBoard(){ genMesh();
     const byX=cells.map((c,i)=>({i,cx:c.cx,cy:c.cy})).filter(o=>passable(o.i));
     const L=byX.slice().sort((a,b)=>a.cx-b.cx).slice(0,16).sort((a,b)=>a.cy-b.cy);
     const Rr=byX.slice().sort((a,b)=>b.cx-a.cx).slice(0,16).sort((a,b)=>a.cy-b.cy);
     units=[U("player","sergent",L[2].i,"Stiff"),U("player","sapeur",L[6].i,"Merry"),U("player","assassin",L[10].i,"Gizzard"),
            U("enemy","garde",Rr[2].i),U("enemy","archer",Rr[6].i),U("enemy","brute",Rr[10].i)];
+  }
+  function init(){
+    let draft=null; try{ draft=JSON.parse(localStorage.getItem("mgf_mesh_draft")||"null"); }catch(e){}
+    if(draft&&draft.cells&&draft.cells.length){ try{ applyMissionObj(draft); }catch(e){ defaultBoard(); } }
+    else defaultBoard();
     refresh();
   }
   init();
