@@ -212,6 +212,7 @@
   function edgeAt(X,Y){ const c=cellAtXY(X,Y); if(!c)return null; let best=null,bd=1e9;
     for(const n of c.nb){ const s=wallSeg.get(wkey(c.id,n)); if(!s)continue; const mx=(s[0][0]+s[1][0])/2,my=(s[0][1]+s[1][1])/2,d=Math.hypot(X-mx,Y-my); if(d<bd){bd=d;best=wkey(c.id,n);} }
     return best; }
+  function distToSeg(px,py,a,b){ const vx=b[0]-a[0],vy=b[1]-a[1],wx=px-a[0],wy=py-a[1],c1=vx*wx+vy*wy; if(c1<=0)return Math.hypot(px-a[0],py-a[1]); const c2=vx*vx+vy*vy; if(c2<=c1)return Math.hypot(px-b[0],py-b[1]); const t=c1/c2; return Math.hypot(px-(a[0]+t*vx),py-(a[1]+t*vy)); }
   function genMesh(){
     const g=+dens.value, dist=+distEl.value/100, rnd=mk(seed), h=g*0.866, jit=a=>(rnd()*2-1)*a;
     const typeAt=(x,y)=>infl[Math.min(ROWS-1,Math.floor(y/MC))][Math.min(COLS-1,Math.floor(x/MC))];
@@ -414,6 +415,9 @@
   function editAt(X,Y){
     if(editTool.startsWith("zone:")){ const c=Math.floor(X/MC),r=Math.floor(Y/MC); if(c<0||c>=COLS||r<0||r>=ROWS)return; const t=editTool.slice(5); if(infl[r][c]!==t){infl[r][c]=t;rebuildShape(true);} return; }
     if(editTool==="muret"){ const k=edgeAt(X,Y); if(k){ walls.has(k)?walls.delete(k):walls.add(k); refresh(); } return; }
+    if(editTool==="gomme-t"){ const c=cellAtXY(X,Y); if(!c){return;}   // gomme : retire d'abord un muret tout proche, sinon remet le sol normal
+      let bestK=null,bd=14; for(const n of c.nb){ const key=wkey(c.id,n); if(!walls.has(key))continue; const s=wallSeg.get(key); if(!s)continue; const dd=distToSeg(X,Y,s[0],s[1]); if(dd<bd){bd=dd;bestK=key;} }
+      if(bestK)walls.delete(bestK); else if(c.terr!=="plain")c.terr="plain"; refresh(); return; }
     const cell=cellAtXY(X,Y); if(!cell)return; const id=cell.id;
     if(editTool.startsWith("terr:")){ cell.terr=editTool.slice(5); }
     else if(editTool==="elev+"){ cell.elev=Math.min(3,cell.elev+1); }
@@ -491,7 +495,7 @@
   function btnRow(host,items){ host.innerHTML=""; items.forEach(([label,tool])=>{const b=document.createElement("button");b.textContent=label;b.dataset.tool=tool;b.className=editTool===tool?"on":"";b.onclick=()=>{editTool=tool;syncTools();refresh();};host.appendChild(b);}); }
   function syncTools(){ document.querySelectorAll("#zones button,#terr button,#relief button,#tplace,#terase").forEach(b=>b.classList.toggle("on",b.dataset.tool===editTool)); }
   btnRow(document.getElementById("zones"),[["⬛","zone:square"],["⬡","zone:hex"],["⬠","zone:pentagon"],["🔀","zone:mix"]]);
-  btnRow(document.getElementById("terr"),[["🟩 Sol","terr:plain"],["⛰ Accidenté","terr:rough"],["🌿 Couvert","terr:cover"],["🪨 Rocher","terr:wall"],["🧱 Muret","muret"]]);
+  btnRow(document.getElementById("terr"),[["🟩 Sol","terr:plain"],["⛰ Accidenté","terr:rough"],["🪨 Rocher","terr:wall"],["🧱 Muret","muret"],["🧹 Gomme","gomme-t"]]);
   btnRow(document.getElementById("relief"),[["⬆ élever","elev+"],["⬇ abaisser","elev-"]]);
   { const b=document.createElement("button"); b.textContent="🎲 Profil auto"; b.title="Génère relief, rochers, couverts et murets aléatoires"; b.onclick=()=>autoTerrain(); document.getElementById("relief").appendChild(b); }
   document.getElementById("tplace").onclick=()=>{editTool="unit";syncTools();};
