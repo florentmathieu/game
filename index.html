@@ -918,12 +918,15 @@
 
   // Réveille un pod entier (les copains) — ou une unité isolée endormie.
   // `cause` : "sight" (repéré à vue, sans attaque) ou "noise" (bruit/combat).
+  const wakeCauseLabel = (cause) => cause === "sight" ? "repéré à vue" : cause === "noise" ? "alerté par le bruit" : "alerté";
   function wakePod(pid, cause){
     const fresh = pid !== undefined && !podAlerted.has(pid);
     podAlerted.add(pid);
     for (const u of units) if (u.team === "enemy" && u.pod === pid){ if (fresh && u.hp > 0) pushAlert(u.col, u.row); u.asleep = false; }
     if (fresh){
       spottedFlash();
+      const n = units.filter(u => u.team === "enemy" && u.pod === pid && u.hp > 0).length;
+      pushLog(`⚠ Pod ennemi réveillé (${wakeCauseLabel(cause)}) — ${n} ennemi${n > 1 ? "s" : ""}`, "enemy");
       emit("spotted", { pod: pid, actorTeam: "enemy", by: cause || "noise" });
       if (cause === "sight") emit("discovered", { pod: pid, actorTeam: "enemy" });   // réveil sans attaque
     }
@@ -933,6 +936,7 @@
     if (u.pod !== undefined){ wakePod(u.pod, cause); }
     else if (u.asleep){
       u.asleep = false; pushAlert(u.col, u.row); spottedFlash();
+      pushLog(`⚠ ${u.name} réveillé (${wakeCauseLabel(cause)})`, "enemy");
       emit("spotted", { actorTeam: "enemy", by: cause || "noise" });
       if (cause === "sight") emit("discovered", { actorTeam: "enemy" });
     }
