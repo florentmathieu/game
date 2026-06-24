@@ -1188,9 +1188,10 @@
       else {
         const roll = att.dmgMin + Math.floor(Math.random()*(att.dmgMax-att.dmgMin+1));
         const fb = flankBonus(att, tgt), f = (att.flank && bd.melee) ? flankOf(att, tgt) : null;
-        dmg = roll + fb;
+        const malus = att.team === "enemy" ? 1 : 0;        // ennemis : -1 dégât (équilibrage)
+        dmg = Math.max(malus ? 1 : 0, roll + fb - malus);
         tgt.hp -= dmg;
-        if (fb) dmgDetail = ` [${roll} + ${fb} ${f === "back" ? "dos" : "flanc"}]`;   // détail du calcul
+        if (fb) dmgDetail = ` [${roll} + ${fb} ${f === "back" ? "dos" : "flanc"}${malus ? " − 1" : ""}]`;   // détail du calcul
       }
     }
     const dead = tgt.hp <= 0;
