@@ -1,6 +1,12 @@
 # POC — terrain mixte hexagones / carrés / pentagones
 
-Ouvre `poc/mixed-grid.html` dans un navigateur (ou via GitHub Pages : `…/poc/mixed-grid.html`).
+- **`poc/mixed-mission.html`** — **mission JOUABLE** sur le plateau mixte : 2 alliés vs 2 ennemis,
+  déplacement (PA + Dijkstra), tir/mêlée avec ligne de vue, IA ennemie, victoire/défaite.
+  Clique une unité bleue → cases vertes (déplacement, 1 PA) / ennemis cerclés rouge (attaque, 1 PA),
+  puis « Fin de tour ». Les deux camps doivent traverser le pont de pentagones.
+- **`poc/mixed-grid.html`** — démonstrateur d'adjacence / portée / ligne de vue + analyse d'impacts.
+
+Ouvre l'un des deux dans un navigateur (ou via GitHub Pages : `…/poc/mixed-mission.html`).
 
 - **Clic gauche** : sélectionner une cellule → portée de déplacement (Dijkstra pondéré).
 - **Clic droit** : poser / retirer un obstacle.

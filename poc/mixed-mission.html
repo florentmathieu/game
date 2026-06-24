@@ -1,0 +1,234 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mission jouable — plateau mixte hexa / carrés / pentagones</title>
+<style>
+  :root{ --bg:#0e0b07; --pan:#15110c; --acc:#caa24a; --ink:#e8ddc8; }
+  *{ box-sizing:border-box }
+  body{ margin:0; background:var(--bg); color:var(--ink); font-family:system-ui,Segoe UI,Roboto,sans-serif;
+        display:flex; gap:14px; padding:14px; align-items:flex-start }
+  #board{ background:#0b0906; border:1px solid #3a2c1c; border-radius:8px; touch-action:none }
+  .panel{ width:300px; background:var(--pan); border:1px solid #3a2c1c; border-radius:10px; padding:12px; font-size:.86rem; line-height:1.5 }
+  h1{ font-size:1rem; color:var(--acc); margin:0 0 6px }
+  h2{ font-size:.8rem; color:var(--acc); margin:14px 0 4px; text-transform:uppercase; letter-spacing:1px }
+  button{ background:#1c150e; color:var(--ink); border:1px solid #5a4530; border-radius:6px; padding:7px 11px; cursor:pointer; font-size:.9rem }
+  button:hover{ background:#241a12 } button:disabled{ opacity:.4; cursor:default }
+  #turn{ font-weight:bold; color:#ffd479 }
+  #msg{ min-height:2.6em; color:#9fd3ec }
+  #log{ max-height:220px; overflow-y:auto; font-size:.78rem; border-top:1px solid #3a2c1c; padding-top:6px; margin-top:8px }
+  #log div{ margin:2px 0 } .pl{ color:#9fd3ec } .en{ color:#e8a39f }
+  .leg{ display:flex; align-items:center; gap:7px; margin:3px 0; font-size:.78rem }
+  .sw{ width:15px; height:15px; border-radius:3px; border:1px solid #00000066 }
+  .hint{ color:#9a8a74; font-size:.76rem }
+  #over{ position:fixed; inset:0; background:rgba(0,0,0,.72); display:none; align-items:center; justify-content:center; flex-direction:column; gap:14px; z-index:9 }
+  #over h2{ font-size:1.8rem } #over.show{ display:flex }
+</style>
+</head>
+<body>
+<canvas id="board" width="720" height="700"></canvas>
+<div class="panel">
+  <h1>Mission jouable — plateau mixte</h1>
+  <div class="hint">Carrés (gauche) · pentagones (pont) · hexagones (droite). Mêmes mécaniques (PA, déplacement, tir, ligne de vue) sur un <b>graphe de cellules</b>, pas une grille hex.</div>
+  <h2>Tour : <span id="turn">Joueur</span></h2>
+  <div id="msg"></div>
+  <button id="end">Fin de tour ▶</button>
+  <button id="reset" style="margin-left:6px">↻ Recommencer</button>
+  <h2>Aide</h2>
+  <div class="hint">Clique une de tes unités (bleu) → cases atteignables en vert, ennemis à portée cerclés de rouge.
+  Clique une case verte pour <b>te déplacer</b> (1 PA), un ennemi cerclé pour <b>attaquer</b> (1 PA).
+  🗡 portée 1 · 🏹 portée 5 (ligne de vue requise). 2 PA par unité et par tour.</div>
+  <h2>Terrain</h2>
+  <div class="leg"><span class="sw" style="background:#3a6e4c"></span> praticable (coût 1)</div>
+  <div class="leg"><span class="sw" style="background:#7a6326"></span> accidenté (coût 2)</div>
+  <div class="leg"><span class="sw" style="background:#2c3a52"></span> obstacle (bloque passage + vue)</div>
+  <div id="log"></div>
+</div>
+<div id="over"><h2 id="overtxt"></h2><button onclick="location.reload()">Rejouer</button></div>
+<script>
+(function(){
+  const cv=document.getElementById("board"), ctx=cv.getContext("2d");
+  const S=44, OX=34, OY=24, TWO=Math.PI*2;
+
+  // ===== plateau (graphe de cellules polygonales) =========================
+  const cells=[];
+  function add(type,poly){ let sx=0,sy=0; for(const p of poly){sx+=p[0];sy+=p[1];}
+    cells.push({id:cells.length,type,poly,cx:sx/poly.length,cy:sy/poly.length,terrain:"plain",nb:[]}); }
+  for(let i=0;i<4;i++)for(let j=0;j<8;j++){const x=OX+i*S,y=OY+j*S; add("carré",[[x,y],[x+S,y],[x+S,y+S],[x,y+S]]);}
+  const px=OX+4*S;
+  for(let j=0;j<8;j++){const y=OY+j*S; add("pentagone",[[px,y],[px+0.62*S,y],[px+S,y+0.5*S],[px+0.62*S,y+S],[px,y+S]]);}
+  const w=Math.sqrt(3)*S, hx0=OX+5.05*S, hy0=OY+0.55*S;
+  const hexPoly=(cx,cy)=>{const p=[];for(let k=0;k<6;k++){const a=Math.PI/180*(60*k-90);p.push([cx+S*Math.cos(a),cy+S*Math.sin(a)]);}return p;};
+  for(let j=0;j<6;j++)for(let i=0;i<3;i++){const cx=hx0+w*i+(j&1?w/2:0)+S*0.866,cy=hy0+1.5*S*j+S; add("hexagone",hexPoly(cx,cy));}
+  // adjacence par arêtes partagées (milieux proches)
+  const mids=cells.map(c=>{const m=[],p=c.poly;for(let i=0;i<p.length;i++){const a=p[i],b=p[(i+1)%p.length];
+    m.push({mx:(a[0]+b[0])/2,my:(a[1]+b[1])/2,len:Math.hypot(a[0]-b[0],a[1]-b[1])});}return m;});
+  for(let i=0;i<cells.length;i++)for(let j=i+1;j<cells.length;j++){let L=false;
+    for(const ei of mids[i]){for(const ej of mids[j]){if(Math.hypot(ei.mx-ej.mx,ei.my-ej.my)<S*0.42&&Math.abs(ei.len-ej.len)<S*0.7){L=true;break;}}if(L)break;}
+    if(L){cells[i].nb.push(j);cells[j].nb.push(i);}}
+
+  // ===== « Board » : abstraction plateau (comme dans le jeu) ==============
+  const Board={
+    neighbors:(id)=>cells[id].nb,
+    passable:(id)=>cells[id].terrain!=="obstacle",
+    opaque:(id)=>cells[id].terrain==="obstacle",
+    moveCost:(id)=>cells[id].terrain==="rough"?2:1,
+    center:(id)=>cells[id],
+    pointIn(poly,x,y){let c=false;for(let i=0,j=poly.length-1;i<poly.length;j=i++){const xi=poly[i][0],yi=poly[i][1],xj=poly[j][0],yj=poly[j][1];
+      if(((yi>y)!=(yj>y))&&(x<(xj-xi)*(y-yi)/(yj-yi)+xi))c=!c;}return c;},
+    at(x,y){for(const c of cells)if(Board.pointIn(c.poly,x,y))return c.id;return -1;},
+    // distance en pas (BFS) sur cellules praticables, en ignorant les unités
+    hops(a,b){const seen=new Array(cells.length).fill(-1);seen[a]=0;const q=[a];
+      while(q.length){const id=q.shift();if(id===b)return seen[id];
+        for(const n of cells[id].nb){if(!Board.passable(n))continue;if(seen[n]<0){seen[n]=seen[id]+1;q.push(n);}}}return Infinity;},
+    // portée de déplacement (Dijkstra pondéré, évite les cellules occupées sauf le départ)
+    reach(start,budget,occupied){const dist=new Array(cells.length).fill(Infinity);dist[start]=0;const pq=[[0,start]];
+      while(pq.length){let b=0;for(let i=1;i<pq.length;i++)if(pq[i][0]<pq[b][0])b=i;const[d,id]=pq.splice(b,1)[0];if(d>dist[id])continue;
+        for(const n of cells[id].nb){if(!Board.passable(n)||occupied.has(n))continue;const nd=d+Board.moveCost(n);if(nd<=budget&&nd<dist[n]){dist[n]=nd;pq.push([nd,n]);}}}
+      return dist;},
+    path(start,goal,occupied){const dist=new Array(cells.length).fill(Infinity),prev=new Array(cells.length).fill(-1);dist[start]=0;const pq=[[0,start]];
+      while(pq.length){let b=0;for(let i=1;i<pq.length;i++)if(pq[i][0]<pq[b][0])b=i;const[d,id]=pq.splice(b,1)[0];if(d>dist[id])continue;
+        for(const n of cells[id].nb){if(!Board.passable(n)||(occupied.has(n)&&n!==goal))continue;const nd=d+Board.moveCost(n);if(nd<dist[n]){dist[n]=nd;prev[n]=id;pq.push([nd,n]);}}}
+      if(dist[goal]===Infinity)return null;const p=[];let c=goal;while(c!==-1){p.unshift(c);c=prev[c];}return p;},
+    // ligne de vue : échantillonnage centre→centre, bloquée par une cellule opaque traversée
+    los(a,b){const A=cells[a],B=cells[b],N=26;for(let k=1;k<N;k++){const t=k/N,x=A.cx+(B.cx-A.cx)*t,y=A.cy+(B.cy-A.cy)*t;
+      const id=Board.at(x,y);if(id>=0&&id!==a&&id!==b&&Board.opaque(id))return false;}return true;},
+  };
+
+  // ===== unités ===========================================================
+  const MP=4, AP=2;
+  let units=[], turn="player", sel=null, hover=-1, log=[], over=false;
+  function freshUnits(){
+    return [
+      {team:"player",name:"Stiff",ch:"S",cell:8,  hp:10,max:10,wpn:"melee",range:1,dmg:4},
+      {team:"player",name:"Bow",  ch:"B",cell:1,  hp:7, max:7, wpn:"ranged",range:5,dmg:3},
+      {team:"enemy", name:"Garde",ch:"G",cell:55, hp:8, max:8, wpn:"melee",range:1,dmg:3},
+      {team:"enemy", name:"Arc",  ch:"A",cell:50, hp:6, max:6, wpn:"ranged",range:5,dmg:2},
+    ].map((u,i)=>({id:i,ap:AP,...u}));
+  }
+  const unitAt=(id)=>units.find(u=>u.cell===id&&u.hp>0);
+  const occupied=()=>new Set(units.filter(u=>u.hp>0).map(u=>u.cell));
+  function pushLog(m,team){ log.unshift({m,team}); if(log.length>40)log.pop(); renderLog(); }
+  function renderLog(){ document.getElementById("log").innerHTML=log.map(e=>`<div class="${e.team==='player'?'pl':'en'}">${e.m}</div>`).join(""); }
+
+  function inRange(att,tgt){ return att.wpn==="ranged" ? (Board.hops(att.cell,tgt.cell)<=att.range && Board.los(att.cell,tgt.cell)) : Board.hops(att.cell,tgt.cell)<=1; }
+  function attack(att,tgt){
+    const dmg=att.dmg; tgt.hp-=dmg; att.ap=0;
+    pushLog(`${att.name} ${att.wpn==='ranged'?'tire sur':'frappe'} ${tgt.name} : ${dmg} dégâts${tgt.hp<=0?(tgt.team==='player'?' ✚ K.O.':' ✝'):''}`, att.team);
+    if(tgt.hp<=0) tgt.hp=0;
+    checkEnd();
+  }
+  function checkEnd(){
+    if(units.filter(u=>u.team==="enemy"&&u.hp>0).length===0){ endGame("Victoire ! Tous les ennemis sont éliminés."); }
+    else if(units.filter(u=>u.team==="player"&&u.hp>0).length===0){ endGame("Défaite — l'escouade est tombée."); }
+  }
+  function endGame(t){ over=true; document.getElementById("overtxt").textContent=t; document.getElementById("over").classList.add("show"); draw(); }
+
+  // ===== interactions joueur =============================================
+  function selectable(u){ return u && u.team==="player" && u.hp>0 && turn==="player" && u.ap>0; }
+  cv.addEventListener("mousemove",e=>{const r=cv.getBoundingClientRect();hover=Board.at(e.clientX-r.left,e.clientY-r.top);draw();});
+  cv.addEventListener("click",e=>{
+    if(over||turn!=="player")return;
+    const r=cv.getBoundingClientRect(); const id=Board.at(e.clientX-r.left,e.clientY-r.top); if(id<0)return;
+    const u=unitAt(id);
+    if(u&&u.team==="player"){ sel=selectable(u)?u:(u.hp>0?u:sel); draw(); return; }    // sélection
+    if(!sel||sel.ap<=0){ return; }
+    // attaque d'un ennemi à portée ?
+    if(u&&u.team==="enemy"&&u.hp>0){ if(inRange(sel,u)){ attack(sel,u); if(sel.hp<=0)sel=null; draw(); } else { msg("Hors de portée / sans ligne de vue."); } return; }
+    // sinon déplacement si la case est atteignable
+    const dist=Board.reach(sel.cell,MP*1,occupied()); // budget = MP (1 PA de mouvement)
+    if(dist[id]!==undefined&&dist[id]<Infinity){ sel.cell=id; sel.ap-=1; pushLog(`${sel.name} se déplace`, "player"); if(sel.ap<=0)sel=null; draw(); }
+  });
+  document.getElementById("end").addEventListener("click",()=>{ if(!over&&turn==="player") enemyTurn(); });
+  document.getElementById("reset").addEventListener("click",()=>location.reload());
+  function msg(t){ document.getElementById("msg").textContent=t; }
+
+  // ===== IA ennemie =======================================================
+  function enemyTurn(){
+    turn="enemy"; sel=null; document.getElementById("turn").textContent="Ennemi"; draw();
+    const foes=units.filter(u=>u.team==="enemy"&&u.hp>0);
+    let i=0;
+    (function step(){
+      if(over) return;
+      if(i>=foes.length){ // fin tour ennemi
+        for(const u of units) u.ap=AP; turn="player"; document.getElementById("turn").textContent="Joueur"; msg(""); draw(); return;
+      }
+      const e=foes[i++];
+      if(e.hp<=0){ step(); return; }
+      // cible : joueur vivant le plus proche
+      let tgt=null,best=Infinity;
+      for(const p of units) if(p.team==="player"&&p.hp>0){ const h=Board.hops(e.cell,p.cell); if(h<best){best=h;tgt=p;} }
+      if(!tgt){ step(); return; }
+      // déjà à portée ? on attaque
+      if(inRange(e,tgt)){ attack(e,tgt); setTimeout(step,420); draw(); return; }
+      // sinon on s'approche (chemin vers la cible, sans la traverser), puis on attaque si possible
+      const occ=occupied(); occ.delete(e.cell);
+      const path=Board.path(e.cell,tgt.cell,occ);
+      if(path&&path.length>1){
+        const dist=Board.reach(e.cell,MP,occ);
+        // dernière case du chemin atteignable avec le budget
+        let dest=e.cell;
+        for(let k=1;k<path.length;k++){ const c=path[k]; if(dist[c]!==undefined&&dist[c]<Infinity&&!occ.has(c)) dest=c; else break; }
+        if(dest!==e.cell){ e.cell=dest; pushLog(`${e.name} avance`, "enemy"); }
+      }
+      draw();
+      if(inRange(e,tgt)){ setTimeout(()=>{ attack(e,tgt); draw(); setTimeout(step,420); },300); }
+      else { e.ap=0; setTimeout(step,360); }
+    })();
+  }
+
+  // ===== rendu ============================================================
+  const fill={plain:"#3a6e4c",rough:"#7a6326",obstacle:"#2c3a52"};
+  const tint={hexagone:"#cfe8ff","carré":"#ffe1b0",pentagone:"#e9c6ee"};
+  function poly(c){ ctx.beginPath(); c.poly.forEach((p,i)=>i?ctx.lineTo(p[0],p[1]):ctx.moveTo(p[0],p[1])); ctx.closePath(); }
+  function draw(){
+    ctx.clearRect(0,0,cv.width,cv.height);
+    const occ=occupied();
+    const reach = (sel&&sel.ap>0) ? Board.reach(sel.cell,MP,occ) : null;
+    for(const c of cells){
+      poly(c); ctx.fillStyle=fill[c.terrain]; ctx.fill();
+      if(reach&&reach[c.id]<Infinity&&c.id!==sel.cell){ ctx.fillStyle="rgba(122,223,122,0.34)"; ctx.fill(); }
+      ctx.lineWidth=1.3; ctx.strokeStyle="#0c0a07"; ctx.stroke();
+      ctx.globalAlpha=.45; ctx.fillStyle=tint[c.type]; ctx.beginPath(); ctx.arc(c.cx,c.cy,2.5,0,TWO); ctx.fill(); ctx.globalAlpha=1;
+    }
+    // ligne de vue au survol depuis la sélection (tir)
+    if(sel&&hover>=0&&hover!==sel.cell){ const t=unitAt(hover);
+      if(t&&t.team==="enemy"&&sel.wpn==="ranged"){ const v=Board.los(sel.cell,hover); const A=cells[sel.cell],B=cells[hover];
+        ctx.strokeStyle=v?"#79e08a":"#e0635f"; ctx.lineWidth=2; ctx.setLineDash(v?[]:[5,4]); ctx.beginPath(); ctx.moveTo(A.cx,A.cy); ctx.lineTo(B.cx,B.cy); ctx.stroke(); ctx.setLineDash([]); } }
+    // unités
+    for(const u of units){ if(u.hp<=0){ const c=cells[u.cell]; ctx.globalAlpha=.5; ctx.fillStyle="#444"; ctx.beginPath(); ctx.arc(c.cx,c.cy,S*0.3,0,TWO); ctx.fill(); ctx.globalAlpha=1;
+        ctx.strokeStyle=u.team==="player"?"#86bce6":"#d88a8a"; ctx.lineWidth=2.4; ctx.beginPath();
+        if(u.team==="player"){ctx.moveTo(c.cx,c.cy-5);ctx.lineTo(c.cx,c.cy+5);ctx.moveTo(c.cx-5,c.cy);ctx.lineTo(c.cx+5,c.cy);}else{ctx.moveTo(c.cx-4,c.cy-4);ctx.lineTo(c.cx+4,c.cy+4);ctx.moveTo(c.cx+4,c.cy-4);ctx.lineTo(c.cx-4,c.cy+4);} ctx.stroke(); continue; }
+      const c=cells[u.cell];
+      // ennemi attaquable par la sélection ?
+      if(sel&&sel.ap>0&&u.team==="enemy"&&inRange(sel,u)){ ctx.beginPath(); ctx.arc(c.cx,c.cy,S*0.42,0,TWO); ctx.lineWidth=3; ctx.strokeStyle="#e0635f"; ctx.stroke(); }
+      ctx.beginPath(); ctx.arc(c.cx,c.cy,S*0.32,0,TWO);
+      ctx.fillStyle=u.team==="player"?"#5fb0d8":"#d8635f"; ctx.globalAlpha=(u.team==="player"&&u.ap<=0&&turn==="player")?0.5:1; ctx.fill(); ctx.globalAlpha=1;
+      ctx.lineWidth=(u===sel)?3:1.5; ctx.strokeStyle=(u===sel)?"#fff":"rgba(0,0,0,.5)"; ctx.stroke();
+      ctx.fillStyle="#0b1117"; ctx.font="bold 13px sans-serif"; ctx.textAlign="center"; ctx.textBaseline="middle"; ctx.fillText(u.ch,c.cx,c.cy);
+      // barre de PV
+      const bw=S*0.6,bh=4,bx=c.cx-bw/2,by=c.cy-S*0.32-8;
+      ctx.fillStyle="rgba(0,0,0,.6)"; ctx.fillRect(bx-1,by-1,bw+2,bh+2);
+      ctx.fillStyle="#3a3128"; ctx.fillRect(bx,by,bw,bh);
+      ctx.fillStyle=u.team==="player"?"#6fd06f":"#e06f6f"; ctx.fillRect(bx,by,bw*Math.max(0,u.hp)/u.max,bh);
+      // pictogramme arme
+      ctx.font="10px sans-serif"; ctx.fillStyle="#ffe9c0"; ctx.fillText(u.wpn==="ranged"?"🏹":"🗡",c.cx,c.cy+S*0.32+7);
+    }
+  }
+
+  // ===== terrain de départ + lancement ====================================
+  function setupTerrain(){
+    for(const c of cells){ if((c.cx*1.7+c.cy)%97<14) c.terrain="rough"; }
+    [19,20,35,44].forEach(id=>{ if(cells[id]) cells[id].terrain="obstacle"; });
+  }
+  function start(){ setupTerrain(); units=freshUnits();
+    // garantir que personne ne démarre sur un obstacle
+    for(const u of units){ if(Board.opaque(u.cell)) cells[u.cell].terrain="plain"; }
+    turn="player"; over=false; log=[]; pushLog("Mission : nettoyez la zone (atteignez les hexagones par le pont de pentagones).","player");
+    document.getElementById("turn").textContent="Joueur"; document.getElementById("over").classList.remove("show"); draw(); }
+  start();
+})();
+</script>
+</body>
+</html>
