@@ -901,7 +901,7 @@
         if (e.team !== opp || e.hp <= 0 || !fov.has(key(e.col, e.row))) continue;
         if (e.stealth && !frontalOf(u, e)) continue;   // furtif (assassin) : perçu seulement de face
         if (e.stealth) stealthSeen.add(e);
-        if (wakeFoes) wake(u, "sight");                 // l'ennemi qui perçoit un joueur s'éveille (et son pod)
+        if (wakeFoes) wake(u, "sight", e);              // l'ennemi qui perçoit un joueur s'éveille (et son pod) ; e = le soldat repéré
       }
     }
     return { tiles, stealthSeen };
@@ -933,6 +933,11 @@
       const members = units.filter(x => x.team === "neutral" && x.pod === u.pod && x.hp > 0);
       const nh = members.filter(x => x.hostage).length;
       const kind = nh === members.length ? "otages" : nh ? "PNJ/otages" : "PNJ";
+      // le soldat qui découvre : le joueur vivant le plus proche d'un membre
+      let by = null, bd = Infinity;
+      for (const p of units){ if (p.team !== "player" || p.hp <= 0) continue;
+        const d = hexDistUnits(p, u); if (d < bd){ bd = d; by = p; } }
+      if (by) for (const m of members) faceTowards(m, by.col, by.row);   // tout le pod se tourne vers lui
       pushLog(`🔎 Pod de ${kind} découvert — ${members.length}`, "player");
       pushAlert(u.col, u.row);
       emit("spotted",    { pod: u.pod, actorTeam: "neutral", by: "sight" });
@@ -943,10 +948,13 @@
   // Réveille un pod entier (les copains) — ou une unité isolée endormie.
   // `cause` : "sight" (repéré à vue, sans attaque) ou "noise" (bruit/combat).
   const wakeCauseLabel = (cause) => cause === "sight" ? "repéré à vue" : cause === "noise" ? "alerté par le bruit" : "alerté";
-  function wakePod(pid, cause){
+  function wakePod(pid, cause, by){
     const fresh = pid !== undefined && !podAlerted.has(pid);
     podAlerted.add(pid);
-    for (const u of units) if (u.team === "enemy" && u.pod === pid){ if (fresh && u.hp > 0) pushAlert(u.col, u.row); u.asleep = false; }
+    for (const u of units) if (u.team === "enemy" && u.pod === pid){
+      if (fresh && u.hp > 0){ pushAlert(u.col, u.row); if (by) faceTowards(u, by.col, by.row); }  // tout le pod se tourne vers le soldat repéré
+      u.asleep = false;
+    }
     if (fresh){
       spottedFlash();
       const n = units.filter(u => u.team === "enemy" && u.pod === pid && u.hp > 0).length;
@@ -955,11 +963,12 @@
       if (cause === "sight") emit("discovered", { pod: pid, actorTeam: "enemy" });   // réveil sans attaque
     }
   }
-  function wake(u, cause){
+  function wake(u, cause, by){
     if (u.team !== "enemy") return;
-    if (u.pod !== undefined){ wakePod(u.pod, cause); }
+    if (u.pod !== undefined){ wakePod(u.pod, cause, by); }
     else if (u.asleep){
       u.asleep = false; pushAlert(u.col, u.row); spottedFlash();
+      if (by) faceTowards(u, by.col, by.row);
       pushLog(`⚠ ${u.name} réveillé (${wakeCauseLabel(cause)})`, "enemy");
       emit("spotted", { actorTeam: "enemy", by: cause || "noise" });
       if (cause === "sight") emit("discovered", { actorTeam: "enemy" });
