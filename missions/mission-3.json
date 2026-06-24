@@ -1225,6 +1225,7 @@
    "col": 13,
    "row": 3,
    "hostage": true,
+   "pod": 0,
    "facing": 3.141592653589793
   },
   {
@@ -1233,6 +1234,7 @@
    "col": 13,
    "row": 1,
    "hostage": true,
+   "pod": 0,
    "facing": 1.0471975511965976
   },
   {
@@ -1240,7 +1242,8 @@
    "team": "neutral",
    "col": 11,
    "row": 1,
-   "hostage": true
+   "hostage": true,
+   "pod": 0
   }
  ],
  "fullHeal": true,
@@ -1248,21 +1251,34 @@
   {
    "on": "spotted",
    "match": {
-    "pod": 0
+    "pod": 0,
+    "actorTeam": "neutral"
    },
    "say": [
-    "Merry",
-    "How many of them are there?"
+    "Stiff",
+    "They're here!"
    ]
   },
   {
    "on": "spotted",
    "match": {
-    "pod": 2
+    "pod": 1,
+    "actorTeam": "enemy"
    },
    "say": [
-    "Stiff",
-    "The'yre here!"
+    "Shady",
+    "Here we go, you bastards!"
+   ]
+  },
+  {
+   "on": "spotted",
+   "match": {
+    "pod": 0,
+    "actorTeam": "enemy"
+   },
+   "say": [
+    "Merry",
+    "How many of them are there??"
    ]
   }
  ]
