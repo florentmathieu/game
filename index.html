@@ -811,6 +811,8 @@
     else if(e.key===" "){e.preventDefault();if(!over&&turn==="player")endTurn();}
     else if(e.code==="Digit0"||e.code==="Numpad0"){const b=document.getElementById("act-end");if(b)b.click();}   // touche du clavier (FR : sans MAJ)
     else if(/^(Digit|Numpad)[1-9]$/.test(e.code)){const acts=[...document.querySelectorAll("#acts button")].filter(b=>b.id!=="act-end");const b=acts[+e.code.slice(-1)-1];if(b)b.click();} });
+  // Échap dans l'éditeur : désactive l'outil courant — plus aucun bouton n'est en surbrillance
+  window.addEventListener("keydown",e=>{ if(mode==="edit"&&e.key==="Escape"){ editTool="none"; hoverEdge=null; syncTools(); draw(); } });
 
   // ===== démarrage : brouillon mémorisé, sinon une forme + un roster par défaut =====
   function defaultBoard(){ genMesh();
