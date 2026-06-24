@@ -62,6 +62,8 @@
   <div class="editonly">
     <div id="tab-mission">
     <h2>1 · Forme (zones + distorsion)</h2>
+    <div class="row"><label style="flex:1">Largeur <input id="bw" type="range" min="4" max="20" value="10"></label><span id="bwv">10</span></div>
+    <div class="row"><label style="flex:1">Hauteur <input id="bh" type="range" min="3" max="16" value="8"></label><span id="bhv">8</span></div>
     <div class="row" id="zones"></div>
     <div class="row"><label style="flex:1">Distorsion <input id="dist" type="range" min="0" max="100" value="28"></label><span id="distv">28%</span></div>
     <div class="row"><label style="flex:1">Densité <input id="dens" type="range" min="30" max="64" value="44"></label><span id="densv">44</span> <button id="regen">↻</button></div>
@@ -124,7 +126,8 @@
 <div id="over"><h2 id="overtxt"></h2><button id="overbtn">Rejouer</button></div>
 <script>
 (function(){
-  const cv=document.getElementById("board"),ctx=cv.getContext("2d"),W=cv.width,H=cv.height,TWO=Math.PI*2;
+  const cv=document.getElementById("board"),ctx=cv.getContext("2d"),TWO=Math.PI*2;
+  let W=cv.width,H=cv.height;
   const FREE_MP=2,AP_MAX=2,MOB=3,HEIGHT_BONUS=6,COVER_PEN=30,PB={1:30,2:15};
   const sword=(a,l,h)=>({type:"melee",aim:a,dmgMin:l,dmgMax:h});
   const bow=(a,l,h,r,c)=>({type:"ranged",aim:a,dmgMin:l,dmgMax:h,range:r,clip:c});
@@ -144,12 +147,27 @@
   const mk=s=>()=>{s|=0;s=s+0x6D2B79F5|0;let t=Math.imul(s^s>>>15,1|s);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;};
   let RND=mk(7), seed=7, mode="edit", editTool="zone:square";
 
-  const MC=72, COLS=Math.ceil(W/MC), ROWS=Math.ceil(H/MC);
+  const MC=72; let COLS=Math.ceil(W/MC), ROWS=Math.ceil(H/MC);
+  const defZone=(c)=> c<COLS/3?"square": c<2*COLS/3?"mix":"hex";
   let infl=Array.from({length:ROWS},()=>Array(COLS).fill("square"));
-  for(let r=0;r<ROWS;r++)for(let c=0;c<COLS;c++) infl[r][c]= c<COLS/3?"square": c<2*COLS/3?"mix":"hex";
+  for(let r=0;r<ROWS;r++)for(let c=0;c<COLS;c++) infl[r][c]=defZone(c);
+  // redimensionne le plateau : COLS×ROWS cases-zones de MC px, conserve les zones existantes
+  function setBoardSize(cols,rows){ cols=Math.max(4,Math.min(20,cols|0)); rows=Math.max(3,Math.min(16,rows|0));
+    const old=infl,oc=COLS; COLS=cols;ROWS=rows;W=COLS*MC;H=ROWS*MC; cv.width=W;cv.height=H;
+    infl=Array.from({length:ROWS},(_,r)=>Array.from({length:COLS},(_,c)=>(old[r]&&old[r][c])?old[r][c]:defZone(c)));
+    walls=new Set(); genMesh(); units=units.filter(u=>cells[u.cell]); }
 
   // ===== géométrie maillage =====
   let cells=[];
+  let walls=new Set();          // murets : couvert partiel posé sur l'arête entre deux cellules
+  let wallSeg=new Map();        // wkey -> segment [[x1,y1],[x2,y2]] de l'arête partagée
+  const wkey=(a,b)=>Math.min(a,b)+"-"+Math.max(a,b);
+  const wallBetween=(a,b)=>walls.has(wkey(a,b));
+  let hoverEdge=null;           // arête survolée (pour poser un muret)
+  // arête (paire de cellules) la plus proche du point (X,Y) : cellule survolée + voisin le plus proche
+  function edgeAt(X,Y){ const c=cellAtXY(X,Y); if(!c)return null; let best=null,bd=1e9;
+    for(const n of c.nb){ const s=wallSeg.get(wkey(c.id,n)); if(!s)continue; const mx=(s[0][0]+s[1][0])/2,my=(s[0][1]+s[1][1])/2,d=Math.hypot(X-mx,Y-my); if(d<bd){bd=d;best=wkey(c.id,n);} }
+    return best; }
   function genMesh(){
     const g=+dens.value, dist=+distEl.value/100, rnd=mk(seed), h=g*0.866, jit=a=>(rnd()*2-1)*a;
     const typeAt=(x,y)=>infl[Math.min(ROWS-1,Math.floor(y/MC))][Math.min(COLS-1,Math.floor(x/MC))];
@@ -169,9 +187,10 @@
         if(cl.length>=3){let sx=0,sy=0;for(const v of cl){sx+=v[0];sy+=v[1];}cells.push({id:cells.length,poly:cl,cx:sx/cl.length,cy:sy/cl.length,nb:[],terr:"plain",elev:0});}}}
     buildAdj();
   }
-  function buildAdj(){ const map=new Map(); cells.forEach(c=>c.nb=[]);
-    cells.forEach((c,i)=>{const p=c.poly;for(let k=0;k<p.length;k++){const a=p[k],b=p[(k+1)%p.length];const key=Math.round((a[0]+b[0])/5)+","+Math.round((a[1]+b[1])/5);if(!map.has(key))map.set(key,[]);map.get(key).push(i);}});
-    for(const arr of map.values())for(let a=0;a<arr.length;a++)for(let b=a+1;b<arr.length;b++){const x=arr[a],y=arr[b];if(x!==y&&!cells[x].nb.includes(y)){cells[x].nb.push(y);cells[y].nb.push(x);}} }
+  function buildAdj(){ const map=new Map(),segOf=new Map(); cells.forEach(c=>c.nb=[]);
+    cells.forEach((c,i)=>{const p=c.poly;for(let k=0;k<p.length;k++){const a=p[k],b=p[(k+1)%p.length];const key=Math.round((a[0]+b[0])/5)+","+Math.round((a[1]+b[1])/5);if(!map.has(key)){map.set(key,[]);segOf.set(key,[a,b]);}map.get(key).push(i);}});
+    wallSeg=new Map();
+    for(const [key,arr] of map.entries())for(let a=0;a<arr.length;a++)for(let b=a+1;b<arr.length;b++){const x=arr[a],y=arr[b];if(x!==y&&!cells[x].nb.includes(y)){cells[x].nb.push(y);cells[y].nb.push(x);wallSeg.set(wkey(x,y),segOf.get(key));}} }
 
   // ===== géométrie utilitaire =====
   function pointIn(poly,x,y){let c=false;for(let i=0,j=poly.length-1;i<poly.length;j=i++){const xi=poly[i][0],yi=poly[i][1],xj=poly[j][0],yj=poly[j][1];if(((yi>y)!=(yj>y))&&(x<(xj-xi)*(y-yi)/(yj-yi)+xi))c=!c;}return c;}
@@ -223,7 +242,12 @@
 
   // ===== combat =====
   function flankOf(att,tgt){const diff=Math.abs(norm(Math.atan2(cells[att.cell].cy-cells[tgt.cell].cy,cells[att.cell].cx-cells[tgt.cell].cx)-tgt.facing));return diff>2.2?"back":diff>1.0?"side":"front";}
-  function chance(att,tgt,m){const w=att.w[m];let cover=0;if(w.type==="ranged"&&cells[tgt.cell].terr==="cover")cover=COVER_PEN;const dh=Math.max(-3,Math.min(3,cells[att.cell].elev-cells[tgt.cell].elev))*HEIGHT_BONUS;const pb=w.type==="ranged"?(PB[hops(att.cell,tgt.cell)]||0):0;return Math.max(5,Math.min(95,Math.round(w.aim-cover+dh-pb)));}
+  // couvert d'un muret : partiel, directionnel (pleine valeur de face, nul de flanc), et seulement
+  // si la cible n'est pas plus haute que la cellule d'en face (le bas est protégé du haut).
+  function muretCover(tgt,att){ const T=cells[tgt.cell],A=cells[att.cell]; let ax=A.cx-T.cx,ay=A.cy-T.cy; const al=Math.hypot(ax,ay)||1; ax/=al;ay/=al; let best=0;
+    for(const n of T.nb){ if(!wallBetween(tgt.cell,n))continue; if(T.elev>cells[n].elev)continue; let dx=cells[n].cx-T.cx,dy=cells[n].cy-T.cy; const dl=Math.hypot(dx,dy)||1; dx/=dl;dy/=dl; const align=ax*dx+ay*dy; if(align<=0)continue; best=Math.max(best,(COVER_PEN/2)*align); }
+    return Math.round(best); }
+  function chance(att,tgt,m){const w=att.w[m];let cover=0;if(w.type==="ranged"){if(cells[tgt.cell].terr==="cover")cover=COVER_PEN;cover=Math.max(cover,muretCover(tgt,att));}const dh=Math.max(-3,Math.min(3,cells[att.cell].elev-cells[tgt.cell].elev))*HEIGHT_BONUS;const pb=w.type==="ranged"?(PB[hops(att.cell,tgt.cell)]||0):0;return Math.max(5,Math.min(95,Math.round(w.aim-cover+dh-pb)));}
   function doAttack(att,tgt,m,reaction){const w=att.w[m];att.facing=ang(att.cell,tgt.cell);if(!reaction){att.ap=0;att.freeAvail=false;}if(w.type==="ranged"&&att.clip!==undefined)att.ammo--;
     const ch=Math.max(5,chance(att,tgt,m)-(reaction?15:0)),hit=RND()*100<ch,back=flankOf(att,tgt)==="back";let txt,result,dmg=0;
     if(!hit){txt="raté";result="miss";}
@@ -301,10 +325,13 @@
   let painting=false;
   cv.addEventListener("pointerdown",e=>{const r=cv.getBoundingClientRect();const X=e.clientX-r.left,Y=e.clientY-r.top;
     if(mode==="edit"){painting=true;editAt(X,Y);}else playClick(X,Y);});
-  cv.addEventListener("pointermove",e=>{if(mode!=="edit"||!painting)return;const r=cv.getBoundingClientRect();editAt(e.clientX-r.left,e.clientY-r.top);});
+  cv.addEventListener("pointermove",e=>{ if(mode!=="edit")return; const r=cv.getBoundingClientRect(),X=e.clientX-r.left,Y=e.clientY-r.top;
+    if(editTool==="muret"){ const k=edgeAt(X,Y); if(k!==hoverEdge){hoverEdge=k;draw();} return; }   // muret : pose au clic, pas en glissé
+    if(painting)editAt(X,Y); });
   window.addEventListener("pointerup",()=>painting=false);
   function editAt(X,Y){
     if(editTool.startsWith("zone:")){ const c=Math.floor(X/MC),r=Math.floor(Y/MC); if(c<0||c>=COLS||r<0||r>=ROWS)return; const t=editTool.slice(5); if(infl[r][c]!==t){infl[r][c]=t;rebuildShape();} return; }
+    if(editTool==="muret"){ const k=edgeAt(X,Y); if(k){ walls.has(k)?walls.delete(k):walls.add(k); refresh(); } return; }
     const cell=cellAtXY(X,Y); if(!cell)return; const id=cell.id;
     if(editTool.startsWith("terr:")){ cell.terr=editTool.slice(5); }
     else if(editTool==="elev+"){ cell.elev=Math.min(3,cell.elev+1); }
@@ -334,6 +361,9 @@
       if(d&&d[c.id]!==undefined){ctx.fillStyle="rgba(122,223,122,0.30)";ctx.fill();}
       if(mode==="play"&&!visible.has(c.id)){ctx.fillStyle="rgba(0,0,0,0.55)";ctx.fill();}
       ctx.lineWidth=1;ctx.strokeStyle="#0c0a07";ctx.stroke();}
+    // murets (couvert partiel) tracés sur les arêtes partagées
+    walls.forEach(k=>{const s=wallSeg.get(k);if(!s)return;ctx.beginPath();ctx.moveTo(s[0][0],s[0][1]);ctx.lineTo(s[1][0],s[1][1]);ctx.lineWidth=5;ctx.lineCap="round";ctx.strokeStyle="#caa24a";ctx.stroke();ctx.lineCap="butt";});
+    if(mode==="edit"&&editTool==="muret"&&hoverEdge){const s=wallSeg.get(hoverEdge);if(s){ctx.beginPath();ctx.moveTo(s[0][0],s[0][1]);ctx.lineTo(s[1][0],s[1][1]);ctx.lineWidth=5;ctx.lineCap="round";ctx.strokeStyle="rgba(255,212,121,.5)";ctx.stroke();ctx.lineCap="butt";}}
     if(showZones){ctx.strokeStyle="rgba(202,162,74,.3)";for(let c=1;c<COLS;c++){ctx.beginPath();ctx.moveTo(c*MC,0);ctx.lineTo(c*MC,H);ctx.stroke();}for(let r=1;r<ROWS;r++){ctx.beginPath();ctx.moveTo(0,r*MC);ctx.lineTo(W,r*MC);ctx.stroke();}}
     const ucol=u=>u.team==="player"?"#5fb0d8":u.team==="neutral"?(u.hostage?"#c98fd0":"#e0b84a"):"#d8635f";
     for(const u of units){const c=cells[u.cell];if(!c)continue;let x=c.cx,y=c.cy;if(anim&&anim.u===u&&u.hp>0){const p=animPos();x=p[0];y=p[1];}
@@ -356,30 +386,47 @@
   function btnRow(host,items){ host.innerHTML=""; items.forEach(([label,tool])=>{const b=document.createElement("button");b.textContent=label;b.dataset.tool=tool;b.className=editTool===tool?"on":"";b.onclick=()=>{editTool=tool;syncTools();refresh();};host.appendChild(b);}); }
   function syncTools(){ document.querySelectorAll("#zones button,#terr button,#relief button,#tplace,#terase").forEach(b=>b.classList.toggle("on",b.dataset.tool===editTool)); }
   btnRow(document.getElementById("zones"),[["⬛","zone:square"],["⬡","zone:hex"],["⬠","zone:pentagon"],["🔀","zone:mix"]]);
-  btnRow(document.getElementById("terr"),[["sol","terr:plain"],["accidenté","terr:rough"],["couvert","terr:cover"],["mur","terr:wall"]]);
+  btnRow(document.getElementById("terr"),[["🟩 Sol","terr:plain"],["⛰ Accidenté","terr:rough"],["🌿 Couvert","terr:cover"],["🪨 Rocher","terr:wall"],["🧱 Muret","muret"]]);
   btnRow(document.getElementById("relief"),[["⬆ élever","elev+"],["⬇ abaisser","elev-"]]);
+  { const b=document.createElement("button"); b.textContent="🎲 Profil auto"; b.title="Génère relief, rochers, couverts et murets aléatoires"; b.onclick=()=>autoTerrain(); document.getElementById("relief").appendChild(b); }
   document.getElementById("tplace").onclick=()=>{editTool="unit";syncTools();};
   document.getElementById("terase").onclick=()=>{editTool="erase";syncTools();};
 
-  function rebuildShape(){ genMesh(); units=[]; refresh(); }   // changer la forme remet à zéro
+  function rebuildShape(){ genMesh(); units=[]; walls=new Set(); refresh(); }   // changer la forme remet à zéro
+  // génère un profil de terrain : collines (relief), rochers, couverts et murets épars
+  function autoTerrain(){ if(!cells.length)return; const rnd=mk((seed^0x9e3779b9)>>>0);
+    cells.forEach(c=>{c.terr="plain";c.elev=0;}); walls=new Set();
+    const nh=2+Math.floor(rnd()*3);                       // 2-4 collines
+    for(let k=0;k<nh;k++){ const cx=rnd()*W,cy=rnd()*H,rad=W*(0.12+rnd()*0.14),pk=1+Math.floor(rnd()*3);
+      cells.forEach(c=>{const d=Math.hypot(c.cx-cx,c.cy-cy);if(d<rad)c.elev=Math.min(3,Math.max(c.elev,Math.round(pk*(1-d/rad))));}); }
+    cells.forEach(c=>{ if(c.elev>0)return; const r=rnd(); if(r<0.07)c.terr="wall"; else if(r<0.17)c.terr="cover"; });
+    cells.forEach(c=>{ for(const n of c.nb){ if(n<=c.id)continue; if(c.terr==="wall"||cells[n].terr==="wall")continue; if(rnd()<0.06)walls.add(wkey(c.id,n)); } });
+    refresh(); }
   distEl.oninput=()=>{document.getElementById("distv").textContent=distEl.value+"%";rebuildShape();};
   dens.oninput=()=>{document.getElementById("densv").textContent=dens.value;rebuildShape();};
   document.getElementById("regen").onclick=()=>{seed=(seed*1103515245+12345)&0x7fffffff;rebuildShape();};
+  { const bw=document.getElementById("bw"),bh=document.getElementById("bh"),bwv=document.getElementById("bwv"),bhv=document.getElementById("bhv");
+    const apply=()=>{bwv.textContent=bw.value;bhv.textContent=bh.value;setBoardSize(+bw.value,+bh.value);refresh();};
+    if(bw)bw.oninput=apply; if(bh)bh.oninput=apply; }
 
   function renderCounts(){ const np=units.filter(u=>u.team==="player").length,ne=units.filter(u=>u.team==="enemy").length;
     document.getElementById("counts").textContent=`${cells.length} cellules · ${np} alliés · ${ne} ennemis`; }
   // sérialisation : cellules (polygone + terrain + relief) + unités + paramètres de forme (pour re-mailler)
   function exportObj(){ return { name:"mission-maillage", form:{infl,dist:+distEl.value,dens:+dens.value,seed},
     cells:cells.map(c=>({poly:c.poly.map(p=>[Math.round(p[0]),Math.round(p[1])]),terr:c.terr,elev:c.elev})),
+    walls:[...walls],
     units:units.map(u=>{const o={team:u.team,cls:u.cls,cell:u.cell};if(u.name!==CLASSES[u.cls].name)o.name=u.name;if(u.pod!==undefined)o.pod=u.pod;if(u.asleep)o.asleep=true;if(u.hostage)o.hostage=true;return o;}),
     triggers:triggers }; }
   function applyMissionObj(m){
     if(!m||!Array.isArray(m.cells))throw new Error("format invalide");
     cells=m.cells.map((c,i)=>{let sx=0,sy=0;for(const p of c.poly){sx+=p[0];sy+=p[1];}return {id:i,poly:c.poly,cx:sx/c.poly.length,cy:sy/c.poly.length,nb:[],terr:c.terr||"plain",elev:c.elev||0};});
     buildAdj();
+    walls=new Set((Array.isArray(m.walls)?m.walls:[]).filter(k=>wallSeg.has(k)));
     units=(m.units||[]).map(u=>U(u.team,u.cls,u.cell,{name:u.name,pod:u.pod,asleep:u.asleep,hostage:u.hostage})).filter(u=>cells[u.cell]);
     triggers=Array.isArray(m.triggers)?m.triggers:[]; renderTrigList();
-    if(m.form){ if(m.form.infl)infl=m.form.infl; if(m.form.dist!=null){distEl.value=m.form.dist;document.getElementById("distv").textContent=m.form.dist+"%";} if(m.form.dens!=null){dens.value=m.form.dens;document.getElementById("densv").textContent=m.form.dens;} if(m.form.seed!=null)seed=m.form.seed; }
+    if(m.form){ if(m.form.infl){infl=m.form.infl; ROWS=infl.length; COLS=(infl[0]&&infl[0].length)||COLS; W=COLS*MC;H=ROWS*MC; cv.width=W;cv.height=H;
+        const bw=document.getElementById("bw"),bh=document.getElementById("bh"); if(bw){bw.value=COLS;document.getElementById("bwv").textContent=COLS;} if(bh){bh.value=ROWS;document.getElementById("bhv").textContent=ROWS;} }
+      if(m.form.dist!=null){distEl.value=m.form.dist;document.getElementById("distv").textContent=m.form.dist+"%";} if(m.form.dens!=null){dens.value=m.form.dens;document.getElementById("densv").textContent=m.form.dens;} if(m.form.seed!=null)seed=m.form.seed; }
     refresh();
   }
   function exportMission(){ const ta=document.getElementById("export"); ta.style.display="block"; ta.value=JSON.stringify(exportObj()); ta.select(); saveDraft(); }
@@ -542,7 +589,7 @@
 
   // ===== polish : bannière de tour, fiche au survol, raccourcis clavier =====
   function banner(text,cls){ const el=document.getElementById("banner"); el.textContent=text; el.style.background=cls==="enemy"?"#5a2a2a":"#2a4a5a"; el.classList.remove("show"); void el.offsetWidth; el.classList.add("show"); }
-  const TERRN={plain:"sol",rough:"accidenté",wall:"mur",cover:"couvert"};
+  const TERRN={plain:"sol",rough:"accidenté",wall:"rocher",cover:"couvert"};
   cv.addEventListener("mousemove",e=>{ const f=document.getElementById("fiche"); const r=cv.getBoundingClientRect(); const cell=cellAtXY(e.clientX-r.left,e.clientY-r.top);
     if(!cell){f.style.display="none";return;} const u=uAt(cell.id); let h;
     if(u&&(mode==="edit"||u.team==="player"||seen(u))){ const m=u.w.ranged?"ranged":"melee",w=u.w[m]; const wn=u.w.ranged?(u.clip!==undefined?"arbalète":"arc"):(u.flank?"dagues":(w.bare?"mains nues":"épée"));
@@ -581,6 +628,15 @@
   }
   { const tb=document.getElementById("title-btn"); if(tb)tb.onclick=()=>{ const t=document.getElementById("title"); if(t)t.style.display="none";
       if(document.body.classList.contains("view-play")&&!campRun) startPlay(); }; }
+  // sections repliables : chaque <h2> de l'éditeur replie le bloc qui le suit
+  function makeCollapsible(container){ if(!container||!container.querySelectorAll)return;
+    [...container.querySelectorAll("h2")].forEach(h=>{ if(h.parentNode!==container)return; let el=h.nextElementSibling; const sibs=[];
+      while(el&&el.tagName!=="H2"){const nx=el.nextElementSibling;sibs.push(el);el=nx;}
+      const wrap=document.createElement("div"); h.after(wrap); sibs.forEach(s=>wrap.appendChild(s));
+      h.style.cursor="pointer"; const tag=document.createElement("span"); tag.textContent=" ▾"; tag.style.cssText="float:right;color:#caa24a"; h.appendChild(tag);
+      h.onclick=()=>{ const open=wrap.style.display!=="none"; wrap.style.display=open?"none":""; tag.textContent=open?" ▸":" ▾"; }; }); }
+  makeCollapsible(document.getElementById("tab-mission"));
+  makeCollapsible(document.getElementById("tab-camp"));
   init();
 })();
 </script>
