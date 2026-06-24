@@ -30,6 +30,15 @@ On passe d'une **grille à coordonnées** (offset/cube) à un **graphe de cellul
 
 **Reste stable** si on s'appuie sur des abstractions `neighbors(cell)` / `dist(a,b)` : tours & PA, triggers, IA (choix de cible/score), persistance PV/crackers, dialogues. La bascule est donc surtout une **couche « plateau »** à réécrire ; la logique de jeu au-dessus bouge peu.
 
+## Étape déjà amorcée dans le jeu
+
+Le jeu (`index.html`) expose désormais une **couche `Board`** (objet near `hexDistUnits`) qui regroupe les
+primitives de plateau : `Board.dist`, `Board.neighbors`, `Board.center`, `Board.key`, `Board.inBounds`,
+`Board.forEach`. Toute la logique de jeu (portées, IA, adjacence potion/vigilance) appelle maintenant
+`Board.dist` au lieu de la maths hex directe. Pour un plateau mixte, on réimplémente `Board` (en graphe de
+cellules) + le FoV + le rendu ; le reste de la logique ne bouge pas. (`Board` est aussi exposé via `MGF.Board`
+et dans le harness de test.)
+
 ## Verdict
 
 Faisable, mais ce n'est pas un réglage : c'est remplacer le cœur géométrique (coordonnées → graphe) et réécrire FoV + rendu + format de carte. Le présent POC valide la voie : un graphe mixte connexe, déplacement et ligne de vue fonctionnels sur des cellules de formes différentes.

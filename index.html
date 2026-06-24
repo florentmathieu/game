@@ -941,7 +941,7 @@
       // le soldat qui découvre : le joueur vivant le plus proche d'un membre
       let by = null, bd = Infinity;
       for (const p of units){ if (p.team !== "player" || p.hp <= 0) continue;
-        const d = hexDistUnits(p, u); if (d < bd){ bd = d; by = p; } }
+        const d = Board.dist(p, u); if (d < bd){ bd = d; by = p; } }
       if (by) for (const m of members) faceTowards(m, by.col, by.row);   // tout le pod se tourne vers lui
       pushLog(`🔎 Pod de ${kind} découvert — ${members.length}`, "player");
       pushAlert(u.col, u.row);
@@ -1068,6 +1068,20 @@
   const elevOf = (u) => tiles[u.row][u.col].elev;
   function hexDistUnits(a, b){ return cubeDist(offsetToCube(a.col,a.row), offsetToCube(b.col,b.row)); }
 
+  // ---- Couche « plateau » (abstraction de la grille) ----------------------
+  // Regroupe les primitives couplées à la géométrie : voisins, distance, centre, identité.
+  // Pour passer à un plateau mixte (hex/carrés/pentagones), il suffira de réimplémenter cet
+  // objet en graphe de cellules — la logique de jeu n'appelle que ces méthodes (pas la maths hex).
+  const Board = {
+    key,                                                 // identité d'une cellule "c,r"
+    neighbors,                                           // voisins franchissables géométriquement (bornes)
+    center: tileCenter,                                  // centre pixel d'une cellule
+    inBounds: (c, r) => c >= 0 && c < COLS && r >= 0 && r < ROWS,
+    dist: hexDistUnits,                                  // distance (en pas) entre deux entités {col,row}
+    distCR: (c1, r1, c2, r2) => cubeDist(offsetToCube(c1, r1), offsetToCube(c2, r2)),
+    forEach(fn){ for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++) fn(c, r); },
+  };
+
   // Valeur de couvert que protège la case (col,row) dans la direction du voisin (nc,nr).
   //  - rocher sur la case voisine  -> couvert total
   //  - muret sur l'arête           -> couvert partiel, MAIS seulement si la case protégée
@@ -1119,7 +1133,7 @@
       if (o.hp <= 0 || !hostile(u, o)) continue;
       // on ne s'oriente pas vers un furtif (assassin) qu'on ne perçoit pas (sinon on le « repère » en se tournant)
       if (o.stealth){ const seen = u.team === "enemy" ? enemyCanSee(o) : playerCanSee(o); if (!seen) continue; }
-      const d = hexDistUnits(u, o); if (d < bd){ bd = d; best = o; }
+      const d = Board.dist(u, o); if (d < bd){ bd = d; best = o; }
     }
     return best;
   }
@@ -1167,7 +1181,7 @@
     const dh = elevOf(att) - elevOf(tgt);
     const height = Math.max(-3, Math.min(3, dh)) * HEIGHT_BONUS;     // avantage de hauteur, plafonné à ±18%
     const def = defenseOf(tgt);                                      // cible en garde (brace)
-    const pb = melee ? 0 : (POINTBLANK[hexDistUnits(att, tgt)] || 0);  // arc/arbalète : malus à bout portant (1-2 cases)
+    const pb = melee ? 0 : (POINTBLANK[Board.dist(att, tgt)] || 0);  // arc/arbalète : malus à bout portant (1-2 cases)
     const chance = Math.max(5, Math.min(95, Math.round(att.aim - cover + height - def - pb)));
     return { melee, base: att.aim, cover, height, dh, def, pb, chance };
   }
@@ -1188,7 +1202,7 @@
     // chaque camp ne peut viser que ce que son équipe voit
     const seen = att.team === "player" ? playerCanSee(tgt) : enemyCanSee(tgt);
     if (!seen) return false;
-    if (hexDistUnits(att, tgt) > att.range) return false;
+    if (Board.dist(att, tgt) > att.range) return false;
     return lineOfFire(att, tgt);
   }
 
@@ -1248,9 +1262,9 @@
       const seen = w.team === "enemy" ? enemyCanSee(m) : playerCanSee(m);
       if (!seen) return null;
     }
-    if (w.overwatch && w.mode === "melee" && w.weapons.melee && hexDistUnits(w, m) === 1) return "melee";   // vigilance épée/dagues
+    if (w.overwatch && w.mode === "melee" && w.weapons.melee && Board.dist(w, m) === 1) return "melee";   // vigilance épée/dagues
     if (w.overwatch && w.weapons.ranged && (w.clip === undefined || w.ammo > 0)
-        && hexDistUnits(w, m) <= w.weapons.ranged.range
+        && Board.dist(w, m) <= w.weapons.ranged.range
         && cubeDist(offsetToCube(w.col, w.row), offsetToCube(m.col, m.row)) <= VISION
         && lineOfFire(w, m)) return "ranged";
     return null;
@@ -1464,7 +1478,7 @@
   function shotChanceFrom(ac, ar, stats, tc, tr){
     const att = { col:ac, row:ar, aim:stats.aim, wtype:stats.wtype };
     const tgt = { col:tc, row:tr };
-    if (hexDistUnits(att, tgt) > stats.range) return 0;
+    if (Board.dist(att, tgt) > stats.range) return 0;
     if (!lineOfFire(att, tgt)) return 0;
     return hitBreakdown(att, tgt).chance;
   }
@@ -1543,7 +1557,7 @@
 
     // cible de référence (la plus proche) pour le calcul d'angle d'encerclement
     let primary = targets[0], pd = Infinity;
-    for (const p of targets){ const d = hexDistUnits(e, p); if (d < pd){ pd = d; primary = p; } }
+    for (const p of targets){ const d = Board.dist(e, p); if (d < pd){ pd = d; primary = p; } }
     const pc = tileCenter(primary.col, primary.row);
     const allies = units.filter(o => o !== e && o.team === "enemy" && o.hp > 0);
 
@@ -1627,7 +1641,7 @@
   // une cible serait-elle à portée et à vue si l'arme était chargée ?
   function hasPotentialShot(e){
     return units.some(p => p.team === "player" && p.hp > 0 && enemyCanSee(p)
-      && hexDistUnits(e, p) <= e.range && lineOfFire(e, p));
+      && Board.dist(e, p) <= e.range && lineOfFire(e, p));
   }
 
   // tient la position ; les unités à distance passent en vigilance (overwatch)
@@ -2131,7 +2145,7 @@
 
     // utilisation d'objet : on cercle les alliés soignables (soi-même ou un allié adjacent)
     if (usingItem){
-      for (const a of units) if (a.team === "player" && a.hp > 0 && (a === selected || hexDistUnits(selected, a) <= 1)){
+      for (const a of units) if (a.team === "player" && a.hp > 0 && (a === selected || Board.dist(selected, a) <= 1)){
         const p = tileCenter(a.col, a.row);
         ctx.lineWidth = 2.5; ctx.strokeStyle = "rgba(122,223,122,0.85)"; ctx.setLineDash([4,3]);
         ctx.beginPath(); ctx.arc(p.x, p.y, SIZE*0.8, 0, Math.PI*2); ctx.stroke(); ctx.setLineDash([]);
@@ -2169,7 +2183,7 @@
         } else {                                       // impossible : on montre pourquoi
           // tir bloqué par le décor : trajectoire + objet qui coupe la ligne
           const blk = (targeting.mode === "ranged" && selected.weapons.ranged && playerCanSee(aim)
-                       && hexDistUnits(selected, aim) <= selected.range) ? losBlocker(selected, aim) : null;
+                       && Board.dist(selected, aim) <= selected.range) ? losBlocker(selected, aim) : null;
           if (blk){
             ctx.lineWidth = 2; ctx.strokeStyle = "rgba(224,83,74,0.9)"; ctx.setLineDash([5,4]);
             ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke(); ctx.setLineDash([]);
@@ -2366,7 +2380,7 @@
   function cancelItem(){ if (usingItem){ usingItem = null; refreshAll(); } }
   function applyItem(target){
     const id = usingItem, it = ITEMS[id]; if (!it || !target || target.team !== "player" || target.hp <= 0) return;
-    if (target !== selected && hexDistUnits(selected, target) > 1){ flash("Potion : soi-même ou un allié adjacent"); return; }
+    if (target !== selected && Board.dist(selected, target) > 1){ flash("Potion : soi-même ou un allié adjacent"); return; }
     if (id === "potion"){
       if (target.hp >= target.maxHp){ flash(`${target.name} est déjà au max`); return; }   // pas de gâchis
       const heal = Math.min(it.heal, target.maxHp - target.hp);
@@ -2564,7 +2578,7 @@
     const m = selected, plan = attackPlan(enemy);
     if (!plan){
       const blocked = targeting && targeting.mode === "ranged" && m.weapons.ranged && playerCanSee(enemy)
-        && hexDistUnits(m, enemy) <= m.range && losBlocker(m, enemy);
+        && Board.dist(m, enemy) <= m.range && losBlocker(m, enemy);
       flash(blocked ? "Tir bloqué par un obstacle" : "Cible hors d'atteinte"); return false;
     }
     targeting = null;
@@ -3554,7 +3568,7 @@ Stiff: Enough. I've decided.`;
     addTrigger(t){ triggers.push(t); return triggers.length; },
     clearTriggers(){ triggers = []; },
     resetFired(){ firedTriggers = new Set(); },
-    say, emit,
+    say, emit, Board,
   };
 
   // ====================== CAMPAGNE : éditeur visuel + exécution ============

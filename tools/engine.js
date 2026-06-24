@@ -24,7 +24,7 @@ function loadEngine(htmlPath){
     shotChanceFrom, coverPenalty, apForMove, lineOfFire, hexDistUnits, moveCost,
     nearestOpposing, faceTowards, setMode, resolveThrow, checkEnd, neighbors,
     key, offsetToCube, cubeDist, tileAt, hasWall, wallKey,
-    fieldOfView, enemyActive, enemyCanSee, playerCanSee, CLASSES, triggerReactions, reactionMode,
+    fieldOfView, enemyActive, enemyCanSee, playerCanSee, CLASSES, triggerReactions, reactionMode, Board,
     get speeches(){return lastSpoken ? [lastSpoken] : []}, set triggers(v){triggers=v}, get triggers(){return triggers}, emit, say,
   };
   `;
