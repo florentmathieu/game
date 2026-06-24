@@ -31,6 +31,9 @@
   #camptext .opt{ display:block; margin:4px auto; min-width:240px }
   #camptext{ position:fixed; inset:0; background:#000; color:#d8cdb4; display:none; flex-direction:column; align-items:center; justify-content:center; gap:20px; z-index:10; padding:40px }
   #camptext.show{ display:flex } #camptext-body{ max-width:620px; font-size:1.15rem; line-height:1.7; white-space:pre-wrap; text-align:left }
+  #fiche{ position:fixed; pointer-events:none; display:none; z-index:11; background:rgba(10,8,5,.96); border:1px solid #5a4530; border-radius:8px; padding:7px 10px; font-size:.78rem; color:#e8ddc8; max-width:230px; box-shadow:0 6px 18px rgba(0,0,0,.5) }
+  #banner{ position:fixed; top:18px; left:50%; transform:translateX(-50%); z-index:11; display:none; padding:8px 18px; border-radius:8px; color:#fff; font-weight:bold; font-size:1.05rem; letter-spacing:1px; box-shadow:0 6px 18px rgba(0,0,0,.5) }
+  #banner.show{ display:block; animation:bn 1.6s ease forwards } @keyframes bn{ 0%{opacity:0} 15%{opacity:1} 80%{opacity:1} 100%{opacity:0} }
 </style>
 </head>
 <body>
@@ -92,6 +95,8 @@
   </div>
 </div>
 <div id="combatline"></div>
+<div id="fiche"></div>
+<div id="banner"></div>
 <div id="camptext"><div id="camptext-body"></div><button id="camptext-btn">Continuer ▶</button></div>
 <div id="over"><h2 id="overtxt"></h2><button id="overbtn">Rejouer</button></div>
 <script>
@@ -252,8 +257,8 @@
   function log(m,team){if(mode!=="play")return;const el=document.getElementById("log");const d=document.createElement("div");d.className=team==="player"?"pl":"en";d.textContent=m;el.prepend(d);}
   function setMsg(t){document.getElementById("msg").textContent=t;}
   function refresh(){ if(mode==="play"){computeVis();detectEnemies();detectNeutralPods();} else visible=new Set(cells.map(c=>c.id)); draw(); if(mode==="play")renderActs(); else { renderCounts(); saveDraft(); } }
-  function endTurn(){turn="enemy";sel=null;amode=null;for(const u of units)if(u.team==="enemy"){u.ap=AP_MAX;u.freeAvail=true;u.overwatch=false;u.reacted=false;}refresh();const foes=units.filter(u=>u.team==="enemy"&&u.hp>0);let i=0;
-    (function step(){if(over)return;if(i>=foes.length){for(const u of units)if(u.team==="player"){u.ap=AP_MAX;u.freeAvail=true;u.overwatch=false;u.reacted=false;}turn="player";turnNum++;setMsg("À toi.");refresh();emit("turn",{turn:turnNum});return;}
+  function endTurn(){turn="enemy";sel=null;amode=null;for(const u of units)if(u.team==="enemy"){u.ap=AP_MAX;u.freeAvail=true;u.overwatch=false;u.reacted=false;}banner("Tour ennemi","enemy");refresh();const foes=units.filter(u=>u.team==="enemy"&&u.hp>0);let i=0;
+    (function step(){if(over)return;if(i>=foes.length){for(const u of units)if(u.team==="player"){u.ap=AP_MAX;u.freeAvail=true;u.overwatch=false;u.reacted=false;}turn="player";turnNum++;setMsg("À toi.");banner("À votre tour","player");refresh();emit("turn",{turn:turnNum});return;}
       const e=foes[i++];if(e.hp<=0){step();return;} if(!enemyActive(e)){step();return;}   // pas alerté = ne bouge pas
       let tgt=null,best=1e9;for(const p of units)if(p.hp>0&&hostile(e,p)){const h=hops(e.cell,p.cell);if(h<best){best=h;tgt=p;}}
       if(!tgt){step();return;}
@@ -477,11 +482,30 @@
     for(const u of units){u.hp=u.max;u.ap=AP_MAX;u.freeAvail=true;u.overwatch=false;u.reacted=false;u.asleep=!!u._asleep0;if(u.clip!==undefined)u.ammo=u.clip;if(u.crackers!==undefined)u.crackers=CLASSES[u.cls].crackers;} turn="player";over=false;sel=null;amode=null;throwing=false;usingItem=false;inv={potion:2};
     fired=new Set(); podAlerted=new Set(); neutralSeen=new Set(); turnNum=1; speechQ=[]; if(speechT){clearTimeout(speechT);speechT=null;} document.getElementById("combatline").style.display="none";
     document.getElementById("over").classList.remove("show");document.getElementById("log").innerHTML="";setMsg("À toi — sélectionne une unité.");refresh();
-    emit("start",{}); emit("turn",{turn:1}); }
+    banner("À votre tour","player"); emit("start",{}); emit("turn",{turn:1}); }
   document.getElementById("end").onclick=()=>{if(!over&&turn==="player"&&mode==="play")endTurn();};
   document.getElementById("overbtn").onclick=()=>{ if(mode==="play")startGame(); };
   document.getElementById("mode").onclick=()=>{ mode=mode==="edit"?"play":"edit"; document.body.classList.toggle("play",mode==="play");
-    document.getElementById("mode").textContent=mode==="edit"?"▶ Jouer":"✎ Éditer"; if(mode==="play")startGame(); else{sel=null;refresh();} };
+    document.getElementById("mode").textContent=mode==="edit"?"▶ Jouer":"✎ Éditer"; if(mode==="play")startGame(); else{sel=null;campRun=null;refresh();} };
+
+  // ===== polish : bannière de tour, fiche au survol, raccourcis clavier =====
+  function banner(text,cls){ const el=document.getElementById("banner"); el.textContent=text; el.style.background=cls==="enemy"?"#5a2a2a":"#2a4a5a"; el.classList.remove("show"); void el.offsetWidth; el.classList.add("show"); }
+  const TERRN={plain:"sol",rough:"accidenté",wall:"mur",cover:"couvert"};
+  cv.addEventListener("mousemove",e=>{ const f=document.getElementById("fiche"); const r=cv.getBoundingClientRect(); const cell=cellAtXY(e.clientX-r.left,e.clientY-r.top);
+    if(!cell){f.style.display="none";return;} const u=uAt(cell.id); let h;
+    if(u&&(mode==="edit"||u.team==="player"||seen(u))){ const m=u.w.ranged?"ranged":"melee",w=u.w[m]; const wn=u.w.ranged?(u.clip!==undefined?"arbalète":"arc"):(u.flank?"dagues":(w.bare?"mains nues":"épée"));
+      h=`<b>${u.name}</b> · ${CLASSES[u.cls].name}<br>PV ${Math.max(0,u.hp)}/${u.max} · ${wn} (${w.aim}%) · portée ${w.range||1}`
+        +(u.shieldBlock?` · 🛡 ${u.shieldBlock}%`:"")+(u.parry?` · 🗡 parade ${u.parry}%`:"")+(u.flank?` · dos +${u.flank.back}/flanc +${u.flank.side}`:"")
+        +(u.crackers?` · 💣×${u.crackers}`:"")+(u.asleep?" · 💤":"")+(u.pod!==undefined?` · pod ${u.pod}`:"")+(u.overwatch?" · 👁":""); }
+    else h=`cellule · ${TERRN[cell.terr]}${cell.elev?` · hauteur ${cell.elev}`:""}`;
+    f.innerHTML=h; f.style.display="block"; f.style.left=(e.clientX+14)+"px"; f.style.top=(e.clientY+14)+"px"; });
+  cv.addEventListener("mouseleave",()=>{document.getElementById("fiche").style.display="none";});
+  function cycleSel(dir){ if(mode!=="play"||turn!=="player")return; const ps=units.filter(u=>u.team==="player"&&u.hp>0); if(!ps.length)return; let i=ps.indexOf(sel); i=(i<0?0:(i+dir+ps.length)%ps.length); sel=ps[i]; amode=null;throwing=false;usingItem=false; refresh(); }
+  window.addEventListener("keydown",e=>{ if(mode!=="play"||document.getElementById("camptext").classList.contains("show"))return;
+    if(e.key==="Tab"){e.preventDefault();cycleSel(e.shiftKey?-1:1);}
+    else if(e.key==="Escape"){amode=null;throwing=false;usingItem=false;setMsg("");refresh();}
+    else if(e.key===" "||e.key==="Enter"){e.preventDefault();if(!over&&turn==="player")endTurn();}
+    else if(/^[1-9]$/.test(e.key)){const bs=document.querySelectorAll("#acts button");const b=bs[+e.key-1];if(b)b.click();} });
 
   // ===== démarrage : brouillon mémorisé, sinon une forme + un roster par défaut =====
   function defaultBoard(){ genMesh();
