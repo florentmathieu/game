@@ -630,11 +630,13 @@
     else if(n.type==="mission") h+=`<div class="row">mission <select data-f="mission">${missOpts(n.mission)}</select></div><div class="row">📄 intro <select data-f="introFile">${txtOpts(n.introFile)}</select></div><input data-f="intro" type="text" placeholder="…ou intro saisie" value="${esc(n.intro)}"><div class="row">📄 fin <select data-f="outroFile">${txtOpts(n.outroFile)}</select></div><input data-f="outro" type="text" placeholder="…ou fin saisie" value="${esc(n.outro)}"><div class="row">✓ vict. → <select data-f="win">${idOpts(n.win,true)}</select></div><div class="row">✕ déf. → <select data-f="lose">${idOpts(n.lose,true)}</select></div>`;
     else if(n.type==="choice") h+=`<input data-f="title" type="text" placeholder="titre du choix…" value="${esc(n.title)}"><div id="cdopts" style="margin:6px 0"></div><button data-addopt="1">+ option</button>`;
     h+=`<div class="row" style="margin-top:11px"><button data-setstart="1" ${n.id===campStart?"disabled":""}>★ Départ</button><button data-del="1">🗑 Supprimer</button></div>`;
+    h+=`<div class="row"><button data-testhere="1">▶ Tester d'ici</button></div>`;
     el.innerHTML=h;
     if(n.type==="choice"){ const od=el.querySelector("#cdopts"); (n.options||[]).forEach((opt,oi)=>{ const r=document.createElement("div"); r.className="opt-row"; r.innerHTML=`→ <select data-optsel="${oi}" style="flex:1">${idOpts(opt,false)}</select><button data-optdel="${oi}">✕</button>`; od.appendChild(r); }); }
     el.querySelectorAll("input[data-f],select[data-f]").forEach(inp=>{const set=()=>{const f=inp.dataset.f;n[f]=(inp.value===""&&(f==="next"||f==="win"||f==="lose"))?null:inp.value;saveCampDraft();drawGraph();};inp.tagName==="SELECT"?inp.onchange=set:inp.oninput=set;});
     el.querySelector("[data-del]").onclick=()=>{campNodes=campNodes.filter(x=>x.id!==n.id);if(campStart===n.id)campStart=campNodes[0]?campNodes[0].id:"";campSel=campNodes[0]?campNodes[0].id:null;renderNodes();};
     el.querySelector("[data-setstart]").onclick=()=>{campStart=n.id;renderNodes();};
+    el.querySelector("[data-testhere]").onclick=()=>{ if(!campNodes.length)return; startCampaign({name:cname.value,start:campStart,nodes:campNodes},"campaign",n.id); };
     const ao=el.querySelector("[data-addopt]"); if(ao)ao.onclick=()=>{n.options=n.options||[];n.options.push(campNodes[0]?campNodes[0].id:"");renderDetail();drawGraph();saveCampDraft();};
     el.querySelectorAll("[data-optsel]").forEach(s=>s.onchange=()=>{n.options[+s.dataset.optsel]=s.value;drawGraph();saveCampDraft();});
     el.querySelectorAll("[data-optdel]").forEach(b=>b.onclick=()=>{n.options.splice(+b.dataset.optdel,1);renderDetail();drawGraph();saveCampDraft();}); }
@@ -711,7 +713,7 @@
   function setView(v){ document.body.classList.remove("view-mission","view-campaign","view-play"); document.body.classList.add("view-"+v); mode=(v==="play")?"play":"edit";
     const cur={mission:"nav-m",campaign:"nav-c",play:"nav-p"}[v]; ["nav-m","nav-c","nav-p"].forEach(id=>{const a=document.getElementById(id);if(a)a.classList.toggle("cur",id===cur);});
     if(v==="campaign"){ const cg2=document.getElementById("cgraph"); if(cg2&&cg2.getBoundingClientRect){ const w=Math.round(cg2.getBoundingClientRect().width)||880,h=Math.round(cg2.getBoundingClientRect().height)||340; if(w>1){cg2.width=w;cg2.height=h;} if(typeof drawGraph==="function")drawGraph(); } } }
-  function startCampaign(camp,from){ campRun={camp,carry:{},nodeId:null,from:from||"campaign"}; document.body.classList.remove("testing"); setView("play"); runNode(camp.start); }
+  function startCampaign(camp,from,fromNode){ campRun={camp,carry:{},nodeId:null,from:from||"campaign"}; document.body.classList.remove("testing"); setView("play"); runNode(fromNode||camp.start); }
   async function startPlay(){ let camp=loadCampDraft();
     if(!camp){ const t=await fetchText("campaigns-mesh/principale.json",ghCfg()); if(t){try{camp=JSON.parse(t);}catch(e){}} }
     if(camp&&Array.isArray(camp.nodes)&&camp.nodes.length){ startCampaign({name:camp.name||"",start:camp.start||(camp.nodes[0]&&camp.nodes[0].id),nodes:camp.nodes},"play"); }
