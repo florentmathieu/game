@@ -34,6 +34,11 @@
   #fiche{ position:fixed; pointer-events:none; display:none; z-index:11; background:rgba(10,8,5,.96); border:1px solid #5a4530; border-radius:8px; padding:7px 10px; font-size:.78rem; color:#e8ddc8; max-width:230px; box-shadow:0 6px 18px rgba(0,0,0,.5) }
   #banner{ position:fixed; top:18px; left:50%; transform:translateX(-50%); z-index:11; display:none; padding:8px 18px; border-radius:8px; color:#fff; font-weight:bold; font-size:1.05rem; letter-spacing:1px; box-shadow:0 6px 18px rgba(0,0,0,.5) }
   #banner.show{ display:block; animation:bn 1.6s ease forwards } @keyframes bn{ 0%{opacity:0} 15%{opacity:1} 80%{opacity:1} 100%{opacity:0} }
+  #title{ position:fixed; inset:0; background:radial-gradient(circle at 50% 35%,#1a140c,#000); color:#e8ddc8; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:14px; z-index:20; text-align:center; padding:30px }
+  #title h1{ font-size:3rem; letter-spacing:10px; color:var(--acc); margin:0; text-shadow:0 0 24px rgba(202,162,74,.4) }
+  #title-sub{ font-size:1.1rem; color:#d8cdb4 } #title-hint{ font-size:.85rem; color:#9a8a74; max-width:440px }
+  #title-btn{ margin-top:10px; font-size:1.05rem; padding:9px 20px }
+  #cgraph{ width:100%; height:170px; background:#0b0906; border:1px solid #3a2c1c; border-radius:6px; margin-top:4px; cursor:grab }
 </style>
 </head>
 <body>
@@ -80,6 +85,7 @@
     <div class="row"><button id="cadd-text">+ Texte</button><button id="cadd-mission">+ Mission</button><button id="cadd-choice">+ Choix</button></div>
     <div class="row"><label>Départ <select id="cstart"></select></label></div>
     <div id="cnodes" class="hint"></div>
+    <canvas id="cgraph" width="276" height="170"></canvas>
     <select id="cmsel" style="display:none"></select>
     <div class="row"><button id="csave">💾 Campagne</button><select id="cloadsel" style="flex:1"></select><button id="cload">📂</button><button id="cplay">▶ Jouer</button></div>
     <div class="hint" id="cstatus"></div>
@@ -97,6 +103,7 @@
 <div id="combatline"></div>
 <div id="fiche"></div>
 <div id="banner"></div>
+<div id="title"><h1>MALAZAN</h1><div id="title-sub">Tactique sur terrain mixte — hexagones, carrés &amp; pentagones</div><div id="title-hint">Édite un terrain (zones d'influence + distorsion), pose tes soldats, et joue.</div><button id="title-btn">Entrer ▶</button></div>
 <div id="camptext"><div id="camptext-body"></div><button id="camptext-btn">Continuer ▶</button></div>
 <div id="over"><h2 id="overtxt"></h2><button id="overbtn">Rejouer</button></div>
 <script>
@@ -228,9 +235,15 @@
 
   // ===== vigilance (overwatch) + déplacement avec réactions =====
   function reactTo(mover){ for(const o of units){ if(o.hp>0&&o.team!==mover.team&&hostile(o,mover)&&o.overwatch&&!o.reacted&&inRange(o,mover,o.owMode||o.wtype)){ o.reacted=true; doAttack(o,mover,o.owMode||o.wtype,true); if(mover.hp<=0)return true; } } return false; }
+  let anim=null;
   function moveAlong(u,dest){ const cost=reach(u)[dest]; if(cost===undefined)return; const path=pathTo(u,dest); if(!path)return;
-    u.ap-=apForMove(u,cost); if(u.ap<0)u.ap=0; u.freeAvail=false;
-    for(let k=1;k<path.length;k++){ u.facing=ang(u.cell,path[k]); u.cell=path[k]; if(reactTo(u))return; if(over)return; } }
+    u.ap-=apForMove(u,cost); if(u.ap<0)u.ap=0; u.freeAvail=false; const visited=[u.cell];
+    for(let k=1;k<path.length;k++){ u.facing=ang(u.cell,path[k]); u.cell=path[k]; visited.push(path[k]); if(reactTo(u)){startAnim(u,visited);return;} if(over){startAnim(u,visited);return;} }
+    startAnim(u,visited); }
+  function startAnim(u,ids){ if(typeof requestAnimationFrame==="undefined"||typeof performance==="undefined"||ids.length<2)return;
+    anim={u,pts:ids.map(id=>cells[id]?[cells[id].cx,cells[id].cy]:[0,0]),t0:performance.now(),dur:130*(ids.length-1),t:0};
+    (function loop(now){ if(!anim)return; anim.t=Math.min(1,(now-anim.t0)/anim.dur); draw(); if(anim.t<1)requestAnimationFrame(loop); else {anim=null;draw();} })(performance.now()); }
+  function animPos(){ const n=anim.pts.length-1,seg=Math.min(n-1e-9,anim.t*n),i=Math.floor(seg),f=seg-i,a=anim.pts[i],b=anim.pts[i+1]; return [a[0]+(b[0]-a[0])*f,a[1]+(b[1]-a[1])*f]; }
   function doOverwatch(m){ if(!sel||sel.ap<=0||!sel.w[m])return; sel.overwatch=true; sel.owMode=m; sel.ap=0; sel.freeAvail=false; sel.reacted=false; amode=null; setMsg("En vigilance — réagira au mouvement ennemi."); refresh(); }
   // ===== cracker (aire) =====
   let throwing=false, usingItem=false, inv={potion:2};
@@ -307,7 +320,7 @@
       ctx.lineWidth=1;ctx.strokeStyle="#0c0a07";ctx.stroke();}
     if(showZones){ctx.strokeStyle="rgba(202,162,74,.3)";for(let c=1;c<COLS;c++){ctx.beginPath();ctx.moveTo(c*MC,0);ctx.lineTo(c*MC,H);ctx.stroke();}for(let r=1;r<ROWS;r++){ctx.beginPath();ctx.moveTo(0,r*MC);ctx.lineTo(W,r*MC);ctx.stroke();}}
     const ucol=u=>u.team==="player"?"#5fb0d8":u.team==="neutral"?(u.hostage?"#c98fd0":"#e0b84a"):"#d8635f";
-    for(const u of units){const c=cells[u.cell];if(!c)continue;const x=c.cx,y=c.cy;
+    for(const u of units){const c=cells[u.cell];if(!c)continue;let x=c.cx,y=c.cy;if(anim&&anim.u===u&&u.hp>0){const p=animPos();x=p[0];y=p[1];}
       if(mode==="play"&&u.team!=="player"&&u.hp>0&&!seen(u))continue;
       if(u.hp<=0){ctx.globalAlpha=.5;ctx.strokeStyle=u.team==="player"?"#86bce6":"#d88a8a";ctx.lineWidth=3;ctx.beginPath();ctx.moveTo(x-6,y-6);ctx.lineTo(x+6,y+6);ctx.moveTo(x+6,y-6);ctx.lineTo(x-6,y+6);ctx.stroke();ctx.globalAlpha=1;continue;}
       ctx.beginPath();ctx.moveTo(x+Math.cos(u.facing)*7,y+Math.sin(u.facing)*7);ctx.lineTo(x+Math.cos(u.facing)*15,y+Math.sin(u.facing)*15);ctx.lineWidth=3;ctx.strokeStyle=u.team==="player"?"#bfe6ff":u.team==="neutral"?"#f0d89a":"#f0b0ac";ctx.stroke();
@@ -429,7 +442,18 @@
     el.querySelectorAll("input[data-f],select[data-f]").forEach(inp=>{const set=()=>{const n=campNode(inp.dataset.id);if(!n)return;const f=inp.dataset.f;n[f]=(inp.value===""&&(f==="next"||f==="win"||f==="lose"))?null:inp.value;};inp.tagName==="SELECT"?inp.onchange=set:inp.oninput=set;});
     el.querySelectorAll("[data-addopt]").forEach(b=>b.onclick=()=>{const n=campNode(b.dataset.addopt);n.options=n.options||[];n.options.push(campNodes[0]?campNodes[0].id:"");renderNodes();});
     el.querySelectorAll("[data-optsel]").forEach(s=>s.onchange=()=>{const n=campNode(s.dataset.optsel);n.options[+s.dataset.oi]=s.value;});
-    el.querySelectorAll("[data-optdel]").forEach(b=>b.onclick=()=>{const n=campNode(b.dataset.optdel);n.options.splice(+b.dataset.oi,1);renderNodes();}); }
+    el.querySelectorAll("[data-optdel]").forEach(b=>b.onclick=()=>{const n=campNode(b.dataset.optdel);n.options.splice(+b.dataset.oi,1);renderNodes();}); drawGraph(); }
+  // graphe visuel de la campagne (nœuds déplaçables, liens colorés)
+  const cg=document.getElementById("cgraph"),cgx=cg?cg.getContext("2d"):null; let cgDrag=null,cgOff=[0,0];
+  function drawGraph(){ if(!cgx)return; campNodes.forEach((n,i)=>{ if(n.x==null){n.x=14+(i%3)*88;n.y=14+Math.floor(i/3)*46;} });
+    cgx.clearRect(0,0,cg.width,cg.height); const pos=id=>{const n=campNode(id);return n?[n.x+34,n.y+12]:null;};
+    const link=(a,b,col)=>{if(!a||!b)return;cgx.strokeStyle=col;cgx.lineWidth=1.5;cgx.beginPath();cgx.moveTo(a[0],a[1]);cgx.lineTo(b[0],b[1]);cgx.stroke();};
+    campNodes.forEach(n=>{const a=pos(n.id);if(n.type==="text"&&n.next)link(a,pos(n.next),"#6aa0d0");if(n.type==="mission"){if(n.win)link(a,pos(n.win),"#6fd06f");if(n.lose)link(a,pos(n.lose),"#e0635f");}if(n.type==="choice")(n.options||[]).forEach(o=>link(a,pos(o),"#caa24a"));});
+    campNodes.forEach(n=>{cgx.fillStyle=n.type==="mission"?"#7a4a4a":n.type==="choice"?"#7a6a30":"#3a5a6a";cgx.strokeStyle=n.id===campStart?"#fff":"#0c0a07";cgx.lineWidth=n.id===campStart?2:1;cgx.fillRect(n.x,n.y,68,24);cgx.strokeRect(n.x,n.y,68,24);
+      cgx.fillStyle="#e8ddc8";cgx.font="9px sans-serif";cgx.textAlign="center";cgx.textBaseline="middle";cgx.fillText((n.type==="mission"?"🗺":n.type==="choice"?"🔀":"📝")+String(n.mission||n.title||n.text||"").slice(0,7),n.x+34,n.y+12);}); }
+  if(cg){ cg.addEventListener("pointerdown",e=>{const r=cg.getBoundingClientRect();const mx=e.clientX-r.left,my=e.clientY-r.top;cgDrag=campNodes.find(n=>mx>=n.x&&mx<=n.x+68&&my>=n.y&&my<=n.y+24);if(cgDrag)cgOff=[mx-cgDrag.x,my-cgDrag.y];});
+    cg.addEventListener("pointermove",e=>{if(!cgDrag)return;const r=cg.getBoundingClientRect();cgDrag.x=Math.max(0,Math.min(cg.width-68,e.clientX-r.left-cgOff[0]));cgDrag.y=Math.max(0,Math.min(cg.height-24,e.clientY-r.top-cgOff[1]));drawGraph();});
+    window.addEventListener("pointerup",()=>{cgDrag=null;}); }
   { const cs=document.getElementById("cstart"); if(cs)cs.onchange=e=>{campStart=e.target.value;}; }
   document.getElementById("cadd-text").onclick=()=>{const n={id:newId(),type:"text",text:"",next:null};campNodes.push(n);if(!campStart)campStart=n.id;renderNodes();};
   document.getElementById("cadd-mission").onclick=()=>{const n={id:newId(),type:"mission",mission:(repoMissionList[0]?repoMissionList[0].file:""),intro:"",outro:"",win:null,lose:null};campNodes.push(n);if(!campStart)campStart=n.id;renderNodes();};
@@ -521,6 +545,7 @@
     else defaultBoard();
     refresh();
   }
+  { const tb=document.getElementById("title-btn"); if(tb)tb.onclick=()=>{const t=document.getElementById("title");if(t)t.style.display="none";}; }
   init();
 })();
 </script>
