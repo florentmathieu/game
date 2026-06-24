@@ -3934,7 +3934,7 @@ Stiff: Enough. I've decided.`;
     const msg = "<b>" + escHTML(title) + "</b>" + (node.desc ? "<br><span style=\"font-size:.85em;color:#cdbfa2\">" + escHTML(node.desc).replace(/\n/g, "<br>") + "</span>" : "");
     showCampCont(msg, "▶ S'engager", () => { campChoosing = null; setupCanvas(); runCampNode(node.id); }, () => { draw(); });
   }
-  async function runCampNode(id){
+  async function runCampNode(id, skipIntro){
     hideCampCont();
     const n = campNodeById(id);
     if (!n){ endCampaign(true); return; }
@@ -3945,8 +3945,9 @@ Stiff: Enough. I've decided.`;
     campRun.nodeId = n.id; campEnded = false;
     const m = await loadMissionFromUrl(n.mission && n.mission.includes("/") ? n.mission : "missions/" + n.mission);
     if (!m){ alert("Mission introuvable : " + n.mission); endCampaign(false); return; }
-    startMission(m, !!n.intro);                    // banderole « À votre tour » différée s'il y a une intro
-    if (n.intro){                                  // texte joué sous la carte avant de rendre la main
+    const playIntro = !!n.intro && !skipIntro;      // on saute le texte d'intro quand on rejoue après une défaite
+    startMission(m, playIntro);                     // banderole « À votre tour » différée s'il y a une intro
+    if (playIntro){                                 // texte joué sous la carte avant de rendre la main
       introActive = true; skipReq = false;
       if (panelEl) panelEl.style.display = "none";
       await runSceneFile(n.intro);
@@ -3973,7 +3974,7 @@ Stiff: Enough. I've decided.`;
       else showCampCont("Campagne terminée — victoire !" + loot, "Retour au menu", () => endCampaign(true));
     } else {
       if (nextId) showCampCont("Mission échouée…", "Continuer ▶", () => runCampNode(nextId));
-      else showCampCont("Mission échouée…", "↻ Réessayer", () => runCampNode(campRun.nodeId));
+      else showCampCont("Mission échouée…", "↻ Réessayer", () => runCampNode(campRun.nodeId, true));
     }
   }
   function startCampaign(camp, fromId){
