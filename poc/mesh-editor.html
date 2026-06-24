@@ -1,0 +1,170 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Éditeur de maillage — zones d'influence + distorsion</title>
+<style>
+  :root{ --bg:#0e0b07; --pan:#15110c; --acc:#caa24a; --ink:#e8ddc8; }
+  *{ box-sizing:border-box }
+  body{ margin:0; background:var(--bg); color:var(--ink); font-family:system-ui,Segoe UI,Roboto,sans-serif;
+        display:flex; gap:14px; padding:16px; align-items:flex-start; flex-wrap:wrap }
+  #board{ background:#0b0906; border:1px solid #3a2c1c; border-radius:8px; cursor:crosshair; touch-action:none }
+  .panel{ width:300px; background:var(--pan); border:1px solid #3a2c1c; border-radius:10px; padding:14px; font-size:.88rem; line-height:1.5 }
+  h1{ font-size:1.02rem; color:var(--acc); margin:0 0 6px } h2{ font-size:.78rem; color:var(--acc); margin:14px 0 4px; text-transform:uppercase; letter-spacing:1px }
+  .row{ display:flex; align-items:center; gap:8px; margin:6px 0 } input[type=range]{ flex:1 }
+  button{ background:#1c150e; color:var(--ink); border:1px solid #5a4530; border-radius:6px; padding:6px 10px; cursor:pointer; font-size:.85rem }
+  button:hover{ background:#241a12 } button.on{ background:#5a4a20; border-color:#caa24a }
+  .brush{ display:flex; gap:6px; flex-wrap:wrap; margin:4px 0 }
+  .leg{ display:flex; align-items:center; gap:7px; margin:3px 0; font-size:.8rem } .sw{ width:15px; height:15px; border-radius:3px; border:1px solid #00000066 }
+  .hint{ color:#9a8a74; font-size:.76rem; margin-top:6px } code{ background:#241a12; padding:0 4px; border-radius:4px; color:#ffd479 }
+</style>
+</head>
+<body>
+<canvas id="board" width="700" height="520"></canvas>
+<div class="panel">
+  <h1>Éditeur de maillage</h1>
+  <div class="hint">Peins des <b>zones d'influence</b> ; le maillage est généré par <b>Voronoï</b> selon le type
+  de chaque zone. La <b>distorsion</b> dérègle les germes (plus de pentagones / formes irrégulières).</div>
+
+  <h2>Pinceau (type de zone)</h2>
+  <div class="brush" id="brush"></div>
+  <div class="hint">Clique/glisse sur la carte pour peindre. <code>Mixte</code> = mélange des trois.</div>
+
+  <h2>Maillage</h2>
+  <div class="row"><label style="flex:1">Distorsion <input id="dist" type="range" min="0" max="100" value="25"></label><span id="distv">25%</span></div>
+  <div class="row"><label style="flex:1">Densité <input id="dens" type="range" min="22" max="60" value="38"></label><span id="densv">38</span></div>
+  <div class="row">
+    <button id="regen">↻ Re-germer</button>
+    <label><input id="showz" type="checkbox" checked> zones</label>
+    <label><input id="shows" type="checkbox"> germes</label>
+  </div>
+
+  <h2>Cellules générées</h2>
+  <div class="leg"><span class="sw" style="background:#ffe1b0"></span> carré (4 côtés) — <span id="n4">0</span></div>
+  <div class="leg"><span class="sw" style="background:#e9c6ee"></span> pentagone (5) — <span id="n5">0</span></div>
+  <div class="leg"><span class="sw" style="background:#cfe8ff"></span> hexagone (6) — <span id="n6">0</span></div>
+  <div class="leg"><span class="sw" style="background:#9a8a74"></span> autre (3 / 7+) — <span id="nx">0</span></div>
+  <div class="hint" id="tot"></div>
+</div>
+<script>
+(function(){
+  const cv=document.getElementById("board"), ctx=cv.getContext("2d");
+  const W=cv.width, H=cv.height;
+  const MC=70;                                   // taille d'une macro-cellule d'influence
+  const COLS=Math.ceil(W/MC), ROWS=Math.ceil(H/MC);
+  const TYPES=["square","hex","pentagon","mix"];
+  const LABEL={square:"⬛ Carrés",hex:"⬡ Hexagones",pentagon:"⬠ Pentagones",mix:"🔀 Mixte"};
+  const ZCOL={square:"rgba(255,225,176,0.16)",hex:"rgba(207,232,255,0.16)",pentagon:"rgba(233,198,238,0.16)",mix:"rgba(255,255,255,0.10)"};
+
+  // influence : un type par macro-cellule
+  let infl=Array.from({length:ROWS},()=>Array(COLS).fill("square"));
+  // exemple de départ : 3 bandes + un coin mixte
+  for(let r=0;r<ROWS;r++)for(let c=0;c<COLS;c++){ infl[r][c]= c<COLS/3?"square": c<2*COLS/3?"pentagon":"hex"; }
+  for(let r=0;r<2;r++)for(let c=COLS-3;c<COLS;c++) infl[r][c]="mix";
+
+  let brush="square", seed=1234, cells=[];
+  // RNG déterministe
+  function mk(s){ return ()=>{ s|=0; s=s+0x6D2B79F5|0; let t=Math.imul(s^s>>>15,1|s); t=t+Math.imul(t^t>>>7,61|t)^t; return ((t^t>>>14)>>>0)/4294967296; }; }
+
+  // ---- germes selon l'influence + distorsion ----------------------------
+  function buildSeeds(){
+    const rnd=mk(seed), g=+document.getElementById("dens").value, dist=+document.getElementById("dist").value/100;
+    const typeAt=(x,y)=>{ const c=Math.min(COLS-1,Math.floor(x/MC)), r=Math.min(ROWS-1,Math.floor(y/MC)); return infl[r][c]; };
+    const seeds=[];
+    const jit=(amp)=>(rnd()*2-1)*amp;
+    // on parcourt une trame fine ; l'arrangement local dépend du type de zone
+    const h=g*0.866;
+    for(let j=-1;j*h<H+g;j++){
+      for(let i=-1;i*g<W+g;i++){
+        // position de base (réseau carré) ; on calcule le type au point
+        let x=i*g, y=j*g, t0=typeAt(Math.max(0,Math.min(W-1,x)),Math.max(0,Math.min(H-1,y)));
+        let type=t0; if(type==="mix") type=TYPES[Math.floor(rnd()*3)];   // mixte : choix aléatoire des 3
+        let amp=dist*g*0.42;                                            // jitter global (distorsion)
+        if(type==="square"){ /* réseau carré */ }
+        else if(type==="hex"){ x=i*g+(j&1?g/2:0); y=j*h; }             // réseau triangulaire -> Voronoï hexagonal
+        else if(type==="pentagon"){ x=i*g+(j&1?g/2:0); amp+=g*0.30; }  // décalé + bruit intrinsèque -> pentagones
+        x+=jit(amp); y+=jit(amp);
+        if(x>-g*0.5&&x<W+g*0.5&&y>-g*0.5&&y<H+g*0.5) seeds.push([x,y,t0]);
+      }
+    }
+    return seeds;
+  }
+
+  // ---- Voronoï par découpe de demi-plans (clip de la boîte) -------------
+  function clipHalf(poly,p,q){
+    const mx=(p[0]+q[0])/2,my=(p[1]+q[1])/2,nx=p[0]-q[0],ny=p[1]-q[1];   // normale vers p
+    const ins=v=>(v[0]-mx)*nx+(v[1]-my)*ny>=0, out=[];
+    for(let i=0;i<poly.length;i++){ const a=poly[i],b=poly[(i+1)%poly.length],ia=ins(a),ib=ins(b);
+      if(ia)out.push(a);
+      if(ia!==ib){ const den=(b[0]-a[0])*nx+(b[1]-a[1])*ny; if(den!==0){ const t=((mx-a[0])*nx+(my-a[1])*ny)/den;
+        out.push([a[0]+t*(b[0]-a[0]),a[1]+t*(b[1]-a[1])]); } } }
+    return out;
+  }
+  function voronoi(seeds){
+    const R=(+document.getElementById("dens").value)*2.8;              // voisins candidats (suffit pour Voronoï)
+    const box=[[0,0],[W,0],[W,H],[0,H]]; const out=[];
+    for(let i=0;i<seeds.length;i++){ const p=seeds[i]; let poly=box;
+      for(let k=0;k<seeds.length;k++){ if(k===i)continue; const q=seeds[k];
+        if(Math.abs(q[0]-p[0])>R||Math.abs(q[1]-p[1])>R)continue;
+        poly=clipHalf(poly,p,q); if(poly.length<3)break; }
+      if(poly.length>=3){
+        // dédoublonne les sommets quasi-confondus
+        const cl=[]; for(let v=0;v<poly.length;v++){ const a=poly[v],b=cl[cl.length-1]; if(!b||Math.hypot(a[0]-b[0],a[1]-b[1])>0.8)cl.push(a); }
+        if(cl.length>=2&&Math.hypot(cl[0][0]-cl[cl.length-1][0],cl[0][1]-cl[cl.length-1][1])<0.8)cl.pop();
+        if(cl.length>=3){ let sx=0,sy=0;for(const v of cl){sx+=v[0];sy+=v[1];} out.push({poly:cl,cx:sx/cl.length,cy:sy/cl.length,type:p[2],sides:cl.length}); }
+      }
+    }
+    return out;
+  }
+
+  function regen(){ cells=voronoi(buildSeeds()); count(); draw(); }
+  function count(){
+    let n4=0,n5=0,n6=0,nx=0; for(const c of cells){ if(c.sides===4)n4++;else if(c.sides===5)n5++;else if(c.sides===6)n6++;else nx++; }
+    document.getElementById("n4").textContent=n4; document.getElementById("n5").textContent=n5;
+    document.getElementById("n6").textContent=n6; document.getElementById("nx").textContent=nx;
+    document.getElementById("tot").textContent=cells.length+" cellules au total.";
+  }
+
+  const fillFor=s=>s===4?"#ffe1b0":s===5?"#e9c6ee":s===6?"#cfe8ff":"#9a8a74";
+  function draw(){
+    ctx.clearRect(0,0,W,H);
+    // zones d'influence (fond)
+    if(document.getElementById("showz").checked){
+      for(let r=0;r<ROWS;r++)for(let c=0;c<COLS;c++){ ctx.fillStyle=ZCOL[infl[r][c]]; ctx.fillRect(c*MC,r*MC,MC,MC); }
+    }
+    // cellules du maillage
+    for(const cell of cells){ ctx.beginPath(); cell.poly.forEach((p,i)=>i?ctx.lineTo(p[0],p[1]):ctx.moveTo(p[0],p[1])); ctx.closePath();
+      ctx.fillStyle=fillFor(cell.sides); ctx.globalAlpha=.9; ctx.fill(); ctx.globalAlpha=1;
+      ctx.lineWidth=1; ctx.strokeStyle="#0c0a07"; ctx.stroke(); }
+    if(document.getElementById("shows").checked){ ctx.fillStyle="#ff5a4a"; for(const c of cells){ ctx.beginPath(); ctx.arc(c.cx,c.cy,1.6,0,7); ctx.fill(); } }
+    // grille d'influence (édition)
+    if(document.getElementById("showz").checked){ ctx.strokeStyle="rgba(202,162,74,.35)"; ctx.lineWidth=1;
+      for(let c=1;c<COLS;c++){ctx.beginPath();ctx.moveTo(c*MC,0);ctx.lineTo(c*MC,H);ctx.stroke();}
+      for(let r=1;r<ROWS;r++){ctx.beginPath();ctx.moveTo(0,r*MC);ctx.lineTo(W,r*MC);ctx.stroke();} }
+  }
+
+  // ---- pinceau d'influence ----
+  const bdiv=document.getElementById("brush");
+  TYPES.forEach(t=>{ const b=document.createElement("button"); b.textContent=LABEL[t]; b.className=t===brush?"on":"";
+    b.onclick=()=>{ brush=t; [...bdiv.children].forEach(x=>x.classList.toggle("on",x===b)); }; bdiv.appendChild(b); });
+  let painting=false;
+  function paint(e){ const r=cv.getBoundingClientRect(); const c=Math.floor((e.clientX-r.left)/MC), rr=Math.floor((e.clientY-r.top)/MC);
+    if(c<0||c>=COLS||rr<0||rr>=ROWS)return; if(infl[rr][c]!==brush){ infl[rr][c]=brush; regen(); } }
+  cv.addEventListener("pointerdown",e=>{painting=true;paint(e);});
+  cv.addEventListener("pointermove",e=>{if(painting)paint(e);});
+  window.addEventListener("pointerup",()=>painting=false);
+
+  // ---- contrôles ----
+  const dist=document.getElementById("dist"), dens=document.getElementById("dens");
+  dist.addEventListener("input",()=>{document.getElementById("distv").textContent=dist.value+"%";regen();});
+  dens.addEventListener("input",()=>{document.getElementById("densv").textContent=dens.value;regen();});
+  document.getElementById("regen").addEventListener("click",()=>{ seed=(seed*1103515245+12345)&0x7fffffff; regen(); });
+  document.getElementById("showz").addEventListener("change",draw);
+  document.getElementById("shows").addEventListener("change",draw);
+
+  regen();
+})();
+</script>
+</body>
+</html>
