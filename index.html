@@ -4025,11 +4025,9 @@ Stiff: Enough. I've decided.`;
   function endCampaign(){
     campRun = null; campEnded = false; campChoosing = null; hideCampCont();
     setupCanvas();
-    introActive = false;
-    if (introEl) introEl.style.display = "none";   // retire l'écran noir éventuellement laissé par un texte final
-    if (panelEl) panelEl.style.display = "";
     generate(); placeUnits();
     selectUnit(units.find(u => u.team === "player")); renderLog(); refreshAll();
+    mainMenu();   // fin de campagne : retour à l'écran d'accueil « new game »
   }
 
   function enterCampEditor(){
