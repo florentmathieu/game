@@ -1242,23 +1242,21 @@
    "match": {
     "first": true,
     "enemiesHit": 2,
-    "pod": 1
-   },
-   "say": [
-    "Stiff",
-    "They're here!"
-   ]
-  },
-  {
-   "on": "spotted",
-   "match": {
-    "first": true,
-    "enemiesHit": 2,
     "pod": 0
    },
    "say": [
     "Merry",
     "How many of them are there?"
+   ]
+  },
+  {
+   "on": "spotted",
+   "match": {
+    "pod": 2
+   },
+   "say": [
+    "Stiff",
+    "The'yre here!"
    ]
   }
  ]
