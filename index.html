@@ -58,7 +58,11 @@
     color:#e8ddc8; font-family:Georgia,"Times New Roman",serif; font-size:1rem; line-height:1.5;
     box-shadow:0 6px 24px rgba(0,0,0,.55); opacity:0; transition:opacity .25s}
   #combatline.show{opacity:1}
+  #combatline{cursor:pointer}
   .sp-who{color:#ffd479; font-weight:bold; margin-right:8px}
+  .sp-skip{float:right; margin-left:14px; color:#caa24a; font-weight:bold; letter-spacing:1px;
+    border:1px solid #5a4530; border-radius:6px; padding:0 8px; background:#15110c}
+  #combatline:hover .sp-skip{color:#ffd479; background:#241a12}
   #scenebtn{display:block; margin:10px 0 0 auto; background:#15110c; color:#d8cdb4; border:1px solid #5a4530;
     border-radius:6px; padding:6px 18px; letter-spacing:3px; cursor:pointer; min-width:90px}
   #scenebtn:hover{background:#241a12}
@@ -1413,10 +1417,16 @@
     if (!speechQueue.length){ if (el && el.style){ el.classList && el.classList.remove("show"); el.style.display = "none"; } speechTimer = null; return; }
     const s = speechQueue.shift();
     if (el && el.style){
-      el.innerHTML = `<span class="sp-who">${s.who}</span>${s.text}`;
+      el.innerHTML = `<span class="sp-skip" title="Passer">…</span><span class="sp-who">${s.who}</span>${s.text}`;
       el.style.display = "block"; if (el.classList){ el.classList.remove("show"); void el.offsetWidth; el.classList.add("show"); }
     }
     speechTimer = (typeof setTimeout === "function") ? setTimeout(showNextSpeech, SPEECH_DUR) : null;
+  }
+  // passer la réplique courante : montre la suivante, ou referme l'encart s'il n'y en a plus
+  function advanceSpeech(){
+    if (speechTimer && typeof clearTimeout === "function") clearTimeout(speechTimer);
+    speechTimer = null;
+    showNextSpeech();
   }
 
   function pushLog(msg, team){
@@ -3155,6 +3165,7 @@
     });
   }
   document.getElementById("act-shoot").addEventListener("click", () => enterTargeting("ranged"));
+  { const cl = document.getElementById("combatline"); if (cl) cl.addEventListener("click", advanceSpeech); }   // clic / « … » : passer la réplique
   document.getElementById("act-melee").addEventListener("click", () => enterTargeting("melee"));
   document.getElementById("act-ow-shoot").addEventListener("click", () => doOverwatch("ranged"));
   document.getElementById("act-ow-melee").addEventListener("click", () => doOverwatch("melee"));
