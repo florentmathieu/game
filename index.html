@@ -8,7 +8,7 @@
   :root{ --bg:#0e0b07; --pan:#15110c; --acc:#caa24a; --ink:#e8ddc8; }
   *{ box-sizing:border-box }
   body{ margin:0; background:var(--bg); color:var(--ink); font-family:system-ui,Segoe UI,Roboto,sans-serif; display:flex; gap:14px; padding:16px; align-items:flex-start; flex-wrap:wrap }
-  #board{ background:#0b0906; border:1px solid #3a2c1c; border-radius:8px; touch-action:none }
+  #board{ background:#0b0906; border:1px solid #3a2c1c; border-radius:8px; touch-action:none; max-width:100%; height:auto; flex:0 0 auto }
   .panel{ width:300px; background:var(--pan); border:1px solid #3a2c1c; border-radius:10px; padding:13px; font-size:.86rem; line-height:1.45 }
   h1{ font-size:1rem; color:var(--acc); margin:0 0 6px } h2{ font-size:.74rem; color:var(--acc); margin:11px 0 3px; text-transform:uppercase; letter-spacing:1px }
   #turn{ font-weight:bold; color:#ffd479 } #msg{ min-height:2.2em; color:#9fd3ec; margin:3px 0 }
@@ -19,12 +19,29 @@
   .leg{ display:flex; align-items:center; gap:6px; margin:2px 0; font-size:.74rem } .sw{ width:13px;height:13px;border-radius:3px;border:1px solid #00000066 }
   .hint{ color:#9a8a74; font-size:.72rem; margin-top:4px }
   /* trois vues : mission (éditeur), campaign (éditeur), play (jeu) — pilotées par l'URL */
-  .editonly,.playonly,#tab-mission,#tab-camp{ display:none }
+  .editonly,#tab-mission,#tab-camp,#hud{ display:none }
   body.view-mission .editonly,body.view-campaign .editonly{ display:block }
   body.view-mission #tab-mission{ display:block }
   body.view-campaign #tab-camp{ display:block }
-  body.view-play .playonly{ display:block }
+  body.view-play #hud{ display:block }
+  body.view-play .panel{ display:none }          /* en jeu : HUD superposé, panneau masqué */
   body.view-campaign #board{ display:none }
+  /* HUD en jeu (superposé à la carte, style hex) */
+  #hud-tl{ position:fixed; top:12px; left:12px; z-index:6; display:flex; flex-direction:column; gap:6px; max-height:84vh; overflow:auto }
+  #playnav a{ text-decoration:none; font-size:1.05rem; background:rgba(12,9,6,.85); border:1px solid #5a4530; border-radius:7px; padding:3px 7px; margin-right:4px }
+  #roster{ display:flex; flex-direction:column; gap:5px }
+  .rost{ background:rgba(12,9,6,.86); border:1px solid #5a4530; border-radius:8px; padding:5px 9px; min-width:150px; cursor:pointer; box-shadow:0 3px 10px rgba(0,0,0,.4) }
+  .rost.sel{ border-color:#caa24a; background:rgba(46,36,16,.92) } .rost.dead{ opacity:.45 } .rost.spent{ opacity:.7 }
+  .rost b{ color:#bfe6ff } .rost .sub{ font-size:.7rem; color:#9a8a74 } .rost .st{ font-size:.72rem; color:#9fd3ec }
+  .rost .hpbar{ height:5px; background:#3a3128; border-radius:3px; margin:3px 0 } .rost .hpbar i{ display:block; height:100%; background:#6fd06f; border-radius:3px }
+  #hud-status{ position:fixed; top:12px; right:12px; z-index:6; background:rgba(12,9,6,.86); border:1px solid #5a4530; border-radius:8px; padding:7px 11px; color:#ffd479; font-weight:bold; box-shadow:0 3px 10px rgba(0,0,0,.4) }
+  #hud-bl{ position:fixed; left:12px; bottom:12px; z-index:6; max-width:min(540px,70vw) }
+  #hud-bl #msg{ background:rgba(12,9,6,.86); border:1px solid #5a4530; border-radius:8px; padding:4px 9px; margin:0 0 5px; display:inline-block; min-height:0 }
+  #hud-bl #acts{ background:rgba(12,9,6,.86); border:1px solid #5a4530; border-radius:8px; padding:5px } #hud-bl #acts:empty{ display:none } #hud-bl #acts button{ font-size:.86rem; padding:6px 9px }
+  #journal{ position:fixed; right:12px; bottom:12px; z-index:6; width:300px; max-width:46vw; background:rgba(12,9,6,.9); border:1px solid #5a4530; border-radius:8px; box-shadow:0 3px 12px rgba(0,0,0,.5) }
+  #journal-hd{ display:flex; justify-content:space-between; align-items:center; padding:5px 9px; cursor:pointer; color:#caa24a }
+  #journal #log{ max-height:30vh; overflow:auto; padding:3px 9px 7px; font-size:.74rem; border-top:1px solid #3a2c1c } #journal #log div{ margin:1px 0 }
+  #journal.collapsed #log{ display:none } #journal.collapsed #journal-hd{ border:0 }
   /* vue campagne : grande fenêtre (le panneau prend toute la largeur, graphe & liste agrandis) */
   body.view-campaign .panel{ width:100%; max-width:1100px; margin:0 auto }
   body.view-campaign #cnodes{ max-height:46vh }
@@ -114,14 +131,16 @@
     </div>
   </div>
 
-  <div class="playonly">
-    <h2>Combat</h2>
-    <div>Tour : <span id="turn">Joueur</span> · PA : <span id="ap">–</span></div>
-    <div id="msg"></div>
-    <div id="acts"></div>
-    <div class="row"><button id="end">Fin de tour ▶</button></div>
-    <div id="log"></div>
+</div>
+<!-- HUD en jeu : superposé à la carte (style hex) -->
+<div id="hud">
+  <div id="hud-tl">
+    <div id="playnav"><a href="?edit" title="Éditeur de mission">🗺</a><a href="?campaign" title="Éditeur de campagne">🎬</a></div>
+    <div id="roster"></div>
   </div>
+  <div id="hud-status"><span id="turn">Joueur</span> · PA <span id="ap">–</span> <button id="end">Fin de tour ▶</button></div>
+  <div id="hud-bl"><div id="msg"></div><div id="acts"></div></div>
+  <div id="journal"><div id="journal-hd"><b>📜 Journal</b><span id="log-toggle">▾</span></div><div id="log"></div></div>
 </div>
 <div id="combatline"></div>
 <div id="fiche"></div>
@@ -314,7 +333,16 @@
   function end(t){over=true;emit(t.indexOf("Victoire")===0?"win":"lose",{});if(campRun){campEnd(t);return;}document.getElementById("overtxt").textContent=t;document.getElementById("over").classList.add("show");draw();}
   function log(m,team){if(mode!=="play")return;const el=document.getElementById("log");const d=document.createElement("div");d.className=team==="player"?"pl":"en";d.textContent=m;el.prepend(d);}
   function setMsg(t){document.getElementById("msg").textContent=t;}
-  function refresh(){ if(mode==="play"){computeVis();detectEnemies();detectNeutralPods();} else visible=new Set(cells.map(c=>c.id)); draw(); if(mode==="play")renderActs(); else { renderCounts(); saveDraft(); } }
+  function refresh(){ if(mode==="play"){computeVis();detectEnemies();detectNeutralPods();} else visible=new Set(cells.map(c=>c.id)); draw(); if(mode==="play"){renderActs();renderRoster();} else { renderCounts(); saveDraft(); } }
+  // roster des soldats (haut-gauche) : nom, PV, PA ; clic = sélection
+  function renderRoster(){ const el=document.getElementById("roster"); if(!el)return; el.innerHTML="";
+    units.filter(u=>u.team==="player").forEach(u=>{ const d=document.createElement("div");
+      d.className="rost"+(u===sel?" sel":"")+(u.hp<=0?" dead":((u.ap<=0&&turn==="player")?" spent":""));
+      d.innerHTML=`<div><b>${u.name}</b> <span class="sub">${CLASSES[u.cls].name}</span></div>`
+        +`<div class="hpbar"><i style="width:${Math.max(0,u.hp)/u.max*100}%"></i></div>`
+        +`<div class="st">PV ${Math.max(0,u.hp)}/${u.max} · PA ${u.hp>0?u.ap+"/"+AP_MAX:"–"}${u.overwatch?" · 👁":""}${u.crackers?" · 💣"+u.crackers:""}</div>`;
+      d.onclick=()=>{ if(u.hp>0&&turn==="player"&&!over){ sel=u; amode=null;throwing=false;usingItem=false; refresh(); } };
+      el.appendChild(d); }); }
   function endTurn(){turn="enemy";sel=null;amode=null;for(const u of units)if(u.team==="enemy"){u.ap=AP_MAX;u.freeAvail=true;u.overwatch=false;u.reacted=false;}banner("Tour ennemi","enemy");refresh();const foes=units.filter(u=>u.team==="enemy"&&u.hp>0);let i=0;
     (function step(){if(over)return;if(i>=foes.length){for(const u of units)if(u.team==="player"){u.ap=AP_MAX;u.freeAvail=true;u.overwatch=false;u.reacted=false;}turn="player";turnNum++;setMsg("À toi.");banner("À votre tour","player");refresh();emit("turn",{turn:turnNum});return;}
       const e=foes[i++];if(e.hp<=0){step();return;} if(!enemyActive(e)){step();return;}   // pas alerté = ne bouge pas
@@ -328,9 +356,11 @@
 
   // ===== interactions =====
   let painting=false;
-  cv.addEventListener("pointerdown",e=>{const r=cv.getBoundingClientRect();const X=e.clientX-r.left,Y=e.clientY-r.top;
+  // coordonnées canevas réelles : on remet à l'échelle car le canevas peut être affiché plus petit que son bitmap
+  function evXY(e){ const r=cv.getBoundingClientRect(); return [(e.clientX-r.left)*(cv.width/(r.width||cv.width)),(e.clientY-r.top)*(cv.height/(r.height||cv.height))]; }
+  cv.addEventListener("pointerdown",e=>{const [X,Y]=evXY(e);
     if(mode==="edit"){painting=true;editAt(X,Y);}else playClick(X,Y);});
-  cv.addEventListener("pointermove",e=>{ if(mode!=="edit")return; const r=cv.getBoundingClientRect(),X=e.clientX-r.left,Y=e.clientY-r.top;
+  cv.addEventListener("pointermove",e=>{ if(mode!=="edit")return; const [X,Y]=evXY(e);
     if(editTool==="muret"){ const k=edgeAt(X,Y); if(k!==hoverEdge){hoverEdge=k;draw();} return; }   // muret : pose au clic, pas en glissé
     if(painting)editAt(X,Y); });
   window.addEventListener("pointerup",()=>painting=false);
@@ -622,6 +652,7 @@
     document.getElementById("over").classList.remove("show");document.getElementById("log").innerHTML="";setMsg("À toi — sélectionne une unité.");refresh();
     banner("À votre tour","player"); emit("start",{}); emit("turn",{turn:1}); }
   document.getElementById("end").onclick=()=>{if(!over&&turn==="player"&&mode==="play")endTurn();};
+  { const jh=document.getElementById("journal-hd"); if(jh)jh.onclick=()=>document.getElementById("journal").classList.toggle("collapsed"); }
   document.getElementById("overbtn").onclick=()=>{ if(mode==="play")startGame(); };
   document.getElementById("mode").onclick=()=>{ const btn=document.getElementById("mode");
     if(document.body.classList.contains("testing")){ document.body.classList.remove("testing"); campRun=null; sel=null; setView("mission"); btn.textContent="▶ Tester la mission"; refresh(); }
@@ -630,7 +661,7 @@
   // ===== polish : bannière de tour, fiche au survol, raccourcis clavier =====
   function banner(text,cls){ const el=document.getElementById("banner"); el.textContent=text; el.style.background=cls==="enemy"?"#5a2a2a":"#2a4a5a"; el.classList.remove("show"); void el.offsetWidth; el.classList.add("show"); }
   const TERRN={plain:"sol",rough:"accidenté",wall:"rocher",cover:"couvert"};
-  cv.addEventListener("mousemove",e=>{ const f=document.getElementById("fiche"); const r=cv.getBoundingClientRect(); const cell=cellAtXY(e.clientX-r.left,e.clientY-r.top);
+  cv.addEventListener("mousemove",e=>{ const f=document.getElementById("fiche"); const [mx,my]=evXY(e); const cell=cellAtXY(mx,my);
     if(!cell){f.style.display="none";return;} const u=uAt(cell.id); let h;
     if(u&&(mode==="edit"||u.team==="player"||seen(u))){ const m=u.w.ranged?"ranged":"melee",w=u.w[m]; const wn=u.w.ranged?(u.clip!==undefined?"arbalète":"arc"):(u.flank?"dagues":(w.bare?"mains nues":"épée"));
       h=`<b>${u.name}</b> · ${CLASSES[u.cls].name}<br>PV ${Math.max(0,u.hp)}/${u.max} · ${wn} (${w.aim}%) · portée ${w.range||1}`
