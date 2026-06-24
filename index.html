@@ -415,15 +415,15 @@
     if(e.button===2){ const cell=cellAtXY(X,Y),u=cell&&uAt(cell.id); if(u){units=units.filter(x=>x!==u);refresh();} return; }
     if(editTool==="pod"||editTool==="sleep"){ editAt(X,Y); return; }   // agit au clic, pas en glissé
     const cell=cellAtXY(X,Y),u=cell&&uAt(cell.id);
-    if(u&&editTool==="unit"){ dragU=u; dragXY=[X,Y]; dragStart=[X,Y]; dragMoved=false; draw(); return; }   // attrape l'unité : glisser = déplacer, simple clic = pivoter
+    if(u&&(editTool==="unit"||Math.hypot(X-cell.cx,Y-cell.cy)<=16)){ dragU=u; dragXY=[X,Y]; dragStart=[X,Y]; dragMoved=false; draw(); return; }   // attrape l'unité (outil unité partout, ou clic sur le pion avec n'importe quel outil) : glisser = déplacer, simple clic = pivoter
     painting=true; editAt(X,Y); });
   cv.addEventListener("pointermove",e=>{ if(mode!=="edit")return; const [X,Y]=evXY(e);
     if(dragU){ if(dragStart&&Math.hypot(X-dragStart[0],Y-dragStart[1])>5)dragMoved=true; dragXY=[X,Y]; draw(); return; }
     if(editTool==="muret"){ const k=edgeAt(X,Y); if(k!==hoverEdge){hoverEdge=k;draw();} return; }   // muret : pose au clic, pas en glissé
     if(painting)editAt(X,Y); });
-  window.addEventListener("pointerup",e=>{ if(dragU){ const [X,Y]=evXY(e);
-      if(dragMoved){ const cell=cellAtXY(X,Y); if(cell){const o=uAt(cell.id); if(!o||o===dragU)dragU.cell=cell.id;} }   // déplacé
-      else { dragU.facing=norm((dragU.facing||0)+Math.PI/4); }   // simple clic = pivote l'unité (45°)
+  window.addEventListener("pointerup",e=>{ if(dragU){ const [X,Y]=evXY(e); const cell=cellAtXY(X,Y);
+      if(cell&&cell.id!==dragU.cell&&(!uAt(cell.id)||uAt(cell.id)===dragU)){ dragU.cell=cell.id; }   // relâché sur une autre case libre = déplace
+      else { dragU.facing=norm((dragU.facing||0)+Math.PI/4); }   // resté sur sa case (clic ou glissé annulé) = pivote (45°)
       dragU=null; dragXY=null; dragMoved=false; refresh(); } painting=false; });
   function editAt(X,Y){
     if(editTool.startsWith("zone:")){ const c=Math.floor(X/MC),r=Math.floor(Y/MC); if(c<0||c>=COLS||r<0||r>=ROWS)return; const t=editTool.slice(5); if(infl[r][c]!==t){infl[r][c]=t;rebuildShape(true);} return; }
@@ -445,7 +445,8 @@
   function playClick(X,Y){if(over||turn!=="player"||introBlocking)return;const cell=cellAtXY(X,Y);if(!cell)return;const id=cell.id;const u=uAt(id);
     if(throwing&&sel){const cr=sel.w.cracker;if(cr&&sel.crackers>0&&sel.ap>0&&hops(sel.cell,id)<=cr.range&&los(sel.cell,id))resolveThrow(sel,id);else setMsg("Cracker : hors de portée / sans vue.");return;}
     if(usingItem&&sel){if(u&&u.team==="player")applyItem(u);else setMsg("Choisis un allié (soi ou adjacent).");return;}
-    if(u&&u.team==="player"){sel=u;amode=null;aimTarget=null;throwing=false;usingItem=false;refresh();return;}if(!sel)return;
+    if(u&&u.team==="player"){ if(u===sel&&!throwing&&!usingItem){u.facing=norm((u.facing||0)+Math.PI/4);refresh();return;}   // re-cliquer son unité sélectionnée = la faire pivoter (45°, gratuit)
+      sel=u;amode=null;aimTarget=null;throwing=false;usingItem=false;refresh();return;}if(!sel)return;
     if(u&&hostile(sel,u)&&u.hp>0&&seen(u)){ let m=(amode&&sel.w[amode]&&inRange(sel,u,amode))?amode:["ranged","melee"].find(mm=>sel.w[mm]&&(mm!=="ranged"||sel.clip===undefined||sel.ammo>0)&&inRange(sel,u,mm)); if(m&&sel.ap>0)doAttack(sel,u,m); else setMsg("Hors de portée / vue."); return; }
     const d=reach(sel);if(d[id]!==undefined){moveAlong(sel,id);if(!over)emit("move",{actorName:sel.name,actorCls:sel.cls,actorTeam:"player"});refresh();}}
 
@@ -468,7 +469,7 @@
       if(!unseen){ const k=(c.elev-1)*0.16; if(k>0){ctx.fillStyle="rgba(255,250,235,"+Math.min(0.5,k)+")";ctx.fill();} else if(k<0){ctx.fillStyle="rgba(0,0,0,"+Math.min(0.5,-k)+")";ctx.fill();} }
       if(unseen){ctx.fillStyle="rgba(8,7,5,0.93)";ctx.fill();}                  // brouillard : cache vraiment le terrain
       ctx.lineWidth=1; ctx.strokeStyle=unseen?"#0a0806":"#0c0a07"; ctx.stroke();
-      if(c.terr==="wall"){ ctx.globalAlpha=unseen?0.4:1; drawRock(c); ctx.globalAlpha=1; } }   // 🪨 rocher visible (atténué dans le brouillard)
+      if(c.terr==="wall"&&!unseen){ drawRock(c); } }   // 🪨 rocher seulement sur les cases visibles (caché par le brouillard)
     // portée de déplacement : 3 contours imbriqués — bleu=gratuit (0 PA), orange=1 PA, rouge=2 PA
     if(d){ ctx.lineJoin="round"; const tier=cid=>{const a=apForMove(sel,d[cid]); return a<=0?0:(a>=sel.ap?2:1);}; const cols=["#5fb0d8","#e2a03c","#d8635f"]; const occCells=occ();   // bleu=gratuit, rouge=limite (tout le PA restant), orange=entre
       // une case fait partie du palier t si atteignable<=t, OU occupée par une unité mais entourée par le palier (pour éviter trous & cernes autour des persos)
@@ -559,7 +560,7 @@
   function renderCounts(){ const np=units.filter(u=>u.team==="player").length,ne=units.filter(u=>u.team==="enemy").length;
     document.getElementById("counts").textContent=`${cells.length} cellules · ${np} alliés · ${ne} ennemis`; }
   // sérialisation : cellules (polygone + terrain + relief) + unités + paramètres de forme (pour re-mailler)
-  function exportObj(){ return { name:"mission-maillage", form:{infl,dist:+distEl.value,dens:+dens.value,seed},
+  function exportObj(){ return { name:((mname&&mname.value)||"").trim()||"mission-maillage", form:{infl,dist:+distEl.value,dens:+dens.value,seed},
     cells:cells.map(c=>({poly:c.poly.map(p=>[Math.round(p[0]),Math.round(p[1])]),terr:c.terr,elev:c.elev})),
     walls:[...walls],
     units:units.map(u=>{const o={team:u.team,cls:u.cls,cell:u.cell};if(u.name!==CLASSES[u.cls].name)o.name=u.name;if(u.pod!==undefined)o.pod=u.pod;if(u.asleep)o.asleep=true;if(u.hostage)o.hostage=true;return o;}),
@@ -821,9 +822,9 @@
   }
   function init(){
     let draft=null; try{ draft=JSON.parse(localStorage.getItem("mgf_mesh_draft")||"null"); }catch(e){}
+    try{ const nm=localStorage.getItem("mgf_mesh_mname"); mname.value=(nm!=null&&nm!=="")?nm:((draft&&draft.name&&draft.name!=="mission-maillage")?draft.name:""); }catch(e){}   // nom restauré AVANT applyMissionObj (sinon son refresh→saveDraft l'écraserait par du vide)
     if(draft&&draft.cells&&draft.cells.length){ try{ applyMissionObj(draft); }catch(e){ defaultBoard(); } }
     else defaultBoard();
-    try{ mname.value=localStorage.getItem("mgf_mesh_mname")||""; }catch(e){}   // nom de la dernière mission rechargé
     // restaure le brouillon de campagne dans l'éditeur
     const cd=loadCampDraft(); if(cd){ cname.value=cd.name||""; campNodes=cd.nodes||[]; campStart=cd.start||(campNodes[0]&&campNodes[0].id)||""; renderNodes(); }
     // routage par URL : ?edit = éditeur de mission, ?campaign = éditeur de campagne, défaut = page de jeu
