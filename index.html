@@ -21,7 +21,7 @@
   /* trois vues : mission (éditeur), campaign (éditeur), play (jeu) — pilotées par l'URL */
   .editonly,#tab-mission,#tab-camp,#hud{ display:none }
   body.view-mission .editonly,body.view-campaign .editonly{ display:block }
-  body.view-mission #tab-mission{ display:block }
+  body.view-mission #tab-mission{ display:flex; gap:16px; align-items:flex-start; flex-wrap:wrap }
   body.view-campaign #tab-camp{ display:block }
   body.view-play #hud{ display:block }
   body.view-play .panel{ display:none }          /* en jeu : HUD superposé, panneau masqué */
@@ -47,6 +47,9 @@
   #journal-hd{ display:flex; justify-content:space-between; align-items:center; padding:5px 9px; cursor:pointer; color:#caa24a }
   #journal #log{ max-height:30vh; overflow:auto; padding:3px 9px 7px; font-size:.74rem; border-top:1px solid #3a2c1c } #journal #log div{ margin:1px 0 }
   #journal.collapsed #log{ display:none } #journal.collapsed #journal-hd{ border:0 }
+  /* vue mission : éditeur en 2 colonnes (réglages à gauche, évènements à droite) */
+  body.view-mission .panel{ width:100%; max-width:760px }
+  #me-left{ flex:1 1 320px; min-width:270px } #me-right{ flex:1 1 300px; min-width:260px }
   /* vue campagne : grande fenêtre (le panneau prend toute la largeur, graphe & liste agrandis) */
   body.view-campaign .panel{ width:100%; max-width:1100px; margin:0 auto }
   body.view-campaign #cnodes{ max-height:46vh }
@@ -96,6 +99,7 @@
 
   <div class="editonly">
     <div id="tab-mission">
+    <div id="me-left">
     <h2>1 · Forme (zones + distorsion)</h2>
     <div class="row"><label>Largeur <input id="bw" type="number" min="4" max="20" value="10" style="width:52px"></label>
       <label>Hauteur <input id="bh" type="number" min="3" max="16" value="8" style="width:52px"></label>
@@ -110,21 +114,12 @@
     <h2>3 · Unités</h2>
     <div class="row"><select id="uteam"><option value="player">🔵 Allié</option><option value="enemy">🔴 Ennemi</option><option value="neutral">🟡 PNJ/otage</option></select>
       <select id="ucls"></select></div>
+    <div class="row"><label style="flex:1">Nom <input id="uname" type="text" placeholder="(défaut : classe)" style="flex:1"></label></div>
     <div class="row"><label>pod <input id="upod" type="text" placeholder="–" style="width:36px"></label>
       <label><input id="uasleep" type="checkbox">💤 endormi</label><label><input id="uhostage" type="checkbox">🟣 otage</label></div>
-    <div class="row"><button id="tplace" data-tool="unit">Poser l'unité</button><button id="terase" data-tool="erase">Gomme</button></div>
-    <div class="hint">Avec « Poser l'unité » : clic sur une case vide pour poser, <b>clic sur une unité</b> pour la pivoter (45°), <b>glisser</b> pour la déplacer, <b>clic droit</b> pour la supprimer.</div>
-    <h2>Évènements (dialogues)</h2>
-    <div id="triglist" class="hint"></div>
-    <div class="row"><select id="t-on"><option value="start">Début</option><option value="turn">Début de tour</option><option value="attack">Attaque</option><option value="kill">Mise à mort</option><option value="wounded">Blessé</option><option value="move">Déplacement</option><option value="win">Victoire</option><option value="lose">Défaite</option></select></div>
-    <div class="row"><input id="t-actor" type="text" placeholder="acteur (nom/classe)" style="flex:1"><input id="t-target" type="text" placeholder="cible" style="flex:1"></div>
-    <div class="row"><select id="t-result"><option value="">résultat —</option><option>hit</option><option>miss</option><option>blocked</option></select><select id="t-killed"><option value="">tue ? —</option><option value="true">oui</option><option value="false">non</option></select></div>
-    <div class="row"><input id="t-who" type="text" placeholder="qui parle" style="flex:1"><input id="t-text" type="text" placeholder="réplique…" style="flex:2"></div>
-    <div class="row"><button id="t-add">+ Ajouter l'évènement</button></div>
-    <h2>Mission</h2>
-    <div class="row"><button id="doexport">⬇ Exporter</button><button id="doimport">⬆ Charger</button><button id="dosave">💾 Fichier</button><button id="doload">📂 Ouvrir</button><input id="dofile" type="file" accept=".json,application/json" style="display:none"></div>
-    <textarea id="export" placeholder="JSON de mission — « Exporter » remplit ; colle ici puis « Charger »."></textarea>
-    <div class="hint" id="counts"></div>
+    <div class="row"><button id="tplace" data-tool="unit">Poser l'unité</button><button id="terase" data-tool="erase">Gomme</button>
+      <button id="tpod" data-tool="pod">🛡 Pod</button><button id="tsleep" data-tool="sleep">💤 Sommeil</button></div>
+    <div class="hint">Avec « Poser l'unité » : clic sur une case vide pour poser, <b>clic sur une unité</b> pour la pivoter (45°), <b>glisser</b> pour la déplacer, <b>double-clic</b> pour renommer, <b>clic droit</b> pour supprimer.<br>« 🛡 Pod » : clique un ennemi pour cycler son pod (aucun → 0 → 1 → … → 4 → aucun). « 💤 Sommeil » : clique un ennemi pour l'endormir/réveiller.</div>
     <h2>Dépôt (GitHub)</h2>
     <div class="row"><input id="mname" type="text" placeholder="nom de la mission" style="flex:1"></div>
     <div class="row"><select id="repo-missions" style="flex:1"></select><button id="repo-load">Charger</button></div>
@@ -132,6 +127,17 @@
     <input id="gh-token" type="password" placeholder="token GitHub (Contents: write)" style="width:100%;margin:2px 0">
     <div class="row"><input id="gh-repo" type="text" value="florentmathieu/game" style="flex:1"><input id="gh-branch" type="text" placeholder="branche" style="flex:1"></div>
     <div class="hint" id="gh-status"></div>
+    <div class="hint" id="counts"></div>
+    </div>
+    <div id="me-right">
+    <h2>Évènements (dialogues)</h2>
+    <div id="triglist" class="hint"></div>
+    <div class="row"><select id="t-on"><option value="start">Début</option><option value="turn">Début de tour</option><option value="attack">Attaque</option><option value="kill">Mise à mort</option><option value="wounded">Blessé</option><option value="move">Déplacement</option><option value="win">Victoire</option><option value="lose">Défaite</option></select></div>
+    <div class="row"><input id="t-actor" type="text" placeholder="acteur (nom/classe)" style="flex:1"><input id="t-target" type="text" placeholder="cible" style="flex:1"></div>
+    <div class="row"><select id="t-result"><option value="">résultat —</option><option>hit</option><option>miss</option><option>blocked</option></select><select id="t-killed"><option value="">tue ? —</option><option value="true">oui</option><option value="false">non</option></select></div>
+    <div class="row"><input id="t-who" type="text" placeholder="qui parle" style="flex:1"><input id="t-text" type="text" placeholder="réplique…" style="flex:2"></div>
+    <div class="row"><button id="t-add">+ Ajouter l'évènement</button></div>
+    </div>
     </div>
     <div id="tab-camp">
     <h2>Campagne (nœuds : textes / missions / choix)</h2>
@@ -402,9 +408,12 @@
   cv.addEventListener("wheel",e=>{ e.preventDefault(); const r=cv.getBoundingClientRect(); const bx=(e.clientX-r.left)*(cv.width/(r.width||cv.width)),by=(e.clientY-r.top)*(cv.height/(r.height||cv.height));
     const wx=(bx-panX)/zoom,wy=(by-panY)/zoom; zoom=Math.max(1,Math.min(5,zoom*(e.deltaY<0?1.15:1/1.15))); panX=bx-wx*zoom; panY=by-wy*zoom; clampPan(); draw(); },{passive:false});
   cv.addEventListener("contextmenu",e=>e.preventDefault());   // clic droit = supprimer une unité (éditeur)
+  cv.addEventListener("dblclick",e=>{ if(mode!=="edit")return; const [X,Y]=evXY(e); const c=cellAtXY(X,Y); const u=c&&uAt(c.id); if(!u)return;   // double-clic = renommer
+    const nm=prompt("Nom de l'unité :",u.name); if(nm!==null){ u.name=(nm.trim()||CLASSES[u.cls].name); refresh(); } });
   cv.addEventListener("pointerdown",e=>{const [X,Y]=evXY(e);
     if(mode!=="edit"){ if(e.button===0)playClick(X,Y); return; }
     if(e.button===2){ const cell=cellAtXY(X,Y),u=cell&&uAt(cell.id); if(u){units=units.filter(x=>x!==u);refresh();} return; }
+    if(editTool==="pod"||editTool==="sleep"){ editAt(X,Y); return; }   // agit au clic, pas en glissé
     const cell=cellAtXY(X,Y),u=cell&&uAt(cell.id);
     if(u&&editTool==="unit"){ dragU=u; dragXY=[X,Y]; dragStart=[X,Y]; dragMoved=false; draw(); return; }   // attrape l'unité : glisser = déplacer, simple clic = pivoter
     painting=true; editAt(X,Y); });
@@ -419,6 +428,9 @@
   function editAt(X,Y){
     if(editTool.startsWith("zone:")){ const c=Math.floor(X/MC),r=Math.floor(Y/MC); if(c<0||c>=COLS||r<0||r>=ROWS)return; const t=editTool.slice(5); if(infl[r][c]!==t){infl[r][c]=t;rebuildShape(true);} return; }
     if(editTool==="muret"){ const k=edgeAt(X,Y); if(k){ walls.has(k)?walls.delete(k):walls.add(k); refresh(); } return; }
+    if(editTool==="pod"||editTool==="sleep"){ const c=cellAtXY(X,Y); const u=c&&uAt(c.id); if(u&&u.team==="enemy"){
+        if(editTool==="pod")u.pod=(u.pod===undefined)?0:(u.pod>=4?undefined:u.pod+1);
+        else { u._asleep0=!u._asleep0; u.asleep=u._asleep0; } refresh(); } return; }
     if(editTool==="gomme-t"){ const c=cellAtXY(X,Y); if(!c){return;}   // gomme : retire d'abord un muret tout proche, sinon remet le sol normal
       let bestK=null,bd=14; for(const n of c.nb){ const key=wkey(c.id,n); if(!walls.has(key))continue; const s=wallSeg.get(key); if(!s)continue; const dd=distToSeg(X,Y,s[0],s[1]); if(dd<bd){bd=dd;bestK=key;} }
       if(bestK)walls.delete(bestK); else if(c.terr!=="plain")c.terr="plain"; refresh(); return; }
@@ -426,7 +438,7 @@
     if(editTool.startsWith("terr:")){ cell.terr=editTool.slice(5); }
     else if(editTool==="elev+"){ cell.elev=Math.min(3,cell.elev+1); }
     else if(editTool==="elev-"){ cell.elev=Math.max(0,cell.elev-1); }
-    else if(editTool==="unit"){ units=units.filter(u=>u.cell!==id); units.push(U(uteam.value,ucls.value,id,{pod:upod.value,asleep:uasleep.checked,hostage:uhostage.checked})); }
+    else if(editTool==="unit"){ units=units.filter(u=>u.cell!==id); units.push(U(uteam.value,ucls.value,id,{name:(uname.value||"").trim()||undefined,pod:upod.value,asleep:uasleep.checked,hostage:uhostage.checked})); }
     else if(editTool==="erase"){ units=units.filter(u=>u.cell!==id); }
     refresh();
   }
@@ -440,7 +452,7 @@
   // ===== rendu =====
   const terrFill={plain:"#3a6e4c",rough:"#7a6326",wall:"#3a6e4c",cover:"#46663f"};
   // tas de rochers au centre d'une cellule (terrain « rocher »), bien visible sur le sol normal
-  function drawRock(c){ const x=c.cx,y=c.cy,s=16;
+  function drawRock(c){ const x=c.cx,y=c.cy,s=10;
     const blob=(ox,oy,r)=>{for(let a=0;a<6;a++){const an=a/6*TWO+0.4;const px=x+ox+Math.cos(an)*r,py=y+oy+Math.sin(an)*r;a?ctx.lineTo(px,py):ctx.moveTo(px,py);}ctx.closePath();};
     ctx.fillStyle="#4a4d54"; ctx.beginPath(); blob(-s*0.42,s*0.2,s*0.6); blob(s*0.4,s*0.24,s*0.55); blob(0,-s*0.24,s*0.7); ctx.fill();
     ctx.strokeStyle="#1d1e22"; ctx.lineWidth=2; ctx.stroke();
@@ -494,16 +506,18 @@
   }
 
   // ===== UI éditeur =====
-  const distEl=document.getElementById("dist"),dens=document.getElementById("dens"),uteam=document.getElementById("uteam"),ucls=document.getElementById("ucls"),upod=document.getElementById("upod"),uasleep=document.getElementById("uasleep"),uhostage=document.getElementById("uhostage");
+  const distEl=document.getElementById("dist"),dens=document.getElementById("dens"),uteam=document.getElementById("uteam"),ucls=document.getElementById("ucls"),upod=document.getElementById("upod"),uasleep=document.getElementById("uasleep"),uhostage=document.getElementById("uhostage"),uname=document.getElementById("uname");
   Object.keys(CLASSES).forEach(k=>{const o=document.createElement("option");o.value=k;o.textContent=CLASSES[k].name;ucls.appendChild(o);});
   function btnRow(host,items){ host.innerHTML=""; items.forEach(([label,tool])=>{const b=document.createElement("button");b.textContent=label;b.dataset.tool=tool;b.className=editTool===tool?"on":"";b.onclick=()=>{editTool=tool;syncTools();refresh();};host.appendChild(b);}); }
-  function syncTools(){ document.querySelectorAll("#zones button,#terr button,#relief button,#tplace,#terase").forEach(b=>b.classList.toggle("on",b.dataset.tool===editTool)); }
+  function syncTools(){ document.querySelectorAll("#zones button,#terr button,#relief button,#tplace,#terase,#tpod,#tsleep").forEach(b=>b.classList.toggle("on",b.dataset.tool===editTool)); }
   btnRow(document.getElementById("zones"),[["⬛","zone:square"],["⬡","zone:hex"],["⬠","zone:pentagon"],["🔀","zone:mix"]]);
   btnRow(document.getElementById("terr"),[["🟩 Sol","terr:plain"],["⛰ Accidenté","terr:rough"],["🪨 Rocher","terr:wall"],["🧱 Muret","muret"],["🧹 Gomme","gomme-t"]]);
   btnRow(document.getElementById("relief"),[["⬆ élever","elev+"],["⬇ abaisser","elev-"]]);
   { const b=document.createElement("button"); b.textContent="🎲 Profil auto"; b.title="Génère relief, rochers, couverts et murets aléatoires"; b.onclick=()=>autoTerrain(); document.getElementById("relief").appendChild(b); }
   document.getElementById("tplace").onclick=()=>{editTool="unit";syncTools();};
   document.getElementById("terase").onclick=()=>{editTool="erase";syncTools();};
+  document.getElementById("tpod").onclick=()=>{editTool="pod";syncTools();};
+  document.getElementById("tsleep").onclick=()=>{editTool="sleep";syncTools();};
 
   // re-maille en conservant (keep) terrain, relief, murets et unités par projection géométrique
   function snapBoard(){ return {
@@ -562,18 +576,12 @@
       if(m.form.dist!=null){distEl.value=m.form.dist;document.getElementById("distv").textContent=m.form.dist+"%";} if(m.form.dens!=null){dens.value=m.form.dens;document.getElementById("densv").textContent=m.form.dens;} if(m.form.seed!=null)seed=m.form.seed; }
     refresh();
   }
-  function exportMission(){ const ta=document.getElementById("export"); ta.style.display="block"; ta.value=JSON.stringify(exportObj()); ta.select(); saveDraft(); }
-  function importMission(){ try{ applyMissionObj(JSON.parse(document.getElementById("export").value)); setMsg("Mission chargée."); }catch(e){ alert("JSON invalide : "+e.message); } }
-  function saveDraft(){ try{ localStorage.setItem("mgf_mesh_draft", JSON.stringify(exportObj())); }catch(e){} }
-  document.getElementById("doexport").onclick=exportMission;
-  document.getElementById("doimport").onclick=importMission;
-  document.getElementById("dosave").onclick=()=>{ const a=document.createElement("a"); a.href="data:application/json;charset=utf-8,"+encodeURIComponent(JSON.stringify(exportObj())); a.download="mission-maillage.json"; a.click(); };
-  document.getElementById("doload").onclick=()=>document.getElementById("dofile").click();
-  document.getElementById("dofile").onchange=e=>{ const f=e.target.files[0]; if(!f)return; const rd=new FileReader(); rd.onload=()=>{ document.getElementById("export").value=rd.result; importMission(); }; rd.readAsText(f); };
+  function saveDraft(){ try{ localStorage.setItem("mgf_mesh_draft", JSON.stringify(exportObj())); localStorage.setItem("mgf_mesh_mname", (mname.value||"")); }catch(e){} }
 
   // ===== dépôt GitHub (mêmes identifiants que l'éditeur hex) =====
   let repoMissionList=[];
   const mname=document.getElementById("mname"),ghTok=document.getElementById("gh-token"),ghRepo=document.getElementById("gh-repo"),ghBr=document.getElementById("gh-branch"),ghSt=document.getElementById("gh-status"),repoSel=document.getElementById("repo-missions");
+  if(mname)mname.oninput=()=>{try{localStorage.setItem("mgf_mesh_mname",mname.value||"");}catch(e){}};
   const b64enc=s=>{const by=new TextEncoder().encode(s);let bin="";for(const c of by)bin+=String.fromCharCode(c);return btoa(bin);};
   const b64dec=s=>{const bin=atob((s||"").replace(/\n/g,""));return new TextDecoder().decode(Uint8Array.from(bin,c=>c.charCodeAt(0)));};
   function ghCfg(){ let repo=(ghRepo.value||"").trim(),token=(ghTok.value||"").trim(),branch=(ghBr.value||"").trim();
@@ -815,6 +823,7 @@
     let draft=null; try{ draft=JSON.parse(localStorage.getItem("mgf_mesh_draft")||"null"); }catch(e){}
     if(draft&&draft.cells&&draft.cells.length){ try{ applyMissionObj(draft); }catch(e){ defaultBoard(); } }
     else defaultBoard();
+    try{ mname.value=localStorage.getItem("mgf_mesh_mname")||""; }catch(e){}   // nom de la dernière mission rechargé
     // restaure le brouillon de campagne dans l'éditeur
     const cd=loadCampDraft(); if(cd){ cname.value=cd.name||""; campNodes=cd.nodes||[]; campStart=cd.start||(campNodes[0]&&campNodes[0].id)||""; renderNodes(); }
     // routage par URL : ?edit = éditeur de mission, ?campaign = éditeur de campagne, défaut = page de jeu
@@ -832,7 +841,8 @@
       const wrap=document.createElement("div"); h.after(wrap); sibs.forEach(s=>wrap.appendChild(s));
       h.style.cursor="pointer"; const tag=document.createElement("span"); tag.textContent=" ▾"; tag.style.cssText="float:right;color:#caa24a"; h.appendChild(tag);
       h.onclick=()=>{ const open=wrap.style.display!=="none"; wrap.style.display=open?"none":""; tag.textContent=open?" ▸":" ▾"; }; }); }
-  makeCollapsible(document.getElementById("tab-mission"));
+  makeCollapsible(document.getElementById("me-left"));
+  makeCollapsible(document.getElementById("me-right"));
   makeCollapsible(document.getElementById("tab-camp"));
   init();
 })();
