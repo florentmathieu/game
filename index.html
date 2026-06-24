@@ -1516,12 +1516,9 @@
   async function enemyAct(e){
     if (e.hp <= 0) return;
     e.overwatch = false;   // il recommence à agir : la vigilance précédente tombe
-    // endormi ou pod pas encore alerté : il ne fonce pas. L'endormi reste passif ;
-    // l'éveillé-mais-pas-encore-au-courant garde sa zone en vigilance.
-    if (!enemyActive(e)){
-      if (!e.asleep && e.range > 1 && (e.clip === undefined || e.ammo > 0)) e.overwatch = true;
-      e.ap = 0; return;
-    }
+    // endormi ou pod pas encore alerté : il ne fonce pas et ne se met PAS en vigilance
+    // (pas d'overwatch tant qu'ils ne nous ont pas repérés).
+    if (!enemyActive(e)){ e.ap = 0; return; }
     // l'IA chasse les joueurs et les PNJ « à défendre » (pas les otages) qu'elle voit ; seuls les joueurs ripostent
     const targets = units.filter(u => u.hp > 0 && enemyCanSee(u) && (u.team === "player" || (u.team === "neutral" && !u.hostage)));
     const threats = targets.filter(u => u.team === "player");
