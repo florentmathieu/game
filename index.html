@@ -1943,7 +1943,7 @@
       }
     }
 
-    // 7) unités (corps toujours visibles ; ennemis vivants cachés sous le brouillard)
+    // 7) unités (corps toujours visibles ; ennemis/PNJ vivants cachés sous le brouillard)
     for (const u of units){
       let { x, y } = tileCenter(u.col, u.row);
       if (anim && u === anim.mover){ const p = animPos(); x = p.x; y = p.y; }
@@ -1961,7 +1961,7 @@
         ctx.lineCap = "butt"; ctx.globalAlpha = 1;
         continue;
       }
-      if (u.team === "enemy" && !playerCanSee(u)) continue;   // ennemi furtif caché sauf perçu de face
+      if (u.team !== "player" && !playerCanSee(u)) continue;   // ennemi/PNJ caché sous le brouillard (sauf furtif perçu de face)
 
       // halo "cible attaquable" si une unité joueur est sélectionnée
       if (selected && canAttack(selected, u)){
