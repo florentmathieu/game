@@ -4,7 +4,8 @@ const fs = require("fs");
 const path = require("path");
 
 function loadEngine(htmlPath){
-  const html = fs.readFileSync(htmlPath || path.join(__dirname, "..", "index.html"), "utf8");
+  // index.html est désormais le jeu « maillage » ; le harness teste la version hex archivée
+  const html = fs.readFileSync(htmlPath || path.join(__dirname, "..", "index-hex.html"), "utf8");
   const m = html.match(/<script>([\s\S]*?)<\/script>/);
   if (!m) throw new Error("script introuvable dans index.html");
   let src = m[1];
