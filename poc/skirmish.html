@@ -1,0 +1,148 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Escarmouche — 2 contre 2</title>
+<style>
+  :root{ --bg:#0e0b07; --pan:#15110c; --acc:#caa24a; --ink:#e8ddc8; }
+  *{ box-sizing:border-box }
+  body{ margin:0; background:var(--bg); color:var(--ink); font-family:system-ui,Segoe UI,Roboto,sans-serif;
+        display:flex; gap:14px; padding:16px; align-items:flex-start; flex-wrap:wrap }
+  #board{ background:#0b0906; border:1px solid #3a2c1c; border-radius:8px; touch-action:none }
+  .panel{ width:260px; background:var(--pan); border:1px solid #3a2c1c; border-radius:10px; padding:14px; font-size:.9rem; line-height:1.5 }
+  h1{ font-size:1.05rem; color:var(--acc); margin:0 0 8px }
+  #turn{ font-weight:bold; color:#ffd479 } #msg{ min-height:2.4em; color:#9fd3ec; margin:6px 0 }
+  button{ background:#1c150e; color:var(--ink); border:1px solid #5a4530; border-radius:6px; padding:8px 12px; cursor:pointer; font-size:.92rem }
+  button:hover{ background:#241a12 }
+  .hint{ color:#9a8a74; font-size:.8rem; margin-top:10px }
+  #over{ position:fixed; inset:0; background:rgba(0,0,0,.72); display:none; align-items:center; justify-content:center; flex-direction:column; gap:16px; z-index:9 }
+  #over.show{ display:flex } #over h2{ font-size:2rem; margin:0 }
+</style>
+</head>
+<body>
+<canvas id="board" width="576" height="480"></canvas>
+<div class="panel">
+  <h1>Escarmouche — 2 contre 2</h1>
+  <div>Tour : <span id="turn">Toi</span></div>
+  <div id="msg">Clique un de tes soldats (bleu).</div>
+  <button id="end">Fin de tour ▶</button>
+  <button id="reset" style="margin-left:6px">↻ Rejouer</button>
+  <div class="hint">Clique un soldat → cases vertes (déplacement) et ennemis adjacents cerclés de rouge.
+  Clique une case verte pour bouger, un ennemi adjacent pour l'attaquer. Chaque soldat peut bouger
+  <b>et</b> attaquer une fois par tour. Élimine les deux ennemis.</div>
+</div>
+<div id="over"><h2 id="overtxt"></h2><button onclick="location.reload()">Rejouer</button></div>
+<script>
+(function(){
+  const cv=document.getElementById("board"), ctx=cv.getContext("2d");
+  const COLS=12, ROWS=10, T=48, MOVE=4, DMG=3;
+  const key=(c,r)=>c+","+r, inB=(c,r)=>c>=0&&c<COLS&&r>=0&&r<ROWS;
+  const NB=[[1,0],[-1,0],[0,1],[0,-1]];
+
+  let units, turn, sel, over, msgEl=document.getElementById("msg");
+  function fresh(){
+    return [
+      {team:"me", name:"A", cell:[1,3], hp:8, max:8},
+      {team:"me", name:"B", cell:[1,6], hp:8, max:8},
+      {team:"foe",name:"X", cell:[10,3],hp:7, max:7},
+      {team:"foe",name:"Y", cell:[10,6],hp:7, max:7},
+    ].map((u,i)=>({id:i, moved:false, acted:false, ...u}));
+  }
+  const at=(c,r)=>units.find(u=>u.hp>0&&u.cell[0]===c&&u.cell[1]===r);
+  const occupied=()=>new Set(units.filter(u=>u.hp>0).map(u=>key(...u.cell)));
+  const adjacent=(a,b)=>Math.abs(a.cell[0]-b.cell[0])+Math.abs(a.cell[1]-b.cell[1])===1;
+
+  // cases atteignables (BFS ≤ MOVE, sans traverser une unité)
+  function reach(u){
+    const occ=occupied(); const dist={}; dist[key(...u.cell)]=0; const q=[u.cell];
+    while(q.length){ const [c,r]=q.shift(); const d=dist[key(c,r)];
+      if(d>=MOVE) continue;
+      for(const [dc,dr] of NB){ const nc=c+dc,nr=r+dr; if(!inB(nc,nr))continue; const k=key(nc,nr);
+        if(occ.has(k)||dist[k]!==undefined)continue; dist[k]=d+1; q.push([nc,nr]); } }
+    delete dist[key(...u.cell)]; return dist;
+  }
+  // distance BFS entre deux cases (pour l'IA), sans traverser d'unité (sauf la cible)
+  function bfsStep(from,toCell){
+    const occ=occupied(); occ.delete(key(...from)); const tk=key(...toCell); occ.delete(tk);
+    const prev={}, seen={}; seen[key(...from)]=true; const q=[from];
+    while(q.length){ const [c,r]=q.shift();
+      for(const [dc,dr] of NB){ const nc=c+dc,nr=r+dr; if(!inB(nc,nr))continue; const k=key(nc,nr);
+        if(seen[k]||occ.has(k))continue; seen[k]=true; prev[k]=[c,r]; if(nc===toCell[0]&&nr===toCell[1]){ // reconstruit
+            let cur=[nc,nr],path=[cur]; while(prev[key(...cur)]){cur=prev[key(...cur)];path.unshift(cur);} return path; }
+        q.push([nc,nr]); } }
+    return null;
+  }
+
+  function attack(a,b){ b.hp-=DMG; a.acted=true; a.moved=true;
+    setMsg(`${a.name} attaque ${b.name} (${DMG} dégâts)${b.hp<=0?" — éliminé":""}`); if(b.hp<=0)b.hp=0; checkEnd(); }
+  function checkEnd(){
+    if(units.filter(u=>u.team==="foe"&&u.hp>0).length===0) return end("Victoire !");
+    if(units.filter(u=>u.team==="me"&&u.hp>0).length===0) return end("Défaite…");
+  }
+  function end(t){ over=true; document.getElementById("overtxt").textContent=t; document.getElementById("over").classList.add("show"); draw(); }
+  function setMsg(t){ msgEl.textContent=t; }
+
+  // ----- clic joueur -----
+  cv.addEventListener("click",e=>{
+    if(over||turn!=="me")return;
+    const r=cv.getBoundingClientRect(); const c=Math.floor((e.clientX-r.left)/T), rr=Math.floor((e.clientY-r.top)/T);
+    if(!inB(c,rr))return; const u=at(c,rr);
+    if(u&&u.team==="me"){ sel=(u.hp>0)?u:sel; draw(); return; }
+    if(!sel)return;
+    if(u&&u.team==="foe"&&u.hp>0){ if(!sel.acted&&adjacent(sel,u)) attack(sel,u); else setMsg("Approche-toi pour frapper (case adjacente)."); draw(); return; }
+    if(!sel.moved){ const d=reach(sel); if(d[key(c,rr)]!==undefined){ sel.cell=[c,rr]; sel.moved=true; setMsg(`${sel.name} se déplace.`); draw(); } }
+  });
+  document.getElementById("end").addEventListener("click",()=>{ if(!over&&turn==="me") enemyTurn(); });
+  document.getElementById("reset").addEventListener("click",()=>location.reload());
+
+  // ----- IA ennemie -----
+  function enemyTurn(){
+    turn="foe"; sel=null; document.getElementById("turn").textContent="Ennemi"; draw();
+    const foes=units.filter(u=>u.team==="foe"&&u.hp>0); let i=0;
+    (function step(){
+      if(over)return;
+      if(i>=foes.length){ for(const u of units){u.moved=false;u.acted=false;} turn="me"; document.getElementById("turn").textContent="Toi"; setMsg("À toi."); draw(); return; }
+      const e=foes[i++]; if(e.hp<=0){step();return;}
+      // cible : allié le plus proche
+      let tgt=null,best=1e9; for(const p of units) if(p.team==="me"&&p.hp>0){ const path=bfsStep(e.cell,p.cell); const d=path?path.length:1e9; if(d<best){best=d;tgt=p;} }
+      if(!tgt){step();return;}
+      if(adjacent(e,tgt)){ attack(e,tgt); draw(); setTimeout(step,450); return; }
+      const path=bfsStep(e.cell,tgt.cell);
+      if(path&&path.length>1){ const stepsAllowed=Math.min(MOVE,path.length-2>=0?path.length-1:0); // ne pas marcher sur la cible
+        let dest=e.cell; for(let k=1;k<=stepsAllowed&&k<path.length-1+1;k++){ const c=path[k]; if(c[0]===tgt.cell[0]&&c[1]===tgt.cell[1])break; dest=c; } e.cell=dest; }
+      draw();
+      if(adjacent(e,tgt)){ setTimeout(()=>{ attack(e,tgt); draw(); setTimeout(step,450); },300); }
+      else setTimeout(step,360);
+    })();
+  }
+
+  // ----- rendu -----
+  function draw(){
+    ctx.clearRect(0,0,cv.width,cv.height);
+    const d = (sel&&!sel.moved&&turn==="me") ? reach(sel) : null;
+    for(let r=0;r<ROWS;r++)for(let c=0;c<COLS;c++){
+      ctx.fillStyle=((c+r)&1)?"#1c2a1c":"#22331f"; ctx.fillRect(c*T,r*T,T,T);
+      if(d&&d[key(c,r)]!==undefined){ ctx.fillStyle="rgba(122,223,122,0.32)"; ctx.fillRect(c*T,r*T,T,T); }
+      ctx.strokeStyle="rgba(0,0,0,.35)"; ctx.strokeRect(c*T,r*T,T,T);
+    }
+    for(const u of units){
+      const x=u.cell[0]*T+T/2, y=u.cell[1]*T+T/2;
+      if(u.hp<=0){ ctx.globalAlpha=.5; ctx.strokeStyle=u.team==="me"?"#86bce6":"#d88a8a"; ctx.lineWidth=3; ctx.beginPath();
+        ctx.moveTo(x-7,y-7);ctx.lineTo(x+7,y+7);ctx.moveTo(x+7,y-7);ctx.lineTo(x-7,y+7);ctx.stroke(); ctx.globalAlpha=1; continue; }
+      if(sel&&!sel.acted&&turn==="me"&&u.team==="foe"&&adjacent(sel,u)){ ctx.beginPath();ctx.arc(x,y,T*0.42,0,7);ctx.lineWidth=3;ctx.strokeStyle="#e0635f";ctx.stroke(); }
+      ctx.beginPath(); ctx.arc(x,y,T*0.32,0,7);
+      ctx.fillStyle=u.team==="me"?"#5fb0d8":"#d8635f"; ctx.globalAlpha=(u.team==="me"&&u.acted&&turn==="me")?0.5:1; ctx.fill(); ctx.globalAlpha=1;
+      ctx.lineWidth=(u===sel)?3:1.5; ctx.strokeStyle=(u===sel)?"#fff":"rgba(0,0,0,.5)"; ctx.stroke();
+      ctx.fillStyle="#0b1117"; ctx.font="bold 15px sans-serif"; ctx.textAlign="center"; ctx.textBaseline="middle"; ctx.fillText(u.name,x,y);
+      const bw=T*0.6,bx=x-bw/2,by=y-T*0.32-7; ctx.fillStyle="rgba(0,0,0,.6)";ctx.fillRect(bx-1,by-1,bw+2,6);
+      ctx.fillStyle="#3a3128";ctx.fillRect(bx,by,bw,4); ctx.fillStyle=u.team==="me"?"#6fd06f":"#e06f6f"; ctx.fillRect(bx,by,bw*Math.max(0,u.hp)/u.max,4);
+    }
+  }
+  function start(){ units=fresh(); turn="me"; over=false; sel=null;
+    document.getElementById("turn").textContent="Toi"; document.getElementById("over").classList.remove("show"); setMsg("Clique un de tes soldats (bleu)."); draw(); }
+  start();
+})();
+</script>
+</body>
+</html>
