@@ -866,6 +866,7 @@
    "col": 5,
    "row": 11,
    "pod": 0,
+   "asleep": true,
    "facing": 2.0943951023931953
   },
   {
@@ -890,6 +891,8 @@
    "team": "enemy",
    "col": 3,
    "row": 11,
+   "pod": 0,
+   "asleep": true,
    "facing": 1.0471975511965976
   }
  ],
