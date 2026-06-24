@@ -427,7 +427,7 @@
     const d=reach(sel);if(d[id]!==undefined){moveAlong(sel,id);if(!over)emit("move",{actorName:sel.name,actorCls:sel.cls,actorTeam:"player"});refresh();}}
 
   // ===== rendu =====
-  const terrFill={plain:"#3a6e4c",rough:"#7a6326",wall:"#585048",cover:"#46663f"};
+  const terrFill={plain:"#3a6e4c",rough:"#7a6326",wall:"#3a6e4c",cover:"#46663f"};
   // tas de rochers au centre d'une cellule (terrain « rocher »), bien visible sur le sol normal
   function drawRock(c){ const x=c.cx,y=c.cy,s=16;
     const blob=(ox,oy,r)=>{for(let a=0;a<6;a++){const an=a/6*TWO+0.4;const px=x+ox+Math.cos(an)*r,py=y+oy+Math.sin(an)*r;a?ctx.lineTo(px,py):ctx.moveTo(px,py);}ctx.closePath();};
