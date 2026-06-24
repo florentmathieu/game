@@ -45,7 +45,7 @@
   #gamepanel .collapse:hover{color:#ffd479}
   #logbox.collapsed{display:none}
   #logbox .fogrow{display:flex; align-items:center; gap:6px; margin-top:6px; font-size:.8rem}
-  #logbox #log{max-height:26vh; overflow-y:auto}
+  #logbox #log{max-height:39vh; overflow-y:auto}
   body:not(.editing):not(.campediting) #roster{position:fixed; left:8px; top:8px; z-index:15; margin:0;
     flex-direction:column; align-items:stretch; gap:8px; padding:8px; max-height:calc(100vh - 16px); overflow-y:auto;
     background:rgba(14,11,7,.62); border-radius:10px; box-shadow:0 6px 24px rgba(0,0,0,.5); backdrop-filter:blur(2px)}
@@ -390,6 +390,7 @@
   const ROCK_RATE = 0.07;    // proportion de cases occupées par un rocher (couvert total)
   const WALL_RATE = 0.16;    // densité de murets (couvert partiel) posés sur les arêtes
   const HEIGHT_BONUS = 6;    // % de précision par niveau d'écart de hauteur (plafonné)
+  const POINTBLANK = { 1: 30, 2: 15 };   // malus de précision arc/arbalète à bout portant (1 / 2 cases)
   const FREE_MP = 2;         // mouvement gratuit par tour (en cases)
   const AP_MAX = 2;          // points d'action par tour
   const MOB_AP = 3;          // mouvement (MP) débloqué par point d'action converti
@@ -1129,8 +1130,9 @@
     const dh = elevOf(att) - elevOf(tgt);
     const height = Math.max(-3, Math.min(3, dh)) * HEIGHT_BONUS;     // avantage de hauteur, plafonné à ±18%
     const def = defenseOf(tgt);                                      // cible en garde (brace)
-    const chance = Math.max(5, Math.min(95, Math.round(att.aim - cover + height - def)));
-    return { melee, base: att.aim, cover, height, dh, def, chance };
+    const pb = melee ? 0 : (POINTBLANK[hexDistUnits(att, tgt)] || 0);  // arc/arbalète : malus à bout portant (1-2 cases)
+    const chance = Math.max(5, Math.min(95, Math.round(att.aim - cover + height - def - pb)));
+    return { melee, base: att.aim, cover, height, dh, def, pb, chance };
   }
 
   // relations : le joueur ne vise que l'ennemi ; l'ennemi vise les joueurs et les PNJ « à défendre »
@@ -1387,15 +1389,18 @@
 
   function pushLog(msg, team){
     log.unshift({ msg, team });
-    if (log.length > 7) log.pop();
+    if (log.length > 400) log.pop();          // historique complet de la mission (borne de sécurité)
     renderLog();
   }
   function renderLog(){
     const el = document.getElementById("log");
     if (!el) return;
+    // collé au plus récent (bas) sauf si on a remonté pour relire l'historique
+    const nearBottom = (el.scrollHeight - el.scrollTop - el.clientHeight) < 24;
     el.innerHTML = log.length
-      ? log.map(e => `<div style="color:${e.team === "player" ? "#9fd3ec" : "#e8a39f"}">${e.msg}</div>`).join("")
+      ? log.slice().reverse().map(e => `<div style="color:${e.team === "player" ? "#9fd3ec" : "#e8a39f"}">${e.msg}</div>`).join("")
       : "<span style='color:#7a6c58'>Aucune action pour l'instant.</span>";
+    if (nearBottom) el.scrollTop = el.scrollHeight;
   }
 
   // ---- IA ennemie ---------------------------------------------------------
@@ -1690,7 +1695,7 @@
       draw(); if (onDone) onDone(); return;
     }
     anim = { mover, pts, t: 0 };
-    const perStep = (mover && mover.team === "enemy") ? 340 : 170;   // ennemis : déplacement 2× plus lent (plus lisible)
+    const perStep = (mover && mover.team === "enemy") ? 262 : 170;   // ennemis : déplacement plus lent mais lisible
     const t0 = performance.now(), dur = perStep * (pts.length - 1);
     (function tick(now){
       anim.t = Math.min(1, (now - t0) / dur);
@@ -3098,6 +3103,7 @@
     if (lt && lb) lt.addEventListener("click", () => {
       const open = lb.classList.toggle("collapsed") === false;   // toggle renvoie l'état présent
       lt.textContent = (open ? "▾" : "▸") + " Journal";
+      if (open){ const lg = document.getElementById("log"); if (lg) lg.scrollTop = lg.scrollHeight; }  // ouvre sur le plus récent
     });
   }
   document.getElementById("act-shoot").addEventListener("click", () => enterTargeting("ranged"));
