@@ -1161,24 +1161,6 @@
   },
   {
    "cls": "sergent",
-   "team": "neutral",
-   "col": 11,
-   "row": 2
-  },
-  {
-   "cls": "sergent",
-   "team": "neutral",
-   "col": 13,
-   "row": 3
-  },
-  {
-   "cls": "sergent",
-   "team": "neutral",
-   "col": 12,
-   "row": 4
-  },
-  {
-   "cls": "sergent",
    "team": "enemy",
    "col": 8,
    "row": 4,
@@ -1230,6 +1212,27 @@
    "col": 0,
    "row": 22,
    "name": "Shady"
+  },
+  {
+   "cls": "sergent",
+   "team": "neutral",
+   "col": 12,
+   "row": 2,
+   "hostage": true
+  },
+  {
+   "cls": "sergent",
+   "team": "neutral",
+   "col": 13,
+   "row": 4,
+   "hostage": true
+  },
+  {
+   "cls": "sergent",
+   "team": "neutral",
+   "col": 10,
+   "row": 3,
+   "hostage": true
   }
  ],
  "fullHeal": true,
