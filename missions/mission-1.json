@@ -932,6 +932,79 @@
     "Gizzard",
     "You just hit one of them, you numbskull!"
    ]
+  },
+  {
+   "on": "enter",
+   "match": {
+    "zone": "zone 1"
+   },
+   "say": [
+    "Stiff",
+    "Careful. There should be more."
+   ]
+  }
+ ],
+ "zones": [
+  {
+   "name": "zone 1",
+   "tiles": [
+    [
+     3,
+     5
+    ],
+    [
+     4,
+     6
+    ],
+    [
+     5,
+     6
+    ],
+    [
+     6,
+     6
+    ],
+    [
+     6,
+     7
+    ],
+    [
+     7,
+     7
+    ],
+    [
+     7,
+     8
+    ],
+    [
+     8,
+     8
+    ],
+    [
+     7,
+     9
+    ],
+    [
+     8,
+     10
+    ],
+    [
+     9,
+     10
+    ],
+    [
+     9,
+     11
+    ],
+    [
+     10,
+     11
+    ],
+    [
+     11,
+     12
+    ]
+   ]
   }
  ]
 }
