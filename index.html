@@ -39,7 +39,10 @@
   #hud-status{ position:fixed; top:12px; right:12px; z-index:6; background:rgba(12,9,6,.86); border:1px solid #5a4530; border-radius:8px; padding:7px 11px; color:#ffd479; font-weight:bold; box-shadow:0 3px 10px rgba(0,0,0,.4) }
   #hud-bl{ position:fixed; left:12px; bottom:12px; z-index:6; max-width:min(540px,70vw) }
   #hud-bl #msg{ background:rgba(12,9,6,.86); border:1px solid #5a4530; border-radius:8px; padding:4px 9px; margin:0 0 5px; display:inline-block; min-height:0 }
-  #hud-bl #acts{ background:rgba(12,9,6,.86); border:1px solid #5a4530; border-radius:8px; padding:5px } #hud-bl #acts:empty{ display:none } #hud-bl #acts button{ font-size:.86rem; padding:6px 9px }
+  #hud-bl #acts{ display:flex; flex-direction:column; gap:5px; background:none; border:0; padding:0 } #hud-bl #acts:empty{ display:none }
+  #hud-bl #acts button{ width:50px; height:50px; padding:0; margin:0; display:flex; flex-direction:column; align-items:center; justify-content:center; line-height:1; background:rgba(12,9,6,.88); border:1px solid #5a4530; border-radius:8px; box-shadow:0 2px 7px rgba(0,0,0,.4) }
+  #hud-bl #acts button .bn{ font-size:.6rem; opacity:.6; margin-bottom:1px } #hud-bl #acts button .bi{ font-size:1.3rem }
+  #hud-bl #acts button.on{ background:#5a4a20; border-color:#caa24a }
   #journal{ position:fixed; right:12px; bottom:12px; z-index:6; width:300px; max-width:46vw; background:rgba(12,9,6,.9); border:1px solid #5a4530; border-radius:8px; box-shadow:0 3px 12px rgba(0,0,0,.5) }
   #journal-hd{ display:flex; justify-content:space-between; align-items:center; padding:5px 9px; cursor:pointer; color:#caa24a }
   #journal #log{ max-height:30vh; overflow:auto; padding:3px 9px 7px; font-size:.74rem; border-top:1px solid #3a2c1c } #journal #log div{ margin:1px 0 }
@@ -137,7 +140,6 @@
 <!-- HUD en jeu : superposé à la carte (style hex) -->
 <div id="hud">
   <div id="hud-tl">
-    <div id="playnav"><a href="?edit" title="Éditeur de mission">🗺</a><a href="?campaign" title="Éditeur de campagne">🎬</a></div>
     <div id="roster"></div>
   </div>
   <div id="hud-status"><span id="turn">Joueur</span> · PA <span id="ap">–</span> <button id="end">Fin de tour ▶</button></div>
@@ -385,7 +387,7 @@
     const d=reach(sel);if(d[id]!==undefined){moveAlong(sel,id);if(!over)emit("move",{actorName:sel.name,actorCls:sel.cls,actorTeam:"player"});refresh();}}
 
   // ===== rendu =====
-  const terrFill={plain:"#3a6e4c",rough:"#7a6326",wall:"#2a2620",cover:"#46663f"};
+  const terrFill={plain:"#3a6e4c",rough:"#7a6326",wall:"#534d44",cover:"#46663f"};
   // petit tas de rochers au centre d'une cellule (terrain « rocher »)
   function drawRock(c){ const x=c.cx,y=c.cy,s=12;
     const blob=(ox,oy,r)=>{for(let a=0;a<6;a++){const an=a/6*TWO+0.4;const px=x+ox+Math.cos(an)*r,py=y+oy+Math.sin(an)*r;a?ctx.lineTo(px,py):ctx.moveTo(px,py);}ctx.closePath();};
@@ -406,11 +408,11 @@
       if(unseen){ctx.fillStyle="rgba(8,7,5,0.93)";ctx.fill();}                  // brouillard : cache vraiment le terrain
       ctx.lineWidth=1; ctx.strokeStyle=unseen?"#0a0806":"#0c0a07"; ctx.stroke(); }
     // portée de déplacement : 3 contours imbriqués — bleu=gratuit (0 PA), orange=1 PA, rouge=2 PA
-    if(d){ ctx.lineJoin="round"; const tier=cid=>apForMove(sel,d[cid]); const cols=["#5fb0d8","#e2a03c","#d8635f"];
+    if(d){ ctx.lineJoin="round"; const tier=cid=>apForMove(sel,d[cid]); const cols=["#5fb0d8","#e2a03c","#d8635f"]; const occCells=occ();
       for(let t=0;t<3;t++){ ctx.strokeStyle=cols[t]; ctx.lineWidth=t===0?3:2.2;
         for(const c of cells){ if(d[c.id]===undefined||tier(c.id)>t)continue; const p=c.poly;
           for(let k=0;k<p.length;k++){ const a=p[k],b=p[(k+1)%p.length],mx=(a[0]+b[0])/2,my=(a[1]+b[1])/2; let inside=false;
-            for(const n of c.nb){ if(d[n]===undefined||tier(n)>t)continue; const s=wallSeg.get(wkey(c.id,n)); if(!s)continue; if(Math.abs((s[0][0]+s[1][0])/2-mx)<1.5&&Math.abs((s[0][1]+s[1][1])/2-my)<1.5){inside=true;break;} }
+            for(const n of c.nb){ const covered=occCells.has(n)||(d[n]!==undefined&&tier(n)<=t); if(!covered)continue; const s=wallSeg.get(wkey(c.id,n)); if(!s)continue; if(Math.abs((s[0][0]+s[1][0])/2-mx)<1.5&&Math.abs((s[0][1]+s[1][1])/2-my)<1.5){inside=true;break;} }
             if(!inside){ ctx.beginPath(); ctx.moveTo(a[0],a[1]); ctx.lineTo(b[0],b[1]); ctx.stroke(); } } } } }
     // murets (couvert partiel) tracés sur les arêtes partagées
     walls.forEach(k=>{const s=wallSeg.get(k);if(!s)return;if(mode==="play"){const ab=k.split("-");if(!visible.has(+ab[0])&&!visible.has(+ab[1]))return;}ctx.beginPath();ctx.moveTo(s[0][0],s[0][1]);ctx.lineTo(s[1][0],s[1][1]);ctx.lineWidth=5;ctx.lineCap="round";ctx.strokeStyle="#caa24a";ctx.stroke();ctx.lineCap="butt";});
@@ -646,18 +648,18 @@
 
   // ===== jeu =====
   function renderActs(){const el=document.getElementById("acts");el.innerHTML="";document.getElementById("ap").textContent=sel?`${sel.ap}/${AP_MAX}`:"–";if(turn!=="player"||over)return;
-    let n=0; const btn=(label,on,fn)=>{n++;const b=document.createElement("button");b.textContent=n+" "+label;if(on)b.className="on";b.onclick=fn;el.appendChild(b);};
-    const aim=(label,m)=>btn(label,amode===m,()=>{amode=m;throwing=false;usingItem=false;renderActs();setMsg("Clique un ennemi.");});
+    let n=0; const btn=(icon,label,on,fn)=>{n++;const b=document.createElement("button");b.innerHTML=`<span class="bn">${n}</span><span class="bi">${icon}</span>`;b.title=label;if(on)b.className="on";b.onclick=fn;el.appendChild(b);};
+    const aim=(icon,label,m)=>btn(icon,label,amode===m,()=>{amode=m;throwing=false;usingItem=false;renderActs();setMsg("Clique un ennemi.");});
     if(sel){ const canShoot=sel.w.ranged&&(sel.clip===undefined||sel.ammo>0);
-      if(canShoot)aim("🏹 Tir","ranged");
-      if(sel.w.melee)aim(sel.flank?"🗡 Dagues":"⚔️ Mêlée","melee");
-      if(sel.ap>0&&canShoot)btn("👁 Tir",sel.overwatch&&sel.owMode==="ranged",()=>doOverwatch("ranged"));
-      if(sel.ap>0&&sel.w.melee)btn("👁 Mêlée",sel.overwatch&&sel.owMode==="melee",()=>doOverwatch("melee"));
-      if(sel.w.cracker&&sel.crackers>0&&sel.ap>0)btn("💣 Cracker ×"+sel.crackers,throwing,()=>{throwing=!throwing;usingItem=false;amode=null;setMsg(throwing?"Clique une case cible (aire).":"");renderActs();});
-      if(inv.potion>0&&sel.ap>0)btn("🧪 Potion ×"+inv.potion,usingItem,()=>{usingItem=!usingItem;throwing=false;amode=null;setMsg(usingItem?"Clique un allié (soi/adjacent).":"");renderActs();});
-      if(sel.clip!==undefined&&sel.ammo<sel.clip&&sel.ap>0)btn("🔄 Recharger",false,()=>{sel.ap--;sel.ammo=sel.clip;refresh();}); }
+      if(canShoot)aim("🏹","Tir","ranged");
+      if(sel.w.melee)aim(sel.flank?"🗡":"⚔️",sel.flank?"Dagues":"Mêlée","melee");
+      if(sel.ap>0&&canShoot)btn("👁","Vigilance — tir",sel.overwatch&&sel.owMode==="ranged",()=>doOverwatch("ranged"));
+      if(sel.ap>0&&sel.w.melee)btn("👁","Vigilance — mêlée",sel.overwatch&&sel.owMode==="melee",()=>doOverwatch("melee"));
+      if(sel.w.cracker&&sel.crackers>0&&sel.ap>0)btn("💣","Cracker ×"+sel.crackers,throwing,()=>{throwing=!throwing;usingItem=false;amode=null;setMsg(throwing?"Clique une case cible (aire).":"");renderActs();});
+      if(inv.potion>0&&sel.ap>0)btn("🧪","Potion ×"+inv.potion,usingItem,()=>{usingItem=!usingItem;throwing=false;amode=null;setMsg(usingItem?"Clique un allié (soi/adjacent).":"");renderActs();});
+      if(sel.clip!==undefined&&sel.ammo<sel.clip&&sel.ap>0)btn("🔄","Recharger",false,()=>{sel.ap--;sel.ammo=sel.clip;refresh();}); }
     // Fin de tour = bouton 0, toujours en dernier
-    const e=document.createElement("button");e.id="act-end";e.textContent="0 Fin de tour ▶";e.style.marginTop="3px";e.onclick=()=>{if(!over&&turn==="player")endTurn();};el.appendChild(e);}
+    const e=document.createElement("button");e.id="act-end";e.innerHTML=`<span class="bn">0</span><span class="bi">🏁</span>`;e.title="Fin de tour";e.onclick=()=>{if(!over&&turn==="player")endTurn();};el.appendChild(e);}
   function startGame(){ { const t=document.getElementById("title"); if(t)t.style.display="none"; }   // une partie démarre : on retire l'écran-titre
     if(!units.some(u=>u.team==="player")||!units.some(u=>u.team==="enemy")){ setMsg("Place au moins 1 allié et 1 ennemi (mode Éditer)."); }
     for(const u of units){u.hp=u.max;u.ap=AP_MAX;u.freeAvail=true;u.overwatch=false;u.reacted=false;u.asleep=!!u._asleep0;if(u.clip!==undefined)u.ammo=u.clip;if(u.crackers!==undefined)u.crackers=CLASSES[u.cls].crackers;} turn="player";over=false;sel=null;amode=null;throwing=false;usingItem=false;inv={potion:2};
