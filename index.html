@@ -402,7 +402,7 @@
       if(c.terr==="wall"&&!unseen)drawRock(c);                                  // 🪨 vrai rocher (caché par le brouillard)
       poly(c);                                                                  // ré-arme le chemin de la cellule (drawRock a fait beginPath)
       if(unseen){ctx.fillStyle="rgba(8,7,5,0.93)";ctx.fill();}                  // brouillard : cache vraiment le terrain
-      if(d&&d[c.id]!==undefined){ctx.fillStyle="rgba(122,223,122,0.34)";ctx.fill();}  // déplacements toujours par-dessus le brouillard
+      if(d&&d[c.id]!==undefined){const ap=apForMove(sel,d[c.id]);ctx.fillStyle=ap===0?"rgba(95,176,216,0.36)":ap===1?"rgba(226,160,60,0.36)":"rgba(216,99,95,0.36)";ctx.fill();}  // portée : bleu=gratuit, orange=1 PA, rouge=2 PA — toujours par-dessus le brouillard
       ctx.lineWidth=1; ctx.strokeStyle=unseen?"#0a0806":"#0c0a07"; ctx.stroke(); }
     // murets (couvert partiel) tracés sur les arêtes partagées
     walls.forEach(k=>{const s=wallSeg.get(k);if(!s)return;if(mode==="play"){const ab=k.split("-");if(!visible.has(+ab[0])&&!visible.has(+ab[1]))return;}ctx.beginPath();ctx.moveTo(s[0][0],s[0][1]);ctx.lineTo(s[1][0],s[1][1]);ctx.lineWidth=5;ctx.lineCap="round";ctx.strokeStyle="#caa24a";ctx.stroke();ctx.lineCap="butt";});
@@ -646,7 +646,8 @@
     if(sel.w.cracker&&sel.crackers>0&&sel.ap>0)btn("💣 Cracker ×"+sel.crackers,throwing,()=>{throwing=!throwing;usingItem=false;amode=null;setMsg(throwing?"Clique une case cible (aire).":"");renderActs();});
     if(inv.potion>0&&sel.ap>0)btn("🧪 Potion ×"+inv.potion,usingItem,()=>{usingItem=!usingItem;throwing=false;amode=null;setMsg(usingItem?"Clique un allié (soi/adjacent).":"");renderActs();});
     if(sel.clip!==undefined&&sel.ammo<sel.clip&&sel.ap>0)btn("🔄 Recharger",false,()=>{sel.ap--;sel.ammo=sel.clip;refresh();});}
-  function startGame(){ if(!units.some(u=>u.team==="player")||!units.some(u=>u.team==="enemy")){ setMsg("Place au moins 1 allié et 1 ennemi (mode Éditer)."); }
+  function startGame(){ { const t=document.getElementById("title"); if(t)t.style.display="none"; }   // une partie démarre : on retire l'écran-titre
+    if(!units.some(u=>u.team==="player")||!units.some(u=>u.team==="enemy")){ setMsg("Place au moins 1 allié et 1 ennemi (mode Éditer)."); }
     for(const u of units){u.hp=u.max;u.ap=AP_MAX;u.freeAvail=true;u.overwatch=false;u.reacted=false;u.asleep=!!u._asleep0;if(u.clip!==undefined)u.ammo=u.clip;if(u.crackers!==undefined)u.crackers=CLASSES[u.cls].crackers;} turn="player";over=false;sel=null;amode=null;throwing=false;usingItem=false;inv={potion:2};
     fired=new Set(); podAlerted=new Set(); neutralSeen=new Set(); turnNum=1; speechQ=[]; if(speechT){clearTimeout(speechT);speechT=null;} document.getElementById("combatline").style.display="none";
     document.getElementById("over").classList.remove("show");document.getElementById("log").innerHTML="";setMsg("À toi — sélectionne une unité.");refresh();
