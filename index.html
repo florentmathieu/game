@@ -384,9 +384,9 @@
   // ---- Paramètres de la grille --------------------------------------------
   let COLS = 20, ROWS = 20;                       // taille de la carte (modifiable : éditeur / missions)
   const SIZE = 20, LEVELS = 7, MARGIN = 14;
-  const VISION = 9;          // rayon de vision/brouillard du JOUEUR (voit le terrain un peu plus loin)
-  const ENEMY_VISION = 7;    // détection d'un ennemi éveillé (< vision joueur : on les repère avant qu'ils nous voient)
-  const SLEEP_VISION = 3;    // portée de détection d'un ennemi ENDORMI (courte : permet l'approche furtive)
+  const VISION = 8;          // rayon de vision/brouillard du JOUEUR
+  const ENEMY_VISION = 8;    // détection d'un ennemi éveillé (même portée que le joueur)
+  const SLEEP_VISION = 6;    // portée de détection d'un ennemi ENDORMI (réduite : permet l'approche furtive)
   const ROCK_RATE = 0.07;    // proportion de cases occupées par un rocher (couvert total)
   const WALL_RATE = 0.16;    // densité de murets (couvert partiel) posés sur les arêtes
   const HEIGHT_BONUS = 6;    // % de précision par niveau d'écart de hauteur (plafonné)
