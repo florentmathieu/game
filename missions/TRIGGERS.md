@@ -91,8 +91,9 @@ Tout est enregistré dans la mission. (On peut aussi éditer le JSON à la main,
 - **`cracker`** — un cracker explose. `actor`, `enemiesHit`, `alliesHit`, `killed`, `first`.
 - **`move`** — une unité finit un déplacement. `actor`, `col`, `row`, `steps`.
 - **`enter`** — une unité **entre dans une zone**. `actor` (vide = n'importe qui), `zone`, `col`, `row`.
-- **`spotted`** — un pod ennemi se réveille, quelle qu'en soit la cause. `pod`, `by` (`"sight"` = repéré à vue, `"noise"` = bruit/combat).
-- **`discovered`** — un pod se réveille **en repérant le joueur à vue** (sans attaque ni bruit). `pod`. (sous-cas de `spotted` avec `by:"sight"`)
+- **`spotted`** — un pod **ennemi** se réveille (quelle qu'en soit la cause) **ou** le joueur repère à vue un pod de **PNJ/otages**. `pod`, `actorTeam` (`"enemy"` / `"neutral"`), `by` (`"sight"` = repéré à vue, `"noise"` = bruit/combat).
+- **`discovered`** — soit un pod ennemi se réveille **en repérant le joueur à vue** (sans attaque ni bruit), soit le joueur **découvre un pod de PNJ/otages** à vue. `pod`, `actorTeam` (`"enemy"` / `"neutral"`). (sous-cas de `spotted` avec `by:"sight"`)
+  - Pour distinguer un pod neutre d'un pod ennemi de même numéro, ajoute `"actorTeam": "neutral"` au `match` (champ **camp** dans l'éditeur). Assigne un n° de pod aux PNJ/otages avec l'outil **👥 Pod**.
 - **`win`** / **`lose`** — fin de partie.
 
 ## Zones

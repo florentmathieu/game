@@ -337,7 +337,7 @@
       <div class="erow tc" data-for="cracker"><label style="flex:1">ennemis touchés = <input id="trig-enemiesHit" type="number" min="0" style="width:56px"></label></div>
       <div class="erow tc" data-for="wounded"><label style="flex:1">PV cible ≤ <input id="trig-hppct" type="number" min="0" max="100" style="width:56px"> %</label></div>
       <div class="erow tc" data-for="turn"><label style="flex:1">tour n° <input id="trig-turn" type="number" min="1" style="width:56px"></label></div>
-      <div class="erow tc" data-for="spotted discovered"><label style="flex:1">pod n° <input id="trig-pod" type="number" min="0" style="width:56px"></label></div>
+      <div class="erow tc" data-for="spotted discovered"><label style="flex:1">pod n° <input id="trig-pod" type="number" min="0" style="width:56px"></label> <label>camp <select id="trig-team"><option value="">—</option><option value="enemy">ennemi</option><option value="neutral">PNJ/otage</option></select></label></div>
       <div id="trig-lines" class="hint"></div>
       <div class="erow"><input id="trig-who" placeholder="qui parle (défaut : acteur)" list="ed-names" style="flex:1"></div>
       <div class="erow"><input id="trig-text" placeholder="réplique…" style="flex:1"><button id="trig-addline" style="flex:0 0 auto;width:auto">+ ligne</button></div>
@@ -524,6 +524,7 @@
   let enemyPhase = false;    // true pendant la phase ennemie (entrées bloquées)
   let walls = new Set();     // murets : couvert partiel posé sur l'arête entre deux cases
   let podAlerted = new Set();// pods ennemis ayant pris conscience du joueur (éveil par groupe)
+  let neutralPodsSeen = new Set();// pods de PNJ/otages déjà repérés à vue par le joueur
   let introActive = true;    // true tant que l'ouverture (écran noir + scène) est affichée (entrées bloquées)
   let firstGame = true;      // la scène sous la map ne joue qu'à la toute première partie
   let editMode = false;      // éditeur de mission actif
@@ -751,7 +752,7 @@
     for (const u of units){ if (u.hasFacing) continue; const o = nearestOpposing(u); if (o) faceTowards(u, o.col, o.row); }
     selected = null; reach = null; log = []; turn = 1; gameOver = null;
     targeting = null; throwing = false; usingItem = null;
-    explored = new Set(); lastSeen = new Map(); podAlerted = new Set();
+    explored = new Set(); lastSeen = new Map(); podAlerted = new Set(); neutralPodsSeen = new Set();
     firedTriggers = new Set(); battleFlags = { firstOffense: false };  // reset des évènements
     speechQueue = []; if (speechTimer && typeof clearTimeout === "function") clearTimeout(speechTimer); speechTimer = null;
     { const el = (typeof document !== "undefined") && document.getElementById("combatline"); if (el && el.style){ el.style.display = "none"; if (el.classList) el.classList.remove("show"); } }
@@ -914,6 +915,23 @@
       if (!prev) lastSeen.set(u, { col:u.col, row:u.row, pcol:u.col, prow:u.row });
       else if (prev.col !== u.col || prev.row !== u.row)
         lastSeen.set(u, { col:u.col, row:u.row, pcol:prev.col, prow:prev.row }); // garde la direction
+    }
+    if (!editMode) discoverNeutralPods();   // le joueur peut « découvrir » un pod de PNJ/otages à vue
+  }
+  // Quand le joueur aperçoit pour la 1re fois un membre d'un pod de PNJ/otages, on déclenche
+  // sa « découverte » (évènements spotted/discovered, actorTeam:"neutral").
+  function discoverNeutralPods(){
+    for (const u of units){
+      if (u.team !== "neutral" || u.hp <= 0 || u.pod === undefined) continue;
+      if (neutralPodsSeen.has(u.pod) || !playerCanSee(u)) continue;
+      neutralPodsSeen.add(u.pod);
+      const members = units.filter(x => x.team === "neutral" && x.pod === u.pod && x.hp > 0);
+      const nh = members.filter(x => x.hostage).length;
+      const kind = nh === members.length ? "otages" : nh ? "PNJ/otages" : "PNJ";
+      pushLog(`🔎 Pod de ${kind} découvert — ${members.length}`, "player");
+      pushAlert(u.col, u.row);
+      emit("spotted",    { pod: u.pod, actorTeam: "neutral", by: "sight" });
+      emit("discovered", { pod: u.pod, actorTeam: "neutral" });
     }
   }
 
@@ -2024,7 +2042,7 @@
         ctx.fillText("z", x + SIZE*0.5, y - SIZE*0.5);
       }
       // numéro de pod (éditeur seulement) pour visualiser les groupes
-      if (editMode && u.team === "enemy" && u.pod !== undefined){
+      if (editMode && (u.team === "enemy" || u.team === "neutral") && u.pod !== undefined){
         ctx.fillStyle = "#cfe8ff"; ctx.font = "bold 9px sans-serif";
         ctx.textAlign = "center"; ctx.textBaseline = "middle";
         ctx.fillText("P" + u.pod, x - SIZE*0.5, y + SIZE*0.55);
@@ -2721,9 +2739,8 @@
         if (v !== null){ const s = v.trim(); if (s){ u.name = s; u.named = true; } else { u.named = false; } dedupeNames(); }
         return;
       }
-      if (u.team !== "enemy") return;   // endormi / pod : ennemis seulement
-      if (editTool === "sleep") u.asleep = !u.asleep;
-      else if (editTool === "pod") u.pod = ((u.pod === undefined ? -1 : u.pod) + 1) % 4;
+      if (editTool === "sleep"){ if (u.team !== "enemy") return; u.asleep = !u.asleep; return; }   // endormi : ennemis seulement
+      if (editTool === "pod"){ if (u.team !== "enemy" && u.team !== "neutral") return; u.pod = ((u.pod === undefined ? -1 : u.pod) + 1) % 4; }   // pod : ennemis ET PNJ/otages
       return;
     }
     if (editTool === "erase" && editHoverEdge){ const w = wallKey(...editHoverEdge); if (walls.has(w)) walls.delete(w); }  // la gomme efface aussi les murets
@@ -2744,7 +2761,7 @@
     const u = unitAt(hover.col, hover.row);
     let s = `(${hover.col}, ${hover.row}) · altitude ${t.elev}${t.obstacle ? " · rocher" : ""}`;
     if (u && u.team === "enemy") s += ` · ${u.name}${u.pod !== undefined ? " · pod " + u.pod : ""}${u.asleep ? " · 💤 endormi" : ""}`;
-    else if (u && u.team === "neutral") s += ` · ${u.name} · ${u.hostage ? "🟣 otage" : "🟡 PNJ à défendre"}`;
+    else if (u && u.team === "neutral") s += ` · ${u.name} · ${u.hostage ? "🟣 otage" : "🟡 PNJ à défendre"}${u.pod !== undefined ? " · pod " + u.pod : ""}`;
     el.textContent = s;
   }
 
@@ -3047,6 +3064,7 @@
     if (relevant("trig-hppct")){ const hp = tval("trig-hppct"); if (hp !== "") m.hpPct = { max: +hp }; }
     if (relevant("trig-turn")){ const tn = tval("trig-turn"); if (tn !== "") m.turn = +tn; }
     if (relevant("trig-pod")){ const pod = tval("trig-pod"); if (pod !== "") m.pod = +pod; }
+    if (relevant("trig-team")){ const tm = tval("trig-team"); if (tm) m.actorTeam = tm; }
     const lines = trigLines.slice();
     const text = tval("trig-text"); if (text) lines.push([tval("trig-who"), text]);   // la ligne en cours compte aussi
     const wake = tval("trig-wake"), open = tval("trig-open"), close = tval("trig-close");
