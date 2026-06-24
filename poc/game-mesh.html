@@ -44,8 +44,10 @@
     <div class="row" id="terr"></div>
     <div class="row" id="relief"></div>
     <h2>3 · Unités</h2>
-    <div class="row"><select id="uteam"><option value="player">🔵 Allié</option><option value="enemy">🔴 Ennemi</option></select>
+    <div class="row"><select id="uteam"><option value="player">🔵 Allié</option><option value="enemy">🔴 Ennemi</option><option value="neutral">🟡 PNJ/otage</option></select>
       <select id="ucls"></select></div>
+    <div class="row"><label>pod <input id="upod" type="text" placeholder="–" style="width:36px"></label>
+      <label><input id="uasleep" type="checkbox">💤 endormi</label><label><input id="uhostage" type="checkbox">🟣 otage</label></div>
     <div class="row"><button id="tplace" data-tool="unit">Poser l'unité</button><button id="terase" data-tool="erase">Gomme</button></div>
     <h2>Évènements (dialogues)</h2>
     <div id="triglist" class="hint"></div>
@@ -92,7 +94,11 @@
     garde:{name:"Garde",hp:8,mob:6,shieldBlock:20,w:{melee:sword(65,3,4)}},
     archer:{name:"Archer",hp:6,mob:6,w:{ranged:bow(70,2,3,8)}},
     brute:{name:"Brute",hp:13,mob:8,w:{melee:sword(70,5,7)}},
+    homme:{name:"Homme",hp:6,mob:6,civ:true,w:{melee:{type:"melee",aim:40,dmgMin:1,dmgMax:2,bare:true}}},
+    femme:{name:"Femme",hp:5,mob:6,civ:true,w:{melee:{type:"melee",aim:40,dmgMin:1,dmgMax:2,bare:true}}},
+    enfant:{name:"Enfant",hp:3,mob:7,civ:true,w:{melee:{type:"melee",aim:25,dmgMin:0,dmgMax:1,bare:true}}},
   };
+  const ENEMY_VIS=7, SLEEP_VIS=4;
   const mk=s=>()=>{s|=0;s=s+0x6D2B79F5|0;let t=Math.imul(s^s>>>15,1|s);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;};
   let RND=mk(7), seed=7, mode="edit", editTool="zone:square";
 
@@ -135,12 +141,27 @@
   const enterCost=(from,to)=>{ if(!passable(to))return null; if(cells[to].elev-cells[from].elev>=2)return null; const climb=Math.max(0,cells[to].elev-cells[from].elev); return (cells[to].terr==="rough"?2:1)+climb; };
 
   // ===== unités =====
-  let units=[];
-  function U(team,cls,cell,name){const t=CLASSES[cls];const wtype=t.w.ranged?"ranged":"melee";const w=t.w[wtype];
-    const u={team,cls,name:name||t.name,cell,hp:t.hp,max:t.hp,ap:AP_MAX,freeAvail:true,mob:t.mob,facing:team==="enemy"?Math.PI:0,wtype,flank:w.flank||null,shieldBlock:t.shieldBlock||0,parry:t.parry||0,w:t.w};
-    if(w.clip!==undefined){u.clip=w.clip;u.ammo=w.clip;} return u; }
+  let units=[], podAlerted=new Set(), neutralSeen=new Set();
+  function U(team,cls,cell,opts){opts=opts||{};const t=CLASSES[cls];const wtype=t.w.ranged?"ranged":"melee";const w=t.w[wtype];
+    const u={team,cls,name:opts.name||t.name,cell,hp:t.hp,max:t.hp,ap:AP_MAX,freeAvail:true,mob:t.mob,facing:team==="enemy"?Math.PI:0,wtype,flank:w.flank||null,shieldBlock:t.shieldBlock||0,parry:t.parry||0,w:t.w};
+    if(w.clip!==undefined){u.clip=w.clip;u.ammo=w.clip;}
+    if(opts.pod!=null&&opts.pod!=="")u.pod=+opts.pod; if(opts.asleep&&team==="enemy")u.asleep=true; if(opts.hostage&&team==="neutral")u.hostage=true;
+    return u; }
   const occ=()=>new Set(units.filter(u=>u.hp>0).map(u=>u.cell));
   const uAt=id=>units.find(u=>u.hp>0&&u.cell===id);
+  // relations : l'ennemi vise joueurs + PNJ non-otages ; le joueur vise l'ennemi ; le neutre n'attaque personne
+  function hostile(a,b){ if(a.team==="enemy")return b.team==="player"||(b.team==="neutral"&&!b.hostage); if(a.team==="player")return b.team==="enemy"; return false; }
+  const enemyActive=e=>!e.asleep&&(e.pod===undefined||podAlerted.has(e.pod));
+  // éveil d'un pod (ou d'un dormeur isolé) ; `by` = unité repérée → le pod se tourne vers elle
+  function wakePod(pid,cause,by){ const fresh=pid!==undefined&&!podAlerted.has(pid); if(pid!==undefined)podAlerted.add(pid);
+    for(const u of units)if(u.team==="enemy"&&u.pod===pid){u.asleep=false;if(fresh&&by)u.facing=ang(u.cell,by.cell);}
+    if(fresh){ const n=units.filter(u=>u.team==="enemy"&&u.pod===pid&&u.hp>0).length; log(`⚠ Pod ennemi réveillé (${cause==="sight"?"repéré à vue":"alerté"}) — ${n}`,"enemy"); emit("spotted",{pod:pid,actorTeam:"enemy",by:cause}); if(cause==="sight")emit("discovered",{pod:pid,actorTeam:"enemy"}); } }
+  function wakeEnemy(e,cause,by){ if(e.team!=="enemy")return; if(e.pod!==undefined)wakePod(e.pod,cause,by);
+    else if(e.asleep){e.asleep=false;if(by)e.facing=ang(e.cell,by.cell);log(`⚠ ${e.name} réveillé`,"enemy");emit("spotted",{actorTeam:"enemy",by:cause});if(cause==="sight")emit("discovered",{actorTeam:"enemy"});} }
+  function detectEnemies(){ for(const e of units)if(e.team==="enemy"&&e.hp>0){ const vis=e.asleep?SLEEP_VIS:ENEMY_VIS;
+    for(const p of units)if(p.team==="player"&&p.hp>0&&hops(e.cell,p.cell)<=vis&&los(e.cell,p.cell)){ wakeEnemy(e,"sight",p); break; } } }
+  function detectNeutralPods(){ for(const u of units)if(u.team==="neutral"&&u.hp>0&&u.pod!==undefined&&!neutralSeen.has(u.pod)&&visible.has(u.cell)){
+    neutralSeen.add(u.pod); log("🔎 Pod de PNJ/otages découvert","player"); emit("spotted",{pod:u.pod,actorTeam:"neutral",by:"sight"}); emit("discovered",{pod:u.pod,actorTeam:"neutral"}); } }
 
   // ===== distance / portée / déplacement =====
   function budget(u){return (u.freeAvail?FREE_MP:0)+u.ap*MOB;}
@@ -171,6 +192,7 @@
     log(`${att.team==="player"?"▲":"▼"} ${att.name} ${w.type==="ranged"?"tire sur":"frappe"} ${tgt.name} (${ch}%) : ${txt}`,att.team);
     const ctx={actorName:att.name,actorCls:att.cls,actorTeam:att.team,targetName:tgt.name,targetCls:tgt.cls,targetTeam:tgt.team,weapon:wn,result,killed,dmg};
     emit("attack",ctx); if(dmg>0)emit("wounded",ctx); if(killed)emit("kill",ctx);
+    if(tgt.team==="enemy"&&tgt.hp>0)wakeEnemy(tgt,"noise");   // le combat fait du bruit : réveille le pod visé
     checkEnd();refresh();}
 
   // ===== évènements scriptés (triggers) + dialogues =====
@@ -190,15 +212,15 @@
   function computeVis(){visible=new Set();for(const u of units)if(u.team==="player"&&u.hp>0)for(const c of cells)if(hops(u.cell,c.id)<=7&&los(u.cell,c.id))visible.add(c.id);}
   const seen=u=>visible.has(u.cell);
   const defaultAttack=u=>(u.w.ranged&&(u.clip===undefined||u.ammo>0))?"ranged":"melee";
-  function checkEnd(){if(!units.some(u=>u.team==="enemy"&&u.hp>0))end("Victoire !");else if(!units.some(u=>u.team==="player"&&u.hp>0))end("Défaite…");}
+  function checkEnd(){if(units.some(u=>u.team==="neutral"&&u.hp<=0))return end("Défaite — un PNJ/otage est tombé…");if(!units.some(u=>u.team==="enemy"&&u.hp>0))end("Victoire !");else if(!units.some(u=>u.team==="player"&&u.hp>0))end("Défaite…");}
   function end(t){over=true;emit(t.indexOf("Victoire")===0?"win":"lose",{});document.getElementById("overtxt").textContent=t;document.getElementById("over").classList.add("show");draw();}
   function log(m,team){if(mode!=="play")return;const el=document.getElementById("log");const d=document.createElement("div");d.className=team==="player"?"pl":"en";d.textContent=m;el.prepend(d);}
   function setMsg(t){document.getElementById("msg").textContent=t;}
-  function refresh(){ if(mode==="play")computeVis(); else visible=new Set(cells.map(c=>c.id)); draw(); if(mode==="play")renderActs(); else { renderCounts(); saveDraft(); } }
+  function refresh(){ if(mode==="play"){computeVis();detectEnemies();detectNeutralPods();} else visible=new Set(cells.map(c=>c.id)); draw(); if(mode==="play")renderActs(); else { renderCounts(); saveDraft(); } }
   function endTurn(){turn="enemy";sel=null;amode=null;refresh();const foes=units.filter(u=>u.team==="enemy"&&u.hp>0);let i=0;
     (function step(){if(over)return;if(i>=foes.length){for(const u of units){u.ap=AP_MAX;u.freeAvail=true;}turn="player";turnNum++;setMsg("À toi.");refresh();emit("turn",{turn:turnNum});return;}
-      const e=foes[i++];if(e.hp<=0){step();return;}
-      let tgt=null,best=1e9;for(const p of units)if(p.team==="player"&&p.hp>0){const h=hops(e.cell,p.cell);if(h<best){best=h;tgt=p;}}
+      const e=foes[i++];if(e.hp<=0){step();return;} if(!enemyActive(e)){step();return;}   // pas alerté = ne bouge pas
+      let tgt=null,best=1e9;for(const p of units)if(p.hp>0&&hostile(e,p)){const h=hops(e.cell,p.cell);if(h<best){best=h;tgt=p;}}
       if(!tgt){step();return;}
       if(inRange(e,tgt,e.wtype)){doAttack(e,tgt,e.wtype);setTimeout(step,400);return;}
       const pa=pathTo(e,tgt.cell);if(pa){const dist=reach(e);let dest=e.cell;for(let k=1;k<pa.length;k++){const c=pa[k];if(c===tgt.cell)break;if(dist[c]!==undefined)dest=c;else break;}if(dest!==e.cell){const cost=dist[dest];e.facing=ang(e.cell,dest);e.ap-=apForMove(e,cost);if(e.ap<0)e.ap=0;e.freeAvail=false;e.cell=dest;}}
@@ -216,7 +238,7 @@
     if(editTool.startsWith("terr:")){ cell.terr=editTool.slice(5); }
     else if(editTool==="elev+"){ cell.elev=Math.min(3,cell.elev+1); }
     else if(editTool==="elev-"){ cell.elev=Math.max(0,cell.elev-1); }
-    else if(editTool==="unit"){ units=units.filter(u=>u.cell!==id); units.push(U(uteam.value,ucls.value,id)); }
+    else if(editTool==="unit"){ units=units.filter(u=>u.cell!==id); units.push(U(uteam.value,ucls.value,id,{pod:upod.value,asleep:uasleep.checked,hostage:uhostage.checked})); }
     else if(editTool==="erase"){ units=units.filter(u=>u.cell!==id); }
     refresh();
   }
@@ -240,19 +262,22 @@
       if(mode==="play"&&!visible.has(c.id)){ctx.fillStyle="rgba(0,0,0,0.55)";ctx.fill();}
       ctx.lineWidth=1;ctx.strokeStyle="#0c0a07";ctx.stroke();}
     if(showZones){ctx.strokeStyle="rgba(202,162,74,.3)";for(let c=1;c<COLS;c++){ctx.beginPath();ctx.moveTo(c*MC,0);ctx.lineTo(c*MC,H);ctx.stroke();}for(let r=1;r<ROWS;r++){ctx.beginPath();ctx.moveTo(0,r*MC);ctx.lineTo(W,r*MC);ctx.stroke();}}
+    const ucol=u=>u.team==="player"?"#5fb0d8":u.team==="neutral"?(u.hostage?"#c98fd0":"#e0b84a"):"#d8635f";
     for(const u of units){const c=cells[u.cell];if(!c)continue;const x=c.cx,y=c.cy;
-      if(mode==="play"&&u.team==="enemy"&&u.hp>0&&!seen(u))continue;
+      if(mode==="play"&&u.team!=="player"&&u.hp>0&&!seen(u))continue;
       if(u.hp<=0){ctx.globalAlpha=.5;ctx.strokeStyle=u.team==="player"?"#86bce6":"#d88a8a";ctx.lineWidth=3;ctx.beginPath();ctx.moveTo(x-6,y-6);ctx.lineTo(x+6,y+6);ctx.moveTo(x+6,y-6);ctx.lineTo(x-6,y+6);ctx.stroke();ctx.globalAlpha=1;continue;}
-      ctx.beginPath();ctx.moveTo(x+Math.cos(u.facing)*7,y+Math.sin(u.facing)*7);ctx.lineTo(x+Math.cos(u.facing)*15,y+Math.sin(u.facing)*15);ctx.lineWidth=3;ctx.strokeStyle=u.team==="player"?"#bfe6ff":"#f0b0ac";ctx.stroke();
+      ctx.beginPath();ctx.moveTo(x+Math.cos(u.facing)*7,y+Math.sin(u.facing)*7);ctx.lineTo(x+Math.cos(u.facing)*15,y+Math.sin(u.facing)*15);ctx.lineWidth=3;ctx.strokeStyle=u.team==="player"?"#bfe6ff":u.team==="neutral"?"#f0d89a":"#f0b0ac";ctx.stroke();
       if(mode==="play"&&sel&&sel.ap>0&&turn==="player"&&u.team==="enemy"&&seen(u)){const m=amode||defaultAttack(sel);if(sel.w[m]&&inRange(sel,u,m)){ctx.beginPath();ctx.arc(x,y,13,0,TWO);ctx.lineWidth=3;ctx.strokeStyle="#e0635f";ctx.stroke();}}
-      ctx.beginPath();ctx.arc(x,y,10,0,TWO);ctx.fillStyle=u.team==="player"?"#5fb0d8":"#d8635f";ctx.globalAlpha=(mode==="play"&&u.team==="player"&&u.ap<=0&&turn==="player")?.5:1;ctx.fill();ctx.globalAlpha=1;
+      ctx.beginPath();ctx.arc(x,y,10,0,TWO);ctx.fillStyle=ucol(u);ctx.globalAlpha=(mode==="play"&&u.team==="player"&&u.ap<=0&&turn==="player")?.5:(mode==="play"&&u.asleep?.7:1);ctx.fill();ctx.globalAlpha=1;
       ctx.lineWidth=(u===sel)?3:1.5;ctx.strokeStyle=(u===sel)?"#fff":"rgba(0,0,0,.5)";ctx.stroke();
       ctx.fillStyle="#0b1117";ctx.font="bold 11px sans-serif";ctx.textAlign="center";ctx.textBaseline="middle";ctx.fillText(u.name[0],x,y);
+      if(u.asleep){ctx.fillStyle="#ffe9a8";ctx.font="bold 11px sans-serif";ctx.fillText("z",x+11,y-9);}
+      if(mode==="edit"&&u.team!=="player"&&u.pod!==undefined){ctx.fillStyle="#cfe8ff";ctx.font="bold 9px sans-serif";ctx.fillText("P"+u.pod,x-11,y+11);}
       const bw=20,bx=x-bw/2,by=y-17;ctx.fillStyle="rgba(0,0,0,.6)";ctx.fillRect(bx-1,by-1,bw+2,5);ctx.fillStyle="#3a3128";ctx.fillRect(bx,by,bw,3);ctx.fillStyle=u.team==="player"?"#6fd06f":"#e06f6f";ctx.fillRect(bx,by,bw*Math.max(0,u.hp)/u.max,3);}
   }
 
   // ===== UI éditeur =====
-  const distEl=document.getElementById("dist"),dens=document.getElementById("dens"),uteam=document.getElementById("uteam"),ucls=document.getElementById("ucls");
+  const distEl=document.getElementById("dist"),dens=document.getElementById("dens"),uteam=document.getElementById("uteam"),ucls=document.getElementById("ucls"),upod=document.getElementById("upod"),uasleep=document.getElementById("uasleep"),uhostage=document.getElementById("uhostage");
   Object.keys(CLASSES).forEach(k=>{const o=document.createElement("option");o.value=k;o.textContent=CLASSES[k].name;ucls.appendChild(o);});
   function btnRow(host,items){ host.innerHTML=""; items.forEach(([label,tool])=>{const b=document.createElement("button");b.textContent=label;b.dataset.tool=tool;b.className=editTool===tool?"on":"";b.onclick=()=>{editTool=tool;syncTools();refresh();};host.appendChild(b);}); }
   function syncTools(){ document.querySelectorAll("#zones button,#terr button,#relief button,#tplace,#terase").forEach(b=>b.classList.toggle("on",b.dataset.tool===editTool)); }
@@ -272,13 +297,13 @@
   // sérialisation : cellules (polygone + terrain + relief) + unités + paramètres de forme (pour re-mailler)
   function exportObj(){ return { name:"mission-maillage", form:{infl,dist:+distEl.value,dens:+dens.value,seed},
     cells:cells.map(c=>({poly:c.poly.map(p=>[Math.round(p[0]),Math.round(p[1])]),terr:c.terr,elev:c.elev})),
-    units:units.map(u=>({team:u.team,cls:u.cls,cell:u.cell})),
+    units:units.map(u=>{const o={team:u.team,cls:u.cls,cell:u.cell};if(u.name!==CLASSES[u.cls].name)o.name=u.name;if(u.pod!==undefined)o.pod=u.pod;if(u.asleep)o.asleep=true;if(u.hostage)o.hostage=true;return o;}),
     triggers:triggers }; }
   function applyMissionObj(m){
     if(!m||!Array.isArray(m.cells))throw new Error("format invalide");
     cells=m.cells.map((c,i)=>{let sx=0,sy=0;for(const p of c.poly){sx+=p[0];sy+=p[1];}return {id:i,poly:c.poly,cx:sx/c.poly.length,cy:sy/c.poly.length,nb:[],terr:c.terr||"plain",elev:c.elev||0};});
     buildAdj();
-    units=(m.units||[]).map(u=>U(u.team,u.cls,u.cell)).filter(u=>cells[u.cell]);
+    units=(m.units||[]).map(u=>U(u.team,u.cls,u.cell,{name:u.name,pod:u.pod,asleep:u.asleep,hostage:u.hostage})).filter(u=>cells[u.cell]);
     triggers=Array.isArray(m.triggers)?m.triggers:[]; renderTrigList();
     if(m.form){ if(m.form.infl)infl=m.form.infl; if(m.form.dist!=null){distEl.value=m.form.dist;document.getElementById("distv").textContent=m.form.dist+"%";} if(m.form.dens!=null){dens.value=m.form.dens;document.getElementById("densv").textContent=m.form.dens;} if(m.form.seed!=null)seed=m.form.seed; }
     refresh();
@@ -343,7 +368,7 @@
     if(sel.clip!==undefined&&sel.ammo<sel.clip){const b=document.createElement("button");b.textContent="🔄";b.onclick=()=>{if(sel.ap>0){sel.ap--;sel.ammo=sel.clip;refresh();}};el.appendChild(b);}}
   function startGame(){ if(!units.some(u=>u.team==="player")||!units.some(u=>u.team==="enemy")){ setMsg("Place au moins 1 allié et 1 ennemi (mode Éditer)."); }
     for(const u of units){u.hp=u.max;u.ap=AP_MAX;u.freeAvail=true;} turn="player";over=false;sel=null;amode=null;
-    fired=new Set(); turnNum=1; speechQ=[]; if(speechT){clearTimeout(speechT);speechT=null;} document.getElementById("combatline").style.display="none";
+    fired=new Set(); podAlerted=new Set(); neutralSeen=new Set(); turnNum=1; speechQ=[]; if(speechT){clearTimeout(speechT);speechT=null;} document.getElementById("combatline").style.display="none";
     document.getElementById("over").classList.remove("show");document.getElementById("log").innerHTML="";setMsg("À toi — sélectionne une unité.");refresh();
     emit("start",{}); emit("turn",{turn:1}); }
   document.getElementById("end").onclick=()=>{if(!over&&turn==="player"&&mode==="play")endTurn();};
@@ -356,8 +381,8 @@
     const byX=cells.map((c,i)=>({i,cx:c.cx,cy:c.cy})).filter(o=>passable(o.i));
     const L=byX.slice().sort((a,b)=>a.cx-b.cx).slice(0,16).sort((a,b)=>a.cy-b.cy);
     const Rr=byX.slice().sort((a,b)=>b.cx-a.cx).slice(0,16).sort((a,b)=>a.cy-b.cy);
-    units=[U("player","sergent",L[2].i,"Stiff"),U("player","sapeur",L[6].i,"Merry"),U("player","assassin",L[10].i,"Gizzard"),
-           U("enemy","garde",Rr[2].i),U("enemy","archer",Rr[6].i),U("enemy","brute",Rr[10].i)];
+    units=[U("player","sergent",L[2].i,{name:"Stiff"}),U("player","sapeur",L[6].i,{name:"Merry"}),U("player","assassin",L[10].i,{name:"Gizzard"}),
+           U("enemy","garde",Rr[2].i,{pod:0}),U("enemy","archer",Rr[6].i,{pod:0,asleep:true}),U("enemy","brute",Rr[10].i,{pod:1,asleep:true})];
   }
   function init(){
     let draft=null; try{ draft=JSON.parse(localStorage.getItem("mgf_mesh_draft")||"null"); }catch(e){}
