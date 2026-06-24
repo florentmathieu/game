@@ -282,6 +282,9 @@
         <button class="etool" data-tool="cls:garde">🛡 Garde</button>
         <button class="etool" data-tool="cls:archer">🏹 Archer</button>
         <button class="etool" data-tool="cls:brute">🪓 Brute</button>
+        <button class="etool" data-tool="cls:homme" title="Civil (mains nues) — à poser en PNJ/otage">👨 Homme</button>
+        <button class="etool" data-tool="cls:femme" title="Civil (mains nues) — à poser en PNJ/otage">👩 Femme</button>
+        <button class="etool" data-tool="cls:enfant" title="Civil (mains nues) — à poser en PNJ/otage">🧒 Enfant</button>
       </div>
       <h2 style="margin-top:12px">Unité posée</h2>
       <div class="tools">
@@ -642,7 +645,7 @@
   function applyWeapon(u){
     const w = u.weapons[u.mode] || u.weapons.melee || u.weapons.ranged;
     u.aim = w.aim; u.dmgMin = w.dmgMin; u.dmgMax = w.dmgMax; u.range = w.range || 1; u.wtype = w.type;
-    u.flank = w.flank || null;
+    u.flank = w.flank || null; u.bare = !!w.bare;
   }
   function setMode(u, mode){ if (u.weapons[mode]){ u.mode = mode; applyWeapon(u); } }
 
@@ -652,6 +655,7 @@
   const sword  = (aim, lo, hi) => ({ type:"melee", aim, dmgMin:lo, dmgMax:hi });
   const bow    = (aim, lo, hi, rng, clip) => ({ type:"ranged", aim, dmgMin:lo, dmgMax:hi, range:rng, clip });
   const dagger = (aim, lo, hi, back, side) => ({ type:"melee", aim, dmgMin:lo, dmgMax:hi, flank:{ back, side } });
+  const fists  = (aim, lo, hi) => ({ type:"melee", aim, dmgMin:lo, dmgMax:hi, bare:true });   // civils : mains nues
   const CLASSES = {
     sergent:  { name:"Sergent",  maxMp:8, maxHp:10, shieldBlock:30, weapons:{ melee: sword(75,4,6) } },
     sapeur:   { name:"Sapeur",   maxMp:8, maxHp:7,  crackers:1,
@@ -661,6 +665,9 @@
     garde:    { name:"Garde",    maxMp:6, maxHp:8,  shieldBlock:20, weapons:{ melee: sword(65,3,4) } },
     archer:   { name:"Archer",   maxMp:6, maxHp:6,  weapons:{ ranged: bow(70,2,3,8) } },
     brute:    { name:"Brute",    maxMp:8, maxHp:13, weapons:{ melee: sword(70,5,7) } },
+    homme:    { name:"Homme",    maxMp:6, maxHp:6,  civilian:true, weapons:{ melee: fists(40,1,2) } },
+    femme:    { name:"Femme",    maxMp:6, maxHp:5,  civilian:true, weapons:{ melee: fists(40,1,2) } },
+    enfant:   { name:"Enfant",   maxMp:7, maxHp:3,  civilian:true, weapons:{ melee: fists(25,0,1) } },
   };
   const CLASS_IDS = Object.keys(CLASSES);
   // compatibilité : anciens « type » (noms) -> { classe, nom par défaut }
@@ -1273,7 +1280,7 @@
 
   // ====================== ÉVÈNEMENTS / TRIGGERS ============================
   // Étiquette d'arme (sert au matching des triggers).
-  const weaponName = (u) => u.wtype === "ranged" ? (u.clip !== undefined ? "arbalète" : "arc") : (u.flank ? "dagues" : "épée");
+  const weaponName = (u) => u.wtype === "ranged" ? (u.clip !== undefined ? "arbalète" : "arc") : (u.bare ? "mains nues" : u.flank ? "dagues" : "épée");
   // Un trigger « matche » un contexte si tous ses champs `match` correspondent.
   //  - actor/target : nom OU classe ; nombres : valeur exacte ou { min, max } ; sinon égalité.
   function trigMatch(t, ctx){
@@ -2221,7 +2228,7 @@
   // ---- Interactions -------------------------------------------------------
   // fiche d'une unité (affichée au survol sur la carte) — sans position/altitude
   function unitStatsHTML(u){
-    const wn = u.wtype === "ranged" ? (u.clip !== undefined ? "arbalète" : "arc") : (u.flank ? "dagues" : "épée");
+    const wn = u.wtype === "ranged" ? (u.clip !== undefined ? "arbalète" : "arc") : (u.bare ? "mains nues" : u.flank ? "dagues" : "épée");
     return `<b>${u.name}</b> — PV <code>${Math.max(0,u.hp)}/${u.maxHp}</code>`
       + `<br>PA <code>${u.ap}/${AP_MAX}</code> · mouvement libre <code>${freeOf(u)}</code>${u.ap>0?` (+${u.ap}×${u.mob} via PA)`:``}`
       + `<br>arme : <code>${wn}</code> · précision <code>${u.aim}%</code>`
