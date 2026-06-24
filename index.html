@@ -508,20 +508,25 @@
   renderTrigList();
 
   // ===== campagne à nœuds (textes / missions / choix) + persistance PV =====
-  let campRun=null, campNodes=[], campStart="", nodeSeq=0;
+  let campRun=null, campNodes=[], campStart="", nodeSeq=0, repoTexts=[];
   const cname=document.getElementById("cname"),cloadsel=document.getElementById("cloadsel"),cstatus=document.getElementById("cstatus");
   const esc=s=>(s||"").replace(/"/g,"&quot;");
   const newId=()=>"n"+(++nodeSeq);
   const campNode=id=>campNodes.find(n=>n.id===id);
-  function nodeLabel(n){ return n.type==="mission"?("🗺 "+(n.mission||"mission")):n.type==="choice"?("🔀 "+(n.title||"choix")):("📝 "+((n.text||"").slice(0,14)||"texte")); }
+  const fileName=f=>(f||"").split("/").pop().replace(/\.txt$/,"");
+  function nodeLabel(n){ return n.type==="mission"?("🗺 "+(n.mission||"mission")):n.type==="choice"?("🔀 "+(n.title||"choix")):("📝 "+(n.file?fileName(n.file):((n.text||"").slice(0,14)||"texte"))); }
   const idOpts=(sel,allowNull)=>(allowNull?`<option value="">—</option>`:"")+campNodes.map(n=>`<option value="${n.id}" ${n.id===sel?"selected":""}>${nodeLabel(n)}</option>`).join("");
   const missOpts=sel=>repoMissionList.length?repoMissionList.map(m=>`<option value="${m.file}" ${m.file===sel?"selected":""}>${m.name}</option>`).join(""):`<option value="">(aucune)</option>`;
+  const txtOpts=(sel,none)=>`<option value="">${none||"— aucun —"}</option>`+repoTexts.map(t=>`<option value="${t.file}" ${t.file===sel?"selected":""}>${esc(t.name)}</option>`).join("");
+  async function fetchTexts(){ const t=await fetchText("texts/list.json",ghCfg()); let list=[]; if(t){try{const p=JSON.parse(t);if(Array.isArray(p))list=p.map(x=>typeof x==="string"?{file:x,name:x.split("/").pop().replace(/\.txt$/,"")}:x);}catch(e){}} repoTexts=list; if(document.body.classList.contains("view-campaign"))renderNodes(); }
+  // texte affiché à l'exécution : priorité au fichier .txt choisi, sinon le texte saisi en ligne
+  async function resolveText(inline,file){ if(file){ const t=await fetchText(file,ghCfg()); if(t!=null)return t; } return inline||""; }
   function renderNodes(){ const el=document.getElementById("cnodes"); if(!el)return;
     const cs=document.getElementById("cstart"); if(cs)cs.innerHTML=idOpts(campStart,false);
     el.innerHTML="";
     campNodes.forEach(n=>{ const d=document.createElement("div"); d.className="nd"; let h=`<div class="hd"><b>${n.type}</b> <code>${n.id}</code><button data-del="${n.id}" style="margin-left:auto">✕</button></div>`;
-      if(n.type==="text") h+=`<input data-id="${n.id}" data-f="text" type="text" placeholder="texte plein écran…" value="${esc(n.text)}"><div class="row">suite <select data-id="${n.id}" data-f="next">${idOpts(n.next,true)}</select></div>`;
-      else if(n.type==="mission") h+=`<div class="row">mission <select data-id="${n.id}" data-f="mission">${missOpts(n.mission)}</select></div><input data-id="${n.id}" data-f="intro" type="text" placeholder="intro…" value="${esc(n.intro)}"><input data-id="${n.id}" data-f="outro" type="text" placeholder="fin…" value="${esc(n.outro)}"><div class="row">✓ vict. <select data-id="${n.id}" data-f="win">${idOpts(n.win,true)}</select> ✕ déf. <select data-id="${n.id}" data-f="lose">${idOpts(n.lose,true)}</select></div>`;
+      if(n.type==="text") h+=`<div class="row">📄 fichier <select data-id="${n.id}" data-f="file">${txtOpts(n.file,"— texte saisi ci-dessous —")}</select></div><input data-id="${n.id}" data-f="text" type="text" placeholder="…ou texte plein écran saisi ici" value="${esc(n.text)}"><div class="row">suite <select data-id="${n.id}" data-f="next">${idOpts(n.next,true)}</select></div>`;
+      else if(n.type==="mission") h+=`<div class="row">mission <select data-id="${n.id}" data-f="mission">${missOpts(n.mission)}</select></div><div class="row">📄 intro <select data-id="${n.id}" data-f="introFile">${txtOpts(n.introFile)}</select></div><input data-id="${n.id}" data-f="intro" type="text" placeholder="…ou intro saisie ici" value="${esc(n.intro)}"><div class="row">📄 fin <select data-id="${n.id}" data-f="outroFile">${txtOpts(n.outroFile)}</select></div><input data-id="${n.id}" data-f="outro" type="text" placeholder="…ou fin saisie ici" value="${esc(n.outro)}"><div class="row">✓ vict. <select data-id="${n.id}" data-f="win">${idOpts(n.win,true)}</select> ✕ déf. <select data-id="${n.id}" data-f="lose">${idOpts(n.lose,true)}</select></div>`;
       else if(n.type==="choice") h+=`<input data-id="${n.id}" data-f="title" type="text" placeholder="titre du choix…" value="${esc(n.title)}"><div data-opts="${n.id}"></div><button data-addopt="${n.id}">+ option</button>`;
       d.innerHTML=h; el.appendChild(d);
       if(n.type==="choice"){ const od=d.querySelector(`[data-opts="${n.id}"]`); (n.options||[]).forEach((opt,oi)=>{ const r=document.createElement("div"); r.className="row"; r.innerHTML=`→ <select data-optsel="${n.id}" data-oi="${oi}">${idOpts(opt,false)}</select><button data-optdel="${n.id}" data-oi="${oi}">✕</button>`; od.appendChild(r); }); }
@@ -540,7 +545,7 @@
     const link=(a,b,col)=>{if(!a||!b)return;cgx.strokeStyle=col;cgx.lineWidth=1.5;cgx.beginPath();cgx.moveTo(a[0],a[1]);cgx.lineTo(b[0],b[1]);cgx.stroke();};
     campNodes.forEach(n=>{const a=pos(n.id);if(n.type==="text"&&n.next)link(a,pos(n.next),"#6aa0d0");if(n.type==="mission"){if(n.win)link(a,pos(n.win),"#6fd06f");if(n.lose)link(a,pos(n.lose),"#e0635f");}if(n.type==="choice")(n.options||[]).forEach(o=>link(a,pos(o),"#caa24a"));});
     campNodes.forEach(n=>{cgx.fillStyle=n.type==="mission"?"#7a4a4a":n.type==="choice"?"#7a6a30":"#3a5a6a";cgx.strokeStyle=n.id===campStart?"#fff":"#0c0a07";cgx.lineWidth=n.id===campStart?2:1;cgx.fillRect(n.x,n.y,68,24);cgx.strokeRect(n.x,n.y,68,24);
-      cgx.fillStyle="#e8ddc8";cgx.font="9px sans-serif";cgx.textAlign="center";cgx.textBaseline="middle";cgx.fillText((n.type==="mission"?"🗺":n.type==="choice"?"🔀":"📝")+String(n.mission||n.title||n.text||"").slice(0,7),n.x+34,n.y+12);}); }
+      cgx.fillStyle="#e8ddc8";cgx.font="9px sans-serif";cgx.textAlign="center";cgx.textBaseline="middle";cgx.fillText((n.type==="mission"?"🗺":n.type==="choice"?"🔀":"📝")+String(n.mission||n.title||(n.file?fileName(n.file):n.text)||"").slice(0,7),n.x+34,n.y+12);}); }
   if(cg){ cg.addEventListener("pointerdown",e=>{const r=cg.getBoundingClientRect();const mx=e.clientX-r.left,my=e.clientY-r.top;cgDrag=campNodes.find(n=>mx>=n.x&&mx<=n.x+68&&my>=n.y&&my<=n.y+24);if(cgDrag)cgOff=[mx-cgDrag.x,my-cgDrag.y];});
     cg.addEventListener("pointermove",e=>{if(!cgDrag)return;const r=cg.getBoundingClientRect();cgDrag.x=Math.max(0,Math.min(cg.width-68,e.clientX-r.left-cgOff[0]));cgDrag.y=Math.max(0,Math.min(cg.height-24,e.clientY-r.top-cgOff[1]));drawGraph();});
     window.addEventListener("pointerup",()=>{cgDrag=null;}); }
@@ -576,19 +581,20 @@
     if(camp&&Array.isArray(camp.nodes)&&camp.nodes.length){ startCampaign({name:camp.name||"",start:camp.start||(camp.nodes[0]&&camp.nodes[0].id),nodes:camp.nodes},"play"); }
     else { document.body.classList.add("testing"); setView("play"); startGame(); } }
   function runNode(id){ if(!campRun)return; const n=campRun.camp.nodes.find(x=>x.id===id); if(!n){endCampaignRun("Campagne terminée.");return;} campRun.nodeId=id;
-    if(n.type==="text"){showCampText(n.text||"…",()=>runNode(n.next));return;}
+    if(n.type==="text"){resolveText(n.text,n.file).then(t=>showCampText(t||"…",()=>runNode(n.next)));return;}
     if(n.type==="choice"){showChoice(n);return;}
     loadMissionNode(n,false); }
   async function loadMissionNode(n,retry){ const t=await fetchText("missions-mesh/"+n.mission,ghCfg()); if(!t){showCampText("Mission introuvable : "+n.mission,()=>endCampaignRun("Fin."));return;}
     try{applyMissionObj(JSON.parse(t));}catch(e){showCampText("Mission illisible.",()=>endCampaignRun("Fin."));return;}
-    const begin=()=>{ startGame(); applyCarry(); refresh(); }; if(n.intro&&!retry)showCampText(n.intro,begin); else begin(); }
+    const begin=()=>{ startGame(); applyCarry(); refresh(); };
+    if(!retry){ resolveText(n.intro,n.introFile).then(txt=>{ if(txt)showCampText(txt,begin); else begin(); }); } else begin(); }
   function campEnd(t){ const win=t.indexOf("Victoire")===0, n=campRun.camp.nodes.find(x=>x.id===campRun.nodeId);
-    if(win){ saveCarry(); const after=()=>{ if(n&&n.win)runNode(n.win); else endCampaignRun("Campagne terminée — victoire !"); }; if(n&&n.outro)showCampText(n.outro,after); else after(); }
+    if(win){ saveCarry(); const after=()=>{ if(n&&n.win)runNode(n.win); else endCampaignRun("Campagne terminée — victoire !"); }; resolveText(n&&n.outro,n&&n.outroFile).then(txt=>{ if(txt)showCampText(txt,after); else after(); }); }
     else { if(n&&n.lose)runNode(n.lose); else showCampText("Mission échouée…",()=>loadMissionNode(n,true)); } }
   function endCampaignRun(msg){ const from=campRun?campRun.from:"campaign"; showCampText(msg,()=>{ campRun=null;
     if(from==="play"){ setView("play"); const t=document.getElementById("title"); if(t)t.style.display="flex"; }
     else { setView("campaign"); refresh(); } }); }
-  renderNodes(); fetchCampaigns();
+  renderNodes(); fetchCampaigns(); fetchTexts();
 
   // ===== jeu =====
   function renderActs(){const el=document.getElementById("acts");el.innerHTML="";document.getElementById("ap").textContent=sel?`${sel.ap}/${AP_MAX}`:"–";if(!sel||turn!=="player")return;
