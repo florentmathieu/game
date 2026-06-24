@@ -2554,10 +2554,12 @@
       if (u === selected && !unitDone(u)) rotateUnit(u); else selectUnit(u);
       return;
     }
-    // clic sur un ennemi -> déclenche l'action par défaut (1 : tir si dispo, sinon mêlée) sur cette cible
+    // clic sur un ennemi -> déclenche l'action par défaut (1) sur cette cible
     if (selected && u && u.team !== selected.team && u.hp > 0){
       if (selected.ap <= 0){ flash("Plus de PA ce tour"); return; }
       const w = selected.weapons, ammoOk = (selected.clip === undefined || selected.ammo > 0);
+      // arbalète vide : l'action 1 est de recharger (plutôt qu'un repli en mêlée)
+      if (w.ranged && selected.clip !== undefined && selected.ammo <= 0){ doReload(); return; }
       const mode = (w.ranged && ammoOk) ? "ranged" : (w.melee ? "melee" : null);
       if (!mode){ flash("Aucune arme disponible"); return; }
       enterTargeting(mode);
@@ -2625,9 +2627,13 @@
     cracker.classList.toggle("armed", !!throwing);
     item.classList.toggle("armed", !!usingItem);
     // numéros clavier : 1,2,3… sur les actions disponibles, dans l'ordre
+    // arbalète vide : recharger devient l'action 1 (cohérent avec le clic sur un ennemi)
+    const emptyXbow = selected && selected.weapons.ranged && selected.clip !== undefined && selected.ammo <= 0;
+    const order = emptyXbow ? [reload, shoot, melee, owS, owM, brace, cracker, item]
+                            : [shoot, melee, owS, owM, reload, brace, cracker, item];
     actionKeyMap = {};
     let n = 0;
-    for (const b of [shoot, melee, owS, owM, reload, brace, cracker, item]){
+    for (const b of order){
       if (!b) continue;
       const numEl = b.querySelector && b.querySelector(".num");
       if (b.style.display !== "none"){ n++; actionKeyMap[n] = b; if (numEl) numEl.textContent = n; }
