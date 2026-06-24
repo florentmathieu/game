@@ -62,12 +62,13 @@
   <div class="editonly">
     <div id="tab-mission">
     <h2>1 · Forme (zones + distorsion)</h2>
-    <div class="row"><label style="flex:1">Largeur <input id="bw" type="range" min="4" max="20" value="10"></label><span id="bwv">10</span></div>
-    <div class="row"><label style="flex:1">Hauteur <input id="bh" type="range" min="3" max="16" value="8"></label><span id="bhv">8</span></div>
+    <div class="row"><label>Largeur <input id="bw" type="number" min="4" max="20" value="10" style="width:52px"></label>
+      <label>Hauteur <input id="bh" type="number" min="3" max="16" value="8" style="width:52px"></label>
+      <button id="zauto" title="Dispose des zones aléatoires (carrés, hexagones, pentagones)">🎲 Zones auto</button></div>
     <div class="row" id="zones"></div>
     <div class="row"><label style="flex:1">Distorsion <input id="dist" type="range" min="0" max="100" value="28"></label><span id="distv">28%</span></div>
     <div class="row"><label style="flex:1">Densité <input id="dens" type="range" min="30" max="64" value="44"></label><span id="densv">44</span> <button id="regen">↻</button></div>
-    <div class="hint">Peins les zones puis règle la distorsion. ⚠ régénérer la forme remet à zéro terrain & unités.</div>
+    <div class="hint">Peins les zones (ou « 🎲 Zones auto ») puis règle la distorsion : terrain, relief, murets & unités sont conservés au mieux. ⚠ seul « ↻ » remaille à neuf et remet tout à zéro.</div>
     <h2>2 · Terrain & relief</h2>
     <div class="row" id="terr"></div>
     <div class="row" id="relief"></div>
@@ -96,7 +97,7 @@
     <div class="row"><input id="gh-repo" type="text" value="florentmathieu/game" style="flex:1"><input id="gh-branch" type="text" placeholder="branche" style="flex:1"></div>
     <div class="hint" id="gh-status"></div>
     </div>
-    <div id="tab-camp" style="display:none">
+    <div id="tab-camp">
     <h2>Campagne (nœuds : textes / missions / choix)</h2>
     <div class="row"><input id="cname" type="text" placeholder="nom de la campagne" style="flex:1"></div>
     <div class="row"><button id="cadd-text">+ Texte</button><button id="cadd-mission">+ Mission</button><button id="cadd-choice">+ Choix</button></div>
@@ -153,9 +154,9 @@
   for(let r=0;r<ROWS;r++)for(let c=0;c<COLS;c++) infl[r][c]=defZone(c);
   // redimensionne le plateau : COLS×ROWS cases-zones de MC px, conserve les zones existantes
   function setBoardSize(cols,rows){ cols=Math.max(4,Math.min(20,cols|0)); rows=Math.max(3,Math.min(16,rows|0));
-    const old=infl,oc=COLS; COLS=cols;ROWS=rows;W=COLS*MC;H=ROWS*MC; cv.width=W;cv.height=H;
+    const old=infl,snap=snapBoard(); COLS=cols;ROWS=rows;W=COLS*MC;H=ROWS*MC; cv.width=W;cv.height=H;
     infl=Array.from({length:ROWS},(_,r)=>Array.from({length:COLS},(_,c)=>(old[r]&&old[r][c])?old[r][c]:defZone(c)));
-    walls=new Set(); genMesh(); units=units.filter(u=>cells[u.cell]); }
+    genMesh(); restoreBoard(snap); }
 
   // ===== géométrie maillage =====
   let cells=[];
@@ -330,7 +331,7 @@
     if(painting)editAt(X,Y); });
   window.addEventListener("pointerup",()=>painting=false);
   function editAt(X,Y){
-    if(editTool.startsWith("zone:")){ const c=Math.floor(X/MC),r=Math.floor(Y/MC); if(c<0||c>=COLS||r<0||r>=ROWS)return; const t=editTool.slice(5); if(infl[r][c]!==t){infl[r][c]=t;rebuildShape();} return; }
+    if(editTool.startsWith("zone:")){ const c=Math.floor(X/MC),r=Math.floor(Y/MC); if(c<0||c>=COLS||r<0||r>=ROWS)return; const t=editTool.slice(5); if(infl[r][c]!==t){infl[r][c]=t;rebuildShape(true);} return; }
     if(editTool==="muret"){ const k=edgeAt(X,Y); if(k){ walls.has(k)?walls.delete(k):walls.add(k); refresh(); } return; }
     const cell=cellAtXY(X,Y); if(!cell)return; const id=cell.id;
     if(editTool.startsWith("terr:")){ cell.terr=editTool.slice(5); }
@@ -392,7 +393,21 @@
   document.getElementById("tplace").onclick=()=>{editTool="unit";syncTools();};
   document.getElementById("terase").onclick=()=>{editTool="erase";syncTools();};
 
-  function rebuildShape(){ genMesh(); units=[]; walls=new Set(); refresh(); }   // changer la forme remet à zéro
+  // re-maille en conservant (keep) terrain, relief, murets et unités par projection géométrique
+  function snapBoard(){ return {
+    cells:cells.map(c=>({cx:c.cx,cy:c.cy,terr:c.terr,elev:c.elev})),
+    walls:[...walls].map(k=>wallSeg.get(k)).filter(Boolean).map(s=>[(s[0][0]+s[1][0])/2,(s[0][1]+s[1][1])/2]),
+    units:units.map(u=>({team:u.team,cls:u.cls,name:u.name,pod:u.pod,asleep:u._asleep0,hostage:u.hostage,cx:cells[u.cell]?cells[u.cell].cx:0,cy:cells[u.cell]?cells[u.cell].cy:0})) }; }
+  function restoreBoard(s){ if(!s||!s.cells.length)return;
+    const near=(arr,x,y)=>{let bi=0,bd=1e9;for(let i=0;i<arr.length;i++){const d=(arr[i].cx-x)**2+(arr[i].cy-y)**2;if(d<bd){bd=d;bi=i;}}return bi;};
+    cells.forEach(c=>{const o=s.cells[near(s.cells,c.cx,c.cy)];c.terr=o.terr;c.elev=o.elev;});
+    walls=new Set();
+    if(s.walls.length){ const mids=[]; cells.forEach(c=>{for(const n of c.nb)if(n>c.id){const sg=wallSeg.get(wkey(c.id,n));if(sg)mids.push([wkey(c.id,n),(sg[0][0]+sg[1][0])/2,(sg[0][1]+sg[1][1])/2]);}});
+      s.walls.forEach(m=>{let bk=null,bd=1e9;mids.forEach(([k,mx,my])=>{const d=(mx-m[0])**2+(my-m[1])**2;if(d<bd){bd=d;bk=k;}});if(bk&&bd<(MC*0.5)**2)walls.add(bk);}); }
+    const used=new Set(); units=[];
+    s.units.forEach(su=>{ const ord=cells.map((c,i)=>[(c.cx-su.cx)**2+(c.cy-su.cy)**2,i]).sort((a,b)=>a[0]-b[0]);
+      for(const [,i] of ord){ if(used.has(i)||cells[i].terr==="wall")continue; used.add(i); units.push(U(su.team,su.cls,i,{name:su.name,pod:su.pod,asleep:su.asleep,hostage:su.hostage})); break; } }); }
+  function rebuildShape(keep){ const snap=keep?snapBoard():null; genMesh(); if(snap)restoreBoard(snap); else{units=[];walls=new Set();} refresh(); }
   // génère un profil de terrain : collines (relief), rochers, couverts et murets épars
   function autoTerrain(){ if(!cells.length)return; const rnd=mk((seed^0x9e3779b9)>>>0);
     cells.forEach(c=>{c.terr="plain";c.elev=0;}); walls=new Set();
@@ -402,12 +417,18 @@
     cells.forEach(c=>{ if(c.elev>0)return; const r=rnd(); if(r<0.07)c.terr="wall"; else if(r<0.17)c.terr="cover"; });
     cells.forEach(c=>{ for(const n of c.nb){ if(n<=c.id)continue; if(c.terr==="wall"||cells[n].terr==="wall")continue; if(rnd()<0.06)walls.add(wkey(c.id,n)); } });
     refresh(); }
-  distEl.oninput=()=>{document.getElementById("distv").textContent=distEl.value+"%";rebuildShape();};
-  dens.oninput=()=>{document.getElementById("densv").textContent=dens.value;rebuildShape();};
-  document.getElementById("regen").onclick=()=>{seed=(seed*1103515245+12345)&0x7fffffff;rebuildShape();};
-  { const bw=document.getElementById("bw"),bh=document.getElementById("bh"),bwv=document.getElementById("bwv"),bhv=document.getElementById("bhv");
-    const apply=()=>{bwv.textContent=bw.value;bhv.textContent=bh.value;setBoardSize(+bw.value,+bh.value);refresh();};
-    if(bw)bw.oninput=apply; if(bh)bh.oninput=apply; }
+  // dispose des zones aléatoires (patchs Voronoi de types), en conservant le terrain posé
+  function autoZones(){ const rnd=mk((seed^0x5bd1e995)>>>0),types=["square","hex","pentagon","mix"];
+    const nC=3+Math.floor(rnd()*4),cs=[]; for(let k=0;k<nC;k++)cs.push({x:rnd()*COLS,y:rnd()*ROWS,t:types[Math.floor(rnd()*types.length)]});
+    for(let r=0;r<ROWS;r++)for(let c=0;c<COLS;c++){let bi=0,bd=1e9;for(let i=0;i<cs.length;i++){const d=(cs[i].x-c)**2+(cs[i].y-r)**2;if(d<bd){bd=d;bi=i;}}infl[r][c]=cs[bi].t;}
+    seed=(seed*1103515245+12345)&0x7fffffff; rebuildShape(true); }
+  distEl.oninput=()=>{document.getElementById("distv").textContent=distEl.value+"%";rebuildShape(true);};
+  dens.oninput=()=>{document.getElementById("densv").textContent=dens.value;rebuildShape(true);};
+  document.getElementById("regen").onclick=()=>{seed=(seed*1103515245+12345)&0x7fffffff;rebuildShape();};   // ↻ : remaille à neuf (vide terrain & unités)
+  { const z=document.getElementById("zauto"); if(z)z.onclick=autoZones; }
+  { const bw=document.getElementById("bw"),bh=document.getElementById("bh");
+    const apply=()=>{ setBoardSize(+bw.value,+bh.value); bw.value=COLS; bh.value=ROWS; refresh(); };
+    if(bw)bw.onchange=apply; if(bh)bh.onchange=apply; }
 
   function renderCounts(){ const np=units.filter(u=>u.team==="player").length,ne=units.filter(u=>u.team==="enemy").length;
     document.getElementById("counts").textContent=`${cells.length} cellules · ${np} alliés · ${ne} ennemis`; }
@@ -425,7 +446,7 @@
     units=(m.units||[]).map(u=>U(u.team,u.cls,u.cell,{name:u.name,pod:u.pod,asleep:u.asleep,hostage:u.hostage})).filter(u=>cells[u.cell]);
     triggers=Array.isArray(m.triggers)?m.triggers:[]; renderTrigList();
     if(m.form){ if(m.form.infl){infl=m.form.infl; ROWS=infl.length; COLS=(infl[0]&&infl[0].length)||COLS; W=COLS*MC;H=ROWS*MC; cv.width=W;cv.height=H;
-        const bw=document.getElementById("bw"),bh=document.getElementById("bh"); if(bw){bw.value=COLS;document.getElementById("bwv").textContent=COLS;} if(bh){bh.value=ROWS;document.getElementById("bhv").textContent=ROWS;} }
+        const bw=document.getElementById("bw"),bh=document.getElementById("bh"); if(bw)bw.value=COLS; if(bh)bh.value=ROWS; }
       if(m.form.dist!=null){distEl.value=m.form.dist;document.getElementById("distv").textContent=m.form.dist+"%";} if(m.form.dens!=null){dens.value=m.form.dens;document.getElementById("densv").textContent=m.form.dens;} if(m.form.seed!=null)seed=m.form.seed; }
     refresh();
   }
