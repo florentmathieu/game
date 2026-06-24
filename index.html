@@ -1911,7 +1911,8 @@
     // 2) portée de déplacement : contours affichés au survol, zones ≤ la case visée
     if (reach && selected && selected.hp > 0 && hover){
       const hz = zoneAt(selected, hover.col, hover.row);
-      if (hz !== Infinity) drawReachOutline(hz);
+      // case visée atteignable : zones ≤ la case ; hors de portée : on garde toute la zone atteignable affichée
+      drawReachOutline(hz === Infinity ? Infinity : hz);
     }
 
     // 3) aperçu du chemin au survol
@@ -2637,6 +2638,12 @@
     const emptyXbow = selected && selected.weapons.ranged && selected.clip !== undefined && selected.ammo <= 0;
     const order = emptyXbow ? [reload, shoot, melee, owS, owM, brace, cracker, item]
                             : [shoot, melee, owS, owM, reload, brace, cracker, item];
+    // place physiquement le bouton « recharger » en tête quand l'arbalète est vide (sinon à sa place habituelle)
+    const acts = document.getElementById("actions");
+    if (acts && reload && brace && typeof acts.insertBefore === "function"){
+      if (emptyXbow){ if (acts.firstElementChild !== reload) acts.insertBefore(reload, acts.firstElementChild); }
+      else if (reload.nextElementSibling !== brace){ acts.insertBefore(reload, brace); }
+    }
     actionKeyMap = {};
     let n = 0;
     for (const b of order){
