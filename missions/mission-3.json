@@ -1240,8 +1240,6 @@
   {
    "on": "spotted",
    "match": {
-    "first": true,
-    "enemiesHit": 2,
     "pod": 0
    },
    "say": [
