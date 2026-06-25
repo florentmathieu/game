@@ -1,0 +1,143 @@
+\documentclass[11pt,a4paper]{article}
+
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage{lmodern}
+\usepackage[french]{babel}
+\usepackage[a4paper,margin=2.4cm]{geometry}
+\usepackage{microtype}
+\usepackage{xcolor}
+\usepackage{enumitem}
+\usepackage{titlesec}
+\usepackage{hyperref}
+\usepackage[most]{tcolorbox}
+
+% ---- palette (identique aux autres rapports) ----
+\definecolor{ink}{HTML}{1c2330}
+\definecolor{accent}{HTML}{2f6e4c}
+\definecolor{accent2}{HTML}{8a5a1c}
+\definecolor{soft}{HTML}{eef3ef}
+\definecolor{softline}{HTML}{cfe0d4}
+\definecolor{warn}{HTML}{7a2418}
+\definecolor{warnsoft}{HTML}{fbeeea}
+\definecolor{warnline}{HTML}{e7c3ba}
+\definecolor{open}{HTML}{1c4e7a}
+\definecolor{opensoft}{HTML}{eaf1f8}
+
+\hypersetup{colorlinks=true, linkcolor=accent, urlcolor=accent2,
+  pdftitle={Notre jeu --- l'idée et les choix, expliqués simplement}}
+
+\titleformat{\section}{\large\bfseries\color{accent}}{}{0em}{}
+\titlespacing{\section}{0pt}{1.3em}{0.4em}
+\setlist[itemize]{leftmargin=1.2em,itemsep=3pt,topsep=3pt}
+
+\newtcolorbox{coeur}{enhanced,breakable,colback=soft,colframe=accent,
+  boxrule=0.8pt,left=10pt,right=10pt,top=7pt,bottom=7pt,arc=3pt}
+\newtcolorbox{ouvertbox}{enhanced,breakable,colback=opensoft,colframe=open,
+  boxrule=0.5pt,left=9pt,right=9pt,top=6pt,bottom=6pt,arc=2pt}
+\newtcolorbox{nope}{enhanced,breakable,colback=warnsoft,colframe=warn,
+  boxrule=0.5pt,left=9pt,right=9pt,top=6pt,bottom=6pt,arc=2pt}
+
+\newcommand{\pourquoi}{\textit{\textcolor{accent2}{Pourquoi ?}}\ }
+
+\title{\vspace{-1.6em}\textbf{\color{ink}\Huge Notre jeu}\\[0.3em]
+\large\color{accent}L'idée et les choix, expliqués simplement\\[0.25em]
+\normalsize\color{ink}\itshape Écrit pour un joueur --- pas besoin d'être concepteur de jeux pour tout comprendre}
+\author{}
+\date{}
+
+\begin{document}
+\maketitle
+\vspace{-3em}
+
+% ----------------------------------------------------------------------
+\section{En deux phrases, c'est quoi ?}
+Un jeu de \textbf{combats tactiques au tour par tour} (on déplace une petite équipe sur une carte, chacun joue à son tour) mêlé à un \textbf{jeu de rôle} : on s'attache à ses personnages, on les fait évoluer, on suit une histoire. Pense à un \textit{XCOM}, mais où on ne perd pas ses soldats préférés au moindre coup du sort.
+
+\smallskip
+L'ambition : que \textbf{progresser reste passionnant sur la durée}, au lieu de devenir une corvée répétitive.
+
+% ----------------------------------------------------------------------
+\section{Le problème qu'on veut éviter}
+Dans beaucoup de jeux, «~progresser~» veut juste dire \textbf{accumuler des chiffres} : +1 en force, une épée un peu meilleure, des ennemis qui deviennent eux aussi plus costauds au même rythme. Au bout d'un moment, on a l'impression de courir sur un tapis roulant : on s'épuise, mais on n'avance pas vraiment, et on ne se sent jamais réellement plus fort. C'est lassant.
+
+\smallskip
+\textbf{Notre parti pris : remplacer «~accumuler~» par «~décider~».} Ce qui rend la progression intéressante, ce ne sont pas les chiffres qui montent, ce sont les \textbf{choix qu'on fait} --- surtout quand on ne peut pas revenir dessus.
+
+% ----------------------------------------------------------------------
+\section{L'idée centrale qui relie tout}
+\begin{coeur}
+\centering\large\textbf{\color{ink}On ne perd jamais ses meilleurs personnages\dots\\ mais on ne peut pas toujours les jouer.}
+\end{coeur}
+
+\noindent C'est le cœur du jeu. Plutôt que de punir le joueur en tuant définitivement ses héros préférés (frustrant), on les rend \textbf{temporairement indisponibles} : un personnage qui a trop combattu est \textbf{épuisé} (physiquement) ou \textbf{éprouvé} (moralement), et doit se reposer.
+
+\smallskip
+Conséquence : on est \textbf{obligé de faire tourner son roster}. Et comme on a plusieurs personnages à faire jouer, on a envie de leur donner des \textbf{builds différents} plutôt que de les calquer tous sur le même modèle. Une seule règle simple --- «~mes meilleurs ne sont pas toujours dispo~» --- crée à la fois de la \textbf{tension} (vais-je devoir envoyer une équipe B~?) et des \textbf{décisions intéressantes} (qui j'envoie, qui je repose, dans qui j'investis~?).
+
+% ----------------------------------------------------------------------
+\section{Les grands choix, et pourquoi}
+
+\textbf{1.~On progresse par des choix définitifs, pas par des chiffres.}
+Quand un personnage monte d'un cran, on choisit une nouvelle \textbf{capacité} parmi deux --- et ce choix est \textbf{définitif}. Du coup, deux personnages identiques au départ peuvent devenir très différents. \pourquoi Parce qu'un choix qu'on ne peut pas annuler a un vrai poids : on y réfléchit, on s'y attache, et chaque personnage devient unique.
+
+\smallskip
+\textbf{2.~On ne peut pas tout faire en même temps.}
+Plusieurs missions sont disponibles à la fois sur la carte, mais on doit \textbf{choisir} lesquelles mener --- on ne peut pas toutes les prendre. \pourquoi Pour que chaque décision compte : aller ici, c'est renoncer à là-bas. Ça évite aussi de «~farmer~» (refaire en boucle pour s'enrichir), puisque le temps est compté.
+
+\smallskip
+\textbf{3.~Échouer ne renvoie pas en arrière --- ça fait avancer l'histoire.}
+Rater une mission ne veut pas dire «~recharger une sauvegarde et recommencer~». L'échec a des conséquences, mais le jeu \textbf{continue} : la situation évolue, parfois de façon intéressante. \pourquoi Pour qu'on accepte ses erreurs au lieu de tricher en rechargeant, et pour que les revers fassent partie de l'histoire.
+
+\smallskip
+\textbf{4.~Certains choix d'histoire changent vraiment les choses.}
+Sauver une région peut signifier en sacrifier une autre. On ne verra donc pas tout le contenu en une seule partie. \pourquoi Pour que les décisions aient des conséquences réelles, et pour donner envie de rejouer autrement.
+
+\smallskip
+\textbf{5.~On s'attache à ses personnages.}
+Les héros ont un nom, une apparence personnalisable, une petite histoire qui se construit au fil de leurs exploits. \pourquoi Parce que tout le reste (les mettre en danger, les voir s'épuiser) ne touche que si on tient à eux.
+
+\smallskip
+\textbf{6.~Pas de course à l'équipement.}
+On ne passe pas son temps à ramasser et comparer des centaines d'objets. La puissance d'un personnage vient de \textbf{qui il est devenu} (ses capacités choisies), pas de son matériel. \pourquoi Pour garder l'attention sur les décisions qui comptent, sans noyer le joueur sous la gestion d'inventaire.
+
+\smallskip
+\textbf{7.~Une campagne écrite, mais avec de la variété.}
+L'histoire principale est écrite à la main, mais les situations autour sont en partie générées pour renouveler l'expérience. \pourquoi Pour avoir le meilleur des deux mondes : des grands moments maîtrisés \textbf{et} de la rejouabilité.
+
+% ----------------------------------------------------------------------
+\section{Ce qu'on a volontairement décidé de NE PAS faire}
+\begin{nope}
+Aussi important que les choix positifs --- pour rester cohérent, on s'interdit :
+\begin{itemize}
+\item \textbf{Pas de chasse au butin sans fin.} L'équipement n'est pas le moteur du jeu.
+\item \textbf{Pas de retour en arrière.} Pas de «~j'annule mon choix~», pas de rechargement pour effacer un échec. Les décisions tiennent.
+\item \textbf{Pas de mutilations / blessures permanentes} sur les personnages. L'usure passe par la fatigue et le moral, pas par le corps.
+\item \textbf{Pas d'usine à intrigues entre personnages.} Ils ont une histoire personnelle, mais on ne simule pas une vie sociale complexe.
+\item \textbf{Pas de compte à rebours global stressant.} La pression vient de chaque mission, pas d'une horloge géante au-dessus de tout.
+\item \textbf{Pas de «~tout devient plus fort en même temps que moi~».} On veut que le joueur \textbf{sente} ses progrès.
+\end{itemize}
+\end{nope}
+
+% ----------------------------------------------------------------------
+\section{Les deux questions encore ouvertes}
+Deux points ne sont pas tranchés, volontairement --- on décidera en testant le jeu :
+
+\begin{ouvertbox}
+\textbf{1.~Quelle part de hasard dans les combats ?}\\
+Entre «~tout est prévisible, c'est un pur casse-tête~» et «~il y a une part de chance, comme un lancer de dés~». Notre intuition penche pour \textbf{un peu de hasard, mais maîtrisé} (les coups ratés restent rares et compréhensibles). On ajustera la dose une fois la manette en main.
+
+\smallskip
+\textbf{2.~À quel point les ennemis deviennent-ils plus forts ?}\\
+On veut qu'ils montent en puissance pour que le défi reste présent --- mais \textbf{avec une limite}, pour que le joueur sente quand même qu'il progresse. Le secret : la force du joueur vient surtout de \textbf{nouvelles capacités} (de nouvelles façons de jouer), et ça, un ennemi un peu plus costaud ne peut pas l'annuler.
+\end{ouvertbox}
+
+% ----------------------------------------------------------------------
+\section{Et ensuite ?}
+La prochaine étape est concrète : transformer cette vision en un \textbf{vrai prototype de combat} sur la carte, pour tester en jouant --- notamment pour répondre aux deux questions ci-dessus.
+
+\begin{coeur}
+\textbf{\color{ink}En une phrase.} Un jeu où \textbf{monter en puissance, c'est faire des choix qu'on assume}~; où \textbf{continuer, c'est prendre des risques}~; et où \textbf{on s'attache à des personnages qu'on ne perd pas, mais qu'on apprend à ménager.}
+\end{coeur}
+
+\end{document}
