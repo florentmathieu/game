@@ -122,7 +122,7 @@
     <div class="row" id="relief"></div>
     <h2>Génération auto (mission)</h2>
     <div class="row"><label>Difficulté <select id="gen-diff"><option value="facile">facile</option><option value="moyen" selected>moyen</option><option value="difficile">difficile</option></select></label>
-      <label style="flex:1">Couvert <input id="gen-cover" type="range" min="10" max="50" value="28"></label><span id="gen-coverv">28%</span></div>
+      <label style="flex:1">Couvert <input id="gen-cover" type="range" min="10" max="50" value="30"></label><span id="gen-coverv">30%</span></div>
     <div class="row"><button id="gen-mission">🎲 Générer une mission</button></div>
     <div class="hint">Génère forme (île) + relief/couvert + <b>déploiement & pods</b> (placement par graphe : pods loin du déploiement, espacés, hors de vue). Objectif : élimination. Rejoue à neuf à chaque clic (seed).</div>
     <h2>3 · Unités</h2>
@@ -762,8 +762,8 @@
     const S=P.squad!=null?P.squad:(diff==="facile"?3:4);
     const slots=reachIds.slice().sort((a,b)=>dist[a]-dist[b]).slice(0,S);
     units=[]; const pcls=P.squadClasses||["sergent","sapeur","assassin","garde"]; slots.forEach((id,i)=>units.push(U("player",pcls[i%pcls.length],id)));
-    const podCount=P.podCount!=null?P.podCount:(diff==="facile"?2:diff==="moyen"?3:4);
-    const podSpacing=P.podSpacing!=null?P.podSpacing:3;                              // distance MIN entre pods (sauts)
+    const podCount=P.podCount!=null?P.podCount:(diff==="facile"?1:diff==="moyen"?2:3);   // calibré par sim (P2)
+    const podSpacing=P.podSpacing!=null?P.podSpacing:4;                              // distance MIN entre pods (sauts) — ≥4 = activation séquentielle
     const podMinDist=P.podMinDist!=null?P.podMinDist:Math.max(3,Math.floor(maxD*0.45));   // distance MIN déploiement→pod
     let far=reachIds.filter(id=>!slots.includes(id)&&dist[id]>=podMinDist&&!los(anchor.id,id));
     if(far.length<podCount)far=reachIds.filter(id=>!slots.includes(id)&&dist[id]>=Math.min(podMinDist,3));
