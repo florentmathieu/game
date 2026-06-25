@@ -26,13 +26,16 @@ function actUnit(u){ let guard=0;
 }
 const alive = (team)=> M.units.some(u=>u.team===team&&u.hp>0);
 function refreshAP(team){ for(const u of M.units)if(u.team===team&&u.hp>0){u.ap=M.AP_MAX;u.freeAvail=true;u.overwatch=false;u.reacted=false;u.bracing=false;} }
+const SEQ = process.env.SEQ!=="0";   // activation séquentielle des pods (réaliste) ; SEQ=0 = engagement simultané
 function simulate(maxTurns){
   M.mode="play"; M.over=false; M.turn="player";
-  for(const u of M.units)if(u.team==="enemy")u.asleep=false;            // engagement complet (estimation conservatrice)
+  if(!SEQ){ for(const u of M.units)if(u.team==="enemy")u.asleep=false; }   // engagement simultané (pire cas)
   let turns=0, side="player";
   while(turns<maxTurns && !M.over && alive("player") && alive("enemy")){
     refreshAP(side);
-    for(const u of M.units.slice()){ if(M.over)break; if(u.team===side&&u.hp>0)actUnit(u); }
+    for(const u of M.units.slice()){ if(M.over)break; if(u.team!==side||u.hp<=0)continue;
+      if(side==="enemy"&&SEQ&&!M.enemyActive(u))continue;                 // pod dormant : ne joue pas tant qu'il n'est pas repéré
+      actUnit(u); }
     if(side==="enemy")turns++;
     side = side==="player"?"enemy":"player";
   }
@@ -91,7 +94,7 @@ function sweep(name, base, axis, values){
   console.log(`\n=== ${name} ===`);
   console.log("param            | cells cov% pods dDepl spc acc | win% loss% to%  turns pAlv eAlv | degen");
   for(const v of values){
-    const P=Object.assign({maxTurns:30}, base, axis(v));
+    const P=Object.assign({maxTurns:45}, base, axis(v));
     const out=trial(P, RUNS, 1234567);
     const mp=out.map||{};
     const line=`${String(name+"="+JSON.stringify(v)).padEnd(16)} | ${String(mp.cells).padStart(5)} ${String(mp.coverPct).padStart(3)} ${String(mp.pods).padStart(4)} ${String(mp.dDeployPod).padStart(5)} ${String(mp.podSpacingMin).padStart(3)} ${mp.accessible?" Y":" n"} | ${String(out.winRate).padStart(4)} ${String(out.lossRate).padStart(5)} ${String(out.timeoutRate).padStart(3)} ${String(out.avgTurns).padStart(6)} ${String(out.avgPAlive).padStart(4)} ${String(out.avgEAlive).padStart(4)} | ${out.degenerate}`;

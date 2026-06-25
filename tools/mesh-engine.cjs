@@ -25,7 +25,7 @@ function loadMesh(htmlPath){
     genMission, applyMissionObj, exportObj, startGame, setBoardSize, genMesh, buildAdj,
     U, CLASSES, reach, moveAlong, doAttack, inRange, hops, los, passable, occ, adjacent,
     apForMove, budget, bestEnemyTarget, nearestOpposing, wakePod, wakeEnemy, checkEnd, refresh,
-    hostile, uAt,
+    hostile, uAt, enemyActive,
   };
   `;
   src = src.replace(/\}\)\(\);\s*$/, EXPORT + "\n})();");
