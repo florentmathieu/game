@@ -26,15 +26,16 @@ function genMesh(W,H,infl,COLS,ROWS,seed,g,distPct){
   for(let i=0;i<seeds.length;i++){const p=seeds[i];let poly=box;for(let k=0;k<seeds.length;k++){if(k===i)continue;const q=seeds[k];if(Math.abs(q[0]-p[0])>R||Math.abs(q[1]-p[1])>R)continue;poly=clip(poly,p,q);if(poly.length<3)break;}
     if(poly.length>=3){const cl=[];for(let v=0;v<poly.length;v++){const a=poly[v],b=cl[cl.length-1];if(!b||Math.hypot(a[0]-b[0],a[1]-b[1])>0.8)cl.push(a);}if(cl.length>=2&&Math.hypot(cl[0][0]-cl[cl.length-1][0],cl[0][1]-cl[cl.length-1][1])<0.8)cl.pop();
       if(cl.length>=3){const ct=polyCentroid(cl);cells.push({poly:cl.map(p=>[Math.round(p[0]),Math.round(p[1])]),cx:ct[0],cy:ct[1]});}}}
-  return cells;
+  // effet « île » : retire les cellules qui touchent le bord du rectangle
+  const EPS=0.6; return cells.filter(c=>!c.poly.some(p=>p[0]<=EPS||p[0]>=W-EPS||p[1]<=EPS||p[1]>=H-EPS));
 }
 
 // --- paramètres du territoire de l'Acte 1 ---
 const W=720, H=560, COLS=Math.ceil(W/MC), ROWS=Math.ceil(H/MC), seed=20240625, target=10, dist=28;
 const infl=Array.from({length:ROWS},()=>Array(COLS).fill("mix"));   // territoire varié (carré/hexa/pentagone)
 // espacement ajusté pour viser ~target régions (même logique itérative que l'éditeur)
-let g=Math.max(70,Math.round(Math.sqrt(W*H/target)*1.3)), cells;
-for(let it=0;it<8;it++){ cells=genMesh(W,H,infl,COLS,ROWS,seed,g,dist); const n=cells.length; if(n>target*1.2)g=Math.round(g*1.12); else if(n<target*0.8)g=Math.round(g*0.9); else break; }
+let g=Math.max(60,Math.round(Math.sqrt(W*H/target)*0.95)), cells;
+for(let it=0;it<16;it++){ cells=genMesh(W,H,infl,COLS,ROWS,seed,g,dist); const n=cells.length; if(n>target*1.2)g=Math.round(g*1.1); else if(n<target*0.8)g=Math.round(g*0.9); else break; }
 
 // --- annotation ---
 const cx0=W/2, cy0=H/2;

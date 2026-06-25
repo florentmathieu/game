@@ -176,7 +176,8 @@
     <h2>Territoire (geoscape)</h2>
     <div class="row"><input id="geo-name" type="text" placeholder="nom du territoire (ex : Acte 1)" style="flex:1"></div>
     <div class="row"><label>Régions ~<input id="geo-n" type="number" min="4" max="40" value="12" style="width:52px"></label>
-      <button id="geo-gen">🎲 Générer le territoire</button></div>
+      <label>Format <select id="geo-aspect"><option value="3:2">3:2 (paysage)</option><option value="16:9">16:9 (large)</option><option value="4:3">4:3</option><option value="1:1">1:1 (carré)</option><option value="2:3">2:3 (portrait)</option></select></label></div>
+    <div class="row"><button id="geo-gen">🎲 Générer le territoire</button></div>
     <div class="hint">Génère un maillage grossier (mêmes carrés/hexagones/pentagones, à grande échelle). <b>Clique</b> une cellule pour l'éditer, <b>double-clic</b> pour la renommer vite. ⚠ « Générer » remaille à neuf et remet les annotations à zéro.</div>
     <h2>Cellule sélectionnée</h2>
     <div id="geo-detail" class="hint">Clique une cellule de la carte pour l'éditer ici.</div>
@@ -230,7 +231,7 @@
   };
   const ENEMY_VIS=7, SLEEP_VIS=4;
   const mk=s=>()=>{s|=0;s=s+0x6D2B79F5|0;let t=Math.imul(s^s>>>15,1|s);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;};
-  let RND=mk(7), seed=7, mode="edit", editTool="zone:square";
+  let RND=mk(7), seed=7, mode="edit", editTool="zone:square", islandTrim=true;   // islandTrim : retire les cellules de bord (effet île), mission + geoscape
 
   const MC=72; let COLS=Math.ceil(W/MC), ROWS=Math.ceil(H/MC);
   const defZone=(c)=> c<COLS/3?"square": c<2*COLS/3?"mix":"hex";
@@ -272,6 +273,7 @@
     for(let i=0;i<seeds.length;i++){const p=seeds[i];let poly=box;for(let k=0;k<seeds.length;k++){if(k===i)continue;const q=seeds[k];if(Math.abs(q[0]-p[0])>R||Math.abs(q[1]-p[1])>R)continue;poly=clip(poly,p,q);if(poly.length<3)break;}
       if(poly.length>=3){const cl=[];for(let v=0;v<poly.length;v++){const a=poly[v],b=cl[cl.length-1];if(!b||Math.hypot(a[0]-b[0],a[1]-b[1])>0.8)cl.push(a);}if(cl.length>=2&&Math.hypot(cl[0][0]-cl[cl.length-1][0],cl[0][1]-cl[cl.length-1][1])<0.8)cl.pop();
         if(cl.length>=3){const ct=polyCentroid(cl);cells.push({id:cells.length,poly:cl,cx:ct[0],cy:ct[1],nb:[],terr:"plain",elev:0});}}}
+    if(islandTrim){ const EPS=0.6; cells=cells.filter(c=>!c.poly.some(p=>p[0]<=EPS||p[0]>=W-EPS||p[1]<=EPS||p[1]>=H-EPS)); cells.forEach((c,i)=>c.id=i); }   // effet « île » : retire les cellules touchant le bord → contour irrégulier
     buildAdj();
   }
   // centroïde d'aire d'un polygone (mieux centré qu'une moyenne de sommets pour les cellules irrégulières)
@@ -1038,12 +1040,18 @@
   function geoInitCells(){ cells.forEach(c=>{ c.gname=c.gname||""; c.gtype="region"; c.gkind="empty"; c.gref=null; c.gstate="locked"; c.gunlock=[]; }); geoCampId=null; geoSel=null; }
   function geoGenerate(){ const tgt=Math.max(4,Math.min(40,+(document.getElementById("geo-n").value)||12));
     resetView(); seed=(seed*1103515245+12345)&0x7fffffff;
-    // espacement initial estimé, puis on ajuste jusqu'à approcher le nombre de régions visé
-    let g=Math.max(70,Math.round(Math.sqrt(W*H/tgt)*1.3));
-    for(let it=0;it<7;it++){ genMesh(g); const n=cells.length; if(n>tgt*1.2)g=Math.round(g*1.12); else if(n<tgt*0.8)g=Math.round(g*0.9); else break; }
+    // on génère plus large (les cellules de bord seront retirées), puis on ajuste jusqu'à approcher
+    // le nombre de régions *intérieures* visé (genMesh applique déjà le tri « île »).
+    let g=Math.max(60,Math.round(Math.sqrt(W*H/tgt)*0.95));
+    for(let it=0;it<16;it++){ genMesh(g); const n=cells.length; if(n>tgt*1.2)g=Math.round(g*1.1); else if(n<tgt*0.8)g=Math.round(g*0.9); else break; }
     geoG=g; geoInitCells(); geoRefresh(); }
+  // règle l'aspect ratio de la fenêtre geoscape (largeur de base fixe, hauteur dérivée), puis régénère
+  function geoSetAspect(){ const sel=document.getElementById("geo-aspect"); const v=(sel&&sel.value)||"3:2"; const m=v.split(":").map(Number); const aw=m[0]||3, ah=m[1]||2;
+    const baseW=720; const w=baseW, h=Math.round(baseW*ah/aw);
+    COLS=Math.max(4,Math.round(w/MC)); ROWS=Math.max(3,Math.round(h/MC)); W=COLS*MC; H=ROWS*MC; cv.width=W; cv.height=H;
+    infl=Array.from({length:ROWS},()=>Array(COLS).fill("mix")); geoGenerate(); }
   function geoEnter(){ if(!geoStarted){ geoStarted=true;
-      if(!cells.length||cells[0].gstate===undefined){ geoGenerate(); } else { geoRefresh(); } }
+      if(!cells.length||cells[0].gstate===undefined){ geoSetAspect(); } else { geoRefresh(); } }
     else geoRefresh(); }
   function geoRefresh(){ geoRenderDetail(); draw(); }
 
@@ -1123,6 +1131,7 @@
     catch(e){ gs.textContent="Échec : "+e.message; } }
   { const g=id=>document.getElementById(id);
     if(g("geo-gen"))g("geo-gen").onclick=geoGenerate;
+    if(g("geo-aspect"))g("geo-aspect").onchange=geoSetAspect;
     if(g("geo-save"))g("geo-save").onclick=geoPublish;
     if(g("geo-load"))g("geo-load").onclick=geoLoad;
     if(g("geo-del"))g("geo-del").onclick=geoDelete; }
