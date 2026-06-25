@@ -18,11 +18,12 @@
   .row{ display:flex; align-items:center; gap:6px; margin:4px 0; flex-wrap:wrap } input[type=range]{ flex:1 }
   .leg{ display:flex; align-items:center; gap:6px; margin:2px 0; font-size:.74rem } .sw{ width:13px;height:13px;border-radius:3px;border:1px solid #00000066 }
   .hint{ color:#9a8a74; font-size:.72rem; margin-top:4px }
-  /* trois vues : mission (éditeur), campaign (éditeur), play (jeu) — pilotées par l'URL */
-  .editonly,#tab-mission,#tab-camp,#hud{ display:none }
-  body.view-mission .editonly,body.view-campaign .editonly{ display:block }
+  /* quatre vues : mission (éditeur), campaign (éditeur), geoscape (éditeur), play (jeu) — pilotées par l'URL */
+  .editonly,#tab-mission,#tab-camp,#tab-geo,#hud{ display:none }
+  body.view-mission .editonly,body.view-campaign .editonly,body.view-geoscape .editonly{ display:block }
   body.view-mission #tab-mission{ display:flex; gap:16px; align-items:flex-start; flex-wrap:wrap }
   body.view-campaign #tab-camp{ display:block }
+  body.view-geoscape #tab-geo{ display:block }
   body.view-play #hud{ display:block }
   body.view-play .panel{ display:none }          /* en jeu : HUD superposé, panneau masqué */
   body.view-play{ justify-content:center; align-items:center; min-height:calc(100vh - 32px) }   /* fenêtre de jeu centrée */
@@ -54,6 +55,9 @@
   body.view-campaign .panel{ width:100%; max-width:1100px; margin:0 auto }
   body.view-campaign #cnodes{ max-height:46vh }
   body.view-campaign #cgraph{ height:46vh; min-height:340px }
+  /* vue geoscape : carte (canvas) + panneau d'annotation à droite, comme la mission */
+  body.view-geoscape .panel{ width:100%; max-width:480px }
+  #geo-detail .row{ margin:3px 0 }
   #mode{ display:none } body.view-mission #mode,body.testing.view-play #mode{ display:inline-block }
   body:not(.view-play) #title{ display:none !important }
   #nav{ gap:4px } #nav a{ color:#caa24a; text-decoration:none; border:1px solid #5a4530; border-radius:6px; padding:4px 9px; font-size:.82rem }
@@ -95,7 +99,7 @@
 <canvas id="board" width="720" height="560"></canvas>
 <div class="panel">
   <h1>Cœur maillage</h1>
-  <div class="row" id="nav"><a href="?edit" id="nav-m">🗺 Mission</a><a href="?campaign" id="nav-c">🎬 Campagne</a><a href="?play" id="nav-p">▶ Jouer</a></div>
+  <div class="row" id="nav"><a href="?edit" id="nav-m">🗺 Mission</a><a href="?campaign" id="nav-c">🎬 Campagne</a><a href="?geoscape" id="nav-g">🌍 Geoscape</a><a href="?play" id="nav-p">▶ Jouer</a></div>
   <div class="row"><button id="mode">▶ Tester la mission</button></div>
 
   <div class="editonly">
@@ -164,6 +168,20 @@
     <div class="row"><button id="csave">💾 Campagne</button><select id="cloadsel" style="flex:1"></select><button id="cload">📂</button><button id="cplay">▶ Jouer</button></div>
     <div class="hint" id="cstatus"></div>
     </div>
+    <div id="tab-geo">
+    <h2>Territoire (geoscape)</h2>
+    <div class="row"><input id="geo-name" type="text" placeholder="nom du territoire (ex : Acte 1)" style="flex:1"></div>
+    <div class="row"><label>Régions ~<input id="geo-n" type="number" min="4" max="40" value="12" style="width:52px"></label>
+      <button id="geo-gen">🎲 Générer le territoire</button></div>
+    <div class="hint">Génère un maillage grossier (mêmes carrés/hexagones/pentagones, à grande échelle). <b>Clique</b> une cellule pour l'éditer, <b>double-clic</b> pour la renommer vite. ⚠ « Générer » remaille à neuf et remet les annotations à zéro.</div>
+    <h2>Cellule sélectionnée</h2>
+    <div id="geo-detail" class="hint">Clique une cellule de la carte pour l'éditer ici.</div>
+    <h2>Dépôt (GitHub)</h2>
+    <div class="row"><select id="geo-loadsel" style="flex:1"></select><button id="geo-load">📂 Charger</button><button id="geo-del" title="Supprimer le territoire du dépôt">🗑</button></div>
+    <input id="geo-token" type="password" placeholder="token GitHub (si pas déjà saisi dans l'onglet Mission)" style="width:100%;margin:2px 0">
+    <div class="row"><button id="geo-save">💾 Enregistrer le territoire</button></div>
+    <div class="hint" id="geo-status"></div>
+    </div>
   </div>
 
 </div>
@@ -231,8 +249,8 @@
     for(const n of c.nb){ const s=wallSeg.get(wkey(c.id,n)); if(!s)continue; const mx=(s[0][0]+s[1][0])/2,my=(s[0][1]+s[1][1])/2,d=Math.hypot(X-mx,Y-my); if(d<bd){bd=d;best=wkey(c.id,n);} }
     return best; }
   function distToSeg(px,py,a,b){ const vx=b[0]-a[0],vy=b[1]-a[1],wx=px-a[0],wy=py-a[1],c1=vx*wx+vy*wy; if(c1<=0)return Math.hypot(px-a[0],py-a[1]); const c2=vx*vx+vy*vy; if(c2<=c1)return Math.hypot(px-b[0],py-b[1]); const t=c1/c2; return Math.hypot(px-(a[0]+t*vx),py-(a[1]+t*vy)); }
-  function genMesh(){
-    const g=+dens.value, dist=+distEl.value/100, rnd=mk(seed), h=g*0.866, jit=a=>(rnd()*2-1)*a;
+  function genMesh(gOverride){
+    const g=gOverride||+dens.value, dist=+distEl.value/100, rnd=mk(seed), h=g*0.866, jit=a=>(rnd()*2-1)*a;
     const typeAt=(x,y)=>infl[Math.min(ROWS-1,Math.floor(y/MC))][Math.min(COLS-1,Math.floor(x/MC))];
     const seeds=[];
     for(let j=-1;j*Math.min(g,h)<H+g;j++)for(let i=-1;i*g<W+g;i++){
@@ -494,20 +512,22 @@
   cv.addEventListener("wheel",e=>{ e.preventDefault(); const r=cv.getBoundingClientRect(); const bx=(e.clientX-r.left)*(cv.width/(r.width||cv.width)),by=(e.clientY-r.top)*(cv.height/(r.height||cv.height));
     const wx=(bx-panX)/zoom,wy=(by-panY)/zoom; zoom=Math.max(1,Math.min(5,zoom*(e.deltaY<0?1.15:1/1.15))); panX=bx-wx*zoom; panY=by-wy*zoom; clampPan(); draw(); },{passive:false});
   cv.addEventListener("contextmenu",e=>e.preventDefault());   // clic droit = supprimer une unité (éditeur)
-  cv.addEventListener("dblclick",e=>{ if(mode!=="edit")return; const [X,Y]=evXY(e); const c=cellAtXY(X,Y); const u=c&&uAt(c.id); if(!u)return;   // double-clic = renommer
+  cv.addEventListener("dblclick",e=>{ if(inGeo()){ const [X,Y]=evXY(e); const c=cellAtXY(X,Y); if(c){ const nm=prompt("Nom de la région :",c.gname||""); if(nm!==null){ c.gname=nm.trim(); geoRenderDetail(); draw(); } } return; }
+    if(mode!=="edit")return; const [X,Y]=evXY(e); const c=cellAtXY(X,Y); const u=c&&uAt(c.id); if(!u)return;   // double-clic = renommer
     const nm=prompt("Nom de l'unité :",u.name); if(nm!==null){ u.name=(nm.trim()||CLASSES[u.cls].name); refresh(); } });
   cv.addEventListener("pointerdown",e=>{const [X,Y]=evXY(e);
+    if(inGeo()){ if(e.button!==0)return; const c=cellAtXY(X,Y); geoSel=c?c.id:null; geoRenderDetail(); draw(); return; }
     if(mode!=="edit"){ if(e.button===0)playClick(X,Y); return; }
     if(e.button===2){ const cell=cellAtXY(X,Y),u=cell&&uAt(cell.id); if(u){units=units.filter(x=>x!==u);refresh();} return; }
     if(editTool==="pod"||editTool==="sleep"){ editAt(X,Y); return; }   // agit au clic, pas en glissé
     const cell=cellAtXY(X,Y),u=cell&&uAt(cell.id);
     if(u&&(editTool==="unit"||Math.hypot(X-cell.cx,Y-cell.cy)<=20)){ dragU=u; dragXY=[X,Y]; dragStart=[X,Y]; dragMoved=false; draw(); return; }   // attrape l'unité (outil unité partout, ou clic sur le pion avec n'importe quel outil) : glisser = déplacer, simple clic = pivoter
     painting=true; editAt(X,Y); });
-  cv.addEventListener("pointermove",e=>{ if(mode!=="edit")return; const [X,Y]=evXY(e);
+  cv.addEventListener("pointermove",e=>{ if(inGeo())return; if(mode!=="edit")return; const [X,Y]=evXY(e);
     if(dragU){ if(dragStart&&Math.hypot(X-dragStart[0],Y-dragStart[1])>5)dragMoved=true; dragXY=[X,Y]; draw(); return; }
     if(editTool==="muret"){ const k=edgeAt(X,Y); if(k!==hoverEdge){hoverEdge=k;draw();} return; }   // muret : pose au clic, pas en glissé
     if(painting)editAt(X,Y); });
-  window.addEventListener("pointerup",e=>{ if(dragU){ const [X,Y]=evXY(e); const cell=cellAtXY(X,Y);
+  window.addEventListener("pointerup",e=>{ if(inGeo())return; if(dragU){ const [X,Y]=evXY(e); const cell=cellAtXY(X,Y);
       if(cell&&cell.id!==dragU.cell&&(!uAt(cell.id)||uAt(cell.id)===dragU)){ dragU.cell=cell.id; }   // relâché sur une autre case libre = déplace
       else { dragU.facing=norm((dragU.facing||0)+Math.PI/4); }   // resté sur sa case (clic ou glissé annulé) = pivote (45°)
       dragU=null; dragXY=null; dragMoved=false; refresh(); } painting=false; });
@@ -586,6 +606,7 @@
       else { const x=f.ax+(f.bx-f.ax)*p,y=f.ay+(f.by-f.ay)*p; const xp=f.ax+(f.bx-f.ax)*Math.max(0,p-0.18),yp=f.ay+(f.by-f.ay)*Math.max(0,p-0.18); ctx.globalAlpha=0.5; ctx.strokeStyle="#caa64a"; ctx.lineWidth=2; ctx.beginPath(); ctx.moveTo(xp,yp); ctx.lineTo(x,y); ctx.stroke(); ctx.globalAlpha=1; ctx.fillStyle="#ffe08a"; ctx.beginPath(); ctx.arc(x,y,3,0,TWO); ctx.fill(); }
       ctx.restore(); } }
   function draw(){
+    if(inGeo()){ drawGeo(); return; }
     let sx=0,sy=0; if(fxNow()<shakeUntil){const k=(shakeUntil-fxNow())/260*shakeMag; sx=(Math.random()*2-1)*k; sy=(Math.random()*2-1)*k;}
     ctx.setTransform(1,0,0,1,0,0); ctx.clearRect(0,0,cv.width,cv.height); ctx.setTransform(zoom,0,0,zoom,panX+sx,panY+sy);   // zoom/pan molette (+ secousse)
     const showZones=mode==="edit"&&editTool.startsWith("zone:");
@@ -892,9 +913,10 @@
     body.querySelectorAll("[data-go]").forEach(b=>b.onclick=()=>{el.classList.remove("show");btn.style.display="";runNode(b.dataset.go);}); }
   function applyCarry(){ if(!campRun)return; for(const u of units)if(u.team==="player"){const c=campRun.carry[u.name];if(c!=null)u.hp=Math.max(1,Math.min(u.max,c));} }
   function saveCarry(){ if(!campRun)return; for(const u of units)if(u.team==="player")campRun.carry[u.name]=Math.max(0,u.hp); }
-  function setView(v){ document.body.classList.remove("view-mission","view-campaign","view-play"); document.body.classList.add("view-"+v); mode=(v==="play")?"play":"edit";
-    const cur={mission:"nav-m",campaign:"nav-c",play:"nav-p"}[v]; ["nav-m","nav-c","nav-p"].forEach(id=>{const a=document.getElementById(id);if(a)a.classList.toggle("cur",id===cur);});
-    if(v==="campaign"){ const cg2=document.getElementById("cgraph"); if(cg2&&cg2.getBoundingClientRect){ const w=Math.round(cg2.getBoundingClientRect().width)||880,h=Math.round(cg2.getBoundingClientRect().height)||340; if(w>1){cg2.width=w;cg2.height=h;} if(typeof drawGraph==="function")drawGraph(); } } }
+  function setView(v){ document.body.classList.remove("view-mission","view-campaign","view-geoscape","view-play"); document.body.classList.add("view-"+v); mode=(v==="play")?"play":"edit";
+    const cur={mission:"nav-m",campaign:"nav-c",geoscape:"nav-g",play:"nav-p"}[v]; ["nav-m","nav-c","nav-g","nav-p"].forEach(id=>{const a=document.getElementById(id);if(a)a.classList.toggle("cur",id===cur);});
+    if(v==="campaign"){ const cg2=document.getElementById("cgraph"); if(cg2&&cg2.getBoundingClientRect){ const w=Math.round(cg2.getBoundingClientRect().width)||880,h=Math.round(cg2.getBoundingClientRect().height)||340; if(w>1){cg2.width=w;cg2.height=h;} if(typeof drawGraph==="function")drawGraph(); } }
+    if(v==="geoscape"&&typeof geoEnter==="function")geoEnter(); }
   function startCampaign(camp,from,fromNode){ campRun={camp,carry:{},nodeId:null,from:from||"campaign",seen:new Set(),potions:0}; document.body.classList.remove("testing"); setView("play"); runNode(fromNode||camp.start); }
   async function startPlay(){ let camp=loadCampDraft();
     if(!camp){ const t=await fetchText("campaigns-mesh/principale.json",ghCfg()); if(t){try{camp=JSON.parse(t);}catch(e){}} }
@@ -958,7 +980,7 @@
   // ===== polish : bannière de tour, fiche au survol, raccourcis clavier =====
   function banner(text,cls){ const el=document.getElementById("banner"); el.textContent=text; el.style.background=cls==="enemy"?"#5a2a2a":"#2a4a5a"; el.classList.remove("show"); void el.offsetWidth; el.classList.add("show"); }
   const TERRN={plain:"sol",rough:"accidenté",wall:"rocher",cover:"couvert"};
-  cv.addEventListener("mousemove",e=>{ const f=document.getElementById("fiche"); const [mx,my]=evXY(e); const cell=cellAtXY(mx,my);
+  cv.addEventListener("mousemove",e=>{ if(inGeo())return; const f=document.getElementById("fiche"); const [mx,my]=evXY(e); const cell=cellAtXY(mx,my);
     if(mode==="play"&&!over&&sel&&turn==="player"){ const hc=cell?cell.id:null; if(hc!==hoverCell){hoverCell=hc;draw();} }
     if(!cell){f.style.display="none";return;} const u=uAt(cell.id);
     if(!(u&&(mode==="edit"||u.team==="player"||seen(u)))){ f.style.display="none"; return; }   // pas d'infobulle « cellule · sol »
@@ -987,6 +1009,106 @@
     units=[U("player","sergent",L[2].i,{name:"Stiff"}),U("player","sapeur",L[6].i,{name:"Merry"}),U("player","assassin",L[10].i,{name:"Gizzard"}),
            U("enemy","garde",Rr[2].i,{pod:0}),U("enemy","archer",Rr[6].i,{pod:0,asleep:true}),U("enemy","brute",Rr[10].i,{pod:1,asleep:true})];
   }
+
+  // ===================== GEOSCAPE — éditeur de territoire =====================
+  // Réutilise le maillage (genMesh) en densité grossière ; chaque cellule = une région annotée.
+  let geoSel=null, geoCampId=null, geoG=170, geoStarted=false;
+  function inGeo(){ return document.body.classList.contains("view-geoscape"); }
+  const GEO_STATES=[["locked","verrouillé"],["available","disponible"],["cleared","nettoyé"],["lost","perdu"]];
+  const GEO_FILL={locked:"#2c2f3a",available:"#2f6e4c",cleared:"#1c4e7a",lost:"#6a2b22"};
+  function geoInitCells(){ cells.forEach(c=>{ c.gname=c.gname||""; c.gtype="region"; c.gkind="empty"; c.gref=null; c.gstate="locked"; c.gunlock=[]; }); geoCampId=null; geoSel=null; }
+  function geoGenerate(){ const tgt=Math.max(4,Math.min(40,+(document.getElementById("geo-n").value)||12));
+    resetView(); seed=(seed*1103515245+12345)&0x7fffffff;
+    // espacement initial estimé, puis on ajuste jusqu'à approcher le nombre de régions visé
+    let g=Math.max(70,Math.round(Math.sqrt(W*H/tgt)*1.3));
+    for(let it=0;it<7;it++){ genMesh(g); const n=cells.length; if(n>tgt*1.2)g=Math.round(g*1.12); else if(n<tgt*0.8)g=Math.round(g*0.9); else break; }
+    geoG=g; geoInitCells(); geoRefresh(); }
+  function geoEnter(){ if(!geoStarted){ geoStarted=true;
+      if(!cells.length||cells[0].gstate===undefined){ geoGenerate(); } else { geoRefresh(); } }
+    else geoRefresh(); }
+  function geoRefresh(){ geoRenderDetail(); draw(); }
+
+  function drawGeo(){ ctx.setTransform(1,0,0,1,0,0); ctx.clearRect(0,0,cv.width,cv.height); ctx.setTransform(zoom,0,0,zoom,panX,panY);
+    for(const c of cells){ poly(c); ctx.fillStyle=GEO_FILL[c.gstate]||GEO_FILL.locked; ctx.fill(); ctx.lineWidth=1.5; ctx.strokeStyle="rgba(10,12,16,.5)"; ctx.stroke(); }
+    // liens de déverrouillage (pointillés or)
+    ctx.strokeStyle="rgba(224,179,65,.4)"; ctx.lineWidth=1.5; ctx.setLineDash([4,4]);
+    for(const c of cells)if(c.gunlock&&c.gunlock.length)for(const src of c.gunlock){ if(cells[src]){ ctx.beginPath(); ctx.moveTo(cells[src].cx,cells[src].cy); ctx.lineTo(c.cx,c.cy); ctx.stroke(); } }
+    ctx.setLineDash([]);
+    ctx.textAlign="center"; ctx.textBaseline="middle";
+    for(const c of cells){ const isCamp=c.id===geoCampId; const icon=isCamp?"⛺":(c.gkind==="mission"?"⚔":(c.gkind==="event"?"✦":""));
+      if(icon){ ctx.font="bold 15px system-ui"; ctx.fillStyle="#fff"; ctx.fillText(icon,c.cx,c.cy-8); }
+      const nm=c.gname||("#"+c.id); ctx.font="11px system-ui"; ctx.fillStyle="rgba(255,255,255,.92)"; ctx.fillText(nm,c.cx,c.cy+10); }
+    if(geoCampId!=null&&cells[geoCampId]){ poly(cells[geoCampId]); ctx.lineWidth=3; ctx.strokeStyle="#e0b341"; ctx.stroke(); }
+    if(geoSel!=null&&cells[geoSel]){ poly(cells[geoSel]); ctx.lineWidth=3; ctx.strokeStyle="#c77dff"; ctx.stroke(); } }
+
+  function geoMissionOpts(selv){ const list=repoMissionList||[]; return `<option value="">— aucune —</option>`+list.map(x=>`<option value="${x.file}"${x.file===selv?" selected":""}>${x.name}</option>`).join(""); }
+  function geoRenderDetail(){ const el=document.getElementById("geo-detail"); if(!el)return;
+    if(geoSel==null||!cells[geoSel]){ el.innerHTML="Clique une cellule de la carte pour l'éditer ici."; return; }
+    const c=cells[geoSel];
+    const others=cells.filter(x=>x.id!==c.id).map(x=>`<label style="display:inline-flex;align-items:center;gap:3px;margin:1px 6px 1px 0;font-size:.82rem"><input type="checkbox" data-unlock="${x.id}"${(c.gunlock||[]).includes(x.id)?" checked":""}> ${(x.gname||("#"+x.id))}</label>`).join("");
+    el.innerHTML=`
+      <div class="row"><label style="flex:1">Nom <input id="gd-name" type="text" value="${(c.gname||"").replace(/"/g,"&quot;")}" style="flex:1"></label></div>
+      <div class="row"><label>Type <select id="gd-type"><option value="region"${c.gtype==="region"?" selected":""}>région</option><option value="camp"${c.gtype==="camp"?" selected":""}>camp</option></select></label>
+        <button id="gd-camp">⛺ Définir comme camp</button></div>
+      <div class="row"><label>État <select id="gd-state">${GEO_STATES.map(([v,l])=>`<option value="${v}"${c.gstate===v?" selected":""}>${l}</option>`).join("")}</select></label></div>
+      <div class="row"><label>Contenu <select id="gd-kind"><option value="empty"${c.gkind==="empty"?" selected":""}>vide</option><option value="mission"${c.gkind==="mission"?" selected":""}>mission</option><option value="event"${c.gkind==="event"?" selected":""}>événement</option></select></label></div>
+      <div class="row" id="gd-refrow" style="${c.gkind==="mission"?"":"display:none"}"><label style="flex:1">Mission <select id="gd-ref" style="flex:1">${geoMissionOpts(c.gref)}</select></label></div>
+      <div style="margin-top:6px"><b style="font-size:.82rem">Déverrouillée par :</b><br>${others||"(aucune autre cellule)"}</div>`;
+    const g=id=>document.getElementById(id);
+    g("gd-name").oninput=e=>{ c.gname=e.target.value; draw(); };
+    g("gd-type").onchange=e=>{ c.gtype=e.target.value; if(e.target.value==="camp")geoCampId=c.id; else if(geoCampId===c.id)geoCampId=null; draw(); };
+    g("gd-camp").onclick=()=>{ geoCampId=c.id; c.gtype="camp"; c.gstate="available"; geoRenderDetail(); draw(); };
+    g("gd-state").onchange=e=>{ c.gstate=e.target.value; draw(); };
+    g("gd-kind").onchange=e=>{ c.gkind=e.target.value; const rr=g("gd-refrow"); if(rr)rr.style.display=(e.target.value==="mission")?"":"none"; draw(); };
+    const ref=g("gd-ref"); if(ref)ref.onchange=e=>{ c.gref=e.target.value||null; };
+    el.querySelectorAll("[data-unlock]").forEach(cb=>cb.onchange=e=>{ const id=+e.target.getAttribute("data-unlock"); c.gunlock=c.gunlock||[]; if(e.target.checked){ if(!c.gunlock.includes(id))c.gunlock.push(id); } else c.gunlock=c.gunlock.filter(x=>x!==id); draw(); }); }
+
+  // sérialisation geoscape (polygones + annotations + paramètres de maillage)
+  function geoExport(){ return { name:(document.getElementById("geo-name").value||"").trim()||"territoire",
+      mesh:{ infl, seed, g:geoG, cols:COLS, rows:ROWS },
+      camp:geoCampId,
+      cells:cells.map(c=>({ poly:c.poly.map(p=>[Math.round(p[0]),Math.round(p[1])]), name:c.gname||"", type:c.gtype||"region",
+        content:{kind:c.gkind||"empty", ref:c.gref||null}, state:c.gstate||"locked", unlockedBy:(c.gunlock||[]).slice() })) }; }
+  function geoApply(o){ resetView();
+    if(o.mesh&&Array.isArray(o.mesh.infl)){ infl=o.mesh.infl; ROWS=infl.length; COLS=(infl[0]&&infl[0].length)||COLS; W=COLS*MC;H=ROWS*MC; cv.width=W;cv.height=H; }
+    if(o.mesh&&o.mesh.seed!=null)seed=o.mesh.seed; if(o.mesh&&o.mesh.g)geoG=o.mesh.g;
+    document.getElementById("geo-name").value=o.name||"";
+    if(Array.isArray(o.cells)&&o.cells.length&&o.cells[0].poly){
+      cells=o.cells.map((c,i)=>{ const ct=polyCentroid(c.poly); return {id:i,poly:c.poly,cx:ct[0],cy:ct[1],nb:[],terr:"plain",elev:0,
+        gname:c.name||"",gtype:c.type||"region",gkind:(c.content&&c.content.kind)||"empty",gref:(c.content&&c.content.ref)||null,
+        gstate:c.state||"locked",gunlock:Array.isArray(c.unlockedBy)?c.unlockedBy.slice():[]}; });
+      buildAdj();
+    } else { genMesh(geoG); geoInitCells(); }
+    geoCampId=(o.camp!=null)?o.camp:null; geoSel=null; geoStarted=true; geoRefresh(); }
+
+  // dépôt GitHub (dossier geoscapes-mesh/)
+  function geoFill(list){ const sel=document.getElementById("geo-loadsel"); if(sel)sel.innerHTML=list.length?list.map(x=>`<option value="${x.file}">${x.name}</option>`).join(""):`<option value="">(aucun)</option>`; }
+  async function geoFetchList(){ const t=await fetchText("geoscapes-mesh/list.json",ghCfg()); let list=[]; if(t){try{const p=JSON.parse(t);if(Array.isArray(p))list=p;}catch(e){}} geoFill(list); }
+  async function geoPublish(){ const gs=document.getElementById("geo-status"); const tokEl=document.getElementById("geo-token");
+    if(tokEl&&tokEl.value.trim()){ try{localStorage.setItem("mgf_gh_token",tokEl.value.trim());}catch(e){} }
+    const cfg=ghCfg(); const name=(document.getElementById("geo-name").value||"").trim();
+    if(!name){gs.textContent="Donne un nom au territoire.";return;} if(!cfg.token){gs.textContent="Token GitHub requis (onglet Mission ou champ ci-dessus).";return;} if(!cfg.repo||!cfg.branch){gs.textContent="Dépôt/branche requis.";return;}
+    const file=(name.toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/(^-|-$)/g,"")||"territoire")+".json"; const o=geoExport(); o.name=name;
+    try{ gs.textContent="Publication de "+file+"…"; await ghPut("geoscapes-mesh/"+file,JSON.stringify(o),"Geoscape : "+name,cfg);
+      const cur=await ghGet("geoscapes-mesh/list.json",cfg.branch,cfg); let list=[]; if(cur){try{const p=JSON.parse(cur.text);if(Array.isArray(p))list=p;}catch(e){}}
+      if(list.some(x=>x.file===file))list=list.map(x=>x.file===file?{file,name}:x); else list.push({file,name});
+      await ghPut("geoscapes-mesh/list.json",JSON.stringify(list),"list geoscape : "+name,cfg); geoFill(list); document.getElementById("geo-loadsel").value=file; gs.textContent="✓ Territoire publié : "+name+" ("+file+")."; }
+    catch(e){ gs.textContent="Échec : "+e.message; } }
+  async function geoLoad(){ const f=document.getElementById("geo-loadsel").value; const gs=document.getElementById("geo-status"); if(!f)return;
+    const t=await fetchText("geoscapes-mesh/"+f,ghCfg()); if(!t){gs.textContent="Introuvable : "+f;return;} try{ geoApply(JSON.parse(t)); gs.textContent="Chargé : "+f; }catch(e){ gs.textContent="JSON invalide."; } }
+  async function geoDelete(){ const f=document.getElementById("geo-loadsel").value; const gs=document.getElementById("geo-status"); if(!f)return; const cfg=ghCfg();
+    if(!cfg.token){gs.textContent="Token GitHub requis.";return;} if(!confirm("Supprimer le territoire « "+f+" » du dépôt ?"))return;
+    try{ gs.textContent="Suppression…"; await ghDelete("geoscapes-mesh/"+f,"Suppr geoscape : "+f,cfg);
+      const cur=await ghGet("geoscapes-mesh/list.json",cfg.branch,cfg); let list=[]; if(cur){try{const p=JSON.parse(cur.text);if(Array.isArray(p))list=p;}catch(e){}}
+      list=list.filter(x=>x.file!==f); await ghPut("geoscapes-mesh/list.json",JSON.stringify(list),"list geoscape : suppr "+f,cfg); geoFill(list); gs.textContent="✓ Supprimé : "+f; }
+    catch(e){ gs.textContent="Échec : "+e.message; } }
+  { const g=id=>document.getElementById(id);
+    if(g("geo-gen"))g("geo-gen").onclick=geoGenerate;
+    if(g("geo-save"))g("geo-save").onclick=geoPublish;
+    if(g("geo-load"))g("geo-load").onclick=geoLoad;
+    if(g("geo-del"))g("geo-del").onclick=geoDelete; }
+  geoFetchList();
+
   function init(){
     let draft=null; try{ draft=JSON.parse(localStorage.getItem("mgf_mesh_draft")||"null"); }catch(e){}
     try{ const nm=localStorage.getItem("mgf_mesh_mname"); mname.value=(nm!=null&&nm!=="")?nm:((draft&&draft.name&&draft.name!=="mission-maillage")?draft.name:""); }catch(e){}   // nom restauré AVANT applyMissionObj (sinon son refresh→saveDraft l'écraserait par du vide)
@@ -996,7 +1118,7 @@
     const cd=loadCampDraft(); if(cd){ cname.value=cd.name||""; campNodes=cd.nodes||[]; campStart=cd.start||(campNodes[0]&&campNodes[0].id)||""; renderNodes(); }
     // routage par URL : ?edit = éditeur de mission, ?campaign = éditeur de campagne, défaut = page de jeu
     const params=new URLSearchParams(location.search);
-    const view=params.has("edit")?"mission":params.has("campaign")?"campaign":"play";
+    const view=params.has("edit")?"mission":params.has("campaign")?"campaign":params.has("geoscape")?"geoscape":"play";
     setView(view);
     refresh();
   }
@@ -1012,6 +1134,7 @@
   makeCollapsible(document.getElementById("me-left"));
   makeCollapsible(document.getElementById("me-right"));
   makeCollapsible(document.getElementById("tab-camp"));
+  makeCollapsible(document.getElementById("tab-geo"));
   init();
 })();
 </script>
