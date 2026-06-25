@@ -58,6 +58,10 @@
   /* vue geoscape : carte (canvas) + panneau d'annotation à droite, comme la mission */
   body.view-geoscape .panel{ width:100%; max-width:480px }
   #geo-detail .row{ margin:3px 0 }
+  /* carte geoscape en jeu (sous-boucle d'un nœud geoscape) : on masque le HUD de combat */
+  body.geomap #hud{ display:none }
+  #geobanner{ display:none; position:fixed; top:14px; left:50%; transform:translateX(-50%); z-index:7; background:rgba(12,10,8,.86); border:1px solid #5a4530; border-radius:8px; padding:8px 16px; color:#e8ddc8; font-size:.95rem; text-align:center; max-width:80vw }
+  body.geomap #geobanner{ display:block }
   #mode{ display:none } body.view-mission #mode,body.testing.view-play #mode{ display:inline-block }
   body:not(.view-play) #title{ display:none !important }
   #nav{ gap:4px } #nav a{ color:#caa24a; text-decoration:none; border:1px solid #5a4530; border-radius:6px; padding:4px 9px; font-size:.82rem }
@@ -158,7 +162,7 @@
     <div id="tab-camp">
     <h2>Campagne (nœuds : textes / missions / choix)</h2>
     <div class="row"><input id="cname" type="text" placeholder="nom de la campagne" style="flex:1">
-      <button id="cadd-text">+ Texte</button><button id="cadd-mission">+ Mission</button><button id="cadd-choice">+ Choix</button>
+      <button id="cadd-text">+ Texte</button><button id="cadd-mission">+ Mission</button><button id="cadd-choice">+ Choix</button><button id="cadd-geo">+ Geoscape</button>
       <label>Départ <select id="cstart"></select></label></div>
     <div id="cwrap">
       <canvas id="cgraph" width="640" height="440"></canvas>
@@ -197,6 +201,7 @@
 <div id="combatline"></div>
 <div id="fiche"></div>
 <div id="banner"></div>
+<div id="geobanner"></div>
 <div id="title"><button id="title-btn">New game</button></div>
 <div id="camptext"><div id="camptext-body"></div><button id="camptext-btn">…</button></div>
 <div id="storybox"><div id="storybox-body"></div><button id="storybox-btn">…</button></div>
@@ -517,6 +522,7 @@
     const nm=prompt("Nom de l'unité :",u.name); if(nm!==null){ u.name=(nm.trim()||CLASSES[u.cls].name); refresh(); } });
   cv.addEventListener("pointerdown",e=>{const [X,Y]=evXY(e);
     if(inGeo()){ if(e.button!==0)return; const c=cellAtXY(X,Y); geoSel=c?c.id:null; geoRenderDetail(); draw(); return; }
+    if(geoPlay&&!geoPlay.inMission){ if(e.button===0)geoPlayClick(X,Y); return; }
     if(mode!=="edit"){ if(e.button===0)playClick(X,Y); return; }
     if(e.button===2){ const cell=cellAtXY(X,Y),u=cell&&uAt(cell.id); if(u){units=units.filter(x=>x!==u);refresh();} return; }
     if(editTool==="pod"||editTool==="sleep"){ editAt(X,Y); return; }   // agit au clic, pas en glissé
@@ -607,6 +613,7 @@
       ctx.restore(); } }
   function draw(){
     if(inGeo()){ drawGeo(); return; }
+    if(geoPlay&&!geoPlay.inMission){ drawGeoPlay(); return; }
     let sx=0,sy=0; if(fxNow()<shakeUntil){const k=(shakeUntil-fxNow())/260*shakeMag; sx=(Math.random()*2-1)*k; sy=(Math.random()*2-1)*k;}
     ctx.setTransform(1,0,0,1,0,0); ctx.clearRect(0,0,cv.width,cv.height); ctx.setTransform(zoom,0,0,zoom,panX+sx,panY+sy);   // zoom/pan molette (+ secousse)
     const showZones=mode==="edit"&&editTool.startsWith("zone:");
@@ -808,14 +815,15 @@
   renderTrigList();
 
   // ===== campagne à nœuds (textes / missions / choix) + persistance PV =====
-  let campRun=null, campNodes=[], campStart="", nodeSeq=0, repoTexts=[], campSel=null;
+  let campRun=null, campNodes=[], campStart="", nodeSeq=0, repoTexts=[], campSel=null, repoGeoscapes=[];
   const cname=document.getElementById("cname"),cloadsel=document.getElementById("cloadsel"),cstatus=document.getElementById("cstatus");
   const esc=s=>(s||"").replace(/"/g,"&quot;");
   const newId=()=>{ let id; do{ id="n"+(++nodeSeq); }while(campNodes.some(n=>n.id===id)); return id; };   // jamais d'id déjà utilisé (sinon collision après chargement)
   function dedupeNodes(){ const used=new Set(); for(const n of campNodes){ if(used.has(n.id)){ let id; do{id="n"+(++nodeSeq);}while(used.has(id)||campNodes.some(x=>x.id===id)); n.id=id; } used.add(n.id); } }   // répare les id en double issus d'anciennes collisions
   const campNode=id=>campNodes.find(n=>n.id===id);
   const fileName=f=>(f||"").split("/").pop().replace(/\.txt$/,"");
-  function nodeLabel(n){ return n.type==="mission"?("🗺 "+(n.mission||"mission")):n.type==="choice"?("🔀 "+(n.title||"choix")):("📝 "+(n.file?fileName(n.file):((n.text||"").slice(0,14)||"texte"))); }
+  function nodeLabel(n){ return n.type==="mission"?("🗺 "+(n.mission||"mission")):n.type==="choice"?("🔀 "+(n.title||"choix")):n.type==="geoscape"?("🌍 "+(n.map||"territoire").replace(/\.json$/,"")):("📝 "+(n.file?fileName(n.file):((n.text||"").slice(0,14)||"texte"))); }
+  const geoMapOpts=sel=>repoGeoscapes.length?repoGeoscapes.map(g=>`<option value="${g.file}" ${g.file===sel?"selected":""}>${esc(g.name)}</option>`).join(""):`<option value="">(aucun territoire)</option>`;
   const idOpts=(sel,allowNull)=>(allowNull?`<option value="">—</option>`:"")+campNodes.map(n=>`<option value="${n.id}" ${n.id===sel?"selected":""}>${nodeLabel(n)}</option>`).join("");
   const missOpts=sel=>repoMissionList.length?repoMissionList.map(m=>`<option value="${m.file}" ${m.file===sel?"selected":""}>${m.name}</option>`).join(""):`<option value="">(aucune)</option>`;
   const txtOpts=(sel,none)=>`<option value="">${none||"— aucun —"}</option>`+repoTexts.map(t=>`<option value="${t.file}" ${t.file===sel?"selected":""}>${esc(t.name)}</option>`).join("");
@@ -832,11 +840,18 @@
     if(n.type==="text") h+=`<div class="row">📄 fichier <select data-f="file">${txtOpts(n.file,"— texte saisi ci-dessous —")}</select></div><input data-f="text" type="text" placeholder="…ou texte plein écran" value="${esc(n.text)}"><div class="row">suite → <select data-f="next">${idOpts(n.next,true)}</select></div>`;
     else if(n.type==="mission") h+=`<div class="row">mission <select data-f="mission">${missOpts(n.mission)}</select></div><div class="row">📄 intro <select data-f="introFile">${txtOpts(n.introFile)}</select></div><input data-f="intro" type="text" placeholder="…ou intro saisie" value="${esc(n.intro)}"><div class="row">📄 fin <select data-f="outroFile">${txtOpts(n.outroFile)}</select></div><input data-f="outro" type="text" placeholder="…ou fin saisie" value="${esc(n.outro)}"><div class="row">✓ vict. → <select data-f="win">${idOpts(n.win,true)}</select></div><div class="row">✕ déf. → <select data-f="lose">${idOpts(n.lose,true)}</select></div>`;
     else if(n.type==="choice") h+=`<input data-f="title" type="text" placeholder="titre du choix…" value="${esc(n.title)}"><div id="cdopts" style="margin:6px 0"></div><button data-addopt="1">+ option</button>`;
+    else if(n.type==="geoscape"){ const ew=n.endWhen||{kind:"all"}; h+=`<div class="row">🌍 territoire <select data-gf="map">${geoMapOpts(n.map)}</select></div>
+      <div class="row">fin d'acte <select data-gf="endkind"><option value="all" ${ew.kind!=="key"?"selected":""}>toutes régions résolues</option><option value="key" ${ew.kind==="key"?"selected":""}>région-clé nettoyée</option></select></div>
+      <div class="row" id="cd-keyrow" style="${ew.kind==="key"?"":"display:none"}">région-clé (nom) <input data-gf="endname" type="text" value="${esc(ew.name)}" placeholder="nom exact de la région" style="flex:1"></div>
+      <div class="row">suite → <select data-f="next">${idOpts(n.next,true)}</select></div>`; }
     h+=`<div class="row" style="margin-top:11px"><button data-setstart="1" ${n.id===campStart?"disabled":""}>★ Départ</button><button data-del="1">🗑 Supprimer</button></div>`;
     h+=`<div class="row"><button data-testhere="1">▶ Tester d'ici</button></div>`;
     el.innerHTML=h;
     if(n.type==="choice"){ const od=el.querySelector("#cdopts"); (n.options||[]).forEach((opt,oi)=>{ const r=document.createElement("div"); r.className="opt-row"; r.innerHTML=`→ <select data-optsel="${oi}" style="flex:1">${idOpts(opt,false)}</select><button data-optdel="${oi}">✕</button>`; od.appendChild(r); }); }
     el.querySelectorAll("input[data-f],select[data-f]").forEach(inp=>{const set=()=>{const f=inp.dataset.f;n[f]=(inp.value===""&&(f==="next"||f==="win"||f==="lose"))?null:inp.value;saveCampDraft();drawGraph();};inp.tagName==="SELECT"?inp.onchange=set:inp.oninput=set;});
+    el.querySelectorAll("[data-gf]").forEach(inp=>{ const f=inp.dataset.gf; const set=()=>{ n.endWhen=n.endWhen||{kind:"all",name:""};
+      if(f==="map")n.map=inp.value; else if(f==="endkind"){ n.endWhen.kind=inp.value; const kr=el.querySelector("#cd-keyrow"); if(kr)kr.style.display=(inp.value==="key")?"":"none"; } else if(f==="endname")n.endWhen.name=inp.value;
+      saveCampDraft(); drawGraph(); }; inp.tagName==="SELECT"?inp.onchange=set:inp.oninput=set; });
     el.querySelector("[data-del]").onclick=()=>{campNodes=campNodes.filter(x=>x.id!==n.id);if(campStart===n.id)campStart=campNodes[0]?campNodes[0].id:"";campSel=campNodes[0]?campNodes[0].id:null;renderNodes();};
     el.querySelector("[data-setstart]").onclick=()=>{campStart=n.id;renderNodes();};
     el.querySelector("[data-testhere]").onclick=()=>{ if(!campNodes.length)return; startCampaign({name:cname.value,start:campStart,nodes:campNodes},"campaign",n.id); };
@@ -848,7 +863,7 @@
   // graphe visuel de la campagne (nœuds déplaçables, liens colorés)
   const cg=document.getElementById("cgraph"),cgx=cg?cg.getContext("2d"):null; let cgDrag=null,cgOff=[0,0],cgMoved=false; const NW=92,NH=34;
   function roundRect(x,y,w,h,r){cgx.beginPath();cgx.moveTo(x+r,y);cgx.arcTo(x+w,y,x+w,y+h,r);cgx.arcTo(x+w,y+h,x,y+h,r);cgx.arcTo(x,y+h,x,y,r);cgx.arcTo(x,y,x+w,y,r);cgx.closePath();}
-  function shortLabel(n){ const base=n.type==="mission"?(n.mission||"mission").replace(/\.json$/,""):n.type==="choice"?(n.title||"choix"):(n.file?fileName(n.file):(n.text||"texte")); return (n.type==="mission"?"🗺 ":n.type==="choice"?"🔀 ":"📝 ")+base.slice(0,11); }
+  function shortLabel(n){ const base=n.type==="mission"?(n.mission||"mission").replace(/\.json$/,""):n.type==="choice"?(n.title||"choix"):n.type==="geoscape"?(n.map||"territoire").replace(/\.json$/,""):(n.file?fileName(n.file):(n.text||"texte")); return (n.type==="mission"?"🗺 ":n.type==="choice"?"🔀 ":n.type==="geoscape"?"🌍 ":"📝 ")+base.slice(0,11); }
   function drawGraph(){ if(!cgx)return; const ncol=Math.max(2,Math.floor((cg.width-30)/(NW+24)));
     campNodes.forEach((n,i)=>{ if(n.x==null){n.x=18+(i%ncol)*(NW+24);n.y=18+Math.floor(i/ncol)*(NH+34);} });
     cgx.clearRect(0,0,cg.width,cg.height); const ctr=id=>{const n=campNode(id);return n?[n.x+NW/2,n.y+NH/2]:null;};
@@ -859,9 +874,10 @@
     campNodes.forEach(n=>{const a=ctr(n.id);
       if(n.type==="text"&&n.next)arrow(a,ctr(n.next),"#6aa0d0");
       if(n.type==="mission"){if(n.win)arrow(a,ctr(n.win),"#6fd06f");if(n.lose)arrow(a,ctr(n.lose),"#e0635f");}
-      if(n.type==="choice")(n.options||[]).forEach(o=>arrow(a,ctr(o),"#caa24a")); });
+      if(n.type==="choice")(n.options||[]).forEach(o=>arrow(a,ctr(o),"#caa24a"));
+      if(n.type==="geoscape"&&n.next)arrow(a,ctr(n.next),"#46b39d"); });
     campNodes.forEach(n=>{ const isSel=n.id===campSel,isStart=n.id===campStart;
-      roundRect(n.x,n.y,NW,NH,8); cgx.fillStyle=n.type==="mission"?"#6e4242":n.type==="choice"?"#6e5e2a":"#33505e"; cgx.fill();
+      roundRect(n.x,n.y,NW,NH,8); cgx.fillStyle=n.type==="mission"?"#6e4242":n.type==="choice"?"#6e5e2a":n.type==="geoscape"?"#2a5e54":"#33505e"; cgx.fill();
       cgx.lineWidth=isSel?3:isStart?2:1; cgx.strokeStyle=isSel?"#ffd479":isStart?"#fff":"#1a140c"; cgx.stroke();
       cgx.fillStyle="#e8ddc8";cgx.font="10px sans-serif";cgx.textAlign="center";cgx.textBaseline="middle";cgx.fillText(shortLabel(n),n.x+NW/2,n.y+NH/2);
       if(isStart){cgx.fillStyle="#ffd479";cgx.font="11px sans-serif";cgx.textAlign="left";cgx.fillText("★",n.x+5,n.y+8);} }); }
@@ -875,6 +891,7 @@
   document.getElementById("cadd-text").onclick=()=>{const n={id:newId(),type:"text",text:"",next:null};campNodes.push(n);if(!campStart)campStart=n.id;campSel=n.id;renderNodes();};
   document.getElementById("cadd-mission").onclick=()=>{const n={id:newId(),type:"mission",mission:(repoMissionList[0]?repoMissionList[0].file:""),intro:"",outro:"",win:null,lose:null};campNodes.push(n);if(!campStart)campStart=n.id;campSel=n.id;renderNodes();};
   document.getElementById("cadd-choice").onclick=()=>{const n={id:newId(),type:"choice",title:"",options:[]};campNodes.push(n);if(!campStart)campStart=n.id;campSel=n.id;renderNodes();};
+  document.getElementById("cadd-geo").onclick=()=>{const n={id:newId(),type:"geoscape",map:(repoGeoscapes[0]?repoGeoscapes[0].file:""),endWhen:{kind:"all",name:""},next:null};campNodes.push(n);if(!campStart)campStart=n.id;campSel=n.id;renderNodes();};
   function fillCampLoad(list){ cloadsel.innerHTML=list.length?list.map(x=>`<option value="${x.file}">${x.name}</option>`).join(""):`<option value="">(aucune)</option>`; }
   async function fetchCampaigns(){ const t=await fetchText("campaigns-mesh/list.json",ghCfg()); let list=[];if(t){try{const p=JSON.parse(t);if(Array.isArray(p))list=p;}catch(e){}} fillCampLoad(list); }
   async function campLoad(){ const f=cloadsel.value; if(!f)return; const t=await fetchText("campaigns-mesh/"+f,ghCfg()); if(!t){cstatus.textContent="Introuvable.";return;} try{const c=JSON.parse(t);cname.value=c.name||"";campNodes=c.nodes||[];campStart=c.start||(campNodes[0]&&campNodes[0].id)||"";renderNodes();cstatus.textContent="Chargée : "+f;}catch(e){cstatus.textContent="JSON invalide.";} }
@@ -925,6 +942,7 @@
   function runNode(id){ if(!campRun)return; const n=campRun.camp.nodes.find(x=>x.id===id); if(!n){endCampaignRun("Campagne terminée.");return;} campRun.nodeId=id;
     if(n.type==="text"){ if(campRun.seen&&campRun.seen.has(id)){runNode(n.next);return;} if(campRun.seen)campRun.seen.add(id); resolveText(n.text,n.file).then(t=>showCampText(t||"…",()=>runNode(n.next)));return;}
     if(n.type==="choice"){showChoice(n);return;}
+    if(n.type==="geoscape"){ enterGeoPlay(n); return; }
     loadMissionNode(n,false); }
   async function loadMissionNode(n,retry){ const t=await fetchText("missions-mesh/"+n.mission,ghCfg()); if(!t){showCampText("Mission introuvable : "+n.mission,()=>endCampaignRun("Fin."));return;}
     try{applyMissionObj(JSON.parse(t));}catch(e){showCampText("Mission illisible.",()=>endCampaignRun("Fin."));return;}
@@ -933,11 +951,12 @@
     const introSeen=campRun&&campRun.seen&&campRun.seen.has(n.id+":intro");
     if(!retry&&!introSeen&&(n.intro||n.introFile)){ if(campRun&&campRun.seen)campRun.seen.add(n.id+":intro"); introBlocking=true;   // on ne peut pas jouer avant d'avoir lu toute l'intro
       resolveText(n.intro,n.introFile).then(txt=>{ if(txt)playText(txt,true,()=>{introBlocking=false;hideStory();setMsg("");}); else {introBlocking=false;} }); } }
-  function campEnd(t){ const win=t.indexOf("Victoire")===0, n=campRun.camp.nodes.find(x=>x.id===campRun.nodeId);
+  function campEnd(t){ if(campRun&&geoPlay&&geoPlay.inMission){ geoMissionEnd(t); return; }
+    const win=t.indexOf("Victoire")===0, n=campRun.camp.nodes.find(x=>x.id===campRun.nodeId);
     if(win){ saveCarry(); if(campRun)campRun.potions=(inv.potion||0)+((curMission&&curMission.loot)||0);   // butin : potions restantes + récompense de mission
       const after=()=>{ if(n&&n.win)runNode(n.win); else endCampaignRun("Campagne terminée — victoire !"); }; resolveText(n&&n.outro,n&&n.outroFile).then(txt=>{ if(txt)playText(txt,true,after); else after(); }); }
     else { if(n&&n.lose)runNode(n.lose); else showCampText("Mission échouée…",()=>loadMissionNode(n,true)); } }
-  function endCampaignRun(msg){ const from=campRun?campRun.from:"campaign"; showCampText(msg,()=>{ campRun=null;
+  function endCampaignRun(msg){ const from=campRun?campRun.from:"campaign"; geoPlay=null; document.body.classList.remove("geomap"); showCampText(msg,()=>{ campRun=null;
     if(from==="play"){ setView("play"); const t=document.getElementById("title"); if(t)t.style.display="flex"; }
     else { setView("campaign"); refresh(); } }); }
   { const cd=loadCampDraft(); if(cd){ cname.value=cd.name||""; campNodes=cd.nodes||[]; campStart=cd.start||(campNodes[0]&&campNodes[0].id)||""; } }  // restaure le brouillon AVANT le 1er rendu (sinon saveCampDraft l'écrase)
@@ -980,7 +999,7 @@
   // ===== polish : bannière de tour, fiche au survol, raccourcis clavier =====
   function banner(text,cls){ const el=document.getElementById("banner"); el.textContent=text; el.style.background=cls==="enemy"?"#5a2a2a":"#2a4a5a"; el.classList.remove("show"); void el.offsetWidth; el.classList.add("show"); }
   const TERRN={plain:"sol",rough:"accidenté",wall:"rocher",cover:"couvert"};
-  cv.addEventListener("mousemove",e=>{ if(inGeo())return; const f=document.getElementById("fiche"); const [mx,my]=evXY(e); const cell=cellAtXY(mx,my);
+  cv.addEventListener("mousemove",e=>{ if(inGeo())return; if(geoPlay&&!geoPlay.inMission){ const [gx,gy]=evXY(e); const gc=cellAtXY(gx,gy); const h=gc?gc.id:null; if(h!==hoverCell){hoverCell=h;draw();} return; } const f=document.getElementById("fiche"); const [mx,my]=evXY(e); const cell=cellAtXY(mx,my);
     if(mode==="play"&&!over&&sel&&turn==="player"){ const hc=cell?cell.id:null; if(hc!==hoverCell){hoverCell=hc;draw();} }
     if(!cell){f.style.display="none";return;} const u=uAt(cell.id);
     if(!(u&&(mode==="edit"||u.team==="player"||seen(u)))){ f.style.display="none"; return; }   // pas d'infobulle « cellule · sol »
@@ -991,7 +1010,7 @@
     f.innerHTML=h; f.style.display="block"; });   // fiche ancrée en haut à droite (ne suit plus le curseur)
   cv.addEventListener("mouseleave",()=>{document.getElementById("fiche").style.display="none"; if(mode==="play"&&hoverCell!=null){hoverCell=null;draw();}});
   function cycleSel(dir){ if(mode!=="play"||turn!=="player")return; const ps=units.filter(u=>u.team==="player"&&u.hp>0); if(!ps.length)return; let i=ps.indexOf(sel); i=(i<0?0:(i+dir+ps.length)%ps.length); sel=ps[i]; amode=null;aimTarget=null;throwing=false;usingItem=false; refresh(); }
-  window.addEventListener("keydown",e=>{ if(mode!=="play"||introBlocking||speaking||document.getElementById("camptext").classList.contains("show"))return;
+  window.addEventListener("keydown",e=>{ if(mode!=="play"||introBlocking||speaking||(geoPlay&&!geoPlay.inMission)||document.getElementById("camptext").classList.contains("show"))return;
     if(e.key==="Tab"){e.preventDefault(); if(amode&&cycleTarget(e.shiftKey?-1:1))return; cycleSel(e.shiftKey?-1:1);}   // en visée : Tab change de cible, sinon d'unité
     else if(e.key==="Escape"){amode=null;aimTarget=null;throwing=false;usingItem=false;setMsg("");refresh();}
     else if(e.key==="Enter"){e.preventDefault(); if(amode&&aimTarget&&aimTarget.hp>0&&inRange(sel,aimTarget,amode)){doAttack(sel,aimTarget,amode);} else if(!over&&turn==="player")endTurn();}
@@ -1012,7 +1031,7 @@
 
   // ===================== GEOSCAPE — éditeur de territoire =====================
   // Réutilise le maillage (genMesh) en densité grossière ; chaque cellule = une région annotée.
-  let geoSel=null, geoCampId=null, geoG=170, geoStarted=false;
+  let geoSel=null, geoCampId=null, geoG=170, geoStarted=false, geoPlay=null;
   function inGeo(){ return document.body.classList.contains("view-geoscape"); }
   const GEO_STATES=[["locked","verrouillé"],["available","disponible"],["cleared","nettoyé"],["lost","perdu"]];
   const GEO_FILL={locked:"#2c2f3a",available:"#2f6e4c",cleared:"#1c4e7a",lost:"#6a2b22"};
@@ -1083,7 +1102,7 @@
 
   // dépôt GitHub (dossier geoscapes-mesh/)
   function geoFill(list){ const sel=document.getElementById("geo-loadsel"); if(sel)sel.innerHTML=list.length?list.map(x=>`<option value="${x.file}">${x.name}</option>`).join(""):`<option value="">(aucun)</option>`; }
-  async function geoFetchList(){ const t=await fetchText("geoscapes-mesh/list.json",ghCfg()); let list=[]; if(t){try{const p=JSON.parse(t);if(Array.isArray(p))list=p;}catch(e){}} geoFill(list); }
+  async function geoFetchList(){ const t=await fetchText("geoscapes-mesh/list.json",ghCfg()); let list=[]; if(t){try{const p=JSON.parse(t);if(Array.isArray(p))list=p;}catch(e){}} repoGeoscapes=list; geoFill(list); if(document.body.classList.contains("view-campaign")&&typeof renderDetail==="function")renderDetail(); }
   async function geoPublish(){ const gs=document.getElementById("geo-status"); const tokEl=document.getElementById("geo-token");
     if(tokEl&&tokEl.value.trim()){ try{localStorage.setItem("mgf_gh_token",tokEl.value.trim());}catch(e){} }
     const cfg=ghCfg(); const name=(document.getElementById("geo-name").value||"").trim();
@@ -1108,6 +1127,53 @@
     if(g("geo-load"))g("geo-load").onclick=geoLoad;
     if(g("geo-del"))g("geo-del").onclick=geoDelete; }
   geoFetchList();
+
+  // ---- runtime : un nœud geoscape = sous-boucle (carte → mission de région → retour → endWhen → next) ----
+  function geoBuildCells(){ const m=geoPlay.map, st=campRun.geoStates[geoPlay.node.id];
+    cells=m.cells.map((c,i)=>{ const ct=polyCentroid(c.poly); return {id:i,poly:c.poly,cx:ct[0],cy:ct[1],nb:[],terr:"plain",elev:0,
+      gname:c.name||"",gtype:c.type||"region",gkind:(c.content&&c.content.kind)||"empty",gref:(c.content&&c.content.ref)||null,
+      gunlock:Array.isArray(c.unlockedBy)?c.unlockedBy:[],gstate:st[i]||"locked"}; });
+    buildAdj(); geoCampId=(m.camp!=null)?m.camp:null; }
+  async function enterGeoPlay(node){ const t=await fetchText("geoscapes-mesh/"+node.map,ghCfg());
+    if(!t){ showCampText("Territoire introuvable : "+node.map,()=>{ if(node.next)runNode(node.next); else endCampaignRun("Fin."); }); return; }
+    let m; try{ m=JSON.parse(t); }catch(e){ showCampText("Territoire illisible.",()=>endCampaignRun("Fin.")); return; }
+    campRun.geoStates=campRun.geoStates||{}; if(!campRun.geoStates[node.id])campRun.geoStates[node.id]=m.cells.map(c=>c.state||"locked");
+    geoPlay={node,map:m,inMission:false}; { const tt=document.getElementById("title"); if(tt)tt.style.display="none"; }
+    document.body.classList.add("geomap"); over=false; resetView(); geoBuildCells(); hoverCell=null; geoBanner(); draw(); }
+  function geoBanner(t){ const el=document.getElementById("geobanner"); if(!el||!geoPlay)return; const st=campRun.geoStates[geoPlay.node.id];
+    const avail=geoPlay.map.cells.filter((c,i)=>st[i]==="available"&&c.content&&c.content.kind==="mission").length;
+    const sub=t!=null?esc(t):(avail?("choisis une région — "+avail+" disponible"+(avail>1?"s":"")):"aucune région disponible");
+    el.innerHTML=`<b>${esc(geoPlay.map.name||"Territoire")}</b> — ${sub}`; }
+  function drawGeoPlay(){ ctx.setTransform(1,0,0,1,0,0); ctx.clearRect(0,0,cv.width,cv.height); ctx.setTransform(zoom,0,0,zoom,panX,panY);
+    for(const c of cells){ poly(c); ctx.fillStyle=GEO_FILL[c.gstate]||GEO_FILL.locked; ctx.fill(); ctx.lineWidth=1.5; ctx.strokeStyle="rgba(10,12,16,.5)"; ctx.stroke(); }
+    for(const c of cells){ if(c.gstate==="available"&&c.gkind==="mission"){ poly(c); ctx.lineWidth=3; ctx.strokeStyle=(c.id===hoverCell)?"#ffe08a":"#9fd0a8"; ctx.stroke(); } }
+    ctx.textAlign="center"; ctx.textBaseline="middle";
+    for(const c of cells){ const isCamp=c.id===geoCampId; const icon=isCamp?"⛺":(c.gstate==="cleared"?"✓":(c.gstate==="lost"?"✕":(c.gstate==="available"&&c.gkind==="mission"?"⚔":(c.gstate==="locked"?"🔒":""))));
+      if(icon){ ctx.font="bold 15px system-ui"; ctx.fillStyle="#fff"; ctx.fillText(icon,c.cx,c.cy-8); }
+      const nm=c.gname||("#"+c.id); ctx.font="11px system-ui"; ctx.fillStyle=(c.gstate==="locked")?"rgba(255,255,255,.42)":"rgba(255,255,255,.92)"; ctx.fillText(nm,c.cx,c.cy+10); }
+    if(geoCampId!=null&&cells[geoCampId]){ poly(cells[geoCampId]); ctx.lineWidth=3; ctx.strokeStyle="#e0b341"; ctx.stroke(); } }
+  function geoPlayClick(X,Y){ const c=cellAtXY(X,Y); if(!c)return;
+    if(c.gstate!=="available"){ geoBanner(c.gstate==="locked"?"région verrouillée":(c.gstate==="cleared"?"région déjà nettoyée":"région indisponible")); return; }
+    if(c.gkind!=="mission"||!c.gref){ geoBanner("rien à faire ici pour l'instant"); return; }
+    geoLaunchMission(c.id,c.gref); }
+  async function geoLaunchMission(cellId,ref){ const t=await fetchText("missions-mesh/"+ref,ghCfg());
+    if(!t){ geoBanner("mission introuvable : "+ref); return; }
+    let m; try{ m=JSON.parse(t); }catch(e){ geoBanner("mission illisible"); return; }
+    campRun.geoReturn={nodeId:geoPlay.node.id,cellId}; geoPlay.inMission=true; document.body.classList.remove("geomap");
+    try{ applyMissionObj(m); }catch(e){ geoBanner("mission illisible"); geoPlay.inMission=false; document.body.classList.add("geomap"); return; }
+    startGame(); if(!(curMission&&curMission.fullheal))applyCarry(); refresh(); }
+  function geoEndReached(node,st){ const ew=node.endWhen||{kind:"all"}; const cs=geoPlay.map.cells;
+    if(ew.kind==="key"){ const idx=cs.findIndex(c=>(c.name||"")===(ew.name||"")); return idx>=0&&st[idx]==="cleared"; }
+    return cs.every((c,i)=> !(c.type!=="camp"&&c.content&&c.content.kind==="mission") || st[i]==="cleared" || st[i]==="lost"); }
+  function geoMissionEnd(resultTxt){ const win=resultTxt.indexOf("Victoire")===0; const ret=campRun.geoReturn; const st=campRun.geoStates[ret.nodeId]; saveCarry();
+    if(win){ st[ret.cellId]="cleared"; campRun.potions=(inv.potion||0)+((curMission&&curMission.loot)||0);
+      geoPlay.map.cells.forEach((c,i)=>{ if((c.unlockedBy||[]).includes(ret.cellId)&&st[i]==="locked")st[i]="available"; }); }
+    else st[ret.cellId]="lost";
+    geoPlay.inMission=false; over=false; const node=geoPlay.node;
+    if(geoEndReached(node,st)){ const nx=node.next; geoPlay=null; document.body.classList.remove("geomap");
+      showCampText((win?"Région sécurisée.":"Région perdue.")+" L'acte s'achève.",()=>{ if(nx)runNode(nx); else endCampaignRun("Acte terminé."); }); return; }
+    document.body.classList.add("geomap"); resetView(); geoBuildCells(); hoverCell=null;
+    geoBanner(win?"région sécurisée — choisis la suite":"région perdue — la situation a changé"); draw(); }
 
   function init(){
     let draft=null; try{ draft=JSON.parse(localStorage.getItem("mgf_mesh_draft")||"null"); }catch(e){}
