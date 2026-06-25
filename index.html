@@ -587,7 +587,7 @@
       const unseen=mode==="play"&&!vis&&!rockEdge; poly(c); ctx.fillStyle=terrFill[c.terr]; ctx.fill();
       if(!unseen){ const k=(c.elev-1)*0.16; if(k>0){ctx.fillStyle="rgba(255,250,235,"+Math.min(0.5,k)+")";ctx.fill();} else if(k<0){ctx.fillStyle="rgba(0,0,0,"+Math.min(0.5,-k)+")";ctx.fill();} }
       if(unseen){ctx.fillStyle="rgba(8,7,5,0.93)";ctx.fill();}                  // brouillard : cache vraiment le terrain
-      ctx.lineWidth=1; ctx.strokeStyle=unseen?"#0a0806":"#0c0a07"; ctx.stroke();
+      ctx.lineWidth=1.5; ctx.strokeStyle=unseen?"rgba(8,7,5,0.93)":terrFill[c.terr]; ctx.stroke();   // bord de la même couleur que la dalle : pas de frontière visible (mais pas de joints clairs)
       if(c.terr==="wall"&&!unseen){ drawRock(c); } }   // 🪨 rocher seulement sur les cases visibles (caché par le brouillard)
     if(mode==="edit"){ ctx.textAlign="center"; ctx.textBaseline="middle"; ctx.font="bold 11px system-ui";   // zones de déclenchement : visibles seulement dans l'éditeur
       for(const c of cells)if(c.zone){ poly(c); ctx.fillStyle="rgba(96,165,250,.22)"; ctx.fill(); ctx.fillStyle="#dcebff"; ctx.fillText(c.zone,c.cx,c.cy); }
