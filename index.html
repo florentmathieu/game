@@ -330,7 +330,7 @@
     if(!hit){txt="raté";result="miss";}
     else if(!back&&tgt.shieldBlock&&RND()*100<tgt.shieldBlock){txt="bloqué 🛡";result="blocked";}
     else if(!back&&w.type==="melee"&&tgt.parry&&RND()*100<tgt.parry){txt="paré 🗡";result="blocked";}
-    else{result="hit";dmg=w.dmgMin+Math.floor(RND()*(w.dmgMax-w.dmgMin+1));if(w.flank&&w.type==="melee"){const f=flankOf(att,tgt);dmg+=f==="back"?w.flank.back:f==="side"?w.flank.side:0;}if(att.team==="enemy")dmg=Math.max(1,dmg-1);tgt.hp-=dmg;txt=`touché ${dmg}`+(tgt.hp<=0?(tgt.team==="player"?" ✚K.O.":" ✝"):"");if(tgt.hp<=0)tgt.hp=0;}
+    else{result="hit";dmg=w.dmgMin+Math.floor(RND()*(w.dmgMax-w.dmgMin+1));let fb=0,fl="";if(w.flank&&w.type==="melee"){const f=flankOf(att,tgt);if(f==="back"){fb=w.flank.back;fl="dos";}else if(f==="side"){fb=w.flank.side;fl="flanc";}dmg+=fb;}if(att.team==="enemy")dmg=Math.max(1,dmg-1);tgt.hp-=dmg;txt=`touché ${dmg}`+(fb?` (${fl} +${fb})`:"")+(tgt.hp<=0?(tgt.team==="player"?" ✚K.O.":" ✝"):"");if(tgt.hp<=0)tgt.hp=0;}
     const killed=tgt.hp<=0&&result==="hit", wn=w.type==="ranged"?(att.clip!==undefined?"arbalète":"arc"):(w.flank?"dagues":"épée");
     pushShot(att,tgt,w.type==="melee"); if(dmg>0){pushDmg(tgt.cell,dmg,tgt.team);screenShake(killed?4:2);}   // jus de combat
     log(`${att.team==="player"?"▲":"▼"} ${att.name} ${w.type==="ranged"?"tire sur":"frappe"} ${tgt.name} (${ch}%) : ${txt}`,att.team);
@@ -926,7 +926,7 @@
     const aim=(icon,label,m)=>btn(icon,label,amode===m,()=>{ if(amode===m&&aimTarget&&aimTarget.hp>0&&inRange(sel,aimTarget,m)){doAttack(sel,aimTarget,m);return;} amode=m;throwing=false;usingItem=false;autoTarget(m);renderActs(); });
     if(sel){ const canShoot=sel.w.ranged&&(sel.clip===undefined||sel.ammo>0);
       if(canShoot)aim("🏹","Tir — termine le tour","ranged");
-      if(sel.w.melee)aim(sel.flank?"🗡":"⚔️",(sel.flank?"Dagues":"Mêlée")+" — termine le tour","melee");
+      if(sel.w.melee)aim(sel.flank?"🗡":"⚔️",(sel.flank?"Dagues":"Mêlée")+" — termine le tour"+(sel.flank?` · dos +${sel.flank.back} / flanc +${sel.flank.side}`:""),"melee");
       if(sel.ap>0&&canShoot)btn("👁🏹","Vigilance — tir (termine le tour)",sel.overwatch&&sel.owMode==="ranged",()=>doOverwatch("ranged"));
       if(sel.ap>0&&sel.w.melee)btn("👁","Vigilance — mêlée (termine le tour)",sel.overwatch&&sel.owMode==="melee",()=>doOverwatch("melee"));
       if(sel.w.cracker&&sel.crackers>0&&sel.ap>0)btn("💣","Cracker ×"+sel.crackers+" — termine le tour",throwing,()=>{throwing=!throwing;usingItem=false;amode=null;setMsg(throwing?"Clique une case cible (aire — la zone d'arrivée est incertaine).":"");if(throwing)startCrackerJit();else{crackerJit=null;draw();}renderActs();});
