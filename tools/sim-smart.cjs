@@ -1,3 +1,6 @@
+// ⚠ RÉGRESSION CONNUE (voir PROCGEN-DATA.md §3 ter) : cette IA "prudente" sous-performe
+// l'IA naïve (les pénalités anti-encerclement/conservation de PA figent la mêlée). Conservé
+// comme POINT DE DÉPART pour une vraie IA de combat, PAS comme borne haute valide.
 // Variante du banc d'essai avec une IA joueur PLUS MALIGNE (borne haute de difficulté) :
 // focus-fire (bestEnemyTarget), kiting des unités à distance, recherche couvert/hauteur,
 // éviter de finir au contact de plusieurs ennemis, conserver des PA.

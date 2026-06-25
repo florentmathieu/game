@@ -81,8 +81,11 @@ Sous engagement total, **map/mouvement/espacement/distance n'ont quasi aucun eff
 
 **Conclusion robuste (indépendante du biais IA) : le nombre de pods est le dial de difficulté ; 4 pods est imbattable même avec retraite/espace → plafond difficile = 3 confirmé.**
 
+## 3 ter. Tentative d'IA « maligne » (borne haute) — **régression**
+`tools/sim-smart.cjs` (focus-fire, kiting, recherche couvert/hauteur, anti-encerclement, conservation de PA) donne **0 % de victoire** à 1–4 pods — **pire** que l'IA naïve. Cause : les pénalités d'encerclement + conservation de PA **dissuadent les unités de mêlée d'engager** ; elles se figent et se font tuer. **Constat utile :** une IA naïve agressive bat une heuristique « prudente » mal réglée — le bon comportement de combat est délicat. Ce 0 % **n'est PAS une borne haute valide** (artefact d'IA cassée), juste un point de départ à retravailler.
+
 ## 4. Limites & prochaines pistes
-- **IA joueur naïve** → refaire les sweeps quand l'IA s'améliore (vigilance, couvert, focus-fire, potions), ou ajouter un mode « IA experte » pour une borne haute. La vérité est entre les deux bornes.
+- **L'IA de combat est LE chantier clé pour des données fiables.** L'IA naïve (borne basse) sur-estime la difficulté ; la tentative « maligne » a régressé. Il faut une vraie IA (engager au bon moment, utiliser couvert/hauteur **sans** refuser le contact, focus-fire, vigilance, potions) — *puis* re-balayer. Les **tendances relatives** actuelles restent fiables ; les valeurs absolues sont à confirmer.
 - **Patrouille** : les sims figent les pods dormants ; tester l'effet de la patrouille sur les multi-activations (un pod qui erre peut en réveiller un autre / entrer dans la vue).
 - **Archétypes** : ces données concernent l'élimination ; sauvetage/extraction/défense auront d'autres courbes.
 - **Boucle de filtrage** : rejeter automatiquement les maps hors fenêtre (ex. garder 40–70 % de victoire estimée) et les dégénérées (déjà 0 ici).
