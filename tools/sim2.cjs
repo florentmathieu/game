@@ -22,7 +22,7 @@ function simulate(maxTurns){
 function cfg(P){ let win=0,loss=0,to=0,pa=0,tn=0;
   for(let r=0;r<RUNS;r++){ if(P.board)M.setBoardSize(P.board[0],P.board[1]); M.setMove(P.mob||3,2,2);
     M.setSeed(424242+r*1013904223); let meta; try{meta=M.genMission(P);}catch(e){continue;} if(!meta)continue;
-    M.reseed(r*2654435761+7); const s=simulate(45); if(s.r==="win")win++;else if(s.r==="loss")loss++;else to++; pa+=s.pAlive; tn+=s.turns; }
+    M.reseed(r*2654435761+7); const s=simulate(+(process.env.MAXT||45)); if(s.r==="win")win++;else if(s.r==="loss")loss++;else to++; pa+=s.pAlive; tn+=s.turns; }
   return {win:Math.round(100*win/RUNS), loss:Math.round(100*loss/RUNS), to:Math.round(100*to/RUNS), pa:+(pa/RUNS).toFixed(1), turns:+(tn/RUNS).toFixed(0)}; }
 
 console.log(`IA TACTIQUE (deux camps) · ${RUNS} parties/case · séquentiel\n`);
