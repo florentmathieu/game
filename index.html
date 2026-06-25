@@ -311,7 +311,10 @@
     for(let k=1;k<N;k++){const t=k/N,x=A.cx+(B.cx-A.cx)*t,y=A.cy+(B.cy-A.cy)*t;const c=cellAtXY(x,y);if(c&&c.id!==a&&c.id!==b&&opaque(c.id))return false;}return true;}
   // adjacence géométrique fiable : deux cellules partageant une arête (≥2 sommets communs) — rattrape une arête manquée par buildAdj
   function shareEdge(a,b){const pa=cells[a]&&cells[a].poly,pb=cells[b]&&cells[b].poly;if(!pa||!pb)return false;let n=0;for(const p of pa){for(const q of pb){if(Math.abs(p[0]-q[0])<1.5&&Math.abs(p[1]-q[1])<1.5){n++;break;}}if(n>=2)return true;}return false;}
-  const adjacent=(a,b)=>hops(a,b)<=1||shareEdge(a,b);
+  function adjacent(a,b){ if(hops(a,b)<=1||shareEdge(a,b))return true;   // voisin de graphe ou arête partagée
+    const A=cells[a],B=cells[b]; if(!A||!B||!A.nb||!A.nb.length)return false;   // sinon : assez proche (≤ 1.6× la distance moyenne aux voisins réels)
+    let sum=0; for(const n of A.nb)sum+=Math.hypot(cells[n].cx-A.cx,cells[n].cy-A.cy); const avg=sum/A.nb.length;
+    return Math.hypot(B.cx-A.cx,B.cy-A.cy)<=avg*1.6; }
   function inRange(att,tgt,m){const w=att.w[m];if(!w)return false;return w.type==="ranged"?(hops(att.cell,tgt.cell)<=(w.range||1)&&los(att.cell,tgt.cell)):adjacent(att.cell,tgt.cell);}
 
   // ===== combat =====
