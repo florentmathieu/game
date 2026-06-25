@@ -925,14 +925,14 @@
     let n=0; const btn=(icon,label,on,fn)=>{n++;const b=document.createElement("button");b.innerHTML=`<span class="bn">${n}</span><span class="bi">${icon}</span>`;b.title=label;if(on)b.className="on";b.onclick=fn;el.appendChild(b);};
     const aim=(icon,label,m)=>btn(icon,label,amode===m,()=>{ if(amode===m&&aimTarget&&aimTarget.hp>0&&inRange(sel,aimTarget,m)){doAttack(sel,aimTarget,m);return;} amode=m;throwing=false;usingItem=false;autoTarget(m);renderActs(); });
     if(sel){ const canShoot=sel.w.ranged&&(sel.clip===undefined||sel.ammo>0);
-      if(canShoot)aim("🏹","Tir","ranged");
-      if(sel.w.melee)aim(sel.flank?"🗡":"⚔️",sel.flank?"Dagues":"Mêlée","melee");
-      if(sel.ap>0&&canShoot)btn("👁🏹","Vigilance — tir",sel.overwatch&&sel.owMode==="ranged",()=>doOverwatch("ranged"));
-      if(sel.ap>0&&sel.w.melee)btn("👁","Vigilance — mêlée",sel.overwatch&&sel.owMode==="melee",()=>doOverwatch("melee"));
-      if(sel.w.cracker&&sel.crackers>0&&sel.ap>0)btn("💣","Cracker ×"+sel.crackers,throwing,()=>{throwing=!throwing;usingItem=false;amode=null;setMsg(throwing?"Clique une case cible (aire — la zone d'arrivée est incertaine).":"");if(throwing)startCrackerJit();else{crackerJit=null;draw();}renderActs();});
-      if(inv.potion>0&&sel.ap>0)btn("🧪","Potion ×"+inv.potion,usingItem,()=>{usingItem=!usingItem;throwing=false;amode=null;setMsg(usingItem?"Clique un allié (soi/adjacent).":"");renderActs();});
-      if(sel.clip!==undefined&&sel.ammo<sel.clip&&sel.ap>0)btn("🔄","Recharger",false,()=>{sel.ap--;sel.ammo=sel.clip;refresh();});
-      if(sel.shieldBlock>0&&sel.ap>0&&!sel.bracing)btn("🛡","Se mettre en garde (+déf.)",false,()=>{sel.ap--;sel.freeAvail=false;sel.bracing=true;setMsg("En garde — défense renforcée ce tour.");refresh();}); }
+      if(canShoot)aim("🏹","Tir — termine le tour","ranged");
+      if(sel.w.melee)aim(sel.flank?"🗡":"⚔️",(sel.flank?"Dagues":"Mêlée")+" — termine le tour","melee");
+      if(sel.ap>0&&canShoot)btn("👁🏹","Vigilance — tir (termine le tour)",sel.overwatch&&sel.owMode==="ranged",()=>doOverwatch("ranged"));
+      if(sel.ap>0&&sel.w.melee)btn("👁","Vigilance — mêlée (termine le tour)",sel.overwatch&&sel.owMode==="melee",()=>doOverwatch("melee"));
+      if(sel.w.cracker&&sel.crackers>0&&sel.ap>0)btn("💣","Cracker ×"+sel.crackers+" — termine le tour",throwing,()=>{throwing=!throwing;usingItem=false;amode=null;setMsg(throwing?"Clique une case cible (aire — la zone d'arrivée est incertaine).":"");if(throwing)startCrackerJit();else{crackerJit=null;draw();}renderActs();});
+      if(inv.potion>0&&sel.ap>0)btn("🧪","Potion ×"+inv.potion+" (1 PA, ne termine pas le tour)",usingItem,()=>{usingItem=!usingItem;throwing=false;amode=null;setMsg(usingItem?"Clique un allié (soi/adjacent).":"");renderActs();});
+      if(sel.clip!==undefined&&sel.ammo<sel.clip&&sel.ap>0)btn("🔄","Recharger (1 PA, ne termine pas le tour)",false,()=>{sel.ap--;sel.ammo=sel.clip;refresh();});
+      if(sel.shieldBlock>0&&sel.ap>0&&!sel.bracing)btn("🛡","Se mettre en garde (+déf., 1 PA, ne termine pas le tour)",false,()=>{sel.ap--;sel.freeAvail=false;sel.bracing=true;setMsg("En garde — défense renforcée ce tour.");refresh();}); }
     // Fin de tour = bouton 0, toujours en dernier
     const e=document.createElement("button");e.id="act-end";e.innerHTML=`<span class="bn">0</span><span class="bi">🙅</span>`;e.title="Fin de tour";e.onclick=()=>{if(!over&&turn==="player")endTurn();};el.appendChild(e);}
   function startGame(){ resetView(); { const t=document.getElementById("title"); if(t)t.style.display="none"; }   // une partie démarre : on retire l'écran-titre
