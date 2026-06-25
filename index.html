@@ -297,9 +297,10 @@
   // ===== distance / portée / déplacement =====
   function budget(u){return (u.freeAvail?FREE_MP:0)+u.ap*MOB;}
   function apForMove(u,cost){return Math.max(0,Math.ceil((cost-(u.freeAvail?FREE_MP:0))/MOB));}
+  function edgeCell(id){const c=cells[id];if(!c||!c.poly)return false;const e=2;return c.poly.some(p=>p[0]<=e||p[0]>=W-e||p[1]<=e||p[1]>=H-e);}   // cellule de lisière : son polygone touche le bord de la carte
   function reach(u){const occu=occ();const dist={};dist[u.cell]=0;const pq=[[0,u.cell]];const B=budget(u);
     while(pq.length){let bi=0;for(let i=1;i<pq.length;i++)if(pq[i][0]<pq[bi][0])bi=i;const[d,id]=pq.splice(bi,1)[0];if(d>dist[id])continue;
-      for(const n of cells[id].nb){if(occu.has(n))continue;if(u.team==="player"&&mode==="play"&&!(visible.has(n)&&cells[n].nb.every(m=>visible.has(m))))continue;const c=enterCost(id,n);if(c===null)continue;const nd=d+c;if(nd<=B&&(dist[n]===undefined||nd<dist[n])){dist[n]=nd;pq.push([nd,n]);}}}   // le joueur n'accède qu'aux cases entièrement vues (la case ET tous ses voisins visibles)
+      for(const n of cells[id].nb){if(occu.has(n))continue;if(u.team==="player"&&mode==="play"&&(!visible.has(n)||edgeCell(n)))continue;const c=enterCost(id,n);if(c===null)continue;const nd=d+c;if(nd<=B&&(dist[n]===undefined||nd<dist[n])){dist[n]=nd;pq.push([nd,n]);}}}   // le joueur n'accède pas au brouillard ni aux cases de lisière de carte
     delete dist[u.cell];return dist;}
   function pathTo(u,goal){const occu=occ();occu.delete(u.cell);const dist={},prev={};dist[u.cell]=0;const pq=[[0,u.cell]];
     while(pq.length){let bi=0;for(let i=1;i<pq.length;i++)if(pq[i][0]<pq[bi][0])bi=i;const[d,id]=pq.splice(bi,1)[0];if(d>dist[id])continue;
@@ -308,7 +309,10 @@
   function hops(a,b){const s={};s[a]=0;const q=[a];while(q.length){const id=q.shift();if(id===b)return s[id];for(const n of cells[id].nb){if(!passable(n))continue;if(s[n]===undefined){s[n]=s[id]+1;q.push(n);}}}return Infinity;}
   function los(a,b){const A=cells[a],B=cells[b],N=Math.max(2,Math.round(Math.hypot(B.cx-A.cx,B.cy-A.cy)/8));
     for(let k=1;k<N;k++){const t=k/N,x=A.cx+(B.cx-A.cx)*t,y=A.cy+(B.cy-A.cy)*t;const c=cellAtXY(x,y);if(c&&c.id!==a&&c.id!==b&&opaque(c.id))return false;}return true;}
-  function inRange(att,tgt,m){const w=att.w[m];if(!w)return false;return w.type==="ranged"?(hops(att.cell,tgt.cell)<=(w.range||1)&&los(att.cell,tgt.cell)):hops(att.cell,tgt.cell)<=1;}
+  // adjacence géométrique fiable : deux cellules partageant une arête (≥2 sommets communs) — rattrape une arête manquée par buildAdj
+  function shareEdge(a,b){const pa=cells[a]&&cells[a].poly,pb=cells[b]&&cells[b].poly;if(!pa||!pb)return false;let n=0;for(const p of pa){for(const q of pb){if(Math.abs(p[0]-q[0])<1.5&&Math.abs(p[1]-q[1])<1.5){n++;break;}}if(n>=2)return true;}return false;}
+  const adjacent=(a,b)=>hops(a,b)<=1||shareEdge(a,b);
+  function inRange(att,tgt,m){const w=att.w[m];if(!w)return false;return w.type==="ranged"?(hops(att.cell,tgt.cell)<=(w.range||1)&&los(att.cell,tgt.cell)):adjacent(att.cell,tgt.cell);}
 
   // ===== combat =====
   function flankOf(att,tgt){const diff=Math.abs(norm(Math.atan2(cells[att.cell].cy-cells[tgt.cell].cy,cells[att.cell].cx-cells[tgt.cell].cx)-tgt.facing));return diff>2.2?"back":diff>1.0?"side":"front";}
@@ -526,7 +530,7 @@
     if(usingItem&&sel){if(u&&u.team==="player")applyItem(u);else setMsg("Choisis un allié (soi ou adjacent).");return;}
     if(u&&u.team==="player"){ if(u===sel&&!throwing&&!usingItem){u.facing=norm((u.facing||0)+Math.PI/4);refresh();return;}   // re-cliquer son unité sélectionnée = la faire pivoter (45°, gratuit)
       sel=u;amode=null;aimTarget=null;throwing=false;usingItem=false;refresh();return;}if(!sel)return;
-    if(u&&hostile(sel,u)&&u.hp>0&&seen(u)){ let m=(amode&&sel.w[amode]&&inRange(sel,u,amode))?amode:["ranged","melee"].find(mm=>sel.w[mm]&&(mm!=="ranged"||sel.clip===undefined||sel.ammo>0)&&inRange(sel,u,mm)); if(m&&sel.ap>0)doAttack(sel,u,m); else setMsg("Hors de portée / vue."); return; }
+    if(u&&hostile(sel,u)&&u.hp>0&&seen(u)){ let m=(amode&&sel.w[amode]&&inRange(sel,u,amode))?amode:["ranged","melee"].find(mm=>sel.w[mm]&&(mm!=="ranged"||sel.clip===undefined||sel.ammo>0)&&inRange(sel,u,mm)); if(!m)setMsg("Hors de portée / sans vue."); else if(sel.ap<=0)setMsg("Plus de PA pour attaquer."); else doAttack(sel,u,m); return; }
     const d=reach(sel);if(d[id]!==undefined){moveAlong(sel,id);if(!over)emit("move",{actorName:sel.name,actorCls:sel.cls,actorTeam:"player"});refresh();}}
 
   // ===== rendu =====
