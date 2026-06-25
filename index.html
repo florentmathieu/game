@@ -191,7 +191,7 @@
   const CLASSES={
     sergent:{name:"Sergent",hp:10,mob:8,shieldBlock:30,w:{melee:sword(75,4,6)}},
     sapeur:{name:"Sapeur",hp:7,mob:8,crackers:1,w:{ranged:bow(65,3,4,6,1),melee:sword(70,3,5),cracker:{type:"throw",dmgMin:5,dmgMax:9,range:6,radius:2,scatter:2}}},
-    assassin:{name:"Assassin",hp:7,mob:8,parry:35,w:{melee:dagger(80,3,4,5,2)}},
+    assassin:{name:"Assassin",hp:7,mob:8,parry:35,stealth:true,w:{melee:dagger(80,3,4,5,2)}},
     garde:{name:"Garde",hp:8,mob:6,shieldBlock:20,w:{melee:sword(65,3,4)}},
     archer:{name:"Archer",hp:6,mob:6,w:{ranged:bow(70,2,3,8)}},
     brute:{name:"Brute",hp:13,mob:8,w:{melee:sword(70,5,7)}},
@@ -267,7 +267,7 @@
   // ===== unités =====
   let units=[], podAlerted=new Set(), neutralSeen=new Set(), lastSeen=new Map();
   function U(team,cls,cell,opts){opts=opts||{};const t=CLASSES[cls];const wtype=t.w.ranged?"ranged":"melee";const w=t.w[wtype];
-    const u={team,cls,name:opts.name||t.name,cell,hp:t.hp,max:t.hp,ap:AP_MAX,freeAvail:true,mob:t.mob,facing:opts.facing!=null?opts.facing:(team==="enemy"?Math.PI:0),wtype,flank:w.flank||null,shieldBlock:t.shieldBlock||0,parry:t.parry||0,w:t.w,overwatch:false,reacted:false,owMode:null};
+    const u={team,cls,name:opts.name||t.name,cell,hp:t.hp,max:t.hp,ap:AP_MAX,freeAvail:true,mob:t.mob,facing:opts.facing!=null?opts.facing:(team==="enemy"?Math.PI:0),wtype,flank:w.flank||null,shieldBlock:t.shieldBlock||0,parry:t.parry||0,stealth:!!t.stealth,w:t.w,overwatch:false,reacted:false,owMode:null};
     if(w.clip!==undefined){u.clip=w.clip;u.ammo=w.clip;} if(t.crackers)u.crackers=t.crackers;
     if(opts.pod!=null&&opts.pod!=="")u.pod=+opts.pod; if(opts.asleep&&team==="enemy"){u.asleep=true;u._asleep0=true;} if(opts.hostage&&team==="neutral")u.hostage=true;
     return u; }
@@ -283,8 +283,8 @@
     if(fresh){ const n=units.filter(u=>u.team==="enemy"&&u.pod===pid&&u.hp>0).length; log(`⚠ Pod ennemi réveillé (${cause==="sight"?"repéré à vue":"alerté"}) — ${n}`,"enemy"); emit("spotted",{pod:pid,actorTeam:"enemy",by:cause}); if(cause==="sight")emit("discovered",{pod:pid,actorTeam:"enemy"}); } }
   function wakeEnemy(e,cause,by){ if(e.team!=="enemy")return; if(e.pod!==undefined)wakePod(e.pod,cause,by);
     else if(e.asleep){e.asleep=false;if(by)e.facing=ang(e.cell,by.cell);pushAlert(e.cell);if(cause==="sight")screenShake(3);log(`⚠ ${e.name} réveillé`,"enemy");emit("spotted",{actorTeam:"enemy",by:cause});if(cause==="sight")emit("discovered",{actorTeam:"enemy"});} }
-  function detectEnemies(){ for(const e of units)if(e.team==="enemy"&&e.hp>0){ const vis=e.asleep?SLEEP_VIS:ENEMY_VIS;
-    for(const p of units)if(p.team==="player"&&p.hp>0&&hops(e.cell,p.cell)<=vis&&los(e.cell,p.cell)&&flankOf(p,e)!=="back"){ wakeEnemy(e,"sight",p); break; } } }   // pas de réveil à vue depuis le quart arrière (angle mort)
+  function detectEnemies(){ for(const e of units)if(e.team==="enemy"&&e.hp>0){
+    for(const p of units)if(p.team==="player"&&p.hp>0&&enemySeesP(e,p)){ wakeEnemy(e,"sight",p); break; } } }   // réveil à vue (cône avant ; furtif = cône avant étroit, angle mort sinon)
   function detectNeutralPods(){ for(const u of units)if(u.team==="neutral"&&u.hp>0&&u.pod!==undefined&&!neutralSeen.has(u.pod)&&visible.has(u.cell)){
     neutralSeen.add(u.pod); log("🔎 Pod de PNJ/otages découvert","player"); emit("spotted",{pod:u.pod,actorTeam:"neutral",by:"sight"}); emit("discovered",{pod:u.pod,actorTeam:"neutral"}); } }
 
@@ -339,7 +339,7 @@
   document.getElementById("combatline").addEventListener("click",advanceSpeech);
 
   // ===== vigilance (overwatch) + déplacement avec réactions =====
-  function reactTo(mover){ for(const o of units){ if(o.hp>0&&o.team!==mover.team&&hostile(o,mover)&&o.overwatch&&!o.reacted&&inRange(o,mover,o.owMode||o.wtype)){ o.reacted=true; doAttack(o,mover,o.owMode||o.wtype,true); if(mover.hp<=0)return true; } } return false; }
+  function reactTo(mover){ for(const o of units){ if(o.hp>0&&o.team!==mover.team&&hostile(o,mover)&&o.overwatch&&!o.reacted&&inRange(o,mover,o.owMode||o.wtype)&&!(mover.stealth&&o.team==="enemy"&&!enemySeesP(o,mover))){ o.reacted=true; doAttack(o,mover,o.owMode||o.wtype,true); if(mover.hp<=0)return true; } } return false; }   // pas de riposte sur une unité furtive non repérée
   let anim=null;
   function moveAlong(u,dest){ const cost=reach(u)[dest]; if(cost===undefined)return; const path=pathTo(u,dest); if(!path)return; turnActions++;   // un déplacement = une action du tour
     u.ap-=apForMove(u,cost); if(u.ap<0)u.ap=0; u.freeAvail=false; const visited=[u.cell];
@@ -404,7 +404,7 @@
     return chance({cell:fromCell,w:att.w,clip:att.clip,ammo:att.ammo,team:att.team},{cell:tgtCell},m); }
   function bestEnemyTarget(e){ let best=null,bk=-1e9; for(const p of units){ if(!hostile(e,p)||p.hp<=0||!inRange(e,p,e.wtype))continue; const k=shotFrom(e.cell,e,p.cell,e.wtype)*1000-p.hp; if(k>bk){bk=k;best=p;} } return best; }
   // ===== mémoire & comportement de l'IA (porté de la version hex) =====
-  function enemySeesP(e,p){ const vis=e.asleep?SLEEP_VIS:ENEMY_VIS; return hops(e.cell,p.cell)<=vis&&los(e.cell,p.cell)&&flankOf(p,e)!=="back"; }   // vue d'un ennemi : portée + LdV + hors angle mort arrière
+  function enemySeesP(e,p){ const vis=e.asleep?SLEEP_VIS:ENEMY_VIS; if(hops(e.cell,p.cell)>vis||!los(e.cell,p.cell))return false; const fl=flankOf(p,e); return p.stealth?(fl==="front"):(fl!=="back"); }   // vue d'un ennemi : portée + LdV ; unité normale = hors angle mort arrière, unité furtive = uniquement dans le cône avant
   function anyEnemySees(p){ return units.some(e=>e.team==="enemy"&&e.hp>0&&enemyActive(e)&&enemySeesP(e,p)); }
   function updateEnemyMemory(){ for(const p of [...lastSeen.keys()])if(!units.includes(p)||p.hp<=0)lastSeen.delete(p);   // mémoire d'escouade : dernière position connue des joueurs
     for(const p of units){ if(p.team!=="player"||p.hp<=0||!anyEnemySees(p))continue; const prev=lastSeen.get(p); if(!prev||prev.cell!==p.cell)lastSeen.set(p,{cell:p.cell,prev:prev?prev.cell:p.cell}); } }
@@ -585,7 +585,9 @@
       if(mode==="play"&&u===aimTarget&&turn==="player"){ctx.beginPath();ctx.arc(x,y,16,0,TWO);ctx.lineWidth=3;ctx.strokeStyle="#ffd479";ctx.stroke();ctx.beginPath();ctx.arc(x,y,16,-0.35,0.35);ctx.lineWidth=5;ctx.strokeStyle="#ffd479";ctx.stroke();}   // cible proposée
       if(mode==="play"&&u.overwatch){ctx.beginPath();ctx.arc(x,y,15,0,TWO);ctx.lineWidth=2;ctx.setLineDash([4,3]);ctx.strokeStyle="#7fe0d0";ctx.stroke();ctx.setLineDash([]);}
       if(mode==="play"&&u.bracing){ctx.beginPath();ctx.arc(x,y,15,0,TWO);ctx.lineWidth=2.5;ctx.strokeStyle="#8fd3ff";ctx.stroke();}   // en garde (anneau bleu plein)
-      ctx.beginPath();ctx.arc(x,y,10,0,TWO);ctx.fillStyle=ucol(u);ctx.globalAlpha=(mode==="play"&&u.team==="player"&&u.ap<=0&&turn==="player")?.5:(mode==="play"&&u.asleep?.7:1);ctx.fill();ctx.globalAlpha=1;
+      const undet=mode==="play"&&u.stealth&&u.team==="player"&&!anyEnemySees(u);   // assassin non repéré = estompé
+      ctx.beginPath();ctx.arc(x,y,10,0,TWO);ctx.fillStyle=ucol(u);ctx.globalAlpha=undet?.45:((mode==="play"&&u.team==="player"&&u.ap<=0&&turn==="player")?.5:(mode==="play"&&u.asleep?.7:1));ctx.fill();ctx.globalAlpha=1;
+      if(undet){ctx.setLineDash([3,3]);ctx.lineWidth=1.5;ctx.strokeStyle="#9fb6c8";ctx.beginPath();ctx.arc(x,y,13,0,TWO);ctx.stroke();ctx.setLineDash([]);}   // halo discret « furtif »
       ctx.lineWidth=(u===sel)?3:1.5;ctx.strokeStyle=(u===sel)?"#fff":"rgba(0,0,0,.5)";ctx.stroke();
       ctx.fillStyle="#0b1117";ctx.font="bold 11px sans-serif";ctx.textAlign="center";ctx.textBaseline="middle";ctx.fillText(u.name[0],x,y);
       if(u.asleep){ctx.fillStyle="#ffe9a8";ctx.font="bold 11px sans-serif";ctx.fillText("z",x+11,y-9);}
