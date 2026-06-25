@@ -8,3 +8,6 @@ tools/sim-mesh.log
 *.log
 *.out
 *.toc
+
+# Dépendances Node (playwright-core pour les captures, installé hors dépôt)
+node_modules/
