@@ -33,6 +33,7 @@ function loadMesh(htmlPath){
     get campRun(){return campRun}, set campRun(v){campRun=v},
     geoMissionEnd, awardXp, pendingPromotions, gradeFromXp, applyPerkMods, deployRoster,
     get PERKS(){return PERKS}, get GRADES(){return GRADES},
+    setAutoPromote(fn){ autoPromote=fn; }, saveRosterProgress, loadRosterProgress, clearRosterProgress,
   };
   `;
   src = src.replace(/\}\)\(\);\s*$/, EXPORT + "\n})();");
@@ -63,7 +64,7 @@ function loadMesh(htmlPath){
     },
     window:{ addEventListener:noop, removeEventListener:noop, devicePixelRatio:1 },
     location:{ search:"" }, navigator:{ userAgent:"node" },
-    localStorage:{ getItem:()=>null, setItem:noop, removeItem:noop },
+    localStorage:(()=>{ const m=new Map(); return { getItem:k=>m.has(k)?m.get(k):null, setItem:(k,v)=>m.set(k,String(v)), removeItem:k=>m.delete(k), clear:()=>m.clear() }; })(),
     setTimeout:noop, clearTimeout:noop, setInterval:noop, clearInterval:noop,
     fetch:()=>Promise.reject(new Error("no fetch")),
     URLSearchParams, alert:noop, prompt:()=>null, confirm:()=>true,

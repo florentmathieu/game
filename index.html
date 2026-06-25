@@ -379,7 +379,7 @@
     while(pq.length){let bi=0;for(let i=1;i<pq.length;i++)if(pq[i][0]<pq[bi][0])bi=i;const[d,id]=pq.splice(bi,1)[0];if(d>dist[id])continue;
       for(const n of cells[id].nb){if(occu.has(n)&&n!==goal)continue;const c=enterCost(id,n);if(c===null)continue;const nd=d+c;if(dist[n]===undefined||nd<dist[n]){dist[n]=nd;prev[n]=id;pq.push([nd,n]);}}}
     if(dist[goal]===undefined)return null;const p=[goal];let c=goal;while(prev[c]!==undefined){c=prev[c];p.unshift(c);}return p;}
-  function hops(a,b){const s={};s[a]=0;const q=[a];while(q.length){const id=q.shift();if(id===b)return s[id];for(const n of cells[id].nb){if(!passable(n))continue;if(s[n]===undefined){s[n]=s[id]+1;q.push(n);}}}return Infinity;}
+  function hops(a,b){if(!cells[a]||!cells[b])return Infinity;const s={};s[a]=0;const q=[a];while(q.length){const id=q.shift();if(id===b)return s[id];for(const n of cells[id].nb){if(!passable(n))continue;if(s[n]===undefined){s[n]=s[id]+1;q.push(n);}}}return Infinity;}
   function los(a,b){const A=cells[a],B=cells[b],N=Math.max(2,Math.round(Math.hypot(B.cx-A.cx,B.cy-A.cy)/8));
     for(let k=1;k<N;k++){const t=k/N,x=A.cx+(B.cx-A.cx)*t,y=A.cy+(B.cy-A.cy)*t;const c=cellAtXY(x,y);if(c&&c.id!==a&&c.id!==b&&opaque(c.id))return false;}return true;}
   // adjacence géométrique fiable : deux cellules partageant une arête (≥2 sommets communs) — rattrape une arête manquée par buildAdj
@@ -411,7 +411,7 @@
     const ctx={actorName:att.name,actorCls:att.cls,actorTeam:att.team,targetName:tgt.name,targetCls:tgt.cls,targetTeam:tgt.team,weapon:wn,result,killed,dmg,reaction:!!reaction,targetHpPct:Math.round(100*Math.max(0,tgt.hp)/tgt.max)};
     emit("attack",ctx); if(dmg>0)emit("wounded",ctx); if(killed)emit("kill",ctx);
     if(tgt.team==="enemy"&&tgt.hp>0)wakeEnemy(tgt,"noise");   // le combat fait du bruit : réveille le pod visé
-    checkEnd();refresh();}
+    checkEnd(); if(!over)refresh();}   // si l'attaque met fin à la mission (→ campEnd/geoMissionEnd a déjà basculé le contexte), ne pas recalculer la vision sur des unités/cellules périmées
 
   // ===== évènements scriptés (triggers) + dialogues =====
   let triggers=[], fired=new Set(), turnNum=1, turnActions=0, speechQ=[], speechT=null, speaking=false;
@@ -480,7 +480,7 @@
 
   // ===== brouillard / tours =====
   let visible=new Set(), turn="player", sel=null, over=false, amode=null, hoverCell=null, aimTarget=null, introBlocking=false, lastOutcome=null;
-  function computeVis(){visible=new Set();for(const u of units)if(u.team==="player"&&u.hp>0)for(const c of cells)if(hops(u.cell,c.id)<=7&&los(u.cell,c.id))visible.add(c.id);}
+  function computeVis(){visible=new Set();for(const u of units)if(u.team==="player"&&u.hp>0&&cells[u.cell])for(const c of cells)if(hops(u.cell,c.id)<=7&&los(u.cell,c.id))visible.add(c.id);}
   const seen=u=>visible.has(u.cell);
   const defaultAttack=u=>(u.w.ranged&&(u.clip===undefined||u.ammo>0))?"ranged":"melee";
   const exitZoneName=()=>(curMission&&curMission.exitZone)||"exit";
@@ -506,7 +506,8 @@
   function log(m,team){if(mode!=="play")return;const el=document.getElementById("log");const d=document.createElement("div");d.className=team==="player"?"pl":"en";d.textContent=m;el.prepend(d);}
   let msgT=null;
   function setMsg(t){const el=document.getElementById("msg");el.textContent=t;if(msgT){clearTimeout(msgT);msgT=null;}if(t)msgT=setTimeout(()=>{el.textContent="";msgT=null;},4000);}   // message éphémère : s'efface tout seul
-  function refresh(){ if(mode==="play"){computeVis();detectEnemies();detectNeutralPods();updateEnemyMemory();
+  function refresh(){ if(geoPlay&&!geoPlay.inMission){ if(typeof drawGeoPlay==="function")drawGeoPlay(); return; }   // de retour sur la carte stratégique : pas de refresh « mission » (unités/cellules périmées)
+    if(mode==="play"){computeVis();detectEnemies();detectNeutralPods();updateEnemyMemory();
       if(turn==="player"&&!over&&sel&&(sel.hp<=0||(sel.ap<=0&&!sel.freeAvail))){ const nxt=units.find(u=>u.team==="player"&&u.hp>0&&!(u.ap<=0&&!u.freeAvail)); if(nxt){sel=nxt;amode=null;aimTarget=null;throwing=false;usingItem=false;} }   // unité épuisée → passe à la suivante
     } else visible=new Set(cells.map(c=>c.id)); draw(); if(mode==="play"){renderActs();renderRoster();maybeAutoEnd();} else { renderCounts(); saveDraft(); } }
   // roster des soldats (haut-gauche) : nom, PV, PA ; clic = sélection
@@ -1106,10 +1107,20 @@
   // ===== XP de mission → grades → promotion A/B =====
   function awardXp(){ if(!campRun||!campRun.roster)return; for(const u of units){ if(u.team!=="player")continue; const m=campRun.roster.find(r=>r.name===u.name); if(!m)continue; m.xp=(m.xp||0)+3+(u.kills||0); } }   // mission gagnée : 3 (participation+victoire) + 1/kill
   function pendingPromotions(){ const list=[]; if(!campRun||!campRun.roster)return list; for(const m of campRun.roster){ const reach=gradeFromXp(m.xp), have=(m.perks||[]).length; for(let g=have; g<reach; g++){ if(PERKS[m.cls]&&PERKS[m.cls][g])list.push({m,grade:g}); } } return list; }
-  // écran de montée (entre missions) : pour chaque grade gagné, choix A/B irréversible, puis on continue
+  // persistance INTER-PARTIES : on conserve la progression (xp/perks) du roster, par campagne, en localStorage
+  const SAVE_PREFIX="mgf_camp_save_";
+  const campSlug=n=>(n||"camp").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g,"").replace(/[^a-z0-9]+/g,"-").replace(/(^-|-$)/g,"")||"camp";
+  function saveRosterProgress(){ if(!campRun||!campRun.camp)return; try{ localStorage.setItem(SAVE_PREFIX+campSlug(campRun.camp.name),
+    JSON.stringify({roster:campRun.roster.map(m=>({name:m.name,cls:m.cls,xp:m.xp||0,perks:(m.perks||[]).slice()}))})); }catch(e){} }
+  function loadRosterProgress(name){ try{ const t=localStorage.getItem(SAVE_PREFIX+campSlug(name)); if(t){ const o=JSON.parse(t); if(o&&Array.isArray(o.roster))return o.roster; } }catch(e){} return null; }
+  function clearRosterProgress(name){ try{ localStorage.removeItem(SAVE_PREFIX+campSlug(name)); }catch(e){} }
+  // écran de montée (entre missions) : pour chaque grade gagné, choix A/B irréversible, puis on continue.
+  // autoPromote (option/tests) : si défini, choisit sans UI ; sinon, écran cliquable.
+  let autoPromote=null;
   function showPromotions(done){ const list=pendingPromotions(), el=document.getElementById("promote");
-    if(!el||!list.length){ if(el)el.classList.remove("show"); done(); return; }
-    let i=0; (function step(){ if(i>=list.length){ el.classList.remove("show"); done(); return; }
+    if(autoPromote){ for(const it of list){ const pair=PERKS[it.m.cls][it.grade], k=autoPromote(it.m,it.grade,pair)||"A"; it.m.perks=it.m.perks||[]; it.m.perks.push((pair[k]||pair.A).id); } saveRosterProgress(); done(); return; }
+    if(!el||!list.length){ if(el)el.classList.remove("show"); saveRosterProgress(); done(); return; }
+    let i=0; (function step(){ if(i>=list.length){ el.classList.remove("show"); saveRosterProgress(); done(); return; }
       const it=list[i++], pair=PERKS[it.m.cls][it.grade];
       document.getElementById("promote-hd").innerHTML=`<span class="who">${esc(it.m.name)}</span> <span class="gr">→ ${GRADES[it.grade+1]||("grade "+(it.grade+1))}</span> — choisis une compétence (définitif)`;
       const opts=document.getElementById("promote-opts"); opts.innerHTML="";
@@ -1129,7 +1140,9 @@
     const cur={mission:"nav-m",campaign:"nav-c",geoscape:"nav-g",play:"nav-p"}[v]; ["nav-m","nav-c","nav-g","nav-p"].forEach(id=>{const a=document.getElementById(id);if(a)a.classList.toggle("cur",id===cur);});
     if(v==="campaign"){ const cg2=document.getElementById("cgraph"); if(cg2&&cg2.getBoundingClientRect){ const w=Math.round(cg2.getBoundingClientRect().width)||880,h=Math.round(cg2.getBoundingClientRect().height)||340; if(w>1){cg2.width=w;cg2.height=h;} if(typeof drawGraph==="function")drawGraph(); } }
     if(v==="geoscape"&&typeof geoEnter==="function")geoEnter(); }
-  function startCampaign(camp,from,fromNode){ campRun={camp,carry:{},roster:(camp.roster||[]).map(m=>({name:m.name,cls:m.cls,xp:m.xp||0,perks:Array.isArray(m.perks)?m.perks.slice():[]})),nodeId:null,from:from||"campaign",seen:new Set(),potions:0}; document.body.classList.remove("testing"); setView("play"); runNode(fromNode||camp.start); }
+  function startCampaign(camp,from,fromNode){ campRun={camp,carry:{},roster:(camp.roster||[]).map(m=>({name:m.name,cls:m.cls,xp:m.xp||0,perks:Array.isArray(m.perks)?m.perks.slice():[]})),nodeId:null,from:from||"campaign",seen:new Set(),potions:0};
+    const saved=loadRosterProgress(camp.name); if(saved)for(const m of campRun.roster){ const s=saved.find(x=>x.name===m.name&&x.cls===m.cls); if(s){ m.xp=s.xp||0; m.perks=Array.isArray(s.perks)?s.perks.slice():[]; } }   // reprend la progression inter-parties
+    document.body.classList.remove("testing"); setView("play"); runNode(fromNode||camp.start); }
   async function startPlay(){ let camp=loadCampDraft();
     if(!camp){ const t=await fetchText("campaigns-mesh/principale.json",ghCfg()); if(t){try{camp=JSON.parse(t);}catch(e){}} }
     if(camp&&Array.isArray(camp.nodes)&&camp.nodes.length){ startCampaign({name:camp.name||"",start:camp.start||(camp.nodes[0]&&camp.nodes[0].id),roster:camp.roster||[],nodes:camp.nodes},"play"); }
