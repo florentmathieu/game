@@ -39,7 +39,7 @@ L'ouverture l'installe sans ambiguïté : réalité distordue (« *It's like som
 | **Profondeur du build** | **Choix de perks exclusifs par unité** (le build = somme des portes fermées) | B1 |
 | **Réversibilité** | **Définitive** — pas de respec, pas d'undo | anti-pattern réversibilité |
 | **Économie** | **Monnaies séparées, quasi pas de loot** — stuff et argent volontairement effacés | B8 |
-| **Mort** | **Asymétrique** — troupes mortes, héros K.O. seulement | C1 |
+| **Mort** | **Asymétrique** — la plupart mortels pour de bon ; persos à statut spécial (clés de l'histoire) K.O. seulement | C1 |
 | **Usure** | **Stress + Fatigue** → rotation forcée du roster | C3 |
 | **Échec** | **Produit du contenu** (revers narratif), jamais de reload | C4 |
 | **Macro** | **Choix exclusifs réels** — vraie non-linéarité, contenu manquable | C5 |
@@ -89,11 +89,11 @@ C'est l'élégance du système : **une seule pression** — « mes bonnes unité
 - **Réversibilité définitive.** Pas de respec, pas d'undo : c'est ce qui donne tout leur poids aux choix de perks. **Pilier le plus solide du profil.**
 
 ### C — Tension / enjeux
-- **C1 Mort asymétrique.** Les héros nommés tombent K.O. (récupérables), les troupes génériques meurent. Protège l'investissement en builds tout en gardant un enjeu réel.
+- **C1 Mort asymétrique.** **Tous les personnages sont nommés.** Certains ont un **statut spécial** qui les rend **indispensables à l'histoire** : ceux-là tombent K.O. (récupérables) plutôt que de mourir — ils ne peuvent pas être perdus, sinon le récit se bloquerait. **Tous les autres — nommés et attachants eux aussi — peuvent mourir définitivement.** Enjeu de perte bien réel (il frappe des persos qu'on connaît), sans cul-de-sac narratif.
 - **C3 Stress + Fatigue.** Deux jauges hors-combat à récupération lente → rotation du roster (cf. fil rouge). **Pas** d'attrition financière (économie effacée).
 - **C4 L'échec fait avancer.** Un revers monte la menace / ouvre une branche / produit une situation, la partie continue. Tue le save-scum, alimente le récit.
 - **C6 Récit personnel léger.** Les unités accumulent un historique (faits d'armes, surnoms) ; **pas** de simulation sociale lourde type Crusader Kings.
-- **B9 Identité forte.** Unités nommées et customisables → on s'attache, donc le K.O./la rotation portent émotionnellement.
+- **B9 Identité forte.** **Toutes** les unités sont nommées et customisables → on s'attache à chacune, donc la perte / le K.O. / la rotation portent émotionnellement.
 - **Pas de séquelles permanentes (C2 écarté).** Le corps des persos reste simple ; l'usure passe par stress/fatigue, pas par la mutilation.
 
 ---

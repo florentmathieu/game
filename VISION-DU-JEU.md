@@ -44,9 +44,11 @@ Dans beaucoup de jeux, « progresser » veut juste dire **accumuler des chiffres
 
 ## L'idée centrale qui relie tout
 
-> **On ne perd jamais ses meilleurs personnages… mais on ne peut pas toujours les jouer.**
+> **Tu ne peux pas toujours aligner ta meilleure équipe.**
 
-Plutôt que de punir le joueur en tuant définitivement ses héros préférés (frustrant), on les rend **temporairement indisponibles** : un personnage qui a trop combattu est **épuisé** (physiquement) ou **éprouvé** (moralement), et doit se reposer.
+Tes personnages s'usent : un personnage qui a trop combattu est **épuisé** (physiquement) ou **éprouvé** (moralement), et doit se reposer — il devient **temporairement indisponible**.
+
+Et la perte peut être **définitive** : **tous les personnages sont nommés**, et la plupart peuvent **mourir pour de bon**. Seuls quelques-uns, **indispensables à l'histoire**, sont protégés (ils tombent K.O. au lieu de mourir, sinon le récit se bloquerait). On s'attache donc à *tout le monde* — et chaque perte compte vraiment.
 
 Conséquence : on est **obligé de faire tourner son roster**. Et comme on a plusieurs personnages à faire jouer, on a envie de leur donner des **builds différents** plutôt que de les calquer tous sur le même modèle. Une seule règle simple — « mes meilleurs ne sont pas toujours dispo » — crée à la fois de la **tension** (vais-je devoir envoyer une équipe B ?) et des **décisions intéressantes** (qui j'envoie, qui je repose, dans qui j'investis ?).
 
@@ -67,7 +69,7 @@ Rater une mission ne veut pas dire « recharger une sauvegarde et recommencer »
 Sauver une région peut signifier en sacrifier une autre. On ne verra donc pas tout en une partie. *Pourquoi ?* Pour que les décisions aient des conséquences réelles — et pour que, comme les personnages, on **doute** d'avoir fait le bon choix.
 
 **5. On s'attache à ses personnages.**
-Les héros ont un nom, une apparence personnalisable, une histoire qui se construit. *Pourquoi ?* Parce que l'incertitude ne fait peur que si on a quelque chose à perdre. Et parce que leur **doute** (ils oublient, ils ne sont sûrs de rien) ne touche que si on les connaît.
+**Tous** les personnages ont un nom, une apparence personnalisable, une histoire qui se construit. *Pourquoi ?* Parce que l'incertitude (et la mort, bien réelle pour la plupart) ne fait peur que si on a quelque chose à perdre. Et parce que leur **doute** (ils oublient, ils ne sont sûrs de rien) ne touche que si on les connaît.
 
 **6. Pas de course à l'équipement.**
 La puissance vient de **qui un personnage est devenu** (ses capacités choisies), pas de son matériel. *Pourquoi ?* Pour garder l'attention sur les décisions qui comptent, sans noyer le joueur sous la gestion d'inventaire.
