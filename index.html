@@ -221,7 +221,7 @@
 <div id="fiche"></div>
 <div id="banner"></div>
 <div id="geobanner"></div>
-<div id="title"><button id="title-btn">New game</button></div>
+<div id="title"><button id="title-btn">New game</button><button id="title-reset" style="margin-top:10px;font-size:.8rem;opacity:.6;background:none;border:1px solid #555;color:#bbb">↺ Recommencer à zéro</button></div>
 <div id="camptext"><div id="camptext-body"></div><button id="camptext-btn">…</button></div>
 <div id="storybox"><div id="storybox-body"></div><button id="storybox-btn">…</button></div>
 <div id="over"><h2 id="overtxt"></h2><button id="overbtn">Rejouer</button></div>
@@ -1410,6 +1410,10 @@
   }
   { const tb=document.getElementById("title-btn"); if(tb)tb.onclick=()=>{ const t=document.getElementById("title"); if(t)t.style.display="none";
       if(document.body.classList.contains("view-play")&&!campRun) startPlay(); }; }
+  // « Recommencer à zéro » : efface la progression persistée de toutes les campagnes (le roster repart vierge)
+  { const rb=document.getElementById("title-reset"); if(rb)rb.onclick=()=>{ if(!confirm("Effacer toute la progression sauvegardée (niveaux & compétences) ?"))return;
+      try{ const rm=[]; for(let i=0;i<localStorage.length;i++){ const k=localStorage.key(i); if(k&&k.indexOf(SAVE_PREFIX)===0)rm.push(k); } rm.forEach(k=>localStorage.removeItem(k)); }catch(e){}
+      rb.textContent="✓ Progression effacée"; }; }
   // sections repliables : chaque <h2> de l'éditeur replie le bloc qui le suit
   function makeCollapsible(container){ if(!container||!container.querySelectorAll)return;
     [...container.querySelectorAll("h2")].forEach(h=>{ if(h.parentNode!==container)return; let el=h.nextElementSibling; const sibs=[];
