@@ -493,7 +493,7 @@
     if(e.button===2){ const cell=cellAtXY(X,Y),u=cell&&uAt(cell.id); if(u){units=units.filter(x=>x!==u);refresh();} return; }
     if(editTool==="pod"||editTool==="sleep"){ editAt(X,Y); return; }   // agit au clic, pas en glissé
     const cell=cellAtXY(X,Y),u=cell&&uAt(cell.id);
-    if(u&&(editTool==="unit"||Math.hypot(X-cell.cx,Y-cell.cy)<=16)){ dragU=u; dragXY=[X,Y]; dragStart=[X,Y]; dragMoved=false; draw(); return; }   // attrape l'unité (outil unité partout, ou clic sur le pion avec n'importe quel outil) : glisser = déplacer, simple clic = pivoter
+    if(u&&(editTool==="unit"||Math.hypot(X-cell.cx,Y-cell.cy)<=20)){ dragU=u; dragXY=[X,Y]; dragStart=[X,Y]; dragMoved=false; draw(); return; }   // attrape l'unité (outil unité partout, ou clic sur le pion avec n'importe quel outil) : glisser = déplacer, simple clic = pivoter
     painting=true; editAt(X,Y); });
   cv.addEventListener("pointermove",e=>{ if(mode!=="edit")return; const [X,Y]=evXY(e);
     if(dragU){ if(dragStart&&Math.hypot(X-dragStart[0],Y-dragStart[1])>5)dragMoved=true; dragXY=[X,Y]; draw(); return; }
@@ -604,20 +604,20 @@
     const ucol=u=>u.team==="player"?"#5fb0d8":u.team==="neutral"?(u.hostage?"#c98fd0":"#e0b84a"):"#d8635f";
     for(const u of units){ try{ const c=cells[u.cell];if(!c)continue;let x=c.cx,y=c.cy;if(anim&&anim.u===u&&u.hp>0){const p=animPos();if(isFinite(p[0])&&isFinite(p[1])){x=p[0];y=p[1];}} if(dragU===u&&dragXY){x=dragXY[0];y=dragXY[1];}
       if(mode==="play"&&u.team!=="player"&&u.hp>0&&!seen(u))continue;
-      if(u.hp<=0){ctx.globalAlpha=.5;ctx.strokeStyle=u.team==="player"?"#86bce6":"#d88a8a";ctx.lineWidth=3;ctx.beginPath();ctx.moveTo(x-6,y-6);ctx.lineTo(x+6,y+6);ctx.moveTo(x+6,y-6);ctx.lineTo(x-6,y+6);ctx.stroke();ctx.globalAlpha=1;continue;}
-      ctx.beginPath();ctx.moveTo(x+Math.cos(u.facing)*7,y+Math.sin(u.facing)*7);ctx.lineTo(x+Math.cos(u.facing)*15,y+Math.sin(u.facing)*15);ctx.lineWidth=3;ctx.strokeStyle=u.team==="player"?"#bfe6ff":u.team==="neutral"?"#f0d89a":"#f0b0ac";ctx.stroke();
-      if(mode==="play"&&sel&&sel.ap>0&&turn==="player"&&hostile(sel,u)&&seen(u)){const can=(sel.w.ranged&&(sel.clip===undefined||sel.ammo>0)&&inRange(sel,u,"ranged"))||(sel.w.melee&&inRange(sel,u,"melee"));if(can){ctx.beginPath();ctx.arc(x,y,13,0,TWO);ctx.lineWidth=3;ctx.strokeStyle="#e0635f";ctx.stroke();}}
-      if(mode==="play"&&u===aimTarget&&turn==="player"){ctx.beginPath();ctx.arc(x,y,16,0,TWO);ctx.lineWidth=3;ctx.strokeStyle="#ffd479";ctx.stroke();ctx.beginPath();ctx.arc(x,y,16,-0.35,0.35);ctx.lineWidth=5;ctx.strokeStyle="#ffd479";ctx.stroke();}   // cible proposée
-      if(mode==="play"&&u.overwatch){ctx.beginPath();ctx.arc(x,y,15,0,TWO);ctx.lineWidth=2;ctx.setLineDash([4,3]);ctx.strokeStyle="#7fe0d0";ctx.stroke();ctx.setLineDash([]);}
-      if(mode==="play"&&u.bracing){ctx.beginPath();ctx.arc(x,y,15,0,TWO);ctx.lineWidth=2.5;ctx.strokeStyle="#8fd3ff";ctx.stroke();}   // en garde (anneau bleu plein)
+      if(u.hp<=0){ctx.globalAlpha=.5;ctx.strokeStyle=u.team==="player"?"#86bce6":"#d88a8a";ctx.lineWidth=3;ctx.beginPath();ctx.moveTo(x-9,y-9);ctx.lineTo(x+9,y+9);ctx.moveTo(x+9,y-9);ctx.lineTo(x-9,y+9);ctx.stroke();ctx.globalAlpha=1;continue;}
+      ctx.beginPath();ctx.moveTo(x+Math.cos(u.facing)*11,y+Math.sin(u.facing)*11);ctx.lineTo(x+Math.cos(u.facing)*23,y+Math.sin(u.facing)*23);ctx.lineWidth=3.5;ctx.strokeStyle=u.team==="player"?"#bfe6ff":u.team==="neutral"?"#f0d89a":"#f0b0ac";ctx.stroke();
+      if(mode==="play"&&sel&&sel.ap>0&&turn==="player"&&hostile(sel,u)&&seen(u)){const can=(sel.w.ranged&&(sel.clip===undefined||sel.ammo>0)&&inRange(sel,u,"ranged"))||(sel.w.melee&&inRange(sel,u,"melee"));if(can){ctx.beginPath();ctx.arc(x,y,20,0,TWO);ctx.lineWidth=3;ctx.strokeStyle="#e0635f";ctx.stroke();}}
+      if(mode==="play"&&u===aimTarget&&turn==="player"){ctx.beginPath();ctx.arc(x,y,24,0,TWO);ctx.lineWidth=3;ctx.strokeStyle="#ffd479";ctx.stroke();ctx.beginPath();ctx.arc(x,y,24,-0.35,0.35);ctx.lineWidth=5;ctx.strokeStyle="#ffd479";ctx.stroke();}   // cible proposée
+      if(mode==="play"&&u.overwatch){ctx.beginPath();ctx.arc(x,y,23,0,TWO);ctx.lineWidth=2;ctx.setLineDash([4,3]);ctx.strokeStyle="#7fe0d0";ctx.stroke();ctx.setLineDash([]);}
+      if(mode==="play"&&u.bracing){ctx.beginPath();ctx.arc(x,y,23,0,TWO);ctx.lineWidth=2.5;ctx.strokeStyle="#8fd3ff";ctx.stroke();}   // en garde (anneau bleu plein)
       const undet=mode==="play"&&u.stealth&&u.team==="player"&&!anyEnemySees(u);   // assassin non repéré = estompé
-      ctx.beginPath();ctx.arc(x,y,10,0,TWO);ctx.fillStyle=ucol(u);ctx.globalAlpha=undet?.45:((mode==="play"&&u.team==="player"&&u.ap<=0&&turn==="player")?.5:(mode==="play"&&u.asleep?.7:1));ctx.fill();ctx.globalAlpha=1;
-      if(undet){ctx.setLineDash([3,3]);ctx.lineWidth=1.5;ctx.strokeStyle="#9fb6c8";ctx.beginPath();ctx.arc(x,y,13,0,TWO);ctx.stroke();ctx.setLineDash([]);}   // halo discret « furtif »
+      ctx.beginPath();ctx.arc(x,y,15,0,TWO);ctx.fillStyle=ucol(u);ctx.globalAlpha=undet?.45:((mode==="play"&&u.team==="player"&&u.ap<=0&&turn==="player")?.5:(mode==="play"&&u.asleep?.7:1));ctx.fill();ctx.globalAlpha=1;
+      if(undet){ctx.setLineDash([3,3]);ctx.lineWidth=1.5;ctx.strokeStyle="#9fb6c8";ctx.beginPath();ctx.arc(x,y,20,0,TWO);ctx.stroke();ctx.setLineDash([]);}   // halo discret « furtif »
       ctx.lineWidth=(u===sel)?3:1.5;ctx.strokeStyle=(u===sel)?"#fff":"rgba(0,0,0,.5)";ctx.stroke();
-      ctx.fillStyle="#0b1117";ctx.font="bold 11px sans-serif";ctx.textAlign="center";ctx.textBaseline="middle";ctx.fillText(u.name[0],x,y);
-      if(u.asleep){ctx.fillStyle="#ffe9a8";ctx.font="bold 11px sans-serif";ctx.fillText("z",x+11,y-9);}
-      if(mode==="edit"&&u.team!=="player"&&u.pod!==undefined){ctx.fillStyle="#cfe8ff";ctx.font="bold 9px sans-serif";ctx.fillText("P"+u.pod,x-11,y+11);}
-      const bw=20,bx=x-bw/2,by=y-17;ctx.fillStyle="rgba(0,0,0,.6)";ctx.fillRect(bx-1,by-1,bw+2,5);ctx.fillStyle="#3a3128";ctx.fillRect(bx,by,bw,3);ctx.fillStyle=u.team==="player"?"#6fd06f":"#e06f6f";ctx.fillRect(bx,by,bw*Math.max(0,u.hp)/u.max,3);
+      ctx.fillStyle="#0b1117";ctx.font="bold 16px sans-serif";ctx.textAlign="center";ctx.textBaseline="middle";ctx.fillText(u.name[0],x,y);
+      if(u.asleep){ctx.fillStyle="#ffe9a8";ctx.font="bold 16px sans-serif";ctx.fillText("z",x+16,y-13);}
+      if(mode==="edit"&&u.team!=="player"&&u.pod!==undefined){ctx.fillStyle="#cfe8ff";ctx.font="bold 13px sans-serif";ctx.fillText("P"+u.pod,x-16,y+16);}
+      const bw=30,bx=x-bw/2,by=y-25;ctx.fillStyle="rgba(0,0,0,.6)";ctx.fillRect(bx-1,by-1,bw+2,6);ctx.fillStyle="#3a3128";ctx.fillRect(bx,by,bw,4);ctx.fillStyle=u.team==="player"?"#6fd06f":"#e06f6f";ctx.fillRect(bx,by,bw*Math.max(0,u.hp)/u.max,4);
       ctx.globalAlpha=1; } catch(e){ ctx.globalAlpha=1; } }
     if(mode==="play")drawFx();   // jus de combat par-dessus la scène
   }
