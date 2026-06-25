@@ -485,6 +485,18 @@
       let pl=0,al=0,cov=false; for(const u of units){ if(u.hp<=0||hops(c.id,u.cell)>cr.radius)continue; if(u.team==="player"){pl++; if(cells[u.cell].terr==="cover"||muretCover(u,e)>=20)cov=true;} else al++; }
       const sc=pl-1.5*al; if(pl>=1&&(sc>=2||(sc>=1&&cov))&&sc>bs){bs=sc;best=c.id;} } return best; }
   function holdWatch(e){ const w=e.w[e.wtype]; if((w.range||1)>1&&(e.clip===undefined||e.ammo>0)&&enemyKnowsPlayers()){e.overwatch=true;e.owMode="ranged";} const p=nearestOpposing(e); if(p)faceTowards(e,p.cell); e.ap=0; }
+  // patrouille d'un pod dormant (pas encore alerté) : le membre éveillé erre dans une ZONE D'ACTION
+  // (boule de rayon LEASH autour de son point d'apparition), en ne traversant que des cellules passables.
+  function bfsBall(start,maxD){ const d={};d[start]=0;const q=[start];while(q.length){const id=q.shift();if(d[id]>=maxD)continue;for(const n of cells[id].nb){if(!passable(n))continue;if(d[n]===undefined){d[n]=d[id]+1;q.push(n);}}}return d; }
+  function patrolStep(e){ if(e.asleep)return;                       // un dormeur reste immobile
+    if(e.home===undefined)e.home=e.cell;
+    const LEASH=3, ball=bfsBall(e.home,LEASH), occu=occ();
+    if(e.patrolGoal===undefined||e.patrolGoal===e.cell||ball[e.patrolGoal]===undefined){   // (re)choisir une destination dans la zone
+      const zone=Object.keys(ball).map(Number).filter(c=>c===e.cell||!occu.has(c));
+      e.patrolGoal=zone.length?zone[Math.floor(Math.random()*zone.length)]:e.cell; }
+    let best=null,bd=hops(e.cell,e.patrolGoal);                     // un pas vers le but : voisin passable libre, dans la zone, qui rapproche
+    for(const n of cells[e.cell].nb){ if(!passable(n)||occu.has(n)||ball[n]===undefined)continue; const dd=hops(n,e.patrolGoal); if(dd<bd){bd=dd;best=n;} }
+    if(best!=null){ faceTowards(e,best); e.cell=best; } }
   function searchAct(e,done){ const goals=[]; for(const [p,mem] of lastSeen)if(p.hp>0)goals.push([p,predictGoal(mem)]);
     if(!goals.length){ done(); return; }
     let pick=goals[0],gd=1e9; for(const g of goals){const d=hops(e.cell,g[1]);if(d<gd){gd=d;pick=g;}}
@@ -496,7 +508,7 @@
     if(bestCell!==e.cell){ moveAlong(e,bestCell); refresh(); setTimeout(tryShoot,(anim?anim.dur+150:200)); } else tryShoot(); }
   function endTurn(){turn="enemy";turnActions=0;sel=null;amode=null;aimTarget=null;for(const u of units)if(u.team==="enemy"){u.ap=AP_MAX;u.freeAvail=true;u.overwatch=false;u.reacted=false;u.bracing=false;}banner("Tour de l'ennemi","enemy");refresh();const foes=units.filter(u=>u.team==="enemy"&&u.hp>0);let i=0;
     (function step(){if(over)return;if(i>=foes.length){for(const u of units)if(u.team==="player"){u.ap=AP_MAX;u.freeAvail=true;u.overwatch=false;u.reacted=false;u.bracing=false;}turn="player";turnNum++;turnActions=0;setMsg("");banner("Tour du joueur","player");refresh();emit("turn",{turn:turnNum});return;}
-      const e=foes[i++];if(e.hp<=0){step();return;} e.overwatch=false; if(!enemyActive(e)){e.ap=0;step();return;}   // pas alerté = ne bouge pas
+      const e=foes[i++];if(e.hp<=0){step();return;} e.overwatch=false; if(!enemyActive(e)){ try{patrolStep(e);}catch(err){} e.ap=0; step(); return; }   // pas alerté = patrouille dans sa zone
       const next=()=>setTimeout(step,200);
       const tgts=units.filter(p=>p.hp>0&&hostile(e,p)&&enemySeesP(e,p));   // seulement ce que cet ennemi voit réellement
       if(!tgts.length){ searchAct(e,()=>{ holdWatch(e); refresh(); next(); }); return; }   // personne en vue : poursuite de la dernière position connue
