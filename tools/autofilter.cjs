@@ -27,7 +27,7 @@ function genSame(seed){ M.setBoardSize(BOARD[0],BOARD[1]); M.setMove(3,2,2); M.s
 function sim(maxT){ M.mode="play"; M.over=false; M.lastOutcome=null; M.turn="player"; M.turnNum=1; let turns=0,side="player";
   while(turns<maxT && !M.over){ if(side==="player"){ M.turnNum=turns+1; M.checkEnd(); if(M.over)break; }
     refreshAP(side);
-    for(const u of M.units.slice()){ if(M.over)break; if(u.team!==side||u.hp<=0)continue; if(side==="enemy"&&!M.enemyActive(u))continue; M.refresh(); actUnit(u); M.checkEnd(); if(M.over)break; }
+    for(const u of M.units.slice()){ if(M.over)break; if(u.team!==side||u.hp<=0)continue; if(side==="enemy"&&!M.enemyActive(u))continue; if(side==="player")M.refresh(); actUnit(u); M.checkEnd(); if(M.over)break; }
     if(side==="enemy")turns++; side=side==="player"?"enemy":"player"; }
   return M.over ? (M.lastOutcome||"loss") : "timeout"; }
 

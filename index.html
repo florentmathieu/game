@@ -1183,7 +1183,7 @@
   function inGeo(){ return document.body.classList.contains("view-geoscape"); }
   const GEO_STATES=[["locked","verrouillé"],["available","disponible"],["cleared","nettoyé"],["lost","perdu"]];
   const GEO_FILL={locked:"#2c2f3a",available:"#2f6e4c",cleared:"#1c4e7a",lost:"#6a2b22"};
-  function geoInitCells(){ cells.forEach(c=>{ c.gname=c.gname||""; c.gtype="region"; c.gkind="empty"; c.gref=null; c.gstate="locked"; c.gunlock=[]; }); geoCampId=null; geoSel=null; }
+  function geoInitCells(){ cells.forEach(c=>{ c.gname=c.gname||""; c.gtype="region"; c.gkind="empty"; c.gref=null; c.gstate="locked"; c.gunlock=[]; c.gdiff=0; }); geoCampId=null; geoSel=null; }
   function geoGenerate(){ const tgt=Math.max(4,Math.min(40,+(document.getElementById("geo-n").value)||12));
     resetView(); seed=(seed*1103515245+12345)&0x7fffffff;
     // on génère plus large (les cellules de bord seront retirées), puis on ajuste jusqu'à approcher
@@ -1210,7 +1210,8 @@
     ctx.textAlign="center"; ctx.textBaseline="middle";
     for(const c of cells){ const isCamp=c.id===geoCampId; const icon=isCamp?"⛺":(c.gkind==="mission"?"⚔":(c.gkind==="event"?"✦":""));
       if(icon){ ctx.font="bold 15px system-ui"; ctx.fillStyle="#fff"; ctx.fillText(icon,c.cx,c.cy-8); }
-      const nm=c.gname||("#"+c.id); ctx.font="11px system-ui"; ctx.fillStyle="rgba(255,255,255,.92)"; ctx.fillText(nm,c.cx,c.cy+10); }
+      const nm=c.gname||("#"+c.id); ctx.font="11px system-ui"; ctx.fillStyle="rgba(255,255,255,.92)"; ctx.fillText(nm,c.cx,c.cy+10);
+      if(c.gdiff>0&&c.gkind==="mission"){ ctx.font="10px system-ui"; ctx.fillStyle="#e0b341"; ctx.fillText("★".repeat(c.gdiff),c.cx,c.cy+22); } }
     if(geoCampId!=null&&cells[geoCampId]){ poly(cells[geoCampId]); ctx.lineWidth=3; ctx.strokeStyle="#e0b341"; ctx.stroke(); }
     if(geoSel!=null&&cells[geoSel]){ poly(cells[geoSel]); ctx.lineWidth=3; ctx.strokeStyle="#c77dff"; ctx.stroke(); } }
 
@@ -1225,7 +1226,8 @@
         <button id="gd-camp">⛺ Définir comme camp</button></div>
       <div class="row"><label>État <select id="gd-state">${GEO_STATES.map(([v,l])=>`<option value="${v}"${c.gstate===v?" selected":""}>${l}</option>`).join("")}</select></label></div>
       <div class="row"><label>Contenu <select id="gd-kind"><option value="empty"${c.gkind==="empty"?" selected":""}>vide</option><option value="mission"${c.gkind==="mission"?" selected":""}>mission</option><option value="event"${c.gkind==="event"?" selected":""}>événement</option></select></label></div>
-      <div class="row" id="gd-refrow" style="${c.gkind==="mission"?"":"display:none"}"><label style="flex:1">Mission <select id="gd-ref" style="flex:1">${geoMissionOpts(c.gref)}</select></label></div>
+      <div class="row" id="gd-refrow" style="${c.gkind==="mission"?"":"display:none"}"><label style="flex:1">Mission <select id="gd-ref" style="flex:1">${geoMissionOpts(c.gref)}</select></label>
+        <label>Difficulté <select id="gd-diff"><option value="0"${!c.gdiff?" selected":""}>—</option>${[1,2,3,4,5].map(n=>`<option value="${n}"${c.gdiff===n?" selected":""}>${"★".repeat(n)}</option>`).join("")}</select></label></div>
       <div style="margin-top:6px"><b style="font-size:.82rem">Déverrouillée par :</b><br>${others||"(aucune autre cellule)"}</div>`;
     const g=id=>document.getElementById(id);
     g("gd-name").oninput=e=>{ c.gname=e.target.value; draw(); };
@@ -1234,6 +1236,7 @@
     g("gd-state").onchange=e=>{ c.gstate=e.target.value; draw(); };
     g("gd-kind").onchange=e=>{ c.gkind=e.target.value; const rr=g("gd-refrow"); if(rr)rr.style.display=(e.target.value==="mission")?"":"none"; draw(); };
     const ref=g("gd-ref"); if(ref)ref.onchange=e=>{ c.gref=e.target.value||null; };
+    const gdf=g("gd-diff"); if(gdf)gdf.onchange=e=>{ c.gdiff=+e.target.value||0; draw(); };
     el.querySelectorAll("[data-unlock]").forEach(cb=>cb.onchange=e=>{ const id=+e.target.getAttribute("data-unlock"); c.gunlock=c.gunlock||[]; if(e.target.checked){ if(!c.gunlock.includes(id))c.gunlock.push(id); } else c.gunlock=c.gunlock.filter(x=>x!==id); draw(); }); }
 
   // sérialisation geoscape (polygones + annotations + paramètres de maillage)
@@ -1241,7 +1244,7 @@
       mesh:{ infl, seed, g:geoG, cols:COLS, rows:ROWS },
       camp:geoCampId,
       cells:cells.map(c=>({ poly:c.poly.map(p=>[Math.round(p[0]),Math.round(p[1])]), name:c.gname||"", type:c.gtype||"region",
-        content:{kind:c.gkind||"empty", ref:c.gref||null}, state:c.gstate||"locked", unlockedBy:(c.gunlock||[]).slice() })) }; }
+        content:{kind:c.gkind||"empty", ref:c.gref||null}, state:c.gstate||"locked", unlockedBy:(c.gunlock||[]).slice(), diff:c.gdiff||0 })) }; }
   function geoApply(o){ resetView();
     if(o.mesh&&Array.isArray(o.mesh.infl)){ infl=o.mesh.infl; ROWS=infl.length; COLS=(infl[0]&&infl[0].length)||COLS; W=COLS*MC;H=ROWS*MC; cv.width=W;cv.height=H; }
     if(o.mesh&&o.mesh.seed!=null)seed=o.mesh.seed; if(o.mesh&&o.mesh.g)geoG=o.mesh.g;
@@ -1249,7 +1252,7 @@
     if(Array.isArray(o.cells)&&o.cells.length&&o.cells[0].poly){
       cells=o.cells.map((c,i)=>{ const ct=polyCentroid(c.poly); return {id:i,poly:c.poly,cx:ct[0],cy:ct[1],nb:[],terr:"plain",elev:0,
         gname:c.name||"",gtype:c.type||"region",gkind:(c.content&&c.content.kind)||"empty",gref:(c.content&&c.content.ref)||null,
-        gstate:c.state||"locked",gunlock:Array.isArray(c.unlockedBy)?c.unlockedBy.slice():[]}; });
+        gstate:c.state||"locked",gunlock:Array.isArray(c.unlockedBy)?c.unlockedBy.slice():[],gdiff:c.diff||0}; });
       buildAdj();
     } else { genMesh(geoG); geoInitCells(); }
     geoCampId=(o.camp!=null)?o.camp:null; geoSel=null; geoStarted=true; geoRefresh(); }
@@ -1287,7 +1290,7 @@
   function geoBuildCells(){ const m=geoPlay.map, st=campRun.geoStates[geoPlay.node.id];
     cells=m.cells.map((c,i)=>{ const ct=polyCentroid(c.poly); return {id:i,poly:c.poly,cx:ct[0],cy:ct[1],nb:[],terr:"plain",elev:0,
       gname:c.name||"",gtype:c.type||"region",gkind:(c.content&&c.content.kind)||"empty",gref:(c.content&&c.content.ref)||null,
-      gunlock:Array.isArray(c.unlockedBy)?c.unlockedBy:[],gstate:st[i]||"locked"}; });
+      gunlock:Array.isArray(c.unlockedBy)?c.unlockedBy:[],gstate:st[i]||"locked",gdiff:c.diff||0}; });
     buildAdj(); geoCampId=(m.camp!=null)?m.camp:null; }
   async function enterGeoPlay(node){ const t=await fetchText("geoscapes-mesh/"+node.map,ghCfg());
     if(!t){ showCampText("Territoire introuvable : "+node.map,()=>{ if(node.next)runNode(node.next); else endCampaignRun("Fin."); }); return; }
@@ -1305,7 +1308,8 @@
     ctx.textAlign="center"; ctx.textBaseline="middle";
     for(const c of cells){ const isCamp=c.id===geoCampId; const icon=isCamp?"⛺":(c.gstate==="cleared"?"✓":(c.gstate==="lost"?"✕":(c.gstate==="available"&&c.gkind==="mission"?"⚔":(c.gstate==="locked"?"🔒":""))));
       if(icon){ ctx.font="bold 15px system-ui"; ctx.fillStyle="#fff"; ctx.fillText(icon,c.cx,c.cy-8); }
-      const nm=c.gname||("#"+c.id); ctx.font="11px system-ui"; ctx.fillStyle=(c.gstate==="locked")?"rgba(255,255,255,.42)":"rgba(255,255,255,.92)"; ctx.fillText(nm,c.cx,c.cy+10); }
+      const nm=c.gname||("#"+c.id); ctx.font="11px system-ui"; ctx.fillStyle=(c.gstate==="locked")?"rgba(255,255,255,.42)":"rgba(255,255,255,.92)"; ctx.fillText(nm,c.cx,c.cy+10);
+      if(c.gdiff>0&&c.gkind==="mission"&&c.gstate!=="cleared"){ ctx.font="10px system-ui"; ctx.fillStyle=(c.gstate==="locked")?"rgba(224,179,65,.45)":"#e0b341"; ctx.fillText("★".repeat(c.gdiff),c.cx,c.cy+22); } }   // étoiles = difficulté
     if(geoCampId!=null&&cells[geoCampId]){ poly(cells[geoCampId]); ctx.lineWidth=3; ctx.strokeStyle="#e0b341"; ctx.stroke(); } }
   function geoPlayClick(X,Y){ const c=cellAtXY(X,Y); if(!c)return;
     if(c.gstate!=="available"){ geoBanner(c.gstate==="locked"?"région verrouillée":(c.gstate==="cleared"?"région déjà nettoyée":"région indisponible")); return; }

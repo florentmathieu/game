@@ -9,7 +9,7 @@ function sim(maxT){
   while(turns<maxT && !M.over){
     if(side==="player"){ M.turnNum=turns+1; M.checkEnd(); if(M.over)break; }
     refreshAP(side);
-    for(const u of M.units.slice()){ if(M.over)break; if(u.team!==side||u.hp<=0)continue; if(side==="enemy"&&!M.enemyActive(u))continue; M.refresh(); actUnit(u); M.checkEnd(); if(M.over)break; }
+    for(const u of M.units.slice()){ if(M.over)break; if(u.team!==side||u.hp<=0)continue; if(side==="enemy"&&!M.enemyActive(u))continue; if(side==="player")M.refresh(); actUnit(u); M.checkEnd(); if(M.over)break; }
     if(side==="enemy")turns++; side=side==="player"?"enemy":"player";
   }
   return { r: M.over ? (M.lastOutcome||"loss") : "timeout", turns };
