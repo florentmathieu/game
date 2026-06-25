@@ -8,6 +8,7 @@ const M = loadMesh(); const actUnit = makeActUnit(M);
 
 const ARCH  = process.env.ARCH  || "eliminate";
 const POD   = +(process.env.POD || 2);
+const EN    = process.env.EN ? +process.env.EN : null;   // nombre d'ennemis cible (null = défaut difficulté)
 const BOARD = (process.env.BOARD|| "13x10").split("x").map(Number);
 const COVER = +(process.env.COVER|| 0.30);
 const N     = +(process.env.N   || 16);          // candidats
@@ -21,7 +22,8 @@ if(SAVE){ fs.mkdirSync(OUT, {recursive:true}); }
 
 function refreshAP(team){for(const u of M.units)if(u.team===team&&u.hp>0){u.ap=M.AP_MAX;u.freeAvail=true;u.overwatch=false;u.reacted=false;u.bracing=false;}}
 function genSame(seed){ M.setBoardSize(BOARD[0],BOARD[1]); M.setMove(3,2,2); M.setSeed(seed);
-  try{ return M.genMission({archetype:ARCH,podCount:POD,cover:COVER,podSpacing:4}); }catch(e){ return null; } }
+  const P={archetype:ARCH,podCount:POD,cover:COVER,podSpacing:4}; if(EN!=null)P.enemyCount=EN;
+  try{ return M.genMission(P); }catch(e){ return null; } }
 function sim(maxT){ M.mode="play"; M.over=false; M.lastOutcome=null; M.turn="player"; M.turnNum=1; let turns=0,side="player";
   while(turns<maxT && !M.over){ if(side==="player"){ M.turnNum=turns+1; M.checkEnd(); if(M.over)break; }
     refreshAP(side);
@@ -33,7 +35,7 @@ const tally={accepted:0,easy:0,hard:0,degenerate:0,noisy:0}; const kept=[];
 for(let i=0;i<N;i++){ const seed=1000003+i*2654435761>>>0;
   const meta=genSame(seed); if(!meta){ tally.degenerate++; continue; }
   if(!M.units.some(u=>u.team==="enemy")){ tally.degenerate++; continue; }
-  const obj=M.exportObj(); obj.name=`${ARCH}_p${POD}_${seed}`;
+  const obj=M.exportObj(); obj.name=`${ARCH}_p${POD}${EN!=null?"e"+EN:""}_${seed}`;
   let w=0,l=0,t=0;
   for(let r=0;r<K;r++){ genSame(seed); M.reseed((seed*40503 + r*1013904223)>>>0); const res=sim(MAXT); if(res==="win")w++;else if(res==="loss")l++;else t++; }
   const win=w/K, to=t/K;
@@ -45,6 +47,6 @@ for(let i=0;i<N;i++){ const seed=1000003+i*2654435761>>>0;
     if(SAVE) fs.writeFileSync(path.join(OUT,obj.name+".json"), JSON.stringify(obj)); }
   console.log(`#${String(i).padStart(2)} seed ${String(seed).padEnd(11)} win ${(win*100).toFixed(0).padStart(3)}% to ${(to*100).toFixed(0).padStart(3)}% | ${meta.cells}c J${obj.units.filter(u=>u.team==="player").length} E${obj.units.filter(u=>u.team==="enemy").length} -> ${verdict}`);
 }
-console.log(`\n${ARCH} pod${POD} board ${BOARD.join("x")} cover ${COVER} · fenêtre [${LO}-${HI}] · ${K} parties/candidat`);
+console.log(`\n${ARCH} pod${POD} ennemis=${EN!=null?EN:"auto"} board ${BOARD.join("x")} cover ${COVER} · fenêtre [${LO}-${HI}] · ${K} parties/candidat`);
 console.log(`accepté ${tally.accepted}/${N} | trop facile ${tally.easy} · trop dur ${tally.hard} · bruité ${tally.noisy} · dégénéré ${tally.degenerate}`);
 if(SAVE&&kept.length) console.log(`→ ${kept.length} missions écrites dans ${OUT}`);

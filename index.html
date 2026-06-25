@@ -123,6 +123,9 @@
     <h2>Génération auto (mission)</h2>
     <div class="row"><label>Difficulté <select id="gen-diff"><option value="facile">facile</option><option value="moyen" selected>moyen</option><option value="difficile">difficile</option></select></label>
       <label>Objectif <select id="gen-arch"><option value="eliminate" selected>élimination</option><option value="assassinate">assassinat (cible)</option><option value="rescue">sauvetage (otage)</option><option value="defend">défense (VIP, N tours)</option><option value="survive">survie (N tours)</option><option value="extract">extraction (zone)</option></select></label></div>
+    <div class="row"><label>Ennemis <input id="gen-enemies" type="number" min="1" max="16" placeholder="auto" style="width:54px"></label>
+      <label>Pods <input id="gen-pods" type="number" min="1" max="6" placeholder="auto" style="width:54px"></label>
+      <span class="hint" style="flex:1">total d'ennemis = vrai curseur ; vide = selon difficulté</span></div>
     <div class="row"><label style="flex:1">Couvert <input id="gen-cover" type="range" min="10" max="50" value="30"></label><span id="gen-coverv">30%</span></div>
     <div class="row"><button id="gen-mission">🎲 Générer une mission</button></div>
     <div class="hint">Génère forme (île) + relief/couvert + <b>déploiement & pods</b> (placement par graphe : pods loin du déploiement, espacés, hors de vue). <b>Objectif</b> au choix : élimination, assassinat (⊕ cible), sauvetage (otage au cœur des pods), défense d'un VIP / survie N tours, extraction (zone profonde). Rejoue à neuf à chaque clic (seed).</div>
@@ -782,7 +785,8 @@
     for(const id of sortedSlots){ if(slots.length>=S)break; if(slots.every(s=>hops(s,id)>=2))slots.push(id); }
     for(const id of sortedSlots){ if(slots.length>=S)break; if(!slots.includes(id))slots.push(id); }
     units=[]; const pcls=P.squadClasses||["sergent","sapeur","assassin","garde"]; slots.forEach((id,i)=>units.push(U("player",pcls[i%pcls.length],id)));
-    const podCount=P.podCount!=null?P.podCount:(diff==="facile"?1:diff==="moyen"?2:3);   // calibré par sim (P2)
+    const genPods=document.getElementById("gen-pods"); const podsFromDom=genPods&&genPods.value!==""?+genPods.value:null;
+    const podCount=P.podCount!=null?P.podCount:(podsFromDom!=null?podsFromDom:(diff==="facile"?1:diff==="moyen"?2:3));   // pods = groupes d'activation
     const podSpacing=P.podSpacing!=null?P.podSpacing:4;                              // distance MIN entre pods (sauts) — ≥4 = activation séquentielle
     const podMinDist=P.podMinDist!=null?P.podMinDist:Math.max(3,Math.floor(maxD*0.45));   // distance MIN déploiement→pod
     let far=reachIds.filter(id=>!slots.includes(id)&&dist[id]>=podMinDist&&!los(anchor.id,id));
@@ -791,9 +795,15 @@
     const podAnchors=[]; for(const id of far){ if(podAnchors.length>=podCount)break; if(podAnchors.every(a=>hops(a,id)>=podSpacing))podAnchors.push(id); }
     if(!podAnchors.length&&far.length)podAnchors.push(far[0]);
     const ecls=P.enemyClasses||["garde","archer","brute"], occSet=new Set(units.map(u=>u.cell));
+    // NOMBRE D'ENNEMIS CIBLE = vrai curseur de difficulté (le sim montre que le total écrase le nb de pods).
+    // On le répartit de façon déterministe sur les pods (faible variance) au lieu de tailles aléatoires.
+    const genEn=document.getElementById("gen-enemies"); const enFromDom=genEn&&genEn.value!==""?+genEn.value:null;
+    const enemyCount=P.enemyCount!=null?P.enemyCount:(enFromDom!=null?enFromDom:(diff==="facile"?4:diff==="moyen"?5:7));
+    const PN=Math.max(1,podAnchors.length);
+    const sizes=Array.from({length:PN},(_,i)=>Math.floor(enemyCount/PN)+(i<(enemyCount%PN)?1:0));   // réparti au mieux
     podAnchors.forEach((anc,pi)=>{ const ball=bfsBall(anc,2);   // pool autour de l'ancre (rayon 2) plutôt que les seuls voisins immédiats
       const pool=Object.keys(ball).map(Number).filter(id=>passable(id)&&!occSet.has(id)).sort((a,b)=>ball[a]-ball[b]);
-      const n=podSize[0]+Math.floor(rnd()*(podSize[1]-podSize[0]+1));
+      const n=sizes[pi]||0;
       const chosen=[];   // membres espacés (≥2 sauts) pour qu'aucun (surtout le leader éveillé) ne soit muré par un coéquipier endormi
       for(const id of pool){ if(chosen.length>=n)break; if(chosen.every(c=>hops(c,id)>=2))chosen.push(id); }
       for(const id of pool){ if(chosen.length>=n)break; if(!chosen.includes(id))chosen.push(id); }
@@ -828,7 +838,7 @@
     }
     curMission={ objective:archetype, surviveTurns, extractCount, exitZone };
     triggers=[]; renderTrigList(); refresh();
-    return { cells:cells.length, podCount:podAnchors.length, deploy:anchor.id, podAnchors:podAnchors.slice(), maxD, cover, slots:slots.length, objective:archetype, surviveTurns, extractCount }; }
+    return { cells:cells.length, podCount:podAnchors.length, enemies:units.filter(u=>u.team==="enemy").length, deploy:anchor.id, podAnchors:podAnchors.slice(), maxD, cover, slots:slots.length, objective:archetype, surviveTurns, extractCount }; }
   // dispose des zones aléatoires (patchs Voronoi de types), en conservant le terrain posé
   function autoZones(){ const rnd=mk((seed^0x5bd1e995)>>>0),types=["square","hex","pentagon","mix"];
     const nC=3+Math.floor(rnd()*4),cs=[]; for(let k=0;k<nC;k++)cs.push({x:rnd()*COLS,y:rnd()*ROWS,t:types[Math.floor(rnd()*types.length)]});
