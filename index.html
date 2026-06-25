@@ -1102,7 +1102,9 @@
   function showChoice(n){ const el=document.getElementById("camptext"),body=document.getElementById("camptext-body"),btn=document.getElementById("camptext-btn"); btn.style.display="none";
     body.innerHTML=`<div style="margin-bottom:12px">${esc(n.title||"Quelle route ?")}</div>`+(n.options||[]).map(oid=>{const tn=campRun.camp.nodes.find(x=>x.id===oid);return `<button class="opt" data-go="${oid}">${tn?nodeLabel(tn):oid}</button>`;}).join(""); el.classList.add("show");
     body.querySelectorAll("[data-go]").forEach(b=>b.onclick=()=>{el.classList.remove("show");btn.style.display="";runNode(b.dataset.go);}); }
-  function applyCarry(){ if(!campRun)return; for(const u of units)if(u.team==="player"){const c=campRun.carry[u.name];if(c!=null)u.hp=Math.max(1,Math.min(u.max,c));} }
+  // report des PV entre missions : un blessé garde ses PV ; un K.O. (héros récupérable, pas mort) revient
+  // rétabli (pas de spirale à 1 PV). La récupération fine au camp viendra avec l'usure (stress/fatigue).
+  function applyCarry(){ if(!campRun)return; for(const u of units)if(u.team==="player"){const c=campRun.carry[u.name];if(c!=null)u.hp=c>0?Math.min(u.max,c):u.max;} }
   function saveCarry(){ if(!campRun)return; for(const u of units)if(u.team==="player")campRun.carry[u.name]=Math.max(0,u.hp); }
   // ===== XP de mission → grades → promotion A/B =====
   function awardXp(){ if(!campRun||!campRun.roster)return; for(const u of units){ if(u.team!=="player")continue; const m=campRun.roster.find(r=>r.name===u.name); if(!m)continue; m.xp=(m.xp||0)+3+(u.kills||0); } }   // mission gagnée : 3 (participation+victoire) + 1/kill
