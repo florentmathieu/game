@@ -122,6 +122,8 @@
     <div class="hint">Avec « Poser l'unité » : clic sur une case vide pour poser, <b>clic sur une unité</b> pour la pivoter (45°), <b>glisser</b> pour la déplacer, <b>double-clic</b> pour renommer, <b>clic droit</b> pour supprimer.<br>« 🛡 Pod » : clique un ennemi pour cycler son pod (aucun → 0 → 1 → … → 4 → aucun). « 💤 Sommeil » : clique un ennemi pour l'endormir/réveiller.</div>
     <h2>Dépôt (GitHub)</h2>
     <div class="row"><input id="mname" type="text" placeholder="nom de la mission" style="flex:1"></div>
+    <div class="row"><label style="font-size:.85rem;display:flex;align-items:center;gap:4px">PNJ à protéger (min)<input id="m-protect" type="number" min="0" placeholder="tous" style="width:54px"></label><label style="font-size:.85rem;display:flex;align-items:center;gap:4px"><input id="m-fullheal" type="checkbox"> soin complet</label></div>
+    <div class="row"><label style="font-size:.85rem;display:flex;align-items:center;gap:4px">Butin victoire (potions)<input id="m-loot" type="number" min="0" value="0" style="width:54px"></label></div>
     <div class="row"><select id="repo-missions" style="flex:1"></select><button id="repo-load">Charger</button></div>
     <div class="row"><button id="repo-save">💾 Enregistrer dans le dépôt</button></div>
     <input id="gh-token" type="password" placeholder="token GitHub (Contents: write)" style="width:100%;margin:2px 0">
@@ -268,9 +270,9 @@
   const enterCost=(from,to)=>{ if(!passable(to))return null; if(cells[to].elev-cells[from].elev>=2)return null; const climb=Math.max(0,cells[to].elev-cells[from].elev); return (cells[to].terr==="rough"?2:1)+climb; };
 
   // ===== unités =====
-  let units=[], podAlerted=new Set(), neutralSeen=new Set(), lastSeen=new Map();
+  let units=[], podAlerted=new Set(), neutralSeen=new Set(), lastSeen=new Map(), curMission=null;
   function U(team,cls,cell,opts){opts=opts||{};const t=CLASSES[cls];const wtype=t.w.ranged?"ranged":"melee";const w=t.w[wtype];
-    const u={team,cls,name:opts.name||t.name,cell,hp:t.hp,max:t.hp,ap:AP_MAX,freeAvail:true,mob:t.mob,facing:opts.facing!=null?opts.facing:(team==="enemy"?Math.PI:0),wtype,flank:w.flank||null,shieldBlock:t.shieldBlock||0,parry:t.parry||0,stealth:!!t.stealth,w:t.w,overwatch:false,reacted:false,owMode:null};
+    const u={team,cls,name:opts.name||t.name,cell,hp:t.hp,max:t.hp,ap:AP_MAX,freeAvail:true,mob:t.mob,facing:opts.facing!=null?opts.facing:(team==="enemy"?Math.PI:0),wtype,flank:w.flank||null,shieldBlock:t.shieldBlock||0,parry:t.parry||0,stealth:!!t.stealth,civ:!!t.civ,w:t.w,overwatch:false,reacted:false,owMode:null};
     if(w.clip!==undefined){u.clip=w.clip;u.ammo=w.clip;} if(t.crackers)u.crackers=t.crackers;
     if(opts.pod!=null&&opts.pod!=="")u.pod=+opts.pod; if(opts.asleep&&team==="enemy"){u.asleep=true;u._asleep0=true;} if(opts.hostage&&team==="neutral")u.hostage=true;
     return u; }
@@ -398,7 +400,12 @@
   function computeVis(){visible=new Set();for(const u of units)if(u.team==="player"&&u.hp>0)for(const c of cells)if(hops(u.cell,c.id)<=7&&los(u.cell,c.id))visible.add(c.id);}
   const seen=u=>visible.has(u.cell);
   const defaultAttack=u=>(u.w.ranged&&(u.clip===undefined||u.ammo>0))?"ranged":"melee";
-  function checkEnd(){if(units.some(u=>u.team==="neutral"&&u.hp<=0))return end("Défaite — un PNJ/otage est tombé…");if(!units.some(u=>u.team==="enemy"&&u.hp>0))end("Victoire !");else if(!units.some(u=>u.team==="player"&&u.hp>0))end("Défaite…");}
+  function checkEnd(){
+    if(units.some(u=>u.team==="neutral"&&u.hostage&&u.hp<=0))return end("Défaite — un otage est tombé…");   // un otage tué = échec
+    const guard=units.filter(u=>u.team==="neutral"&&!u.hostage&&!u.civ);   // PNJ à défendre (hors civils d'ambiance)
+    if(guard.length){ const alive=guard.filter(u=>u.hp>0).length, need=(curMission&&curMission.protect!=null)?curMission.protect:guard.length; if(alive<need)return end("Défaite — trop de PNJ à défendre sont tombés…"); }
+    if(!units.some(u=>u.team==="enemy"&&u.hp>0))end("Victoire !");
+    else if(!units.some(u=>u.team==="player"&&u.hp>0))end("Défaite…");}
   function end(t){over=true;emit(t.indexOf("Victoire")===0?"win":"lose",{});if(campRun){campEnd(t);return;}document.getElementById("overtxt").textContent=t;document.getElementById("over").classList.add("show");draw();}
   function log(m,team){if(mode!=="play")return;const el=document.getElementById("log");const d=document.createElement("div");d.className=team==="player"?"pl":"en";d.textContent=m;el.prepend(d);}
   function setMsg(t){document.getElementById("msg").textContent=t;}
@@ -673,14 +680,18 @@
     cells:cells.map(c=>{const o={poly:c.poly.map(p=>[Math.round(p[0]),Math.round(p[1])]),terr:c.terr,elev:c.elev};if(c.zone)o.zone=c.zone;return o;}),
     walls:[...walls],
     units:units.map(u=>{const o={team:u.team,cls:u.cls,cell:u.cell};if(u.name!==CLASSES[u.cls].name)o.name=u.name;if(u.pod!==undefined)o.pod=u.pod;if(u.asleep)o.asleep=true;if(u.hostage)o.hostage=true;if(u.facing!=null)o.facing=u.facing;return o;}),
-    triggers:triggers }; }
-  function applyMissionObj(m){ resetView();
+    triggers:triggers,
+    protect:(document.getElementById("m-protect")&&document.getElementById("m-protect").value!=="")?+document.getElementById("m-protect").value:undefined,
+    fullheal:!!(document.getElementById("m-fullheal")&&document.getElementById("m-fullheal").checked),
+    loot:(document.getElementById("m-loot")&&+document.getElementById("m-loot").value)||0 }; }
+  function applyMissionObj(m){ resetView(); curMission=m;
     if(!m||!Array.isArray(m.cells))throw new Error("format invalide");
     cells=m.cells.map((c,i)=>{const ct=polyCentroid(c.poly);return {id:i,poly:c.poly,cx:ct[0],cy:ct[1],nb:[],terr:c.terr||"plain",elev:c.elev||0,zone:c.zone};});
     buildAdj();
     walls=new Set((Array.isArray(m.walls)?m.walls:[]).filter(k=>wallSeg.has(k)));
     units=(m.units||[]).map(u=>U(u.team,u.cls,u.cell,{name:u.name,pod:u.pod,asleep:u.asleep,hostage:u.hostage,facing:u.facing})).filter(u=>cells[u.cell]);
     triggers=Array.isArray(m.triggers)?m.triggers:[]; renderTrigList();
+    { const mp=document.getElementById("m-protect"),mf=document.getElementById("m-fullheal"),ml=document.getElementById("m-loot"); if(mp)mp.value=m.protect!=null?m.protect:""; if(mf)mf.checked=!!m.fullheal; if(ml)ml.value=m.loot||0; }
     if(m.form){ if(m.form.infl){infl=m.form.infl; ROWS=infl.length; COLS=(infl[0]&&infl[0].length)||COLS; W=COLS*MC;H=ROWS*MC; cv.width=W;cv.height=H;
         const bw=document.getElementById("bw"),bh=document.getElementById("bh"); if(bw)bw.value=COLS; if(bh)bh.value=ROWS; }
       if(m.form.dist!=null){distEl.value=m.form.dist;document.getElementById("distv").textContent=m.form.dist+"%";} if(m.form.dens!=null){dens.value=m.form.dens;document.getElementById("densv").textContent=m.form.dens;} if(m.form.seed!=null)seed=m.form.seed; }
@@ -853,23 +864,25 @@
   function setView(v){ document.body.classList.remove("view-mission","view-campaign","view-play"); document.body.classList.add("view-"+v); mode=(v==="play")?"play":"edit";
     const cur={mission:"nav-m",campaign:"nav-c",play:"nav-p"}[v]; ["nav-m","nav-c","nav-p"].forEach(id=>{const a=document.getElementById(id);if(a)a.classList.toggle("cur",id===cur);});
     if(v==="campaign"){ const cg2=document.getElementById("cgraph"); if(cg2&&cg2.getBoundingClientRect){ const w=Math.round(cg2.getBoundingClientRect().width)||880,h=Math.round(cg2.getBoundingClientRect().height)||340; if(w>1){cg2.width=w;cg2.height=h;} if(typeof drawGraph==="function")drawGraph(); } } }
-  function startCampaign(camp,from,fromNode){ campRun={camp,carry:{},nodeId:null,from:from||"campaign"}; document.body.classList.remove("testing"); setView("play"); runNode(fromNode||camp.start); }
+  function startCampaign(camp,from,fromNode){ campRun={camp,carry:{},nodeId:null,from:from||"campaign",seen:new Set(),potions:0}; document.body.classList.remove("testing"); setView("play"); runNode(fromNode||camp.start); }
   async function startPlay(){ let camp=loadCampDraft();
     if(!camp){ const t=await fetchText("campaigns-mesh/principale.json",ghCfg()); if(t){try{camp=JSON.parse(t);}catch(e){}} }
     if(camp&&Array.isArray(camp.nodes)&&camp.nodes.length){ startCampaign({name:camp.name||"",start:camp.start||(camp.nodes[0]&&camp.nodes[0].id),nodes:camp.nodes},"play"); }
     else { document.body.classList.add("testing"); setView("play"); startGame(); } }
   function runNode(id){ if(!campRun)return; const n=campRun.camp.nodes.find(x=>x.id===id); if(!n){endCampaignRun("Campagne terminée.");return;} campRun.nodeId=id;
-    if(n.type==="text"){resolveText(n.text,n.file).then(t=>showCampText(t||"…",()=>runNode(n.next)));return;}
+    if(n.type==="text"){ if(campRun.seen&&campRun.seen.has(id)){runNode(n.next);return;} if(campRun.seen)campRun.seen.add(id); resolveText(n.text,n.file).then(t=>showCampText(t||"…",()=>runNode(n.next)));return;}
     if(n.type==="choice"){showChoice(n);return;}
     loadMissionNode(n,false); }
   async function loadMissionNode(n,retry){ const t=await fetchText("missions-mesh/"+n.mission,ghCfg()); if(!t){showCampText("Mission introuvable : "+n.mission,()=>endCampaignRun("Fin."));return;}
     try{applyMissionObj(JSON.parse(t));}catch(e){showCampText("Mission illisible.",()=>endCampaignRun("Fin."));return;}
-    const begin=()=>{ startGame(); applyCarry(); refresh(); };
+    const begin=()=>{ startGame(); if(!(curMission&&curMission.fullheal))applyCarry(); refresh(); };   // soin complet : on garde les PV pleins de startGame
     begin();   // la carte d'abord ; le texte d'intro est superposé en bas, par-dessus le jeu
-    if(!retry&&(n.intro||n.introFile)){ introBlocking=true;   // on ne peut pas jouer avant d'avoir lu toute l'intro
+    const introSeen=campRun&&campRun.seen&&campRun.seen.has(n.id+":intro");
+    if(!retry&&!introSeen&&(n.intro||n.introFile)){ if(campRun&&campRun.seen)campRun.seen.add(n.id+":intro"); introBlocking=true;   // on ne peut pas jouer avant d'avoir lu toute l'intro
       resolveText(n.intro,n.introFile).then(txt=>{ if(txt)playText(txt,true,()=>{introBlocking=false;hideStory();setMsg("");}); else {introBlocking=false;} }); } }
   function campEnd(t){ const win=t.indexOf("Victoire")===0, n=campRun.camp.nodes.find(x=>x.id===campRun.nodeId);
-    if(win){ saveCarry(); const after=()=>{ if(n&&n.win)runNode(n.win); else endCampaignRun("Campagne terminée — victoire !"); }; resolveText(n&&n.outro,n&&n.outroFile).then(txt=>{ if(txt)playText(txt,true,after); else after(); }); }
+    if(win){ saveCarry(); if(campRun)campRun.potions=(inv.potion||0)+((curMission&&curMission.loot)||0);   // butin : potions restantes + récompense de mission
+      const after=()=>{ if(n&&n.win)runNode(n.win); else endCampaignRun("Campagne terminée — victoire !"); }; resolveText(n&&n.outro,n&&n.outroFile).then(txt=>{ if(txt)playText(txt,true,after); else after(); }); }
     else { if(n&&n.lose)runNode(n.lose); else showCampText("Mission échouée…",()=>loadMissionNode(n,true)); } }
   function endCampaignRun(msg){ const from=campRun?campRun.from:"campaign"; showCampText(msg,()=>{ campRun=null;
     if(from==="play"){ setView("play"); const t=document.getElementById("title"); if(t)t.style.display="flex"; }
