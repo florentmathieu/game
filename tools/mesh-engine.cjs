@@ -29,6 +29,9 @@ function loadMesh(htmlPath){
     get lastOutcome(){return lastOutcome}, set lastOutcome(v){lastOutcome=v},
     get curMission(){return curMission}, set curMission(v){curMission=v},
     get turnNum(){return turnNum}, set turnNum(v){turnNum=v},
+    get geoPlay(){return geoPlay}, set geoPlay(v){geoPlay=v},
+    get campRun(){return campRun}, set campRun(v){campRun=v},
+    geoMissionEnd,
   };
   `;
   src = src.replace(/\}\)\(\);\s*$/, EXPORT + "\n})();");
