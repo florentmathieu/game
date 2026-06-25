@@ -1,5 +1,7 @@
 tools/balance.log
 tools/balance.out
+tools/sim-results.json
+tools/sim-mesh.log
 
 # Artefacts LaTeX
 *.aux
