@@ -1,2 +1,8 @@
 tools/balance.log
 tools/balance.out
+
+# Artefacts LaTeX
+*.aux
+*.log
+*.out
+*.toc
