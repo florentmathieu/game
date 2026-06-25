@@ -31,7 +31,8 @@ function loadMesh(htmlPath){
     get turnNum(){return turnNum}, set turnNum(v){turnNum=v},
     get geoPlay(){return geoPlay}, set geoPlay(v){geoPlay=v},
     get campRun(){return campRun}, set campRun(v){campRun=v},
-    geoMissionEnd,
+    geoMissionEnd, awardXp, pendingPromotions, gradeFromXp, applyPerkMods, deployRoster,
+    get PERKS(){return PERKS}, get GRADES(){return GRADES},
   };
   `;
   src = src.replace(/\}\)\(\);\s*$/, EXPORT + "\n})();");
