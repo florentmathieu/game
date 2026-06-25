@@ -760,7 +760,11 @@
     const dist=bfsFrom(anchor.id); const reachIds=pass.map(c=>c.id).filter(id=>dist[id]!==undefined);
     const maxD=Math.max(1,...reachIds.map(id=>dist[id]));
     const S=P.squad!=null?P.squad:(diff==="facile"?3:4);
-    const slots=reachIds.slice().sort((a,b)=>dist[a]-dist[b]).slice(0,S);
+    // déploiement étalé : on prend des cases proches de l'ancre MAIS espacées (≥2 sauts) pour
+    // que chaque unité garde des voisins libres et ne soit pas murée par ses coéquipiers
+    const sortedSlots=reachIds.slice().sort((a,b)=>dist[a]-dist[b]); const slots=[];
+    for(const id of sortedSlots){ if(slots.length>=S)break; if(slots.every(s=>hops(s,id)>=2))slots.push(id); }
+    for(const id of sortedSlots){ if(slots.length>=S)break; if(!slots.includes(id))slots.push(id); }
     units=[]; const pcls=P.squadClasses||["sergent","sapeur","assassin","garde"]; slots.forEach((id,i)=>units.push(U("player",pcls[i%pcls.length],id)));
     const podCount=P.podCount!=null?P.podCount:(diff==="facile"?1:diff==="moyen"?2:3);   // calibré par sim (P2)
     const podSpacing=P.podSpacing!=null?P.podSpacing:4;                              // distance MIN entre pods (sauts) — ≥4 = activation séquentielle
@@ -771,8 +775,15 @@
     const podAnchors=[]; for(const id of far){ if(podAnchors.length>=podCount)break; if(podAnchors.every(a=>hops(a,id)>=podSpacing))podAnchors.push(id); }
     if(!podAnchors.length&&far.length)podAnchors.push(far[0]);
     const ecls=P.enemyClasses||["garde","archer","brute"], occSet=new Set(units.map(u=>u.cell));
-    podAnchors.forEach((anc,pi)=>{ const spots=[anc,...cells[anc].nb.filter(n=>passable(n)&&!occSet.has(n))]; const n=podSize[0]+Math.floor(rnd()*(podSize[1]-podSize[0]+1));
-      for(let j=0;j<n&&j<spots.length;j++){ if(occSet.has(spots[j]))continue; units.push(U("enemy",ecls[(pi+j)%ecls.length],spots[j],{pod:pi,asleep:j>0})); occSet.add(spots[j]); } });
+    podAnchors.forEach((anc,pi)=>{ const ball=bfsBall(anc,2);   // pool autour de l'ancre (rayon 2) plutôt que les seuls voisins immédiats
+      const pool=Object.keys(ball).map(Number).filter(id=>passable(id)&&!occSet.has(id)).sort((a,b)=>ball[a]-ball[b]);
+      const n=podSize[0]+Math.floor(rnd()*(podSize[1]-podSize[0]+1));
+      const chosen=[];   // membres espacés (≥2 sauts) pour qu'aucun (surtout le leader éveillé) ne soit muré par un coéquipier endormi
+      for(const id of pool){ if(chosen.length>=n)break; if(chosen.every(c=>hops(c,id)>=2))chosen.push(id); }
+      for(const id of pool){ if(chosen.length>=n)break; if(!chosen.includes(id))chosen.push(id); }
+      // le leader (éveillé) = la case la plus dégagée, pour qu'il puisse toujours engager
+      chosen.sort((a,b)=>cells[b].nb.filter(x=>passable(x)).length-cells[a].nb.filter(x=>passable(x)).length);
+      chosen.forEach((id,j)=>{ units.push(U("enemy",ecls[(pi+j)%ecls.length],id,{pod:pi,asleep:j>0})); occSet.add(id); }); });
     if(!units.some(u=>u.team==="enemy")){ const f=reachIds.filter(id=>!slots.includes(id)).sort((a,b)=>dist[b]-dist[a]); for(let j=0;j<2&&j<f.length;j++)units.push(U("enemy",ecls[j%ecls.length],f[j],{pod:0,asleep:j>0})); }
     if(document.getElementById("m-protect"))document.getElementById("m-protect").value="";   // élimination
     triggers=[]; renderTrigList(); refresh();

@@ -1,8 +1,3 @@
-// ⚠ LIMITE CONNUE : le déplacement d'ESCOUADE (4 unités) souffre d'agglutination
-// (cooperative pathfinding) — les unités se bloquent mutuellement à un anneau de distance
-// et n'atteignent pas l'ennemi -> beaucoup de timeouts. Confirmé par captures (terrain ouvert,
-// pas de mur/falaise). L'IA naïve de sim-mesh.cjs engage ~50% ; celle-ci moins. À retravailler
-// avec une vraie résolution coopérative (réservation de cases / yield) ou des duels 1v-pod.
 // IA tactique partagée pour le banc d'essai. Principe : TOUJOURS agir.
 // 1) énumère les cases atteignables d'où l'on peut tirer en gardant >=1 PA, et choisit
 //    le tir de meilleure espérance (chance réelle × dégâts × priorité au kill, + hauteur) ;
@@ -24,13 +19,25 @@ function makeActUnit(M){
           const score=(ch/100)*dmg*(kill?2.5:1) - apCost*0.15 + (M.cells[c].elev||0)*0.2;
           if(!bestAtk||score>bestAtk.score)bestAtk={c,t,m,score}; } } }
       if(bestAtk){ if(bestAtk.c!==u.cell)M.moveAlong(u,bestAtk.c); if(u.ap>0)M.doAttack(u,bestAtk.t,bestAtk.m); return; }
-      // pas de tir : avancer vers la case ATTEIGNABLE la plus proche de l'ennemi (sauts) — simple et robuste
+      // pas de tir : avancer vers l'ennemi le plus proche.
+      // On choisit la case ATTEIGNABLE qui minimise (sauts vers l'ennemi, puis distance physique).
+      // hops ignore le brouillard : viser la frontière de vision la plus proche de l'ennemi fait
+      // progresser même quand le chemin contourne un rocher (pas besoin d'un STRICT rapprochement,
+      // sinon l'unité se fige dans une poche). Mémoire courte anti-va-et-vient.
       const foe=M.nearestOpposing(u); if(!foe)return;
-      const cur=M.hops(u.cell,foe.cell);
-      let best=null,bk=cur;                                            // n'accepter qu'un STRICT rapprochement (anti-oscillation)
-      for(const cs in d){ const c=+cs; if(c===u.cell)continue; const h=M.hops(c,foe.cell); if(h<bk){bk=h;best=c;} }
-      if(best==null)return;                                            // bloqué (cases avant occupées) : tenir, laisser passer les autres
+      const fc=M.cells[foe.cell];
+      const recent=u.__recent||(u.__recent=[]);
+      let best=null,bestKey=Infinity;
+      for(const cs in d){ const c=+cs; if(c===u.cell)continue;
+        const cc=M.cells[c];
+        const h=M.hops(c,foe.cell);
+        const eu=Math.hypot(cc.cx-fc.cx,cc.cy-fc.cy);
+        const pen=recent.includes(c)?1e7:0;                            // éviter de revenir sur ses pas
+        const key=h*1e5 + eu + pen;
+        if(key<bestKey){bestKey=key;best=c;} }
+      if(best==null)return;                                            // aucune case libre : tenir, laisser passer les autres
       M.moveAlong(u,best);
+      recent.push(u.cell); if(recent.length>5)recent.shift();          // u.cell = destination après moveAlong
     }
   };
 }
