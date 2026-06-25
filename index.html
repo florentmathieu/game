@@ -533,8 +533,16 @@
     if(usingItem&&sel){if(u&&u.team==="player")applyItem(u);else setMsg("Choisis un allié (soi ou adjacent).");return;}
     if(u&&u.team==="player"){ if(u===sel&&!throwing&&!usingItem){u.facing=norm((u.facing||0)+Math.PI/4);refresh();return;}   // re-cliquer son unité sélectionnée = la faire pivoter (45°, gratuit)
       sel=u;amode=null;aimTarget=null;throwing=false;usingItem=false;refresh();return;}if(!sel)return;
-    if(u&&hostile(sel,u)&&u.hp>0&&seen(u)){ let m=(amode&&sel.w[amode]&&inRange(sel,u,amode))?amode:["ranged","melee"].find(mm=>sel.w[mm]&&(mm!=="ranged"||sel.clip===undefined||sel.ammo>0)&&inRange(sel,u,mm)); if(!m)setMsg("Hors de portée / sans vue."); else if(sel.ap<=0)setMsg("Plus de PA pour attaquer."); else doAttack(sel,u,m); return; }
+    if(u&&hostile(sel,u)&&u.hp>0&&seen(u)){ let m=(amode&&sel.w[amode]&&inRange(sel,u,amode))?amode:["ranged","melee"].find(mm=>sel.w[mm]&&(mm!=="ranged"||sel.clip===undefined||sel.ammo>0)&&inRange(sel,u,mm)); if(m){ if(sel.ap>0)doAttack(sel,u,m); else setMsg("Plus de PA pour attaquer."); } else moveToAttack(sel,u); return; }
     const d=reach(sel);if(d[id]!==undefined){moveAlong(sel,id);if(!over)emit("move",{actorName:sel.name,actorCls:sel.cls,actorTeam:"player"});refresh();}}
+  // clic sur un ennemi hors de portée : on s'approche puis on attaque (mouvement + attaque en un clic)
+  function moveToAttack(att,u){ const usableR=att.w.ranged&&(att.clip===undefined||att.ammo>0);
+    const m=(amode&&att.w[amode])?amode:(usableR?"ranged":(att.w.melee?"melee":null)); if(!m){setMsg("Pas d'arme.");return;} const w=att.w[m];
+    const d=reach(att); const canHit=cell=> m==="ranged" ? (hops(cell,u.cell)<=(w.range||1)&&los(cell,u.cell)) : adjacent(cell,u.cell);
+    let best=null,bc=Infinity; for(const k in d){ const cell=+k; if(!canHit(cell))continue; if(apForMove(att,d[k])>=att.ap)continue; if(d[k]<bc){bc=d[k];best=cell;} }   // case d'où l'on pourra frapper, en gardant ≥1 PA
+    if(best==null){ setMsg("Hors de portée / sans vue."); return; }
+    moveAlong(att,best); if(!over)emit("move",{actorName:att.name,actorCls:att.cls,actorTeam:"player"}); refresh();
+    setTimeout(()=>{ if(!over&&att.hp>0&&u.hp>0&&att.ap>0&&inRange(att,u,m))doAttack(att,u,m); refresh(); }, anim?anim.dur+120:60); }
 
   // ===== rendu =====
   const terrFill={plain:"#3a6e4c",rough:"#7a6326",wall:"#3a6e4c",cover:"#46663f"};
