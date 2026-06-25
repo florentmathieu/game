@@ -817,7 +817,7 @@
   renderTrigList();
 
   // ===== campagne à nœuds (textes / missions / choix) + persistance PV =====
-  let campRun=null, campNodes=[], campStart="", nodeSeq=0, repoTexts=[], campSel=null, repoGeoscapes=[];
+  let campRun=null, campNodes=[], campStart="", nodeSeq=0, repoTexts=[], campSel=null, repoGeoscapes=[], campRoster=[];
   const cname=document.getElementById("cname"),cloadsel=document.getElementById("cloadsel"),cstatus=document.getElementById("cstatus");
   const esc=s=>(s||"").replace(/"/g,"&quot;");
   const newId=()=>{ let id; do{ id="n"+(++nodeSeq); }while(campNodes.some(n=>n.id===id)); return id; };   // jamais d'id déjà utilisé (sinon collision après chargement)
@@ -856,11 +856,11 @@
       saveCampDraft(); drawGraph(); }; inp.tagName==="SELECT"?inp.onchange=set:inp.oninput=set; });
     el.querySelector("[data-del]").onclick=()=>{campNodes=campNodes.filter(x=>x.id!==n.id);if(campStart===n.id)campStart=campNodes[0]?campNodes[0].id:"";campSel=campNodes[0]?campNodes[0].id:null;renderNodes();};
     el.querySelector("[data-setstart]").onclick=()=>{campStart=n.id;renderNodes();};
-    el.querySelector("[data-testhere]").onclick=()=>{ if(!campNodes.length)return; startCampaign({name:cname.value,start:campStart,nodes:campNodes},"campaign",n.id); };
+    el.querySelector("[data-testhere]").onclick=()=>{ if(!campNodes.length)return; startCampaign({name:cname.value,start:campStart,roster:campRoster,nodes:campNodes},"campaign",n.id); };
     const ao=el.querySelector("[data-addopt]"); if(ao)ao.onclick=()=>{n.options=n.options||[];n.options.push(campNodes[0]?campNodes[0].id:"");renderDetail();drawGraph();saveCampDraft();};
     el.querySelectorAll("[data-optsel]").forEach(s=>s.onchange=()=>{n.options[+s.dataset.optsel]=s.value;drawGraph();saveCampDraft();});
     el.querySelectorAll("[data-optdel]").forEach(b=>b.onclick=()=>{n.options.splice(+b.dataset.optdel,1);renderDetail();drawGraph();saveCampDraft();}); }
-  function saveCampDraft(){ try{ localStorage.setItem("mgf_camp_draft_mesh", JSON.stringify({name:cname.value,start:campStart,nodes:campNodes})); }catch(e){} }
+  function saveCampDraft(){ try{ localStorage.setItem("mgf_camp_draft_mesh", JSON.stringify({name:cname.value,start:campStart,roster:campRoster,nodes:campNodes})); }catch(e){} }
   function loadCampDraft(){ try{ const d=JSON.parse(localStorage.getItem("mgf_camp_draft_mesh")||"null"); if(d&&Array.isArray(d.nodes)&&d.nodes.length) return d; }catch(e){} return null; }
   // graphe visuel de la campagne (nœuds déplaçables, liens colorés)
   const cg=document.getElementById("cgraph"),cgx=cg?cg.getContext("2d"):null; let cgDrag=null,cgOff=[0,0],cgMoved=false; const NW=92,NH=34;
@@ -896,16 +896,16 @@
   document.getElementById("cadd-geo").onclick=()=>{const n={id:newId(),type:"geoscape",map:(repoGeoscapes[0]?repoGeoscapes[0].file:""),endWhen:{kind:"all",name:""},next:null};campNodes.push(n);if(!campStart)campStart=n.id;campSel=n.id;renderNodes();};
   function fillCampLoad(list){ cloadsel.innerHTML=list.length?list.map(x=>`<option value="${x.file}">${x.name}</option>`).join(""):`<option value="">(aucune)</option>`; }
   async function fetchCampaigns(){ const t=await fetchText("campaigns-mesh/list.json",ghCfg()); let list=[];if(t){try{const p=JSON.parse(t);if(Array.isArray(p))list=p;}catch(e){}} fillCampLoad(list); }
-  async function campLoad(){ const f=cloadsel.value; if(!f)return; const t=await fetchText("campaigns-mesh/"+f,ghCfg()); if(!t){cstatus.textContent="Introuvable.";return;} try{const c=JSON.parse(t);cname.value=c.name||"";campNodes=c.nodes||[];campStart=c.start||(campNodes[0]&&campNodes[0].id)||"";renderNodes();cstatus.textContent="Chargée : "+f;}catch(e){cstatus.textContent="JSON invalide.";} }
+  async function campLoad(){ const f=cloadsel.value; if(!f)return; const t=await fetchText("campaigns-mesh/"+f,ghCfg()); if(!t){cstatus.textContent="Introuvable.";return;} try{const c=JSON.parse(t);cname.value=c.name||"";campNodes=c.nodes||[];campStart=c.start||(campNodes[0]&&campNodes[0].id)||"";campRoster=c.roster||[];renderNodes();cstatus.textContent="Chargée : "+f;}catch(e){cstatus.textContent="JSON invalide.";} }
   document.getElementById("cload").onclick=campLoad;
   async function campSave(){ const cfg=ghCfg(),name=(cname.value||"").trim(); if(!name){cstatus.textContent="Nom de campagne requis.";return;} if(!cfg.token){cstatus.textContent="Token requis.";return;}
-    const file=(name.toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/(^-|-$)/g,"")||"camp")+".json"; const camp={name,start:campStart,nodes:campNodes};
+    const file=(name.toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/(^-|-$)/g,"")||"camp")+".json"; const camp={name,start:campStart,roster:campRoster,nodes:campNodes};
     try{ cstatus.textContent="Publication…"; await ghPut("campaigns-mesh/"+file,JSON.stringify(camp),"Campagne maillage : "+name,cfg);
       const cur=await ghGet("campaigns-mesh/list.json",cfg.branch,cfg);let list=[];if(cur){try{const p=JSON.parse(cur.text);if(Array.isArray(p))list=p;}catch(e){}}
       if(list.some(x=>x.file===file))list=list.map(x=>x.file===file?{file,name}:x);else list.push({file,name});
       await ghPut("campaigns-mesh/list.json",JSON.stringify(list),"list camp : "+name,cfg); fillCampLoad(list); cstatus.textContent="✓ Campagne publiée."; }catch(e){cstatus.textContent="Échec : "+e.message;} }
   document.getElementById("csave").onclick=campSave;
-  document.getElementById("cplay").onclick=()=>{ if(!campNodes.length){cstatus.textContent="Ajoute au moins un nœud.";return;} if(!campNode(campStart)){cstatus.textContent="Choisis un nœud de départ.";return;} startCampaign({name:cname.value,start:campStart,nodes:campNodes},"campaign"); };
+  document.getElementById("cplay").onclick=()=>{ if(!campNodes.length){cstatus.textContent="Ajoute au moins un nœud.";return;} if(!campNode(campStart)){cstatus.textContent="Choisis un nœud de départ.";return;} startCampaign({name:cname.value,start:campStart,roster:campRoster,nodes:campNodes},"campaign"); };
   // lecteur de texte paginé : pages séparées par une ligne « _ », « Nom : … » en doré, bouton « … » pour passer.
   const escTxt=s=>(s||"").replace(/[&<>]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;"}[c]));
   function fmtPage(s){ return s.split("\n").map(l=>l.replace(/\s+$/,"")).filter(l=>l.length).map(l=>{ const m=l.match(/^([\wÀ-ÿ '.\-]{1,18}):\s(.*)$/); return m?`<span class="sp-who">${escTxt(m[1])}</span> ${escTxt(m[2])}`:escTxt(l); }).join("<br>"); }
@@ -932,14 +932,22 @@
     body.querySelectorAll("[data-go]").forEach(b=>b.onclick=()=>{el.classList.remove("show");btn.style.display="";runNode(b.dataset.go);}); }
   function applyCarry(){ if(!campRun)return; for(const u of units)if(u.team==="player"){const c=campRun.carry[u.name];if(c!=null)u.hp=Math.max(1,Math.min(u.max,c));} }
   function saveCarry(){ if(!campRun)return; for(const u of units)if(u.team==="player")campRun.carry[u.name]=Math.max(0,u.hp); }
+  // Phase A — en campagne, on remplace les unités joueur pré-placées de la mission par le ROSTER persistant
+  // (les emplacements de la mission servent de slots de déploiement ; PV restaurés ensuite par applyCarry).
+  function deployRoster(){ if(!campRun||!campRun.roster||!campRun.roster.length)return;
+    const slots=units.filter(u=>u.team==="player").sort((a,b)=>(cells[a.cell].cy-cells[b.cell].cy)||(cells[a.cell].cx-cells[b.cell].cx));
+    if(!slots.length)return; const others=units.filter(u=>u.team!=="player"); const placed=[];
+    for(let i=0;i<slots.length&&i<campRun.roster.length;i++){ const m=campRun.roster[i]; if(!CLASSES[m.cls])continue;
+      placed.push(U("player",m.cls,slots[i].cell,{name:m.name,facing:slots[i].facing})); }
+    units=others.concat(placed); }
   function setView(v){ document.body.classList.remove("view-mission","view-campaign","view-geoscape","view-play"); document.body.classList.add("view-"+v); mode=(v==="play")?"play":"edit";
     const cur={mission:"nav-m",campaign:"nav-c",geoscape:"nav-g",play:"nav-p"}[v]; ["nav-m","nav-c","nav-g","nav-p"].forEach(id=>{const a=document.getElementById(id);if(a)a.classList.toggle("cur",id===cur);});
     if(v==="campaign"){ const cg2=document.getElementById("cgraph"); if(cg2&&cg2.getBoundingClientRect){ const w=Math.round(cg2.getBoundingClientRect().width)||880,h=Math.round(cg2.getBoundingClientRect().height)||340; if(w>1){cg2.width=w;cg2.height=h;} if(typeof drawGraph==="function")drawGraph(); } }
     if(v==="geoscape"&&typeof geoEnter==="function")geoEnter(); }
-  function startCampaign(camp,from,fromNode){ campRun={camp,carry:{},nodeId:null,from:from||"campaign",seen:new Set(),potions:0}; document.body.classList.remove("testing"); setView("play"); runNode(fromNode||camp.start); }
+  function startCampaign(camp,from,fromNode){ campRun={camp,carry:{},roster:(camp.roster||[]).map(m=>({name:m.name,cls:m.cls})),nodeId:null,from:from||"campaign",seen:new Set(),potions:0}; document.body.classList.remove("testing"); setView("play"); runNode(fromNode||camp.start); }
   async function startPlay(){ let camp=loadCampDraft();
     if(!camp){ const t=await fetchText("campaigns-mesh/principale.json",ghCfg()); if(t){try{camp=JSON.parse(t);}catch(e){}} }
-    if(camp&&Array.isArray(camp.nodes)&&camp.nodes.length){ startCampaign({name:camp.name||"",start:camp.start||(camp.nodes[0]&&camp.nodes[0].id),nodes:camp.nodes},"play"); }
+    if(camp&&Array.isArray(camp.nodes)&&camp.nodes.length){ startCampaign({name:camp.name||"",start:camp.start||(camp.nodes[0]&&camp.nodes[0].id),roster:camp.roster||[],nodes:camp.nodes},"play"); }
     else { document.body.classList.add("testing"); setView("play"); startGame(); } }
   function runNode(id){ if(!campRun)return; const n=campRun.camp.nodes.find(x=>x.id===id); if(!n){endCampaignRun("Campagne terminée.");return;} campRun.nodeId=id;
     if(n.type==="text"){ if(campRun.seen&&campRun.seen.has(id)){runNode(n.next);return;} if(campRun.seen)campRun.seen.add(id); resolveText(n.text,n.file).then(t=>showCampText(t||"…",()=>runNode(n.next)));return;}
@@ -948,7 +956,7 @@
     loadMissionNode(n,false); }
   async function loadMissionNode(n,retry){ const t=await fetchText("missions-mesh/"+n.mission,ghCfg()); if(!t){showCampText("Mission introuvable : "+n.mission,()=>endCampaignRun("Fin."));return;}
     try{applyMissionObj(JSON.parse(t));}catch(e){showCampText("Mission illisible.",()=>endCampaignRun("Fin."));return;}
-    const begin=()=>{ startGame(); if(!(curMission&&curMission.fullheal))applyCarry(); refresh(); };   // soin complet : on garde les PV pleins de startGame
+    const begin=()=>{ deployRoster(); startGame(); if(!(curMission&&curMission.fullheal))applyCarry(); refresh(); };   // déploie le roster, puis soin complet : on garde les PV pleins de startGame
     begin();   // la carte d'abord ; le texte d'intro est superposé en bas, par-dessus le jeu
     const introSeen=campRun&&campRun.seen&&campRun.seen.has(n.id+":intro");
     if(!retry&&!introSeen&&(n.intro||n.introFile)){ if(campRun&&campRun.seen)campRun.seen.add(n.id+":intro"); introBlocking=true;   // on ne peut pas jouer avant d'avoir lu toute l'intro
@@ -961,7 +969,7 @@
   function endCampaignRun(msg){ const from=campRun?campRun.from:"campaign"; geoPlay=null; document.body.classList.remove("geomap"); showCampText(msg,()=>{ campRun=null;
     if(from==="play"){ setView("play"); const t=document.getElementById("title"); if(t)t.style.display="flex"; }
     else { setView("campaign"); refresh(); } }); }
-  { const cd=loadCampDraft(); if(cd){ cname.value=cd.name||""; campNodes=cd.nodes||[]; campStart=cd.start||(campNodes[0]&&campNodes[0].id)||""; } }  // restaure le brouillon AVANT le 1er rendu (sinon saveCampDraft l'écrase)
+  { const cd=loadCampDraft(); if(cd){ cname.value=cd.name||""; campNodes=cd.nodes||[]; campStart=cd.start||(campNodes[0]&&campNodes[0].id)||""; campRoster=cd.roster||[]; } }  // restaure le brouillon AVANT le 1er rendu (sinon saveCampDraft l'écrase)
   renderNodes(); fetchCampaigns(); fetchTexts();
 
   // ===== jeu =====
@@ -1170,7 +1178,7 @@
     let m; try{ m=JSON.parse(t); }catch(e){ geoBanner("mission illisible"); return; }
     campRun.geoReturn={nodeId:geoPlay.node.id,cellId}; geoPlay.inMission=true; document.body.classList.remove("geomap");
     try{ applyMissionObj(m); }catch(e){ geoBanner("mission illisible"); geoPlay.inMission=false; document.body.classList.add("geomap"); return; }
-    startGame(); if(!(curMission&&curMission.fullheal))applyCarry(); refresh(); }
+    deployRoster(); startGame(); if(!(curMission&&curMission.fullheal))applyCarry(); refresh(); }
   function geoEndReached(node,st){ const ew=node.endWhen||{kind:"all"}; const cs=geoPlay.map.cells;
     if(ew.kind==="key"){ const idx=cs.findIndex(c=>(c.name||"")===(ew.name||"")); return idx>=0&&st[idx]==="cleared"; }
     return cs.every((c,i)=> !(c.type!=="camp"&&c.content&&c.content.kind==="mission") || st[i]==="cleared" || st[i]==="lost"); }
@@ -1190,7 +1198,7 @@
     if(draft&&draft.cells&&draft.cells.length){ try{ applyMissionObj(draft); }catch(e){ defaultBoard(); } }
     else defaultBoard();
     // restaure le brouillon de campagne dans l'éditeur
-    const cd=loadCampDraft(); if(cd){ cname.value=cd.name||""; campNodes=cd.nodes||[]; campStart=cd.start||(campNodes[0]&&campNodes[0].id)||""; renderNodes(); }
+    const cd=loadCampDraft(); if(cd){ cname.value=cd.name||""; campNodes=cd.nodes||[]; campStart=cd.start||(campNodes[0]&&campNodes[0].id)||""; campRoster=cd.roster||[]; renderNodes(); }
     // routage par URL : ?edit = éditeur de mission, ?campaign = éditeur de campagne, défaut = page de jeu
     const params=new URLSearchParams(location.search);
     const view=params.has("edit")?"mission":params.has("campaign")?"campaign":params.has("geoscape")?"geoscape":"play";
