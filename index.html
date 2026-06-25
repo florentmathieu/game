@@ -124,7 +124,7 @@
     <div class="row"><input id="mname" type="text" placeholder="nom de la mission" style="flex:1"></div>
     <div class="row"><label style="font-size:.85rem;display:flex;align-items:center;gap:4px">PNJ à protéger (min)<input id="m-protect" type="number" min="0" placeholder="tous" style="width:54px"></label><label style="font-size:.85rem;display:flex;align-items:center;gap:4px"><input id="m-fullheal" type="checkbox"> soin complet</label></div>
     <div class="row"><label style="font-size:.85rem;display:flex;align-items:center;gap:4px">Butin victoire (potions)<input id="m-loot" type="number" min="0" value="0" style="width:54px"></label></div>
-    <div class="row"><select id="repo-missions" style="flex:1"></select><button id="repo-load">Charger</button></div>
+    <div class="row"><select id="repo-missions" style="flex:1"></select><button id="repo-load">Charger</button><button id="repo-del" title="Supprimer la mission du dépôt">🗑</button></div>
     <div class="row"><button id="repo-save">💾 Enregistrer dans le dépôt</button></div>
     <input id="gh-token" type="password" placeholder="token GitHub (Contents: write)" style="width:100%;margin:2px 0">
     <div class="row"><input id="gh-repo" type="text" value="florentmathieu/game" style="flex:1"><input id="gh-branch" type="text" placeholder="branche" style="flex:1"></div>
@@ -298,7 +298,7 @@
   function apForMove(u,cost){return Math.max(0,Math.ceil((cost-(u.freeAvail?FREE_MP:0))/MOB));}
   function reach(u){const occu=occ();const dist={};dist[u.cell]=0;const pq=[[0,u.cell]];const B=budget(u);
     while(pq.length){let bi=0;for(let i=1;i<pq.length;i++)if(pq[i][0]<pq[bi][0])bi=i;const[d,id]=pq.splice(bi,1)[0];if(d>dist[id])continue;
-      for(const n of cells[id].nb){if(occu.has(n))continue;const c=enterCost(id,n);if(c===null)continue;const nd=d+c;if(nd<=B&&(dist[n]===undefined||nd<dist[n])){dist[n]=nd;pq.push([nd,n]);}}}
+      for(const n of cells[id].nb){if(occu.has(n))continue;if(u.team==="player"&&mode==="play"&&!visible.has(n))continue;const c=enterCost(id,n);if(c===null)continue;const nd=d+c;if(nd<=B&&(dist[n]===undefined||nd<dist[n])){dist[n]=nd;pq.push([nd,n]);}}}   // le joueur ne planifie pas de trajet dans le brouillard
     delete dist[u.cell];return dist;}
   function pathTo(u,goal){const occu=occ();occu.delete(u.cell);const dist={},prev={};dist[u.cell]=0;const pq=[[0,u.cell]];
     while(pq.length){let bi=0;for(let i=1;i<pq.length;i++)if(pq[i][0]<pq[bi][0])bi=i;const[d,id]=pq.splice(bi,1)[0];if(d>dist[id])continue;
@@ -366,7 +366,7 @@
       if(reactTo(u)){startAnim(u,visited);return;} if(over){startAnim(u,visited);return;} }
     startAnim(u,visited); }
   function startAnim(u,ids){ if(typeof requestAnimationFrame==="undefined"||typeof performance==="undefined"||ids.length<2)return;
-    anim={u,pts:ids.map(id=>cells[id]?[cells[id].cx,cells[id].cy]:[0,0]),t0:performance.now(),dur:160*(ids.length-1),t:0};
+    anim={u,pts:ids.map(id=>cells[id]?[cells[id].cx,cells[id].cy]:[0,0]),t0:performance.now(),dur:(u.team==="enemy"?240:160)*(ids.length-1),t:0};   // ennemi plus lent = mouvements plus lisibles
     (function loop(now){ if(!anim)return; anim.t=Math.min(1,(now-anim.t0)/anim.dur); draw(); if(anim.t<1)requestAnimationFrame(loop); else {anim=null;draw();} })(performance.now()); }
   function animPos(){ const n=anim.pts.length-1,seg=Math.min(n-1e-9,anim.t*n),i=Math.floor(seg),f=seg-i,a=anim.pts[i],b=anim.pts[i+1]; return [a[0]+(b[0]-a[0])*f,a[1]+(b[1]-a[1])*f]; }
   function doOverwatch(m){ if(!sel||sel.ap<=0||!sel.w[m])return; sel.overwatch=true; sel.owMode=m; sel.ap=0; sel.freeAvail=false; sel.reacted=false; amode=null; setMsg("En vigilance — réagira au mouvement ennemi."); refresh(); }
@@ -727,8 +727,15 @@
     }catch(e){ ghSt.textContent="Échec : "+e.message; } }
   async function loadFromRepo(){ const f=repoSel.value; if(!f)return; const t=await fetchText("missions-mesh/"+f,ghCfg()); if(!t){ghSt.textContent="Introuvable : "+f;return;}
     try{ const m=JSON.parse(t); applyMissionObj(m); mname.value=m.name||""; ghSt.textContent="Chargé : "+f; }catch(e){ ghSt.textContent="JSON invalide."; } }
+  async function ghDelete(path,msg,cfg){ const prev=await ghGet(path,cfg.branch,cfg); if(!prev)return false; const r=await fetch(`https://api.github.com/repos/${cfg.repo}/contents/${path}`,{method:"DELETE",headers:{Authorization:"Bearer "+cfg.token,Accept:"application/vnd.github+json"},body:JSON.stringify({message:msg,sha:prev.sha,branch:cfg.branch})}); return r.ok; }
+  async function deleteFromRepo(){ const f=repoSel.value; if(!f)return; const cfg=ghCfg(); if(!cfg.token){ghSt.textContent="Token GitHub requis.";return;} if(!confirm("Supprimer la mission « "+f+" » du dépôt ?"))return;
+    try{ ghSt.textContent="Suppression de "+f+"…"; await ghDelete("missions-mesh/"+f,"Suppr mission maillage : "+f,cfg);
+      const cur=await ghGet("missions-mesh/list.json",cfg.branch,cfg); let list=[]; if(cur){try{const p=JSON.parse(cur.text);if(Array.isArray(p))list=p;}catch(e){}}
+      list=list.filter(x=>x.file!==f); await ghPut("missions-mesh/list.json",JSON.stringify(list),"list maillage : suppr "+f,cfg);
+      fillRepoMenu(list); ghSt.textContent="✓ Supprimé : "+f; }catch(e){ ghSt.textContent="Échec : "+e.message; } }
   document.getElementById("repo-save").onclick=publishToRepo;
   document.getElementById("repo-load").onclick=loadFromRepo;
+  document.getElementById("repo-del").onclick=deleteFromRepo;
   try{ const tok=localStorage.getItem("mgf_gh_token"); if(tok)ghTok.value=tok; const c=JSON.parse(localStorage.getItem("mgf_gh")||"{}"); if(c.repo)ghRepo.value=c.repo; ghBr.value=c.branch||"claude/intelligent-hypatia-nojupi"; }catch(e){}
   fetchRepoMissions();
 
