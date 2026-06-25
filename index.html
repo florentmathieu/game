@@ -169,6 +169,10 @@
       <div id="cdetail" class="hint">Clique un nœud du graphe pour l'éditer ici.</div>
     </div>
     <select id="cmsel" style="display:none"></select>
+    <h2>Roster (escouade de campagne)</h2>
+    <div class="hint">Les persos déployés dans les missions de cette campagne (PV persistants). Les cases joueur d'une mission servent de slots de déploiement.</div>
+    <div id="rosterlist"></div>
+    <div class="row"><button id="roster-add">+ Membre</button></div>
     <div class="row"><button id="csave">💾 Campagne</button><select id="cloadsel" style="flex:1"></select><button id="cload">📂</button><button id="cplay">▶ Jouer</button></div>
     <div class="hint" id="cstatus"></div>
     </div>
@@ -834,7 +838,18 @@
   async function resolveText(inline,file){ if(file){ const t=await fetchText(file,ghCfg()); if(t!=null)return t; } return inline||""; }
   function renderNodes(){ dedupeNodes(); const cs=document.getElementById("cstart"); if(cs)cs.innerHTML=idOpts(campStart,false);
     if(campSel==null||!campNode(campSel))campSel=campNodes[0]?campNodes[0].id:null;
-    renderDetail(); drawGraph(); saveCampDraft(); }
+    renderDetail(); drawGraph(); renderRosterEditor(); saveCampDraft(); }
+  // éditeur de roster (escouade de campagne) — persos déployés dans les missions
+  const PLAYER_CLASSES=Object.keys(CLASSES).filter(k=>!CLASSES[k].civ);
+  function renderRosterEditor(){ const el=document.getElementById("rosterlist"); if(!el)return;
+    el.innerHTML=campRoster.length?campRoster.map((m,i)=>`<div class="row" data-ri="${i}">
+      <input data-rf="name" type="text" value="${esc(m.name||"")}" placeholder="nom" style="flex:1">
+      <select data-rf="cls">${PLAYER_CLASSES.map(c=>`<option value="${c}"${m.cls===c?" selected":""}>${CLASSES[c].name}</option>`).join("")}</select>
+      <button data-rdel="${i}" title="Retirer">✕</button></div>`).join(""):`<div class="hint">(roster vide — les missions joueront leurs unités placées)</div>`;
+    el.querySelectorAll("[data-ri]").forEach(row=>{ const i=+row.getAttribute("data-ri");
+      row.querySelectorAll("[data-rf]").forEach(inp=>{ const set=()=>{ campRoster[i][inp.dataset.rf]=inp.value; saveCampDraft(); }; inp.tagName==="SELECT"?inp.onchange=set:inp.oninput=set; }); });
+    el.querySelectorAll("[data-rdel]").forEach(b=>b.onclick=()=>{ campRoster.splice(+b.getAttribute("data-rdel"),1); saveCampDraft(); renderRosterEditor(); }); }
+  { const ra=document.getElementById("roster-add"); if(ra)ra.onclick=()=>{ campRoster.push({name:"",cls:PLAYER_CLASSES[0]}); saveCampDraft(); renderRosterEditor(); }; }
   // détail du nœud sélectionné (à droite du graphe)
   function renderDetail(){ const el=document.getElementById("cdetail"); if(!el)return; const n=campNode(campSel);
     if(!n){ el.innerHTML='<div class="hint">Aucun nœud. Ajoute un Texte, une Mission ou un Choix, puis clique-le dans le graphe.</div>'; return; }
