@@ -81,7 +81,7 @@
     background:rgba(10,8,5,.82); border:1px solid #5a4530; border-radius:10px; padding:13px 18px; color:#e8ddc8; font-family:Georgia,serif; box-shadow:0 8px 28px rgba(0,0,0,.6) }
   #storybox.show{ display:block } #storybox-body{ font-size:1.05rem; line-height:1.6; min-height:1.6em; text-align:left }
   #storybox-btn{ float:right; margin-top:8px; color:#caa24a; background:#1c150e; border:1px solid #5a4530; border-radius:6px; padding:3px 13px; font-weight:bold; cursor:pointer }
-  #fiche{ position:fixed; pointer-events:none; display:none; z-index:11; background:rgba(10,8,5,.96); border:1px solid #5a4530; border-radius:8px; padding:7px 10px; font-size:.78rem; color:#e8ddc8; max-width:230px; box-shadow:0 6px 18px rgba(0,0,0,.5) }
+  #fiche{ position:fixed; right:12px; top:12px; pointer-events:none; display:none; z-index:11; background:rgba(10,8,5,.96); border:1px solid #5a4530; border-radius:8px; padding:7px 10px; font-size:.78rem; color:#e8ddc8; max-width:230px; box-shadow:0 6px 18px rgba(0,0,0,.5) }
   #banner{ position:fixed; top:18px; left:50%; transform:translateX(-50%); z-index:11; display:none; padding:8px 18px; border-radius:8px; color:#fff; font-weight:bold; font-size:1.05rem; letter-spacing:1px; box-shadow:0 6px 18px rgba(0,0,0,.5) }
   #banner.show{ display:block; animation:bn 1.6s ease forwards } @keyframes bn{ 0%{opacity:0} 15%{opacity:1} 80%{opacity:1} 100%{opacity:0} }
   #title{ position:fixed; inset:0; background:radial-gradient(circle at 50% 35%,#1a140c,#000); color:#e8ddc8; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:14px; z-index:20; text-align:center; padding:30px }
@@ -417,7 +417,8 @@
     else if(!units.some(u=>u.team==="player"&&u.hp>0))end("Défaite…");}
   function end(t){over=true;emit(t.indexOf("Victoire")===0?"win":"lose",{});if(campRun){campEnd(t);return;}document.getElementById("overtxt").textContent=t;document.getElementById("over").classList.add("show");draw();}
   function log(m,team){if(mode!=="play")return;const el=document.getElementById("log");const d=document.createElement("div");d.className=team==="player"?"pl":"en";d.textContent=m;el.prepend(d);}
-  function setMsg(t){document.getElementById("msg").textContent=t;}
+  let msgT=null;
+  function setMsg(t){const el=document.getElementById("msg");el.textContent=t;if(msgT){clearTimeout(msgT);msgT=null;}if(t)msgT=setTimeout(()=>{el.textContent="";msgT=null;},4000);}   // message éphémère : s'efface tout seul
   function refresh(){ if(mode==="play"){computeVis();detectEnemies();detectNeutralPods();updateEnemyMemory();
       if(turn==="player"&&!over&&sel&&(sel.hp<=0||(sel.ap<=0&&!sel.freeAvail))){ const nxt=units.find(u=>u.team==="player"&&u.hp>0&&!(u.ap<=0&&!u.freeAvail)); if(nxt){sel=nxt;amode=null;aimTarget=null;throwing=false;usingItem=false;} }   // unité épuisée → passe à la suivante
     } else visible=new Set(cells.map(c=>c.id)); draw(); if(mode==="play"){renderActs();renderRoster();maybeAutoEnd();} else { renderCounts(); saveDraft(); } }
@@ -965,7 +966,7 @@
     const h=`<b>${u.name}</b> · ${CLASSES[u.cls].name}<br>PV ${Math.max(0,u.hp)}/${u.max} · ${wn} (${w.aim}%) · portée ${w.range||1}`
         +(u.shieldBlock?` · 🛡 ${u.shieldBlock}%`:"")+(u.parry?` · 🗡 parade ${u.parry}%`:"")+(u.flank?` · dos +${u.flank.back}/flanc +${u.flank.side}`:"")
         +(u.crackers?` · 💣×${u.crackers}`:"")+(u.asleep?" · 💤":"")+(u.pod!==undefined?` · pod ${u.pod}`:"")+(u.overwatch?(u.owMode==="ranged"?" · 👁🏹":" · 👁"):"");
-    f.innerHTML=h; f.style.display="block"; f.style.left=(e.clientX+14)+"px"; f.style.top=(e.clientY+14)+"px"; });
+    f.innerHTML=h; f.style.display="block"; });   // fiche ancrée en haut à droite (ne suit plus le curseur)
   cv.addEventListener("mouseleave",()=>{document.getElementById("fiche").style.display="none"; if(mode==="play"&&hoverCell!=null){hoverCell=null;draw();}});
   function cycleSel(dir){ if(mode!=="play"||turn!=="player")return; const ps=units.filter(u=>u.team==="player"&&u.hp>0); if(!ps.length)return; let i=ps.indexOf(sel); i=(i<0?0:(i+dir+ps.length)%ps.length); sel=ps[i]; amode=null;aimTarget=null;throwing=false;usingItem=false; refresh(); }
   window.addEventListener("keydown",e=>{ if(mode!=="play"||introBlocking||speaking||document.getElementById("camptext").classList.contains("show"))return;
