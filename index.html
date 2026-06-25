@@ -120,6 +120,11 @@
     <h2>2 · Terrain & relief</h2>
     <div class="row" id="terr"></div>
     <div class="row" id="relief"></div>
+    <h2>Génération auto (mission)</h2>
+    <div class="row"><label>Difficulté <select id="gen-diff"><option value="facile">facile</option><option value="moyen" selected>moyen</option><option value="difficile">difficile</option></select></label>
+      <label style="flex:1">Couvert <input id="gen-cover" type="range" min="10" max="50" value="28"></label><span id="gen-coverv">28%</span></div>
+    <div class="row"><button id="gen-mission">🎲 Générer une mission</button></div>
+    <div class="hint">Génère forme (île) + relief/couvert + <b>déploiement & pods</b> (placement par graphe : pods loin du déploiement, espacés, hors de vue). Objectif : élimination. Rejoue à neuf à chaque clic (seed).</div>
     <h2>3 · Unités</h2>
     <div class="row"><select id="uteam"><option value="player">🔵 Allié</option><option value="enemy">🔴 Ennemi</option><option value="neutral">🟡 PNJ/otage</option></select>
       <select id="ucls"></select></div>
@@ -687,6 +692,8 @@
   btnRow(document.getElementById("terr"),[["🟩 Sol","terr:plain"],["⛰ Accidenté","terr:rough"],["🪨 Rocher","terr:wall"],["🧱 Muret","muret"],["🧹 Gomme","gomme-t"]]);
   btnRow(document.getElementById("relief"),[["⬆ élever","elev+"],["⬇ abaisser","elev-"]]);
   { const b=document.createElement("button"); b.textContent="🎲 Profil auto"; b.title="Génère relief, rochers, couverts et murets aléatoires"; b.onclick=()=>autoTerrain(); document.getElementById("relief").appendChild(b); }
+  { const gm=document.getElementById("gen-mission"); if(gm)gm.onclick=()=>genMission();
+    const gc=document.getElementById("gen-cover"); if(gc)gc.oninput=()=>{document.getElementById("gen-coverv").textContent=gc.value+"%";}; }
   document.getElementById("tplace").onclick=()=>{editTool="unit";syncTools();};
   document.getElementById("terase").onclick=()=>{editTool="erase";syncTools();};
   document.getElementById("tpod").onclick=()=>{editTool="pod";syncTools();};
@@ -718,6 +725,37 @@
     cells.forEach(c=>{ if(c.elev>0)return; const r=rnd(); if(r<0.07)c.terr="wall"; else if(r<0.17)c.terr="cover"; });
     cells.forEach(c=>{ for(const n of c.nb){ if(n<=c.id)continue; if(c.terr==="wall"||cells[n].terr==="wall")continue; if(rnd()<0.06)walls.add(wkey(c.id,n)); } });
     refresh(); }
+  // ===== génération procédurale de mission (P1 : scatter densité + placement par graphe) =====
+  function bfsFrom(start){ const d={}; d[start]=0; const q=[start]; while(q.length){const id=q.shift(); for(const n of cells[id].nb){ if(!passable(n))continue; if(d[n]===undefined){d[n]=d[id]+1;q.push(n);} }} return d; }
+  function genMission(){
+    const cover=(+(document.getElementById("gen-cover").value)||28)/100, diff=document.getElementById("gen-diff").value;
+    seed=(seed*1103515245+12345)&0x7fffffff; rebuildShape();   // forme île neuve, vide unités/murets
+    if(!cells.length)return; const rnd=mk((seed^0x51ed2701)>>>0);
+    // relief (2-3 collines) + couvert selon densité
+    cells.forEach(c=>{c.terr="plain";c.elev=0;});
+    const nh=2+Math.floor(rnd()*2);
+    for(let k=0;k<nh;k++){ const hx=rnd()*W,hy=rnd()*H,rad=W*(0.12+rnd()*0.13),pk=1+Math.floor(rnd()*3);
+      cells.forEach(c=>{const dd=Math.hypot(c.cx-hx,c.cy-hy); if(dd<rad)c.elev=Math.min(3,Math.max(c.elev,Math.round(pk*(1-dd/rad))));}); }
+    cells.forEach(c=>{ if(c.elev>0)return; const r=rnd(); if(r<cover*0.35)c.terr="wall"; else if(r<cover)c.terr="rough"; });
+    walls=new Set(); for(const k of wallSeg.keys()){ const ab=k.split("-").map(Number); if(cells[ab[0]].terr==="wall"||cells[ab[1]].terr==="wall")continue; if(rnd()<0.15)walls.add(k); }
+    // placement par graphe
+    const pass=cells.filter(c=>passable(c.id)); if(!pass.length){ triggers=[]; renderTrigList(); refresh(); return; }
+    const anchor=pass.reduce((a,b)=>(b.cx+b.cy)<(a.cx+a.cy)?b:a);   // coin de l'île = zone de déploiement
+    const dist=bfsFrom(anchor.id); const reach=pass.map(c=>c.id).filter(id=>dist[id]!==undefined);
+    const S=diff==="facile"?3:4; const slots=reach.slice().sort((a,b)=>dist[a]-dist[b]).slice(0,S);
+    units=[]; const pcls=["sergent","sapeur","assassin","garde"]; slots.forEach((id,i)=>units.push(U("player",pcls[i%pcls.length],id)));
+    const podCount=diff==="facile"?2:diff==="moyen"?3:4, maxD=Math.max(1,...reach.map(id=>dist[id]));
+    let far=reach.filter(id=>!slots.includes(id)&&dist[id]>=Math.max(3,Math.floor(maxD*0.45))&&!los(anchor.id,id));
+    if(far.length<podCount)far=reach.filter(id=>!slots.includes(id)&&dist[id]>=3);
+    far.sort((a,b)=>dist[b]-dist[a]);
+    const podAnchors=[]; for(const id of far){ if(podAnchors.length>=podCount)break; if(podAnchors.every(a=>hops(a,id)>=3))podAnchors.push(id); }
+    if(!podAnchors.length&&far.length)podAnchors.push(far[0]);
+    const ecls=["garde","archer","brute"], occSet=new Set(units.map(u=>u.cell));
+    podAnchors.forEach((anc,pi)=>{ const spots=[anc,...cells[anc].nb.filter(n=>passable(n)&&!occSet.has(n))]; const n=2+Math.floor(rnd()*2);
+      for(let j=0;j<n&&j<spots.length;j++){ if(occSet.has(spots[j]))continue; units.push(U("enemy",ecls[(pi+j)%ecls.length],spots[j],{pod:pi,asleep:j>0})); occSet.add(spots[j]); } });
+    if(!units.some(u=>u.team==="enemy")){ const f=reach.filter(id=>!slots.includes(id)).sort((a,b)=>dist[b]-dist[a]); for(let j=0;j<2&&j<f.length;j++)units.push(U("enemy",ecls[j%ecls.length],f[j],{pod:0,asleep:j>0})); }
+    if(document.getElementById("m-protect"))document.getElementById("m-protect").value="";   // élimination
+    triggers=[]; renderTrigList(); refresh(); }
   // dispose des zones aléatoires (patchs Voronoi de types), en conservant le terrain posé
   function autoZones(){ const rnd=mk((seed^0x5bd1e995)>>>0),types=["square","hex","pentagon","mix"];
     const nC=3+Math.floor(rnd()*4),cs=[]; for(let k=0;k<nC;k++)cs.push({x:rnd()*COLS,y:rnd()*ROWS,t:types[Math.floor(rnd()*types.length)]});
