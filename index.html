@@ -223,7 +223,8 @@
   let zoom=1,panX=0,panY=0;   // molette = zoom sur la carte
   function clampPan(){ panX=Math.min(0,Math.max(W-W*zoom,panX)); panY=Math.min(0,Math.max(H-H*zoom,panY)); }
   function resetView(){ zoom=1;panX=0;panY=0; }
-  const FREE_MP=2,AP_MAX=2,MOB=3,HEIGHT_BONUS=6,COVER_PEN=30,DEF_BRACE=20,PB={1:30,2:15};
+  let FREE_MP=2,AP_MAX=2,MOB=3;   // mouvement (réglable : paramètre d'équilibrage / génération)
+  const HEIGHT_BONUS=6,COVER_PEN=30,DEF_BRACE=20,PB={1:30,2:15};
   const sword=(a,l,h)=>({type:"melee",aim:a,dmgMin:l,dmgMax:h});
   const bow=(a,l,h,r,c)=>({type:"ranged",aim:a,dmgMin:l,dmgMax:h,range:r,clip:c});
   const dagger=(a,l,h,b,s)=>({type:"melee",aim:a,dmgMin:l,dmgMax:h,flank:{back:b,side:s}});
@@ -739,10 +740,13 @@
     refresh(); }
   // ===== génération procédurale de mission (P1 : scatter densité + placement par graphe) =====
   function bfsFrom(start){ const d={}; d[start]=0; const q=[start]; while(q.length){const id=q.shift(); for(const n of cells[id].nb){ if(!passable(n))continue; if(d[n]===undefined){d[n]=d[id]+1;q.push(n);} }} return d; }
-  function genMission(){
-    const cover=(+(document.getElementById("gen-cover").value)||28)/100, diff=document.getElementById("gen-diff").value;
+  // P (optionnel) = paramètres de génération : cover, diff, squad, podCount, podSpacing, podMinDist, podSize[min,max], classes
+  function genMission(P){ P=P||{};
+    const cover=P.cover!=null?P.cover:((+(document.getElementById("gen-cover").value)||28)/100);
+    const diff=P.diff||(document.getElementById("gen-diff")?document.getElementById("gen-diff").value:"moyen");
+    const podSize=P.podSize||[2,3];
     seed=(seed*1103515245+12345)&0x7fffffff; rebuildShape();   // forme île neuve, vide unités/murets
-    if(!cells.length)return; const rnd=mk((seed^0x51ed2701)>>>0);
+    if(!cells.length)return null; const rnd=mk((seed^0x51ed2701)>>>0);
     // relief (2-3 collines) + couvert selon densité
     cells.forEach(c=>{c.terr="plain";c.elev=0;});
     const nh=2+Math.floor(rnd()*2);
@@ -751,23 +755,28 @@
     cells.forEach(c=>{ if(c.elev>0)return; const r=rnd(); if(r<cover*0.35)c.terr="wall"; else if(r<cover)c.terr="rough"; });
     walls=new Set(); for(const k of wallSeg.keys()){ const ab=k.split("-").map(Number); if(cells[ab[0]].terr==="wall"||cells[ab[1]].terr==="wall")continue; if(rnd()<0.15)walls.add(k); }
     // placement par graphe
-    const pass=cells.filter(c=>passable(c.id)); if(!pass.length){ triggers=[]; renderTrigList(); refresh(); return; }
+    const pass=cells.filter(c=>passable(c.id)); if(!pass.length){ triggers=[]; renderTrigList(); refresh(); return null; }
     const anchor=pass.reduce((a,b)=>(b.cx+b.cy)<(a.cx+a.cy)?b:a);   // coin de l'île = zone de déploiement
-    const dist=bfsFrom(anchor.id); const reach=pass.map(c=>c.id).filter(id=>dist[id]!==undefined);
-    const S=diff==="facile"?3:4; const slots=reach.slice().sort((a,b)=>dist[a]-dist[b]).slice(0,S);
-    units=[]; const pcls=["sergent","sapeur","assassin","garde"]; slots.forEach((id,i)=>units.push(U("player",pcls[i%pcls.length],id)));
-    const podCount=diff==="facile"?2:diff==="moyen"?3:4, maxD=Math.max(1,...reach.map(id=>dist[id]));
-    let far=reach.filter(id=>!slots.includes(id)&&dist[id]>=Math.max(3,Math.floor(maxD*0.45))&&!los(anchor.id,id));
-    if(far.length<podCount)far=reach.filter(id=>!slots.includes(id)&&dist[id]>=3);
+    const dist=bfsFrom(anchor.id); const reachIds=pass.map(c=>c.id).filter(id=>dist[id]!==undefined);
+    const maxD=Math.max(1,...reachIds.map(id=>dist[id]));
+    const S=P.squad!=null?P.squad:(diff==="facile"?3:4);
+    const slots=reachIds.slice().sort((a,b)=>dist[a]-dist[b]).slice(0,S);
+    units=[]; const pcls=P.squadClasses||["sergent","sapeur","assassin","garde"]; slots.forEach((id,i)=>units.push(U("player",pcls[i%pcls.length],id)));
+    const podCount=P.podCount!=null?P.podCount:(diff==="facile"?2:diff==="moyen"?3:4);
+    const podSpacing=P.podSpacing!=null?P.podSpacing:3;                              // distance MIN entre pods (sauts)
+    const podMinDist=P.podMinDist!=null?P.podMinDist:Math.max(3,Math.floor(maxD*0.45));   // distance MIN déploiement→pod
+    let far=reachIds.filter(id=>!slots.includes(id)&&dist[id]>=podMinDist&&!los(anchor.id,id));
+    if(far.length<podCount)far=reachIds.filter(id=>!slots.includes(id)&&dist[id]>=Math.min(podMinDist,3));
     far.sort((a,b)=>dist[b]-dist[a]);
-    const podAnchors=[]; for(const id of far){ if(podAnchors.length>=podCount)break; if(podAnchors.every(a=>hops(a,id)>=3))podAnchors.push(id); }
+    const podAnchors=[]; for(const id of far){ if(podAnchors.length>=podCount)break; if(podAnchors.every(a=>hops(a,id)>=podSpacing))podAnchors.push(id); }
     if(!podAnchors.length&&far.length)podAnchors.push(far[0]);
-    const ecls=["garde","archer","brute"], occSet=new Set(units.map(u=>u.cell));
-    podAnchors.forEach((anc,pi)=>{ const spots=[anc,...cells[anc].nb.filter(n=>passable(n)&&!occSet.has(n))]; const n=2+Math.floor(rnd()*2);
+    const ecls=P.enemyClasses||["garde","archer","brute"], occSet=new Set(units.map(u=>u.cell));
+    podAnchors.forEach((anc,pi)=>{ const spots=[anc,...cells[anc].nb.filter(n=>passable(n)&&!occSet.has(n))]; const n=podSize[0]+Math.floor(rnd()*(podSize[1]-podSize[0]+1));
       for(let j=0;j<n&&j<spots.length;j++){ if(occSet.has(spots[j]))continue; units.push(U("enemy",ecls[(pi+j)%ecls.length],spots[j],{pod:pi,asleep:j>0})); occSet.add(spots[j]); } });
-    if(!units.some(u=>u.team==="enemy")){ const f=reach.filter(id=>!slots.includes(id)).sort((a,b)=>dist[b]-dist[a]); for(let j=0;j<2&&j<f.length;j++)units.push(U("enemy",ecls[j%ecls.length],f[j],{pod:0,asleep:j>0})); }
+    if(!units.some(u=>u.team==="enemy")){ const f=reachIds.filter(id=>!slots.includes(id)).sort((a,b)=>dist[b]-dist[a]); for(let j=0;j<2&&j<f.length;j++)units.push(U("enemy",ecls[j%ecls.length],f[j],{pod:0,asleep:j>0})); }
     if(document.getElementById("m-protect"))document.getElementById("m-protect").value="";   // élimination
-    triggers=[]; renderTrigList(); refresh(); }
+    triggers=[]; renderTrigList(); refresh();
+    return { cells:cells.length, podCount:podAnchors.length, deploy:anchor.id, podAnchors:podAnchors.slice(), maxD, cover, slots:slots.length }; }
   // dispose des zones aléatoires (patchs Voronoi de types), en conservant le terrain posé
   function autoZones(){ const rnd=mk((seed^0x5bd1e995)>>>0),types=["square","hex","pentagon","mix"];
     const nC=3+Math.floor(rnd()*4),cs=[]; for(let k=0;k<nC;k++)cs.push({x:rnd()*COLS,y:rnd()*ROWS,t:types[Math.floor(rnd()*types.length)]});
