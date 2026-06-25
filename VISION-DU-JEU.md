@@ -50,6 +50,8 @@ Tes personnages s'usent : un personnage qui a trop combattu est **épuisé** (ph
 
 Et la perte peut être **définitive** : **tous les personnages sont nommés**, et la plupart peuvent **mourir pour de bon**. Seuls quelques-uns, **indispensables à l'histoire**, sont protégés (ils tombent K.O. au lieu de mourir, sinon le récit se bloquerait). On s'attache donc à *tout le monde* — et chaque perte compte vraiment.
 
+Mais cette protection est **temporaire** : une fois qu'un personnage a **joué son rôle dans l'histoire**, il la perd — et peut mourir comme les autres. **Personne n'est définitivement à l'abri** : même la sécurité finit par se déformer.
+
 Conséquence : on est **obligé de faire tourner son roster**. Et comme on a plusieurs personnages à faire jouer, on a envie de leur donner des **builds différents** plutôt que de les calquer tous sur le même modèle. Une seule règle simple — « mes meilleurs ne sont pas toujours dispo » — crée à la fois de la **tension** (vais-je devoir envoyer une équipe B ?) et des **décisions intéressantes** (qui j'envoie, qui je repose, dans qui j'investis ?).
 
 ---
