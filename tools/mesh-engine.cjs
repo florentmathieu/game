@@ -26,6 +26,9 @@ function loadMesh(htmlPath){
     U, CLASSES, reach, moveAlong, doAttack, inRange, hops, los, passable, occ, adjacent,
     apForMove, budget, bestEnemyTarget, nearestOpposing, wakePod, wakeEnemy, checkEnd, refresh,
     hostile, uAt, enemyActive, shotFrom, pathTo,
+    get lastOutcome(){return lastOutcome}, set lastOutcome(v){lastOutcome=v},
+    get curMission(){return curMission}, set curMission(v){curMission=v},
+    get turnNum(){return turnNum}, set turnNum(v){turnNum=v},
   };
   `;
   src = src.replace(/\}\)\(\);\s*$/, EXPORT + "\n})();");
@@ -34,7 +37,7 @@ function loadMesh(htmlPath){
   const noop = () => {};
   const ctx = new Proxy({}, { get: (t,k)=> (k in t ? t[k] : noop) });
   ctx.setTransform = noop;
-  const VALS = { dens:"44", dist:"28", bw:"10", bh:"8", "gen-cover":"28", "gen-diff":"moyen",
+  const VALS = { dens:"44", dist:"28", bw:"10", bh:"8", "gen-cover":"28", "gen-diff":"moyen", "gen-arch":"eliminate",
     "gh-branch":"", "gh-repo":"", "gh-token":"", "geo-n":"12", "geo-aspect":"3:2", "geo-name":"" };
   const els = {};
   function makeEl(id){ return {

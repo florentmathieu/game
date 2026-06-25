@@ -10,10 +10,22 @@ function makeActUnit(M){
   const avgDmg = (u,m)=>{ const w=u.w[m]; let d=(w.dmgMin+w.dmgMax)/2; if(u.team==="enemy")d=Math.max(1,d-1); return d; };
   const coverProxy = (c)=> M.cells[c].nb.filter(n=>!M.passable(n)).length;   // rochers/murs adjacents = abri partiel
   const defValue = (c)=>{ const cell=M.cells[c]; let v=(cell.elev||0); if(cell.terr==="cover")v+=1.5; return v+coverProxy(c)*0.4; };
+  const nearestExit = (u)=>{ const cm=M.curMission; const z=(cm&&cm.exitZone)||"exit";
+    let goal=null,gh=Infinity; for(const c of M.cells){ if(c.zone!==z)continue; const h=M.hops(u.cell,c.id); if(h<gh){gh=h;goal=c.id;} } return {goal,gh}; };
   return function actUnit(u){
     let guard=0;
+    const extracting = u.team==="player" && M.curMission && M.curMission.objective==="extract";
     while(u.hp>0 && !M.over && (u.ap>0||u.freeAvail) && guard++<8){
       const d=M.reach(u); d[u.cell]=0;
+      // OBJECTIF EXTRACTION : foncer vers la zone de sortie (le combat est secondaire) ; on s'arrête une fois dessus.
+      if(extracting){ const {goal,gh}=nearestExit(u); if(goal==null){ /* pas de zone : repli combat */ }
+        else { if(gh===0)return; const gc=M.cells[goal]; const recent=u.__recent||(u.__recent=[]);
+          let best=null,bestKey=Infinity;
+          for(const cs in d){ const c=+cs; if(c===u.cell)continue; const cc=M.cells[c];
+            const h=M.hops(c,goal), eu=Math.hypot(cc.cx-gc.cx,cc.cy-gc.cy), pen=recent.includes(c)?1e7:0;
+            const key=h*1e5+eu+pen; if(key<bestKey){bestKey=key;best=c;} }
+          if(best==null)return; M.moveAlong(u,best); recent.push(u.cell); if(recent.length>5)recent.shift(); continue; }
+      }
       let bestAtk=null;
       for(const cs in d){ const c=+cs; const apCost=M.apForMove(u,d[c]); if(apCost>=u.ap)continue;   // garder >=1 PA pour tirer
         for(const m of modes(u)){ for(const t of M.units){ if(!M.hostile(u,t)||t.hp<=0)continue;
