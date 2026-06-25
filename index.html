@@ -184,7 +184,7 @@
   let zoom=1,panX=0,panY=0;   // molette = zoom sur la carte
   function clampPan(){ panX=Math.min(0,Math.max(W-W*zoom,panX)); panY=Math.min(0,Math.max(H-H*zoom,panY)); }
   function resetView(){ zoom=1;panX=0;panY=0; }
-  const FREE_MP=2,AP_MAX=2,MOB=3,HEIGHT_BONUS=6,COVER_PEN=30,PB={1:30,2:15};
+  const FREE_MP=2,AP_MAX=2,MOB=3,HEIGHT_BONUS=6,COVER_PEN=30,DEF_BRACE=20,PB={1:30,2:15};
   const sword=(a,l,h)=>({type:"melee",aim:a,dmgMin:l,dmgMax:h});
   const bow=(a,l,h,r,c)=>({type:"ranged",aim:a,dmgMin:l,dmgMax:h,range:r,clip:c});
   const dagger=(a,l,h,b,s)=>({type:"melee",aim:a,dmgMin:l,dmgMax:h,flank:{back:b,side:s}});
@@ -265,7 +265,7 @@
   const enterCost=(from,to)=>{ if(!passable(to))return null; if(cells[to].elev-cells[from].elev>=2)return null; const climb=Math.max(0,cells[to].elev-cells[from].elev); return (cells[to].terr==="rough"?2:1)+climb; };
 
   // ===== unités =====
-  let units=[], podAlerted=new Set(), neutralSeen=new Set();
+  let units=[], podAlerted=new Set(), neutralSeen=new Set(), lastSeen=new Map();
   function U(team,cls,cell,opts){opts=opts||{};const t=CLASSES[cls];const wtype=t.w.ranged?"ranged":"melee";const w=t.w[wtype];
     const u={team,cls,name:opts.name||t.name,cell,hp:t.hp,max:t.hp,ap:AP_MAX,freeAvail:true,mob:t.mob,facing:opts.facing!=null?opts.facing:(team==="enemy"?Math.PI:0),wtype,flank:w.flank||null,shieldBlock:t.shieldBlock||0,parry:t.parry||0,w:t.w,overwatch:false,reacted:false,owMode:null};
     if(w.clip!==undefined){u.clip=w.clip;u.ammo=w.clip;} if(t.crackers)u.crackers=t.crackers;
@@ -311,7 +311,7 @@
   function muretCover(tgt,att){ const T=cells[tgt.cell],A=cells[att.cell]; let ax=A.cx-T.cx,ay=A.cy-T.cy; const al=Math.hypot(ax,ay)||1; ax/=al;ay/=al; let best=0;
     for(const n of T.nb){ if(!wallBetween(tgt.cell,n))continue; if(T.elev>cells[n].elev)continue; let dx=cells[n].cx-T.cx,dy=cells[n].cy-T.cy; const dl=Math.hypot(dx,dy)||1; dx/=dl;dy/=dl; const align=ax*dx+ay*dy; if(align<=0)continue; best=Math.max(best,(COVER_PEN/2)*align); }
     return Math.round(best); }
-  function chance(att,tgt,m){const w=att.w[m];let cover=0;if(w.type==="ranged"){if(cells[tgt.cell].terr==="cover")cover=COVER_PEN;cover=Math.max(cover,muretCover(tgt,att));}const dh=Math.max(-3,Math.min(3,cells[att.cell].elev-cells[tgt.cell].elev))*HEIGHT_BONUS;const pb=w.type==="ranged"?(PB[hops(att.cell,tgt.cell)]||0):0;return Math.max(5,Math.min(95,Math.round(w.aim-cover+dh-pb)));}
+  function chance(att,tgt,m){const w=att.w[m];let cover=0;if(w.type==="ranged"){if(cells[tgt.cell].terr==="cover")cover=COVER_PEN;cover=Math.max(cover,muretCover(tgt,att));}const dh=Math.max(-3,Math.min(3,cells[att.cell].elev-cells[tgt.cell].elev))*HEIGHT_BONUS;const pb=w.type==="ranged"?(PB[hops(att.cell,tgt.cell)]||0):0;const def=tgt.bracing?DEF_BRACE:0;return Math.max(5,Math.min(95,Math.round(w.aim-cover+dh-pb-def)));}
   function doAttack(att,tgt,m,reaction){const w=att.w[m];att.facing=ang(att.cell,tgt.cell);if(!reaction){att.ap=0;att.freeAvail=false;turnActions++;}if(w.type==="ranged"&&att.clip!==undefined)att.ammo--;
     const ch=Math.max(5,chance(att,tgt,m)-(reaction?15:0)),hit=RND()*100<ch,back=flankOf(att,tgt)==="back";let txt,result,dmg=0;
     if(!hit){txt="raté";result="miss";}
@@ -386,7 +386,7 @@
   function end(t){over=true;emit(t.indexOf("Victoire")===0?"win":"lose",{});if(campRun){campEnd(t);return;}document.getElementById("overtxt").textContent=t;document.getElementById("over").classList.add("show");draw();}
   function log(m,team){if(mode!=="play")return;const el=document.getElementById("log");const d=document.createElement("div");d.className=team==="player"?"pl":"en";d.textContent=m;el.prepend(d);}
   function setMsg(t){document.getElementById("msg").textContent=t;}
-  function refresh(){ if(mode==="play"){computeVis();detectEnemies();detectNeutralPods();
+  function refresh(){ if(mode==="play"){computeVis();detectEnemies();detectNeutralPods();updateEnemyMemory();
       if(turn==="player"&&!over&&sel&&(sel.hp<=0||(sel.ap<=0&&!sel.freeAvail))){ const nxt=units.find(u=>u.team==="player"&&u.hp>0&&!(u.ap<=0&&!u.freeAvail)); if(nxt){sel=nxt;amode=null;aimTarget=null;throwing=false;usingItem=false;} }   // unité épuisée → passe à la suivante
     } else visible=new Set(cells.map(c=>c.id)); draw(); if(mode==="play"){renderActs();renderRoster();maybeAutoEnd();} else { renderCounts(); saveDraft(); } }
   // roster des soldats (haut-gauche) : nom, PV, PA ; clic = sélection
@@ -395,7 +395,7 @@
       d.className="rost"+(u===sel?" sel":"")+(u.hp<=0?" dead":((u.ap<=0&&turn==="player")?" spent":""));
       d.innerHTML=`<div><b>${u.name}</b> <span class="sub">${CLASSES[u.cls].name}</span></div>`
         +`<div class="hpbar"><i style="width:${Math.max(0,u.hp)/u.max*100}%"></i></div>`
-        +`<div class="st">PV ${Math.max(0,u.hp)}/${u.max} · PA ${u.hp>0?u.ap+"/"+AP_MAX:"–"}${u.overwatch?(u.owMode==="ranged"?" · 👁🏹":" · 👁"):""}${u.crackers?" · 💣"+u.crackers:""}</div>`;
+        +`<div class="st">PV ${Math.max(0,u.hp)}/${u.max} · PA ${u.hp>0?u.ap+"/"+AP_MAX:"–"}${u.overwatch?(u.owMode==="ranged"?" · 👁🏹":" · 👁"):""}${u.bracing?" · 🛡garde":""}${u.crackers?" · 💣"+u.crackers:""}</div>`;
       d.onclick=()=>{ if(u.hp>0&&turn==="player"&&!over){ sel=u; amode=null;throwing=false;usingItem=false; refresh(); } };
       el.appendChild(d); }); }
   // chance de toucher qu'aurait `att` (positionné en fromCell) sur une cible en tgtCell — sert offense ET menace
@@ -403,22 +403,55 @@
     if(w.type==="ranged"){ if(hops(fromCell,tgtCell)>(w.range||1)||!los(fromCell,tgtCell))return 0; } else if(hops(fromCell,tgtCell)>1)return 0;
     return chance({cell:fromCell,w:att.w,clip:att.clip,ammo:att.ammo,team:att.team},{cell:tgtCell},m); }
   function bestEnemyTarget(e){ let best=null,bk=-1e9; for(const p of units){ if(!hostile(e,p)||p.hp<=0||!inRange(e,p,e.wtype))continue; const k=shotFrom(e.cell,e,p.cell,e.wtype)*1000-p.hp; if(k>bk){bk=k;best=p;} } return best; }
-  function endTurn(){turn="enemy";turnActions=0;sel=null;amode=null;aimTarget=null;for(const u of units)if(u.team==="enemy"){u.ap=AP_MAX;u.freeAvail=true;u.overwatch=false;u.reacted=false;}banner("Tour de l'ennemi","enemy");refresh();const foes=units.filter(u=>u.team==="enemy"&&u.hp>0);let i=0;
-    (function step(){if(over)return;if(i>=foes.length){for(const u of units)if(u.team==="player"){u.ap=AP_MAX;u.freeAvail=true;u.overwatch=false;u.reacted=false;}turn="player";turnNum++;turnActions=0;setMsg("");banner("Tour du joueur","player");refresh();emit("turn",{turn:turnNum});return;}
+  // ===== mémoire & comportement de l'IA (porté de la version hex) =====
+  function enemySeesP(e,p){ const vis=e.asleep?SLEEP_VIS:ENEMY_VIS; return hops(e.cell,p.cell)<=vis&&los(e.cell,p.cell)&&flankOf(p,e)!=="back"; }   // vue d'un ennemi : portée + LdV + hors angle mort arrière
+  function anyEnemySees(p){ return units.some(e=>e.team==="enemy"&&e.hp>0&&enemyActive(e)&&enemySeesP(e,p)); }
+  function updateEnemyMemory(){ for(const p of [...lastSeen.keys()])if(!units.includes(p)||p.hp<=0)lastSeen.delete(p);   // mémoire d'escouade : dernière position connue des joueurs
+    for(const p of units){ if(p.team!=="player"||p.hp<=0||!anyEnemySees(p))continue; const prev=lastSeen.get(p); if(!prev||prev.cell!==p.cell)lastSeen.set(p,{cell:p.cell,prev:prev?prev.cell:p.cell}); } }
+  function predictGoal(mem){ const c=cells[mem.cell],pv=cells[mem.prev]; if(!c)return mem.cell; let dx=c.cx-(pv?pv.cx:c.cx),dy=c.cy-(pv?pv.cy:c.cy); if(Math.hypot(dx,dy)<1)return mem.cell; const dl=Math.hypot(dx,dy);dx/=dl;dy/=dl; let best=mem.cell,bd=-1e9; for(const n of c.nb){ if(!passable(n))continue; const nx=cells[n].cx-c.cx,ny=cells[n].cy-c.cy,nl=Math.hypot(nx,ny)||1; const d=(nx/nl)*dx+(ny/nl)*dy; if(d>bd){bd=d;best=n;} } return best; }
+  function nearestOpposing(e){ let best=null,bd=1e9; for(const p of units)if(hostile(e,p)&&p.hp>0){const d=hops(e.cell,p.cell);if(d<bd){bd=d;best=p;}} return best; }
+  const faceTowards=(u,cid)=>{ if(cid!=null&&cid!==u.cell)u.facing=ang(u.cell,cid); };
+  function enemyKnowsPlayers(){ if(lastSeen.size>0)return true; return units.some(p=>p.team==="player"&&p.hp>0&&anyEnemySees(p)); }
+  function hasPotentialShot(e){ const w=e.w[e.wtype]; return units.some(p=>p.team==="player"&&p.hp>0&&enemySeesP(e,p)&&hops(e.cell,p.cell)<=(w.range||1)&&los(e.cell,p.cell)); }
+  function bestGrenadeCell(e){ const cr=e.w.cracker; if(!cr||!(e.crackers>0))return null; let best=null,bs=0;
+    for(const c of cells){ if(!passable(c.id)||hops(e.cell,c.id)>cr.range||!los(e.cell,c.id))continue;
+      let pl=0,al=0,cov=false; for(const u of units){ if(u.hp<=0||hops(c.id,u.cell)>cr.radius)continue; if(u.team==="player"){pl++; if(cells[u.cell].terr==="cover"||muretCover(u,e)>=20)cov=true;} else al++; }
+      const sc=pl-1.5*al; if(pl>=1&&(sc>=2||(sc>=1&&cov))&&sc>bs){bs=sc;best=c.id;} } return best; }
+  function holdWatch(e){ const w=e.w[e.wtype]; if((w.range||1)>1&&(e.clip===undefined||e.ammo>0)&&enemyKnowsPlayers()){e.overwatch=true;e.owMode="ranged";} const p=nearestOpposing(e); if(p)faceTowards(e,p.cell); e.ap=0; }
+  function searchAct(e,done){ const goals=[]; for(const [p,mem] of lastSeen)if(p.hp>0)goals.push([p,predictGoal(mem)]);
+    if(!goals.length){ done(); return; }
+    let pick=goals[0],gd=1e9; for(const g of goals){const d=hops(e.cell,g[1]);if(d<gd){gd=d;pick=g;}}
+    const goal=pick[1];
+    if(hops(e.cell,goal)<=1){ lastSeen.delete(pick[0]); done(); return; }   // déjà sur place, vide : on oublie
+    const dist=reach(e); let bestCell=e.cell,bs=1e9;
+    for(const k in dist){ const cell=+k; const sc=hops(cell,goal)-cells[cell].elev*0.1; if(sc<bs){bs=sc;bestCell=cell;} }
+    const tryShoot=()=>{ if(e.hp>0){ const t=bestEnemyTarget(e); if(t)doAttack(e,t,e.wtype); } done(); };
+    if(bestCell!==e.cell){ moveAlong(e,bestCell); refresh(); setTimeout(tryShoot,(anim?anim.dur+150:200)); } else tryShoot(); }
+  function endTurn(){turn="enemy";turnActions=0;sel=null;amode=null;aimTarget=null;for(const u of units)if(u.team==="enemy"){u.ap=AP_MAX;u.freeAvail=true;u.overwatch=false;u.reacted=false;u.bracing=false;}banner("Tour de l'ennemi","enemy");refresh();const foes=units.filter(u=>u.team==="enemy"&&u.hp>0);let i=0;
+    (function step(){if(over)return;if(i>=foes.length){for(const u of units)if(u.team==="player"){u.ap=AP_MAX;u.freeAvail=true;u.overwatch=false;u.reacted=false;u.bracing=false;}turn="player";turnNum++;turnActions=0;setMsg("");banner("Tour du joueur","player");refresh();emit("turn",{turn:turnNum});return;}
       const e=foes[i++];if(e.hp<=0){step();return;} e.overwatch=false; if(!enemyActive(e)){e.ap=0;step();return;}   // pas alerté = ne bouge pas
-      const tgts=units.filter(p=>p.hp>0&&hostile(e,p)); if(!tgts.length){step();return;}
-      // évalue chaque case atteignable : offense (mon meilleur tir d'ici) − menace subie − distance + relief
+      const next=()=>setTimeout(step,200);
+      const tgts=units.filter(p=>p.hp>0&&hostile(e,p)&&enemySeesP(e,p));   // seulement ce que cet ennemi voit réellement
+      if(!tgts.length){ searchAct(e,()=>{ holdWatch(e); refresh(); next(); }); return; }   // personne en vue : poursuite de la dernière position connue
+      if(e.w.cracker&&e.crackers>0&&e.ap>0){ const g=bestGrenadeCell(e); if(g!=null){ resolveThrow(e,g); refresh(); setTimeout(step,460); return; } }   // grenade ennemie
+      const primary=tgts.reduce((a,b)=>hops(e.cell,b.cell)<hops(e.cell,a.cell)?b:a,tgts[0]); const pcX=cells[primary.cell].cx,pcY=cells[primary.cell].cy;
+      const allies=units.filter(o=>o!==e&&o.team==="enemy"&&o.hp>0);
+      // évalue chaque case : offense − 0.7·menace − 1.5·distance + 0.5·relief − agglutinement + encerclement
       const dist=reach(e); const cands=[e.cell]; for(const k in dist)cands.push(+k);
       let bestCell=e.cell,bestScore=-1e9;
       for(const cell of cands){ const cost=cell===e.cell?0:dist[cell]; let off=0,thr=0,near=1e9;
         for(const p of tgts){ off=Math.max(off,shotFrom(cell,e,p.cell,e.wtype)); near=Math.min(near,hops(cell,p.cell)); if(p.team==="player")thr=Math.max(thr,shotFrom(p.cell,p,cell,p.wtype)); }
         if(apForMove(e,cost)>1||(e.clip!==undefined&&e.ammo<=0))off=0;   // garder un PA pour tirer
-        const sc=off-0.7*thr-1.4*near+0.5*cells[cell].elev;
+        let clump=0,minDot=1; const mx0=cells[cell].cx-pcX,my0=cells[cell].cy-pcY,ml=Math.hypot(mx0,my0)||1,mx=mx0/ml,my=my0/ml;
+        for(const o of allies){ if(hops(cell,o.cell)<=1)clump+=6; const ox=cells[o.cell].cx-pcX,oy=cells[o.cell].cy-pcY,ol=Math.hypot(ox,oy)||1; minDot=Math.min(minDot,mx*(ox/ol)+my*(oy/ol)); }
+        const spread=(allies.length&&minDot<0.5)?4:0;   // > 60° d'écart avec tous les alliés : on encercle
+        const sc=off-0.7*thr-1.5*near+0.5*cells[cell].elev-clump+spread;
         if(sc>bestScore){bestScore=sc;bestCell=cell;} }
       const finish=()=>{ if(over)return; if(e.hp<=0){step();return;}
+        if(e.clip!==undefined&&e.ammo<=0&&e.ap>0&&hasPotentialShot(e)){ e.ap-=1; e.ammo=e.clip; log(`▼ ${e.name} recharge`,"enemy"); }   // recharge si une cible serait à portée
         const t=bestEnemyTarget(e); if(t){ doAttack(e,t,e.wtype); setTimeout(step,420); return; }
-        if(e.ap>0&&e.w.ranged&&(e.clip===undefined||e.ammo>0)){e.overwatch=true;e.owMode="ranged";}   // pas de cible : vigilance
-        refresh(); setTimeout(step,200); };
+        if(e.shieldBlock>0&&e.ap>0&&!e.bracing&&units.some(p=>p.team==="player"&&p.hp>0&&shotFrom(p.cell,p,e.cell,p.wtype)>0)){ e.ap-=1; e.bracing=true; log(`▼ ${e.name} se met en garde`,"enemy"); }   // garde si exposé au feu
+        holdWatch(e); refresh(); next(); };
       if(bestCell!==e.cell){ moveAlong(e,bestCell); refresh(); setTimeout(finish,(anim?anim.dur+150:200)); } else finish(); })();}   // attendre la fin du glissement avant d'attaquer
 
   // ===== interactions =====
@@ -551,6 +584,7 @@
       if(mode==="play"&&sel&&sel.ap>0&&turn==="player"&&hostile(sel,u)&&seen(u)){const can=(sel.w.ranged&&(sel.clip===undefined||sel.ammo>0)&&inRange(sel,u,"ranged"))||(sel.w.melee&&inRange(sel,u,"melee"));if(can){ctx.beginPath();ctx.arc(x,y,13,0,TWO);ctx.lineWidth=3;ctx.strokeStyle="#e0635f";ctx.stroke();}}
       if(mode==="play"&&u===aimTarget&&turn==="player"){ctx.beginPath();ctx.arc(x,y,16,0,TWO);ctx.lineWidth=3;ctx.strokeStyle="#ffd479";ctx.stroke();ctx.beginPath();ctx.arc(x,y,16,-0.35,0.35);ctx.lineWidth=5;ctx.strokeStyle="#ffd479";ctx.stroke();}   // cible proposée
       if(mode==="play"&&u.overwatch){ctx.beginPath();ctx.arc(x,y,15,0,TWO);ctx.lineWidth=2;ctx.setLineDash([4,3]);ctx.strokeStyle="#7fe0d0";ctx.stroke();ctx.setLineDash([]);}
+      if(mode==="play"&&u.bracing){ctx.beginPath();ctx.arc(x,y,15,0,TWO);ctx.lineWidth=2.5;ctx.strokeStyle="#8fd3ff";ctx.stroke();}   // en garde (anneau bleu plein)
       ctx.beginPath();ctx.arc(x,y,10,0,TWO);ctx.fillStyle=ucol(u);ctx.globalAlpha=(mode==="play"&&u.team==="player"&&u.ap<=0&&turn==="player")?.5:(mode==="play"&&u.asleep?.7:1);ctx.fill();ctx.globalAlpha=1;
       ctx.lineWidth=(u===sel)?3:1.5;ctx.strokeStyle=(u===sel)?"#fff":"rgba(0,0,0,.5)";ctx.stroke();
       ctx.fillStyle="#0b1117";ctx.font="bold 11px sans-serif";ctx.textAlign="center";ctx.textBaseline="middle";ctx.fillText(u.name[0],x,y);
@@ -840,13 +874,14 @@
       if(sel.ap>0&&sel.w.melee)btn("👁","Vigilance — mêlée",sel.overwatch&&sel.owMode==="melee",()=>doOverwatch("melee"));
       if(sel.w.cracker&&sel.crackers>0&&sel.ap>0)btn("💣","Cracker ×"+sel.crackers,throwing,()=>{throwing=!throwing;usingItem=false;amode=null;setMsg(throwing?"Clique une case cible (aire — la zone d'arrivée est incertaine).":"");if(throwing)startCrackerJit();else{crackerJit=null;draw();}renderActs();});
       if(inv.potion>0&&sel.ap>0)btn("🧪","Potion ×"+inv.potion,usingItem,()=>{usingItem=!usingItem;throwing=false;amode=null;setMsg(usingItem?"Clique un allié (soi/adjacent).":"");renderActs();});
-      if(sel.clip!==undefined&&sel.ammo<sel.clip&&sel.ap>0)btn("🔄","Recharger",false,()=>{sel.ap--;sel.ammo=sel.clip;refresh();}); }
+      if(sel.clip!==undefined&&sel.ammo<sel.clip&&sel.ap>0)btn("🔄","Recharger",false,()=>{sel.ap--;sel.ammo=sel.clip;refresh();});
+      if(sel.shieldBlock>0&&sel.ap>0&&!sel.bracing)btn("🛡","Se mettre en garde (+déf.)",false,()=>{sel.ap--;sel.freeAvail=false;sel.bracing=true;setMsg("En garde — défense renforcée ce tour.");refresh();}); }
     // Fin de tour = bouton 0, toujours en dernier
     const e=document.createElement("button");e.id="act-end";e.innerHTML=`<span class="bn">0</span><span class="bi">🏁</span>`;e.title="Fin de tour";e.onclick=()=>{if(!over&&turn==="player")endTurn();};el.appendChild(e);}
   function startGame(){ resetView(); { const t=document.getElementById("title"); if(t)t.style.display="none"; }   // une partie démarre : on retire l'écran-titre
     if(!units.some(u=>u.team==="player")||!units.some(u=>u.team==="enemy")){ setMsg("Place au moins 1 allié et 1 ennemi (mode Éditer)."); }
-    for(const u of units){u.hp=u.max;u.ap=AP_MAX;u.freeAvail=true;u.overwatch=false;u.reacted=false;u.asleep=!!u._asleep0;if(u.clip!==undefined)u.ammo=u.clip;if(u.crackers!==undefined)u.crackers=CLASSES[u.cls].crackers;} turn="player";over=false;sel=null;amode=null;aimTarget=null;throwing=false;usingItem=false;inv={potion:campRun?(campRun.potions||0):0};
-    fired=new Set(); podAlerted=new Set(); neutralSeen=new Set(); turnNum=1; turnActions=0; speechQ=[]; if(speechT){clearTimeout(speechT);speechT=null;} document.getElementById("combatline").style.display="none";
+    for(const u of units){u.hp=u.max;u.ap=AP_MAX;u.freeAvail=true;u.overwatch=false;u.reacted=false;u.bracing=false;u.asleep=!!u._asleep0;if(u.clip!==undefined)u.ammo=u.clip;if(u.crackers!==undefined)u.crackers=CLASSES[u.cls].crackers;} turn="player";over=false;sel=null;amode=null;aimTarget=null;throwing=false;usingItem=false;inv={potion:campRun?(campRun.potions||0):0};
+    fired=new Set(); podAlerted=new Set(); neutralSeen=new Set(); lastSeen=new Map(); turnNum=1; turnActions=0; speechQ=[]; if(speechT){clearTimeout(speechT);speechT=null;} document.getElementById("combatline").style.display="none";
     document.getElementById("over").classList.remove("show");document.getElementById("log").innerHTML="";setMsg("");refresh();
     banner("Tour du joueur","player"); emit("start",{}); emit("turn",{turn:1}); }
   document.getElementById("end").onclick=()=>{if(!over&&turn==="player"&&mode==="play")endTurn();};
