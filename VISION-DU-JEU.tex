@@ -20,9 +20,10 @@
 \definecolor{softline}{HTML}{cfe0d4}
 \definecolor{warn}{HTML}{7a2418}
 \definecolor{warnsoft}{HTML}{fbeeea}
-\definecolor{warnline}{HTML}{e7c3ba}
 \definecolor{open}{HTML}{1c4e7a}
 \definecolor{opensoft}{HTML}{eaf1f8}
+\definecolor{theme}{HTML}{5a2f6e}
+\definecolor{themesoft}{HTML}{f2ecf6}
 
 \hypersetup{colorlinks=true, linkcolor=accent, urlcolor=accent2,
   pdftitle={Notre jeu --- l'idée et les choix, expliqués simplement}}
@@ -33,6 +34,8 @@
 
 \newtcolorbox{coeur}{enhanced,breakable,colback=soft,colframe=accent,
   boxrule=0.8pt,left=10pt,right=10pt,top=7pt,bottom=7pt,arc=3pt}
+\newtcolorbox{themebox}{enhanced,breakable,colback=themesoft,colframe=theme,
+  boxrule=0.9pt,left=10pt,right=10pt,top=8pt,bottom=8pt,arc=3pt}
 \newtcolorbox{ouvertbox}{enhanced,breakable,colback=opensoft,colframe=open,
   boxrule=0.5pt,left=9pt,right=9pt,top=6pt,bottom=6pt,arc=2pt}
 \newtcolorbox{nope}{enhanced,breakable,colback=warnsoft,colframe=warn,
@@ -51,15 +54,38 @@
 \vspace{-3em}
 
 % ----------------------------------------------------------------------
+\section{Le pourquoi, avant tout : le thème}
+Tout part d'\textbf{un thème} qui irrigue le jeu entier :
+
+\begin{themebox}
+\centering\large\textbf{\color{theme}Tout se déforme. L'incertitude augmente.}
+\end{themebox}
+
+\noindent Le monde a changé. La réalité semble distordue --- \textit{«~It's like someone warped reality. Or was it always like this?~»}. Les personnages ne sont plus sûrs de rien : ni de leur mémoire (\textit{«~I can never tell~»}), ni de la vérité (\textit{«~Were we lied to?~»}), ni même de leur propre mission (\textit{«~What's the plan?~» --- «~Fuck if I know.~»}). Et ce qu'ils croient sauver finit parfois déformé à son tour (\textit{«~Those kids look weird\dots\ what is this mess?~»}).
+
+\smallskip
+\textbf{C'est ça, le cœur.} Le jeu ne parle pas de «~devenir plus fort~». Il parle d'un \textbf{monde qui se distord sous tes pieds} et d'une \textbf{certitude qui s'effrite}. Tout le reste --- les règles, la carte, les combats --- n'existe que pour \textbf{faire ressentir ça}. Chaque choix de design ci-dessous est une \textbf{traduction jouable du thème.}
+
+% ----------------------------------------------------------------------
 \section{En deux phrases, c'est quoi ?}
-Un jeu de \textbf{combats tactiques au tour par tour} (on déplace une petite équipe sur une carte, chacun joue à son tour) mêlé à un \textbf{jeu de rôle} : on s'attache à ses personnages, on les fait évoluer, on suit une histoire. Pense à un \textit{XCOM}, mais où on ne perd pas ses soldats préférés au moindre coup du sort.
+Un jeu de \textbf{combats tactiques au tour par tour} (on déplace une petite équipe sur une carte, chacun joue à son tour) mêlé à un \textbf{jeu de rôle} : on s'attache à ses personnages, on les fait évoluer, on suit une histoire. Pense à un \textit{XCOM}, mais où on ne perd pas ses soldats préférés au moindre coup du sort --- et où \textbf{le monde lui-même se déforme}.
 
 \smallskip
 L'ambition : que \textbf{progresser reste passionnant sur la durée}, au lieu de devenir une corvée répétitive.
 
 % ----------------------------------------------------------------------
+\section{La grille qui se déforme}
+Le plateau n'est pas un damier régulier. Il est fait de \textbf{cellules irrégulières} --- des carrés qui se muent en hexagones, en pentagones, tordus, jamais tout à fait alignés.
+
+\smallskip
+\textbf{Ce n'est pas un effet de style : c'est le thème, rendu visible à chaque case.} La réalité est distordue, et tu la vois distordue.
+
+\smallskip
+Et là où ça devient fort : \textbf{la carte du monde utilise la même grille déformée que les combats.} Le monde et le champ de bataille ont le même ADN visuel. Mieux --- cette grille peut \textbf{se déformer au fil de la partie} : plus tu avances, plus l'incertitude monte, plus le monde se distord. La forme même du jeu raconte le thème.
+
+% ----------------------------------------------------------------------
 \section{Le problème qu'on veut éviter}
-Dans beaucoup de jeux, «~progresser~» veut juste dire \textbf{accumuler des chiffres} : +1 en force, une épée un peu meilleure, des ennemis qui deviennent eux aussi plus costauds au même rythme. Au bout d'un moment, on a l'impression de courir sur un tapis roulant : on s'épuise, mais on n'avance pas vraiment, et on ne se sent jamais réellement plus fort. C'est lassant.
+Dans beaucoup de jeux, «~progresser~» veut juste dire \textbf{accumuler des chiffres} : +1 en force, une épée un peu meilleure, des ennemis qui deviennent eux aussi plus costauds au même rythme. On a l'impression de courir sur un tapis roulant : on s'épuise, mais on n'avance pas vraiment, et on ne se sent jamais réellement plus fort. C'est lassant --- \textbf{et surtout, ça raconte le contraire de notre thème} : un tapis roulant, c'est rassurant et prévisible. Nous, on veut l'incertitude.
 
 \smallskip
 \textbf{Notre parti pris : remplacer «~accumuler~» par «~décider~».} Ce qui rend la progression intéressante, ce ne sont pas les chiffres qui montent, ce sont les \textbf{choix qu'on fait} --- surtout quand on ne peut pas revenir dessus.
@@ -70,74 +96,67 @@ Dans beaucoup de jeux, «~progresser~» veut juste dire \textbf{accumuler des ch
 \centering\large\textbf{\color{ink}On ne perd jamais ses meilleurs personnages\dots\\ mais on ne peut pas toujours les jouer.}
 \end{coeur}
 
-\noindent C'est le cœur du jeu. Plutôt que de punir le joueur en tuant définitivement ses héros préférés (frustrant), on les rend \textbf{temporairement indisponibles} : un personnage qui a trop combattu est \textbf{épuisé} (physiquement) ou \textbf{éprouvé} (moralement), et doit se reposer.
+\noindent Plutôt que de punir le joueur en tuant définitivement ses héros préférés (frustrant), on les rend \textbf{temporairement indisponibles} : un personnage qui a trop combattu est \textbf{épuisé} (physiquement) ou \textbf{éprouvé} (moralement), et doit se reposer.
 
 \smallskip
 Conséquence : on est \textbf{obligé de faire tourner son roster}. Et comme on a plusieurs personnages à faire jouer, on a envie de leur donner des \textbf{builds différents} plutôt que de les calquer tous sur le même modèle. Une seule règle simple --- «~mes meilleurs ne sont pas toujours dispo~» --- crée à la fois de la \textbf{tension} (vais-je devoir envoyer une équipe B~?) et des \textbf{décisions intéressantes} (qui j'envoie, qui je repose, dans qui j'investis~?).
 
 % ----------------------------------------------------------------------
-\section{Les grands choix, et pourquoi}
+\section{Les grands choix, et pourquoi (chacun sert le thème)}
 
 \textbf{1.~On progresse par des choix définitifs, pas par des chiffres.}
-Quand un personnage monte d'un cran, on choisit une nouvelle \textbf{capacité} parmi deux --- et ce choix est \textbf{définitif}. Du coup, deux personnages identiques au départ peuvent devenir très différents. \pourquoi Parce qu'un choix qu'on ne peut pas annuler a un vrai poids : on y réfléchit, on s'y attache, et chaque personnage devient unique.
+Quand un personnage monte d'un cran, on choisit une nouvelle \textbf{capacité} parmi deux --- et ce choix est \textbf{définitif}. \pourquoi Parce qu'un choix qu'on ne peut pas annuler a un vrai poids, et parce que \textbf{la déformation est irréversible} : dans un monde qui se distord, on ne «~revient pas en arrière~». On vit avec ce qu'on est devenu.
 
 \smallskip
 \textbf{2.~On ne peut pas tout faire en même temps.}
-Plusieurs missions sont disponibles à la fois sur la carte, mais on doit \textbf{choisir} lesquelles mener --- on ne peut pas toutes les prendre. \pourquoi Pour que chaque décision compte : aller ici, c'est renoncer à là-bas. Ça évite aussi de «~farmer~» (refaire en boucle pour s'enrichir), puisque le temps est compté.
+Plusieurs missions sont disponibles à la fois sur la carte, mais on doit \textbf{choisir} lesquelles mener. \pourquoi Pour que chaque décision compte : aller ici, c'est renoncer à là-bas. Et parce que dans l'incertitude, \textbf{on n'a jamais toute l'information} pour choisir «~juste~» --- on parie.
 
 \smallskip
 \textbf{3.~Échouer ne renvoie pas en arrière --- ça fait avancer l'histoire.}
-Rater une mission ne veut pas dire «~recharger une sauvegarde et recommencer~». L'échec a des conséquences, mais le jeu \textbf{continue} : la situation évolue, parfois de façon intéressante. \pourquoi Pour qu'on accepte ses erreurs au lieu de tricher en rechargeant, et pour que les revers fassent partie de l'histoire.
+Rater une mission ne veut pas dire «~recharger une sauvegarde et recommencer~». L'échec a des conséquences, mais le jeu \textbf{continue}. \pourquoi Parce que recharger, ce serait \textbf{retrouver la certitude} --- exactement ce que le thème refuse. On vit avec le monde tel qu'il s'est déformé.
 
 \smallskip
 \textbf{4.~Certains choix d'histoire changent vraiment les choses.}
-Sauver une région peut signifier en sacrifier une autre. On ne verra donc pas tout le contenu en une seule partie. \pourquoi Pour que les décisions aient des conséquences réelles, et pour donner envie de rejouer autrement.
+Sauver une région peut signifier en sacrifier une autre. On ne verra donc pas tout en une partie. \pourquoi Pour que les décisions aient des conséquences réelles --- et pour que, comme les personnages, on \textbf{doute} d'avoir fait le bon choix.
 
 \smallskip
 \textbf{5.~On s'attache à ses personnages.}
-Les héros ont un nom, une apparence personnalisable, une petite histoire qui se construit au fil de leurs exploits. \pourquoi Parce que tout le reste (les mettre en danger, les voir s'épuiser) ne touche que si on tient à eux.
+Les héros ont un nom, une apparence personnalisable, une histoire qui se construit. \pourquoi Parce que l'incertitude ne fait peur que si on a quelque chose à perdre. Et parce que leur \textbf{doute} (ils oublient, ils ne sont sûrs de rien) ne touche que si on les connaît.
 
 \smallskip
 \textbf{6.~Pas de course à l'équipement.}
-On ne passe pas son temps à ramasser et comparer des centaines d'objets. La puissance d'un personnage vient de \textbf{qui il est devenu} (ses capacités choisies), pas de son matériel. \pourquoi Pour garder l'attention sur les décisions qui comptent, sans noyer le joueur sous la gestion d'inventaire.
+La puissance vient de \textbf{qui un personnage est devenu} (ses capacités choisies), pas de son matériel. \pourquoi Pour garder l'attention sur les décisions qui comptent, sans noyer le joueur sous la gestion d'inventaire.
 
 \smallskip
-\textbf{7.~Une campagne écrite, mais avec de la variété.}
-L'histoire principale est écrite à la main, mais les situations autour sont en partie générées pour renouveler l'expérience. \pourquoi Pour avoir le meilleur des deux mondes : des grands moments maîtrisés \textbf{et} de la rejouabilité.
+\textbf{7.~Une part d'incertitude assumée dans les combats.}
+Il y a une part de hasard dans l'action (un coup peut rater). \pourquoi Parce que \textbf{l'incertitude EST le sujet}. Ce qui ailleurs serait un défaut est ici le thème : on compose avec l'imprévu au lieu de le maîtriser totalement.
 
 % ----------------------------------------------------------------------
 \section{Ce qu'on a volontairement décidé de NE PAS faire}
 \begin{nope}
-Aussi important que les choix positifs --- pour rester cohérent, on s'interdit :
+Aussi important que les choix positifs --- pour rester cohérent avec le thème, on s'interdit :
 \begin{itemize}
+\item \textbf{Pas de retour en arrière.} Pas de «~j'annule mon choix~», pas de rechargement pour effacer un échec. La déformation ne se rembobine pas.
 \item \textbf{Pas de chasse au butin sans fin.} L'équipement n'est pas le moteur du jeu.
-\item \textbf{Pas de retour en arrière.} Pas de «~j'annule mon choix~», pas de rechargement pour effacer un échec. Les décisions tiennent.
 \item \textbf{Pas de mutilations / blessures permanentes} sur les personnages. L'usure passe par la fatigue et le moral, pas par le corps.
-\item \textbf{Pas d'usine à intrigues entre personnages.} Ils ont une histoire personnelle, mais on ne simule pas une vie sociale complexe.
 \item \textbf{Pas de compte à rebours global stressant.} La pression vient de chaque mission, pas d'une horloge géante au-dessus de tout.
-\item \textbf{Pas de «~tout devient plus fort en même temps que moi~».} On veut que le joueur \textbf{sente} ses progrès.
+\item \textbf{Pas de «~tout devient plus fort en même temps que moi~».} On veut que le joueur \textbf{sente} ses progrès, même dans un monde qui se dérègle.
 \end{itemize}
 \end{nope}
 
 % ----------------------------------------------------------------------
-\section{Les deux questions encore ouvertes}
-Deux points ne sont pas tranchés, volontairement --- on décidera en testant le jeu :
-
+\section{La question encore ouverte}
+Un point n'est pas tranché, volontairement --- on décidera en testant :
 \begin{ouvertbox}
-\textbf{1.~Quelle part de hasard dans les combats ?}\\
-Entre «~tout est prévisible, c'est un pur casse-tête~» et «~il y a une part de chance, comme un lancer de dés~». Notre intuition penche pour \textbf{un peu de hasard, mais maîtrisé} (les coups ratés restent rares et compréhensibles). On ajustera la dose une fois la manette en main.
-
-\smallskip
-\textbf{2.~À quel point les ennemis deviennent-ils plus forts ?}\\
-On veut qu'ils montent en puissance pour que le défi reste présent --- mais \textbf{avec une limite}, pour que le joueur sente quand même qu'il progresse. Le secret : la force du joueur vient surtout de \textbf{nouvelles capacités} (de nouvelles façons de jouer), et ça, un ennemi un peu plus costaud ne peut pas l'annuler.
+\textbf{Quel dosage exact de hasard dans les combats ?} Entre «~presque tout est prévisible~» et «~il y a une vraie part de chance~». Notre intuition : \textbf{assez d'incertitude pour servir le thème, mais lisible} (les coups ratés restent rares et compréhensibles). On pourrait même faire \textbf{monter} l'incertitude au fil de la partie --- le thème le suggère. À régler manette en main.
 \end{ouvertbox}
 
 % ----------------------------------------------------------------------
 \section{Et ensuite ?}
-La prochaine étape est concrète : transformer cette vision en un \textbf{vrai prototype de combat} sur la carte, pour tester en jouant --- notamment pour répondre aux deux questions ci-dessus.
+La prochaine étape est concrète : transformer cette vision en un \textbf{vrai prototype de combat} sur la grille déformée, pour tester en jouant.
 
 \begin{coeur}
-\textbf{\color{ink}En une phrase.} Un jeu où \textbf{monter en puissance, c'est faire des choix qu'on assume}~; où \textbf{continuer, c'est prendre des risques}~; et où \textbf{on s'attache à des personnages qu'on ne perd pas, mais qu'on apprend à ménager.}
+\textbf{\color{ink}En une phrase.} Un jeu où le monde se déforme et où la certitude s'effrite~; où \textbf{monter en puissance, c'est faire des choix qu'on assume}~; où \textbf{continuer, c'est avancer dans le brouillard}~; et où \textbf{on s'attache à des personnages qu'on ne perd pas, mais qu'on apprend à ménager.}
 \end{coeur}
 
 \end{document}

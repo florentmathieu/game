@@ -27,6 +27,8 @@
 \definecolor{open}{HTML}{1c4e7a}
 \definecolor{opensoft}{HTML}{eaf1f8}
 \definecolor{openline}{HTML}{bcd3e8}
+\definecolor{theme}{HTML}{5a2f6e}
+\definecolor{themesoft}{HTML}{f2ecf6}
 
 \hypersetup{colorlinks=true, linkcolor=accent, urlcolor=accent2,
   pdftitle={Direction de design --- synthèse d'interview}}
@@ -63,10 +65,41 @@
 \vspace{-3em}
 
 \begin{visionbox}
-\textbf{\color{ink}Vision en une ligne.} Un tactique-RPG «~\textbf{XCOM tempéré}~» où \textbf{monter une unité, c'est verrouiller une voie de perks}~; où l'on \textbf{arbitre entre opportunités concurrentes} sur une carte~; et où l'on \textbf{ne perd jamais ses héros --- mais on les épuise}.
+\textbf{\color{ink}Vision en une ligne.} Un tactique-RPG «~\textbf{XCOM tempéré}~» au service d'un thème --- \emph{tout se déforme, l'incertitude augmente} --- où \textbf{monter une unité, c'est verrouiller une voie de perks}~; où l'on \textbf{arbitre entre opportunités concurrentes} sur une carte qui se distord~; et où l'on \textbf{ne perd jamais ses héros --- mais on les épuise}.
 \end{visionbox}
 
 \tableofcontents
+
+% ======================================================================
+\section{Le thème --- la racine du «~pourquoi~»}
+
+\begin{tcolorbox}[enhanced,colback=themesoft,colframe=theme,boxrule=0.9pt,
+  arc=3pt,left=10pt,right=10pt,top=7pt,bottom=7pt]
+\centering\large\textbf{\color{theme}Tout se déforme. L'incertitude augmente.}\\
+\normalsize\itshape (thème n\textsuperscript{o}1, posé dès l'ouverture)
+\end{tcolorbox}
+
+\noindent L'ouverture l'installe sans ambiguïté : réalité distordue (\textit{«~It's like someone warped reality. Or was it always like this?~»}), mémoire faillible (\textit{«~I can never tell~»}), vérité incertaine (\textit{«~Were we lied to?~»}), mission floue (\textit{«~What's the plan?~» --- «~Fuck if I know.~»}), et jusqu'aux sauvés qui se déforment (\textit{«~Those kids look weird\dots\ what is this mess?~»}).
+
+\smallskip
+\textbf{Conséquence directrice : les mécaniques ne sont pas justifiées d'abord par l'anti-treadmill, mais par le thème.} Chaque choix doit être une \emph{traduction jouable} de «~tout se déforme / l'incertitude monte~». L'argument anti-corvée (cf. \texttt{ETUDE-PROGRESSION}) reste valable, mais vient \emph{en second} --- il sert le thème.
+
+\smallskip
+\renewcommand{\arraystretch}{1.25}
+\begin{tabularx}{\linewidth}{@{}X X r@{}}
+\toprule
+\textbf{Le thème\dots} & \textbf{\dots se traduit en} & \textbf{Réf.} \\
+\midrule
+La réalité se distord (visible) & \textbf{Maillage irrégulier} (carrés$\to$hexa$\to$pentagones) --- combat \emph{et} carte & géométrie \\
+Le monde se dérègle dans le temps & \textbf{Maillage qui se déforme au fil de la campagne} & geoscape \\
+L'incertitude augmente & \textbf{RNG assumé} (potentiellement croissant) & C7 écarté \\
+On ne retrouve pas la certitude & \textbf{Pas de retour en arrière} (ni respec/undo/reload) & réversib. \\
+La déformation est irréversible & \textbf{Choix de perks \& macro définitifs} & B1, C5 \\
+On vit avec le monde déformé & \textbf{L'échec fait avancer}, pas de reload & C4 \\
+Le doute ronge les personnages & \textbf{Stress + fatigue}, identité forte & C3, B9 \\
+\bottomrule
+\end{tabularx}
+\renewcommand{\arraystretch}{1}
 
 % ======================================================================
 \section{La colonne vertébrale}
@@ -111,11 +144,25 @@ La \textbf{rareté} --- moteur classique de la décision --- n'est \textbf{pas} 
 \end{principe}
 
 % ======================================================================
+\section{Décision d'architecture --- le geoscape EST un maillage}
+\emph{Actée à l'interview. Le geoscape réutilise le principe géométrique de la carte tactique (cellules irrégulières carré/hexa/pentagone, adjacence).}
+
+\begin{itemize}
+\item \textbf{Une seule géométrie pour les deux échelles.} Le \texttt{genMesh} actuel (Voronoï sur graines en trame carré/hexa/pentagone, jittées) sert tel quel, à \textbf{densité grossière}. Identité visuelle «~fractale~» + un seul moteur de géométrie/rendu. \textbf{Ancrage thème :} la même grille déformée à toutes les échelles = la distorsion est partout.
+\item \textbf{Le maillage EST la carte} (et non un graphe posé dessus). L'ancien node-graph de campagne devient une simple \textbf{couche logique} = l'adjacence des cellules.
+\item \textbf{Une cellule stratégique = une région} porteuse d'une opportunité (mission), dont les voisines sont menacées/verrouillables. L'escouade est un pion qui s'y déplace ; le déplacement \textbf{coûte du temps} $\rightarrow$ rend les unités indisponibles (branche le fil rouge).
+\item \textbf{Génération hybride} (cohérent A6) : graines \textbf{posées à la main} pour les lieux nommés du golden path + remplissage \textbf{procédural borné} autour.
+\item \textbf{Réemploi des mécaniques tactiques au niveau stratégique :} élévation = relief lent, murets/arêtes = routes coupées / fronts, \textbf{pods = menaces qui rôdent} sur la carte (pression locale, A1).
+\item \textbf{Levier thème fort à explorer :} le maillage du monde \textbf{se déforme au fil de la campagne} (l'incertitude qui monte, rendue spatiale). À prototyper.
+\item \textbf{À surveiller --- lisibilité.} Un Voronoï irrégulier se «~lit~» moins bien comme un \emph{lieu} qu'un graphe propre $\rightarrow$ iconographie par cellule indispensable (type de mission, menace, statut).
+\end{itemize}
+
+% ======================================================================
 \section{Détail par couche}
 
 \subsection{A --- Macro}
 \begin{itemize}
-\item \textbf{A3 Geoscape concurrent.} Plusieurs opportunités ouvertes en même temps ; on ne peut pas tout faire $\rightarrow$ coût d'opportunité permanent.
+\item \textbf{A3 Geoscape concurrent.} Plusieurs opportunités ouvertes en même temps ; on ne peut pas tout faire $\rightarrow$ coût d'opportunité permanent. \emph{(Rendu sous forme de maillage --- cf. section dédiée.)}
 \item \textbf{A1 Horloge douce/locale.} Pression portée par chaque mission/zone (objectifs en N tours, menaces locales), pas par une horloge globale anxiogène.
 \item \textbf{A6 Hybride + procédural borné.} Campagne à ossature écrite (golden path) ; cartes/rencontres générées par gabarits bornés autour. L'éditeur de maillage sert à faire-main les moments clés.
 \item \textbf{C5 Choix exclusifs réels.} Sauver une zone peut en condamner une autre ; des branches verrouillent du contenu. Assumé : on ne verra pas tout en une partie.
@@ -179,7 +226,7 @@ Aussi important que les choix positifs --- ce qu'on s'interdit pour rester cohé
 \begin{enumerate}
 \item \textbf{Combat «~Cœur maillage~».} Spécifier la boucle de combat sur le maillage : verbes de base, système de perks (arbre A/B par grade), tour-par-tour, dosage RNG (proto).
 \item \textbf{Jauges Stress + Fatigue.} Modéliser les deux jauges, leur récupération à slots limités, l'effet sur la disponibilité du roster.
-\item \textbf{Geoscape minimal.} Nœuds concurrents + horloge locale par mission ; brancher l'éditeur de campagne existant.
+\item \textbf{Geoscape = maillage (PoC).} Réutiliser \texttt{genMesh} à densité grossière pour une carte stratégique cliquable (cellule = région/opportunité) ; adjacence = déplacement ; horloge locale par mission. Tester la lisibilité.
 \item \textbf{Boucle «~échec fait avancer~».} Définir 2--3 conséquences de revers qui produisent du contenu plutôt qu'un game-over.
 \end{enumerate}
 

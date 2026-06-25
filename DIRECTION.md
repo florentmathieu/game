@@ -2,7 +2,27 @@
 
 _Consolidation des choix de design issus de l'interview (manche par manche) sur la base de `ETUDE-PROGRESSION`. Sert de référence pour diriger l'ensemble du projet._
 
-> **Vision en une ligne.** Un tactique-RPG « **XCOM tempéré** » où **monter une unité, c'est verrouiller une voie de perks** ; où l'on **arbitre entre opportunités concurrentes** sur une carte ; et où l'on **ne perd jamais ses héros — mais on les épuise**.
+> **Vision en une ligne.** Un tactique-RPG « **XCOM tempéré** » au service d'un thème — *tout se déforme, l'incertitude augmente* — où **monter une unité, c'est verrouiller une voie de perks** ; où l'on **arbitre entre opportunités concurrentes** sur une carte qui se distord ; et où l'on **ne perd jamais ses héros — mais on les épuise**.
+
+---
+
+## 0. Le thème — la racine du « pourquoi »
+
+> **Tout se déforme. L'incertitude augmente.** *(thème n°1, posé dès l'ouverture)*
+
+L'ouverture l'installe sans ambiguïté : réalité distordue (« *It's like someone warped reality. Or was it always like this?* »), mémoire faillible (« *I can never tell* »), vérité incertaine (« *Were we lied to?* »), mission floue (« *What's the plan?* — *Fuck if I know.* »), et jusqu'aux sauvés qui se déforment (« *Those kids look weird… what is this mess?* »).
+
+**Conséquence directrice : les mécaniques ne sont pas justifiées d'abord par l'anti-treadmill, mais par le thème.** Chaque choix doit être une *traduction jouable* de « tout se déforme / l'incertitude monte ». L'argument anti-corvée (cf. `ETUDE-PROGRESSION`) reste valable, mais vient *en second* — il sert le thème.
+
+| Le thème… | …se traduit en | Réf. |
+|---|---|---|
+| La réalité se distord (visible) | **Maillage irrégulier** (carrés→hexa→pentagones jittés) — combat **et** carte du monde | géométrie |
+| Le monde se dérègle dans le temps | **Maillage qui peut se déformer au fil de la campagne** | geoscape |
+| L'incertitude augmente | **RNG assumé** en combat (potentiellement croissant) | C7 écarté |
+| On ne retrouve pas la certitude/le passé | **Pas de retour en arrière** (pas de respec/undo/reload) | réversibilité |
+| La déformation est irréversible | **Choix de perks & macro définitifs** | B1, C5 |
+| On vit avec le monde déformé | **L'échec fait avancer**, on ne recharge pas | C4 |
+| Le doute ronge les personnages | **Stress + fatigue**, identité forte (on doute de ce à quoi on tient) | C3, B9 |
 
 ---
 
@@ -40,10 +60,24 @@ C'est l'élégance du système : **une seule pression** — « mes bonnes unité
 
 ---
 
+## 2 bis. Décision d'architecture — le geoscape EST un maillage
+
+*Actée à l'interview. Le geoscape réutilise le principe géométrique de la carte tactique (cellules irrégulières carré/hexa/pentagone, adjacence).*
+
+- **Une seule géométrie pour les deux échelles.** Le `genMesh` actuel (Voronoï sur graines en trame carré/hexa/pentagone, jittées) sert tel quel, à **densité grossière**. Identité visuelle « fractale » + un seul moteur de géométrie/rendu. **Ancrage thème :** la même grille déformée à toutes les échelles = la distorsion est partout.
+- **Le maillage EST la carte** (et non un graphe posé dessus). L'ancien node-graph de campagne (tâche #10) devient une simple **couche logique** = l'adjacence des cellules.
+- **Une cellule stratégique = une région** porteuse d'une opportunité (mission), dont les voisines sont menacées/verrouillables. L'escouade est un pion qui s'y déplace ; le déplacement **coûte du temps** → rend les unités indisponibles (branche le fil rouge §2).
+- **Génération hybride** (cohérent A6) : graines **posées à la main** pour les lieux nommés du golden path + remplissage **procédural borné** autour.
+- **Réemploi gratuit des mécaniques tactiques au niveau stratégique :** élévation = terrain stratégique (relief lent), murets/arêtes = routes coupées / fronts, **pods = menaces qui rôdent** sur la carte (la pression locale, A1).
+- **Levier thème fort à explorer :** le maillage du monde **se déforme au fil de la campagne** (l'incertitude qui monte rendue spatiale). À prototyper.
+- **À surveiller — lisibilité.** Un Voronoï irrégulier se « lit » moins bien comme un *lieu* qu'un graphe propre → iconographie par cellule indispensable (type de mission, menace, statut).
+
+---
+
 ## 3. Détail par couche
 
 ### A — Macro
-- **A3 Geoscape concurrent.** Plusieurs missions/opportunités ouvertes en même temps ; on ne peut pas tout faire → coût d'opportunité permanent.
+- **A3 Geoscape concurrent.** Plusieurs missions/opportunités ouvertes en même temps ; on ne peut pas tout faire → coût d'opportunité permanent. *(Rendu sous forme de maillage — cf. §2 bis.)*
 - **A1 Horloge douce/locale.** La pression est portée par chaque mission/zone (objectifs en N tours, menaces qui montent localement), pas par une horloge globale anxiogène.
 - **A6 Hybride + procédural borné.** Une campagne à ossature écrite (golden path, beats narratifs) ; cartes/rencontres générées par gabarits bornés autour, pour la variété sans perdre le contrôle. L'éditeur de maillage sert à faire-main les moments clés.
 - **C5 Choix exclusifs réels.** Sauver une zone peut en condamner une autre ; des branches verrouillent du contenu. Assumé : du contenu ne sera jamais vu en une partie.
@@ -101,7 +135,7 @@ Aussi important que les choix positifs — ce qu'on s'interdit pour rester cohé
 
 1. **Combat « Cœur maillage ».** Spécifier la boucle de combat sur le maillage : verbes de base, système de perks (arbre A/B par grade), tour-par-tour, dosage RNG (proto).
 2. **Jauges Stress + Fatigue.** Modéliser les deux jauges, leur récupération à slots limités, et l'effet sur la disponibilité du roster.
-3. **Geoscape minimal.** Structure de nœuds concurrents + horloge locale par mission ; brancher l'éditeur de campagne existant.
+3. **Geoscape = maillage (PoC).** Réutiliser `genMesh` à densité grossière pour une carte stratégique cliquable (cellule = région/opportunité) ; adjacence = déplacement ; horloge locale par mission. Tester la lisibilité (cf. §2 bis).
 4. **Boucle « échec fait avancer ».** Définir 2–3 conséquences de revers qui produisent du contenu plutôt qu'un game-over.
 
 > _Friction 1 (RNG) à trancher au stade prototype combat. Tout le reste est figé._
