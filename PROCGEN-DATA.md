@@ -55,6 +55,32 @@ Sous engagement total, **map/mouvement/espacement/distance n'ont quasi aucun eff
 
 ---
 
+## 3 bis. Balayages croisés (interactions) — `tools/sim-grid.cjs`
+`win%` (borne basse, 10 parties/case), modèle séquentiel, espacement 4, MOB 3.
+
+**Nombre de pods × taille de map** (couvert 0.30) :
+
+| pods \ board | 10×7 | 13×10 | 17×12 | 22×15 |
+|---|---|---|---|---|
+| 1 | 90 | 50 | 70 | 80 |
+| 2 | 50 | 40 | 60 | 50 |
+| 3 | 0 | 30 | 20 | 10 |
+| 4 | 0 | 0 | 0 | 0 |
+
+→ **Le nombre de pods écrase la taille.** Pas de règle « agrandir la map avec la difficulté » : pour 3 pods, le moyen (13×10) est le moins pire. **Garder des maps moyennes** ; régler la difficulté par les pods, pas la taille.
+
+**Nombre de pods × couvert** (board 13×10) :
+
+| pods \ couvert | 0.15 | 0.25 | 0.35 | 0.45 |
+|---|---|---|---|---|
+| 1 | 100 | 60 | 40 | 80 |
+| 2 | 90 | 70 | 20 | 30 |
+| 3 | 0 | 10 | 10 | 20 |
+
+→ À 1-2 pods, **moins de couvert favorise le joueur** ; à 3 pods, plus de couvert aide l'assiégé. **Attention : effet AI-dépendant** — l'IA naïve n'exploite pas le couvert (seuls les ennemis en profitent). Un humain inverserait probablement. **On ne sur-ajuste pas le couvert** sur cette base ; on garde ~0.30 et on re-mesurera avec une meilleure IA.
+
+**Conclusion robuste (indépendante du biais IA) : le nombre de pods est le dial de difficulté ; 4 pods est imbattable même avec retraite/espace → plafond difficile = 3 confirmé.**
+
 ## 4. Limites & prochaines pistes
 - **IA joueur naïve** → refaire les sweeps quand l'IA s'améliore (vigilance, couvert, focus-fire, potions), ou ajouter un mode « IA experte » pour une borne haute. La vérité est entre les deux bornes.
 - **Patrouille** : les sims figent les pods dormants ; tester l'effet de la patrouille sur les multi-activations (un pod qui erre peut en réveiller un autre / entrer dans la vue).
