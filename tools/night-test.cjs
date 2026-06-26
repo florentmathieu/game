@@ -16,15 +16,17 @@ const loadMission = ref => JSON.parse(fs.readFileSync(path.join("missions-mesh",
 const alive=t=>M.units.some(u=>u.team===t&&u.hp>0);
 function refreshAP(team){for(const u of M.units)if(u.team===team&&u.hp>0){u.ap=M.AP_MAX;u.freeAvail=true;u.overwatch=false;u.reacted=false;u.bracing=false;}}
 function simMission(maxT){ M.mode="play"; M.over=false; M.lastOutcome=null; M.turn="player"; M.turnNum=1; let turns=0,side="player";
-  while(turns<maxT && !M.over){ if(side==="player"){ M.turnNum=turns+1; M.checkEnd(); if(M.over)break; }
+  const live=()=>M.geoPlay&&M.geoPlay.inMission;   // le moteur clôt la mission (end->campEnd->geoMissionEnd) ; on s'arrête net
+  while(turns<maxT && live()){ if(side==="player"){ M.turnNum=turns+1; M.checkEnd(); if(!live())break; }
     refreshAP(side);
-    for(const u of M.units.slice()){ if(M.over)break; if(u.team!==side||u.hp<=0)continue; if(side==="enemy"&&!M.enemyActive(u))continue; if(side==="player")M.refresh(); else M.computeEVis(); actUnit(u); M.checkEnd(); if(M.over)break; }
+    for(const u of M.units.slice()){ if(!live())break; if(u.team!==side||u.hp<=0)continue; if(side==="enemy"&&!M.enemyActive(u))continue; if(side==="player")M.refresh(); else M.computeEVis(); actUnit(u); if(live())M.checkEnd(); if(!live())break; }
     if(side==="enemy")turns++; side=side==="player"?"enemy":"player"; }
-  return M.over ? (M.lastOutcome||"loss") : "timeout"; }
+  if(live())M.geoMissionEnd("Défaite");   // timeout
+  return M.lastOutcome||"timeout"; }
 
 let ERRORS=[];
-function buildRun(){ const roster=(camp.roster||[]).map(m=>({name:m.name,cls:m.cls,xp:m.xp||0,perks:[]}));
-  const saved=M.loadRosterProgress(camp.name); if(saved)for(const m of roster){ const s=saved.find(x=>x.name===m.name&&x.cls===m.cls); if(s){ m.xp=s.xp||0; m.perks=(s.perks||[]).slice(); } }
+function buildRun(){ const roster=(camp.roster||[]).map(m=>({name:m.name,cls:m.cls,xp:m.xp||0,perks:[],stress:0,fatigue:0,special:m.special!==false,dead:false}));
+  const saved=M.loadRosterProgress(camp.name); if(saved)for(const m of roster){ const s=saved.find(x=>x.name===m.name&&x.cls===m.cls); if(s){ m.xp=s.xp||0; m.perks=(s.perks||[]).slice(); m.stress=s.stress||0; m.fatigue=s.fatigue||0; m.special=s.special!==false; m.dead=!!s.dead; } }
   const cr={ camp:{name:camp.name,nodes:camp.nodes}, carry:{}, roster, geoStates:{}, potions:0, seen:new Set(), nodeId:geoNode.id };
   cr.geoStates[geoNode.id]=geo0.cells.map(c=>c.state||"locked"); return cr; }
 
@@ -41,7 +43,6 @@ function runOnce(tag){ const cr=buildRun(); M.campRun=cr; M.curMission=null;
       cr.geoReturn={nodeId:geoNode.id,cellId:pick.i}; M.geoPlay.inMission=true;
       if(process.env.TRACE)console.log("    play",pick.c.name,"diff",pick.c.diff,"cells",M.cells.length,"J",M.units.filter(u=>u.team==="player").length,"E",M.units.filter(u=>u.team==="enemy").length); const res=simMission(+(process.env.MAXT||36));
       missions++; if(res==="win")wins++; else if(res==="loss")losses++; else to++;
-      if(!M.over) M.geoMissionEnd("Défaite");   // timeout : l'IA n'a pas conclu -> on force ; sinon le moteur (end->campEnd->geoMissionEnd) a déjà géré le retour
     }catch(e){ ERRORS.push(`[${tag} cell ${pick.c.name}] ${e.message}`); if(process.env.TRACE)console.log(e.stack); break; }
     if(M.geoPlay===null) break;   // acte terminé (Bastion pris)
   }

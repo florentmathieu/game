@@ -22,10 +22,12 @@ const origLog=null;
 
 function refreshAP(team){for(const u of M.units)if(u.team===team&&u.hp>0){u.ap=M.AP_MAX;u.freeAvail=true;u.overwatch=false;u.reacted=false;u.bracing=false;}}
 function sim(maxT){ M.mode="play"; M.over=false; M.lastOutcome=null; M.turn="player"; M.turnNum=1; let t=0,side="player";
-  while(t<maxT && !M.over){ if(side==="player"){M.turnNum=t+1;M.checkEnd();if(M.over)break;} refreshAP(side);
-    for(const u of M.units.slice()){ if(M.over)break; if(u.team!==side||u.hp<=0)continue; if(side==="enemy"&&!M.enemyActive(u))continue; if(side==="player")M.refresh(); else M.computeEVis(); actUnit(u); M.checkEnd(); if(M.over)break; }
+  const live=()=>M.geoPlay&&M.geoPlay.inMission;
+  while(t<maxT && live()){ if(side==="player"){M.turnNum=t+1;M.checkEnd();if(!live())break;} refreshAP(side);
+    for(const u of M.units.slice()){ if(!live())break; if(u.team!==side||u.hp<=0)continue; if(side==="enemy"&&!M.enemyActive(u))continue; if(side==="player")M.refresh(); else M.computeEVis(); actUnit(u); if(live())M.checkEnd(); if(!live())break; }
     if(side==="enemy")t++; side=side==="player"?"enemy":"player"; }
-  return M.over?(M.lastOutcome||"loss"):"timeout"; }
+  if(live())M.geoMissionEnd("Défaite");
+  return M.lastOutcome||"timeout"; }
 
 let ERR=[],totM=0,W=0,L=0,TO=0;
 const RUNS=+(process.env.RUNS||4);
@@ -41,7 +43,7 @@ for(let run=0;run<RUNS;run++){
     try{ M.applyMissionObj(loadMission(pick.c.content.ref)); M.deployRoster(); M.mode="play"; M.startGame();
       for(const u of M.units)if(u.team==="player"){const c=cr.carry[u.name];if(c!=null)u.hp=c>0?Math.min(u.max,c):u.max;}
       cr.geoReturn={nodeId:geoNode.id,cellId:pick.i}; M.geoPlay.inMission=true;
-      const res=sim(40); if(!M.over)M.geoMissionEnd("Défaite"); totM++; if(res==="win")W++;else if(res==="loss")L++;else TO++;
+      const res=sim(40); totM++; if(res==="win")W++;else if(res==="loss")L++;else TO++;
     }catch(e){ ERR.push(`run${run} ${pick.c.name}: ${e.message}`); break; }
     if(M.geoPlay===null)break;
   }

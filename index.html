@@ -62,6 +62,10 @@
   body.geomap #hud{ display:none }
   #geobanner{ display:none; position:fixed; top:14px; left:50%; transform:translateX(-50%); z-index:7; background:rgba(12,10,8,.86); border:1px solid #5a4530; border-radius:8px; padding:8px 16px; color:#e8ddc8; font-size:.95rem; text-align:center; max-width:80vw }
   body.geomap #geobanner{ display:block }
+  #georoster{ display:none; position:fixed; bottom:14px; left:14px; z-index:7; background:rgba(12,10,8,.9); border:1px solid #5a4530; border-radius:8px; padding:8px 10px; color:#e8ddc8; font-size:.82rem; max-width:300px; max-height:46vh; overflow-y:auto }
+  body.geomap #georoster{ display:block } #georoster .gr-h{ color:#e0b341; font-weight:bold; margin-bottom:4px }
+  #georoster .gr-u{ display:flex; align-items:center; gap:6px; margin:2px 0 } #georoster .gr-u.gr-dead{ opacity:.45 } #georoster .gr-u.gr-weary .gr-n{ color:#e0a06a }
+  #georoster .gr-n{ width:96px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap } #georoster .gr-bar{ width:42px; height:6px; border-radius:3px; background:#2c2f3a; overflow:hidden } #georoster .gr-bar i{ display:block; height:100% }
   #mode{ display:none } body.view-mission #mode,body.testing.view-play #mode{ display:inline-block }
   body:not(.view-play) #title{ display:none !important }
   #nav{ gap:4px } #nav a{ color:#caa24a; text-decoration:none; border:1px solid #5a4530; border-radius:6px; padding:4px 9px; font-size:.82rem }
@@ -221,6 +225,7 @@
 <div id="fiche"></div>
 <div id="banner"></div>
 <div id="geobanner"></div>
+<div id="georoster"></div>
 <div id="title"><button id="title-btn">New game</button><button id="title-reset" style="margin-top:10px;font-size:.8rem;opacity:.6;background:none;border:1px solid #555;color:#bbb">↺ Recommencer à zéro</button></div>
 <div id="camptext"><div id="camptext-body"></div><button id="camptext-btn">…</button></div>
 <div id="storybox"><div id="storybox-body"></div><button id="storybox-btn">…</button></div>
@@ -408,7 +413,7 @@
     if(!hit){txt="raté";result="miss";}
     else if(!back&&tgt.shieldBlock&&RND()*100<tgt.shieldBlock){txt="bloqué 🛡";result="blocked";}
     else if(!back&&w.type==="melee"&&tgt.parry&&RND()*100<tgt.parry){txt="paré 🗡";result="blocked";}
-    else{result="hit";dmg=w.dmgMin+Math.floor(RND()*(w.dmgMax-w.dmgMin+1))+(att.dmgBonus||0);let fb=0,fl="";if(w.flank&&w.type==="melee"){const f=flankOf(att,tgt);if(f==="back"){fb=w.flank.back;fl="dos";}else if(f==="side"){fb=w.flank.side;fl="flanc";}dmg+=fb;}if(att.team==="enemy")dmg=Math.max(1,dmg-1);tgt.hp-=dmg;txt=`touché ${dmg}`+(fb?` (${fl} +${fb})`:"")+(tgt.hp<=0?(tgt.team==="player"?" ✚K.O.":" ✝"):"");if(tgt.hp<=0)tgt.hp=0;}
+    else{result="hit";dmg=w.dmgMin+Math.floor(RND()*(w.dmgMax-w.dmgMin+1))+(att.dmgBonus||0);let fb=0,fl="";if(w.flank&&w.type==="melee"){const f=flankOf(att,tgt);if(f==="back"){fb=w.flank.back;fl="dos";}else if(f==="side"){fb=w.flank.side;fl="flanc";}dmg+=fb;}if(att.team==="enemy")dmg=Math.max(1,dmg-1);tgt.hp-=dmg;if(tgt.team==="player")tgt.dmgTaken=(tgt.dmgTaken||0)+dmg;txt=`touché ${dmg}`+(fb?` (${fl} +${fb})`:"")+(tgt.hp<=0?(tgt.team==="player"?" ✚K.O.":" ✝"):"");if(tgt.hp<=0)tgt.hp=0;}
     const killed=tgt.hp<=0&&result==="hit", wn=w.type==="ranged"?(att.clip!==undefined?"arbalète":"arc"):(w.flank?"dagues":"épée");
     if(killed&&att.team==="player")att.kills=(att.kills||0)+1;   // pour l'XP de mission
     pushShot(att,tgt,w.type==="melee"); if(dmg>0){pushDmg(tgt.cell,dmg,tgt.team);screenShake(killed?4:2);}   // jus de combat
@@ -474,7 +479,7 @@
     const cand=cells.filter(c=>passable(c.id)&&hops(target,c.id)<=scat); const imp=cand.length?cand[Math.floor(RND()*cand.length)].id:target;
     pushBlast(imp,cr.radius); pushNoise(imp,cr.radius+2); screenShake(6);   // explosion + onde de bruit
     let enemiesHit=0,alliesHit=0,killed=0;
-    for(const u of units){ if(u.hp<=0)continue; if(hops(imp,u.cell)<=cr.radius){ const dmg=cr.dmgMin+Math.floor(RND()*(cr.dmgMax-cr.dmgMin+1)); u.hp-=dmg; pushDmg(u.cell,dmg,u.team); if(u.team===thrower.team)alliesHit++; else enemiesHit++;
+    for(const u of units){ if(u.hp<=0)continue; if(hops(imp,u.cell)<=cr.radius){ const dmg=cr.dmgMin+Math.floor(RND()*(cr.dmgMax-cr.dmgMin+1)); u.hp-=dmg; if(u.team==="player")u.dmgTaken=(u.dmgTaken||0)+dmg; pushDmg(u.cell,dmg,u.team); if(u.team===thrower.team)alliesHit++; else enemiesHit++;
       log(`   💥 ${u.name} : ${dmg} dégâts`+(u.hp<=0?(u.team==="player"?" ✚K.O.":" ✝"):""),u.team); if(u.hp<=0){u.hp=0;killed++;}
       if(u!==thrower&&!hostile(thrower,u))emit("friendlyfire",{actorName:thrower.name,actorCls:thrower.cls,actorTeam:thrower.team,targetName:u.name,targetCls:u.cls,targetTeam:u.team,weapon:"cracker",dmg,killed:u.hp<=0}); } }
     log(`▲ ${thrower.name} lance un cracker`,thrower.team);
@@ -1161,12 +1166,23 @@
   function saveCarry(){ if(!campRun)return; for(const u of units)if(u.team==="player")campRun.carry[u.name]=Math.max(0,u.hp); }
   // ===== XP de mission → grades → promotion A/B =====
   function awardXp(){ if(!campRun||!campRun.roster)return; for(const u of units){ if(u.team!=="player")continue; const m=campRun.roster.find(r=>r.name===u.name); if(!m)continue; m.xp=(m.xp||0)+3+(u.kills||0); } }   // mission gagnée : 3 (participation+victoire) + 1/kill
+  // ===== usure (stress/fatigue) + mort =====
+  const FATIGUE_MISSION=30, STRESS_DMG=3, STRESS_KO_ALLY=15, STRESS_SELF_KO=25, REST_RECOVER=45, WEARY=100;
+  const memReady=m=>m&&!m.dead&&(m.fatigue||0)<WEARY&&(m.stress||0)<WEARY;
+  function applyAttrition(){ if(!campRun||!campRun.roster)return; const deployed=new Set(units.filter(u=>u.team==="player").map(u=>u.name));
+    const koCount=units.filter(u=>u.team==="player"&&u.hp<=0).length;
+    for(const m of campRun.roster){ if(m.dead)continue; const u=units.find(x=>x.team==="player"&&x.name===m.name);
+      if(deployed.has(m.name)&&u){ m.fatigue=Math.min(100,(m.fatigue||0)+FATIGUE_MISSION);
+        const selfKO=u.hp<=0; m.stress=Math.min(100,(m.stress||0)+(u.dmgTaken||0)*STRESS_DMG+(selfKO?STRESS_SELF_KO:0)+Math.max(0,koCount-(selfKO?1:0))*STRESS_KO_ALLY);
+        if(selfKO&&!m.special){ m.dead=true; log&&log(`✝ ${m.name} est tombé·e définitivement.`,"enemy"); }   // non-spécial = mort définitive
+      } else { m.fatigue=Math.max(0,(m.fatigue||0)-REST_RECOVER); m.stress=Math.max(0,(m.stress||0)-REST_RECOVER); }   // au repos : récupère
+    } }
   function pendingPromotions(){ const list=[]; if(!campRun||!campRun.roster)return list; for(const m of campRun.roster){ const reach=gradeFromXp(m.xp), have=(m.perks||[]).length; for(let g=have; g<reach; g++){ if(PERKS[m.cls]&&PERKS[m.cls][g])list.push({m,grade:g}); } } return list; }
   // persistance INTER-PARTIES : on conserve la progression (xp/perks) du roster, par campagne, en localStorage
   const SAVE_PREFIX="mgf_camp_save_";
   const campSlug=n=>(n||"camp").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g,"").replace(/[^a-z0-9]+/g,"-").replace(/(^-|-$)/g,"")||"camp";
   function saveRosterProgress(){ if(!campRun||!campRun.camp)return; try{ localStorage.setItem(SAVE_PREFIX+campSlug(campRun.camp.name),
-    JSON.stringify({roster:campRun.roster.map(m=>({name:m.name,cls:m.cls,xp:m.xp||0,perks:(m.perks||[]).slice()}))})); }catch(e){} }
+    JSON.stringify({roster:campRun.roster.map(m=>({name:m.name,cls:m.cls,xp:m.xp||0,perks:(m.perks||[]).slice(),stress:m.stress||0,fatigue:m.fatigue||0,special:m.special!==false,dead:!!m.dead}))})); }catch(e){} }
   function loadRosterProgress(name){ try{ const t=localStorage.getItem(SAVE_PREFIX+campSlug(name)); if(t){ const o=JSON.parse(t); if(o&&Array.isArray(o.roster))return o.roster; } }catch(e){} return null; }
   function clearRosterProgress(name){ try{ localStorage.removeItem(SAVE_PREFIX+campSlug(name)); }catch(e){} }
   // écran de montée (entre missions) : pour chaque grade gagné, choix A/B irréversible, puis on continue.
@@ -1188,15 +1204,16 @@
   function deployRoster(){ if(!campRun||!campRun.roster||!campRun.roster.length)return;
     const slots=units.filter(u=>u.team==="player").sort((a,b)=>(cells[a.cell].cy-cells[b.cell].cy)||(cells[a.cell].cx-cells[b.cell].cx));
     if(!slots.length)return; const others=units.filter(u=>u.team!=="player"); const placed=[];
-    for(let i=0;i<slots.length&&i<campRun.roster.length;i++){ const m=campRun.roster[i]; if(!CLASSES[m.cls])continue;
+    const ready=campRun.roster.filter(memReady);   // seuls les prêts (ni morts, ni épuisés/à bout) sont déployés -> rotation
+    for(let i=0;i<slots.length&&i<ready.length;i++){ const m=ready[i]; if(!CLASSES[m.cls])continue;
       const u=U("player",m.cls,slots[i].cell,{name:m.name,facing:slots[i].facing}); applyPerkMods(u,m.perks); u.grade=(m.perks||[]).length; placed.push(u); }
     units=others.concat(placed); }
   function setView(v){ document.body.classList.remove("view-mission","view-campaign","view-geoscape","view-play"); document.body.classList.add("view-"+v); mode=(v==="play")?"play":"edit";
     const cur={mission:"nav-m",campaign:"nav-c",geoscape:"nav-g",play:"nav-p"}[v]; ["nav-m","nav-c","nav-g","nav-p"].forEach(id=>{const a=document.getElementById(id);if(a)a.classList.toggle("cur",id===cur);});
     if(v==="campaign"){ const cg2=document.getElementById("cgraph"); if(cg2&&cg2.getBoundingClientRect){ const w=Math.round(cg2.getBoundingClientRect().width)||880,h=Math.round(cg2.getBoundingClientRect().height)||340; if(w>1){cg2.width=w;cg2.height=h;} if(typeof drawGraph==="function")drawGraph(); } }
     if(v==="geoscape"&&typeof geoEnter==="function")geoEnter(); }
-  function startCampaign(camp,from,fromNode){ campRun={camp,carry:{},roster:(camp.roster||[]).map(m=>({name:m.name,cls:m.cls,xp:m.xp||0,perks:Array.isArray(m.perks)?m.perks.slice():[]})),nodeId:null,from:from||"campaign",seen:new Set(),potions:0};
-    const saved=loadRosterProgress(camp.name); if(saved)for(const m of campRun.roster){ const s=saved.find(x=>x.name===m.name&&x.cls===m.cls); if(s){ m.xp=s.xp||0; m.perks=Array.isArray(s.perks)?s.perks.slice():[]; } }   // reprend la progression inter-parties
+  function startCampaign(camp,from,fromNode){ campRun={camp,carry:{},roster:(camp.roster||[]).map(m=>({name:m.name,cls:m.cls,xp:m.xp||0,perks:Array.isArray(m.perks)?m.perks.slice():[],stress:0,fatigue:0,special:m.special!==false,dead:false})),nodeId:null,from:from||"campaign",seen:new Set(),potions:0};
+    const saved=loadRosterProgress(camp.name); if(saved)for(const m of campRun.roster){ const s=saved.find(x=>x.name===m.name&&x.cls===m.cls); if(s){ m.xp=s.xp||0; m.perks=Array.isArray(s.perks)?s.perks.slice():[]; m.stress=s.stress||0; m.fatigue=s.fatigue||0; m.special=s.special!==false; m.dead=!!s.dead; } }   // reprend progression + usure + morts inter-parties
     document.body.classList.remove("testing"); setView("play"); runNode(fromNode||camp.start); }
   async function startPlay(){ let camp=loadCampDraft();
     if(!camp){ const t=await fetchText("campaigns-mesh/principale.json",ghCfg()); if(t){try{camp=JSON.parse(t);}catch(e){}} }
@@ -1216,7 +1233,7 @@
       resolveText(n.intro,n.introFile).then(txt=>{ if(txt)playText(txt,true,()=>{introBlocking=false;hideStory();setMsg("");}); else {introBlocking=false;} }); } }
   function campEnd(t){ if(campRun&&geoPlay&&geoPlay.inMission){ geoMissionEnd(t); return; }
     const win=t.indexOf("Victoire")===0, n=campRun.camp.nodes.find(x=>x.id===campRun.nodeId);
-    if(win){ saveCarry(); awardXp(); if(campRun)campRun.potions=(inv.potion||0)+((curMission&&curMission.loot)||0);   // butin : potions restantes + récompense de mission
+    if(win){ saveCarry(); awardXp(); applyAttrition(); if(campRun)campRun.potions=(inv.potion||0)+((curMission&&curMission.loot)||0);   // butin : potions restantes + récompense de mission
       const after=()=>{ showPromotions(()=>{ if(n&&n.win)runNode(n.win); else endCampaignRun("Campagne terminée — victoire !"); }); }; resolveText(n&&n.outro,n&&n.outroFile).then(txt=>{ if(txt)playText(txt,true,after); else after(); }); }
     else { if(n&&n.lose)runNode(n.lose); else showCampText("Mission échouée…",()=>loadMissionNode(n,true)); } }
   function endCampaignRun(msg){ const from=campRun?campRun.from:"campaign"; geoPlay=null; document.body.classList.remove("geomap"); showCampText(msg,()=>{ campRun=null;
@@ -1250,7 +1267,7 @@
     const e=document.createElement("button");e.id="act-end";e.innerHTML=`<span class="bn">0</span><span class="bi">🙅</span>`;e.title="Fin de tour";e.onclick=()=>{if(!over&&turn==="player")endTurn();};el.appendChild(e);}
   function startGame(){ resetView(); { const t=document.getElementById("title"); if(t)t.style.display="none"; }   // une partie démarre : on retire l'écran-titre
     if(!units.some(u=>u.team==="player")||!units.some(u=>u.team==="enemy")){ setMsg("Place au moins 1 allié et 1 ennemi (mode Éditer)."); }
-    for(const u of units){u.hp=u.max;u.ap=AP_MAX;u.freeAvail=true;u.overwatch=false;u.reacted=false;u.bracing=false;u.taunt=false;u.hidden=false;u.wallStance=false;u.vanishUsed=false;u.asleep=!!u._asleep0;if(u.clip!==undefined)u.ammo=u.clip;if(u.crackers!==undefined)u.crackers=(u.crackers0!==undefined?u.crackers0:CLASSES[u.cls].crackers);} smoke=new Map();ability=null; turn="player";over=false;sel=null;amode=null;aimTarget=null;throwing=false;usingItem=false;inv={potion:campRun?(campRun.potions||0):0};
+    for(const u of units){u.hp=u.max;u.ap=AP_MAX;u.freeAvail=true;u.overwatch=false;u.reacted=false;u.bracing=false;u.taunt=false;u.hidden=false;u.wallStance=false;u.vanishUsed=false;u.dmgTaken=0;u.asleep=!!u._asleep0;if(u.clip!==undefined)u.ammo=u.clip;if(u.crackers!==undefined)u.crackers=(u.crackers0!==undefined?u.crackers0:CLASSES[u.cls].crackers);} smoke=new Map();ability=null; turn="player";over=false;sel=null;amode=null;aimTarget=null;throwing=false;usingItem=false;inv={potion:campRun?(campRun.potions||0):0};
     fired=new Set(); podAlerted=new Set(); neutralSeen=new Set(); lastSeen=new Map(); turnNum=1; turnActions=0; lastOutcome=null; speechQ=[]; speaking=false; if(speechT){clearTimeout(speechT);speechT=null;} document.getElementById("combatline").style.display="none";
     document.getElementById("over").classList.remove("show");document.getElementById("log").innerHTML="";setMsg("");refresh();
     banner("Tour du joueur","player"); emit("start",{}); emit("turn",{turn:1}); }
@@ -1418,7 +1435,14 @@
   function geoBanner(t){ const el=document.getElementById("geobanner"); if(!el||!geoPlay)return; const st=campRun.geoStates[geoPlay.node.id];
     const avail=geoPlay.map.cells.filter((c,i)=>st[i]==="available"&&c.content&&c.content.kind==="mission").length;
     const sub=t!=null?esc(t):(avail?("choisis une région — "+avail+" disponible"+(avail>1?"s":"")):"aucune région disponible");
-    el.innerHTML=`<b>${esc(geoPlay.map.name||"Territoire")}</b> — ${sub}`; }
+    el.innerHTML=`<b>${esc(geoPlay.map.name||"Territoire")}</b> — ${sub}`; renderGeoRoster(); }
+  // panneau « camp » : état du roster (grade, fatigue, stress, statut spécial, mort)
+  function renderGeoRoster(){ const el=document.getElementById("georoster"); if(!el||!campRun||!campRun.roster)return;
+    const bar=(v,col)=>`<div class="gr-bar"><i style="width:${Math.min(100,Math.round(v||0))}%;background:${col}"></i></div>`;
+    el.innerHTML=`<div class="gr-h">⛺ Roster</div>`+campRun.roster.map(m=>{ const weary=!m.dead&&((m.fatigue||0)>=100||(m.stress||0)>=100); const cls="gr-u"+(m.dead?" gr-dead":"")+(weary?" gr-weary":"");
+      const tag=m.dead?"✝":(weary?"⛔":((m.special!==false)?"★":""));
+      return `<div class="${cls}"><span class="gr-n">${esc(m.name)} <span style="color:#8a93a5">${(CLASSES[m.cls]&&CLASSES[m.cls].name)||m.cls}</span></span>`+
+        (m.dead?`<span style="color:#d8635f">mort</span>`:`💪${bar(m.fatigue,"#5fa9d8")} 🧠${bar(m.stress,"#d8a23f")}`)+`<span>${tag}</span></div>`; }).join(""); }
   function drawGeoPlay(){ ctx.setTransform(1,0,0,1,0,0); ctx.clearRect(0,0,cv.width,cv.height); ctx.setTransform(zoom,0,0,zoom,panX,panY);
     for(const c of cells){ poly(c); ctx.fillStyle=GEO_FILL[c.gstate]||GEO_FILL.locked; ctx.fill(); ctx.lineWidth=1.5; ctx.strokeStyle="rgba(10,12,16,.5)"; ctx.stroke(); }
     for(const c of cells){ if(c.gstate==="available"&&c.gkind==="mission"){ poly(c); ctx.lineWidth=3; ctx.strokeStyle=(c.id===hoverCell)?"#ffe08a":"#9fd0a8"; ctx.stroke(); } }
@@ -1441,7 +1465,7 @@
   function geoEndReached(node,st){ const ew=node.endWhen||{kind:"all"}; const cs=geoPlay.map.cells;
     if(ew.kind==="key"){ const idx=cs.findIndex(c=>(c.name||"")===(ew.name||"")); return idx>=0&&st[idx]==="cleared"; }
     return cs.every((c,i)=> !(c.type!=="camp"&&c.content&&c.content.kind==="mission") || st[i]==="cleared" || st[i]==="lost"); }
-  function geoMissionEnd(resultTxt){ const win=resultTxt.indexOf("Victoire")===0; const ret=campRun.geoReturn; const st=campRun.geoStates[ret.nodeId]; saveCarry(); if(win)awardXp();
+  function geoMissionEnd(resultTxt){ const win=resultTxt.indexOf("Victoire")===0; const ret=campRun.geoReturn; const st=campRun.geoStates[ret.nodeId]; saveCarry(); if(win)awardXp(); applyAttrition();
     if(win){ st[ret.cellId]="cleared"; campRun.potions=(inv.potion||0)+((curMission&&curMission.loot)||0);
       geoPlay.map.cells.forEach((c,i)=>{ if((c.unlockedBy||[]).includes(ret.cellId)&&st[i]==="locked")st[i]="available"; }); }
     else st[ret.cellId]="lost";
