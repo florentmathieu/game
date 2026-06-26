@@ -158,11 +158,12 @@
     <div class="row"><label style="font-size:.85rem;display:flex;align-items:center;gap:4px">PNJ à protéger (min)<input id="m-protect" type="number" min="0" placeholder="tous" style="width:54px"></label><label style="font-size:.85rem;display:flex;align-items:center;gap:4px"><input id="m-fullheal" type="checkbox"> soin complet</label></div>
     <div class="row"><label style="font-size:.85rem;display:flex;align-items:center;gap:4px">Butin victoire (potions)<input id="m-loot" type="number" min="0" value="0" style="width:54px"></label></div>
     <div class="hint" style="margin-top:6px">Objectif <b>bonus</b> (risque/récompense) : apparaît au hasard ; si on pousse jusqu'à l'accomplir <i>et</i> qu'on gagne, l'escouade touche la récompense.</div>
-    <div class="row"><label style="font-size:.85rem;display:flex;align-items:center;gap:4px">Bonus<select id="m-bonus-kind"><option value="">aucun</option><option value="pillage">💰 Pillage (atteindre une case-butin lointaine)</option><option value="target">✦ Cible de valeur (abattre un officier gardé)</option></select></label>
+    <div class="row"><label style="font-size:.85rem;display:flex;align-items:center;gap:4px">Bonus<select id="m-bonus-kind"><option value="">aucun</option><option value="pillage">💰 Pillage (atteindre une case-butin lointaine)</option><option value="target">✦ Cible de valeur (abattre un officier gardé)</option><option value="mission">🎯 Mission bonus (2e affrontement après victoire)</option></select></label>
       <label style="font-size:.85rem;display:flex;align-items:center;gap:4px">chance %<input id="m-bonus-chance" type="number" min="0" max="100" value="35" style="width:50px"></label></div>
     <div class="row"><label style="font-size:.85rem;display:flex;align-items:center;gap:4px">Récompense :  +XP<input id="m-bonus-xp" type="number" min="0" value="5" style="width:46px"></label>
       <label style="font-size:.85rem;display:flex;align-items:center;gap:4px">moral −<input id="m-bonus-morale" type="number" min="0" value="25" style="width:46px" title="réduit stress & fatigue de l'escouade déployée"></label>
       <label style="font-size:.85rem;display:flex;align-items:center;gap:4px">soins<input id="m-bonus-pot" type="number" min="0" value="0" style="width:46px"></label></div>
+    <div class="row"><label style="font-size:.85rem;display:flex;align-items:center;gap:4px" title="Pour « Mission bonus » : fichier de la mission du 2e combat (vide = carte générée à la volée)">🎯 fichier<input id="m-bonus-mission" type="text" placeholder="ex. terr-bois-brule.json (vide = généré)" style="flex:1"></label></div>
     <div class="row"><select id="repo-missions" style="flex:1"></select><button id="repo-load">Charger</button><button id="repo-del" title="Supprimer la mission du dépôt">🗑</button></div>
     <div class="row"><button id="repo-save">💾 Enregistrer dans le dépôt</button></div>
     <input id="gh-token" type="password" placeholder="token GitHub (Contents: write)" style="width:100%;margin:2px 0">
@@ -576,6 +577,7 @@
     for(const c of cells)if(c.bonusLoot)c.bonusLoot=false;   // nettoie un éventuel bonus précédent (relance/retry)
     units=units.filter(u=>!u.bonus); curMission.bonusActive=null; curMission.bonusDone=false;
     const cfg=curMission.bonus; if(!cfg||!cfg.kind||mode!=="play")return;
+    if(cfg.kind==="mission")return;   // « mission bonus » : pas d'élément sur la carte, c'est un 2e combat proposé après la victoire
     const chance=cfg.chance!=null?cfg.chance:0.35; if(RND()>=chance)return;   // pas tiré cette fois
     const reward=cfg.reward||{xp:5,morale:25};
     const occSet=new Set(units.map(u=>u.cell)), start=units.filter(u=>u.team==="player").map(u=>u.cell);
@@ -1002,8 +1004,10 @@
   // objectif bonus configuré dans l'éditeur (ou rien). chance en 0..1.
   function bonusFromDom(){ const k=document.getElementById("m-bonus-kind"); if(!k||!k.value)return undefined;
     const num=(id,d)=>{const e=document.getElementById(id);const v=e?+e.value:NaN;return isNaN(v)?d:v;};
-    return { kind:k.value, chance:Math.max(0,Math.min(1,num("m-bonus-chance",35)/100)),
-      reward:{ xp:Math.max(0,num("m-bonus-xp",0)), morale:Math.max(0,num("m-bonus-morale",0)), potions:Math.max(0,num("m-bonus-pot",0)) } }; }
+    const mref=(()=>{const e=document.getElementById("m-bonus-mission");return e&&e.value?e.value.trim():"";})();
+    const b={ kind:k.value, chance:Math.max(0,Math.min(1,num("m-bonus-chance",35)/100)),
+      reward:{ xp:Math.max(0,num("m-bonus-xp",0)), morale:Math.max(0,num("m-bonus-morale",0)), potions:Math.max(0,num("m-bonus-pot",0)) } };
+    if(k.value==="mission"&&mref)b.mission=mref; return b; }
   function applyMissionObj(m){ resetView(); curMission=m;
     if(!m||!Array.isArray(m.cells))throw new Error("format invalide");
     cells=m.cells.map((c,i)=>{const ct=polyCentroid(c.poly);return {id:i,poly:c.poly,cx:ct[0],cy:ct[1],nb:[],terr:c.terr||"plain",elev:c.elev||0,zone:c.zone};});
@@ -1014,7 +1018,7 @@
     { const mp=document.getElementById("m-protect"),mf=document.getElementById("m-fullheal"),ml=document.getElementById("m-loot"); if(mp)mp.value=m.protect!=null?m.protect:""; if(mf)mf.checked=!!m.fullheal; if(ml)ml.value=m.loot||0; }
     { const bk=document.getElementById("m-bonus-kind"); if(bk){ const b=m.bonus||{},r=b.reward||{}; bk.value=b.kind||"";
         const set=(id,v)=>{const e=document.getElementById(id);if(e)e.value=v;};
-        set("m-bonus-chance",b.chance!=null?Math.round(b.chance*100):35); set("m-bonus-xp",r.xp!=null?r.xp:5); set("m-bonus-morale",r.morale!=null?r.morale:25); set("m-bonus-pot",r.potions||0); } }
+        set("m-bonus-chance",b.chance!=null?Math.round(b.chance*100):35); set("m-bonus-xp",r.xp!=null?r.xp:5); set("m-bonus-morale",r.morale!=null?r.morale:25); set("m-bonus-pot",r.potions||0); set("m-bonus-mission",b.mission||""); } }
     if(m.form){ if(m.form.infl){infl=m.form.infl; ROWS=infl.length; COLS=(infl[0]&&infl[0].length)||COLS; W=COLS*MC;H=ROWS*MC; cv.width=W;cv.height=H;
         const bw=document.getElementById("bw"),bh=document.getElementById("bh"); if(bw)bw.value=COLS; if(bh)bh.value=ROWS; }
       if(m.form.dist!=null){distEl.value=m.form.dist;document.getElementById("distv").textContent=m.form.dist+"%";} if(m.form.dens!=null){dens.value=m.form.dens;document.getElementById("densv").textContent=m.form.dens;} if(m.form.seed!=null)seed=m.form.seed; }
@@ -1225,9 +1229,9 @@
   function saveCarry(){ if(!campRun)return; for(const u of units)if(u.team==="player")campRun.carry[u.name]=Math.max(0,u.hp); }
   // ===== XP de mission → grades → promotion A/B =====
   function awardXp(){ if(!campRun||!campRun.roster)return; for(const u of units){ if(u.team!=="player")continue; const m=campRun.roster.find(r=>r.name===u.name); if(!m)continue; m.xp=(m.xp||0)+3+(u.kills||0); } }   // mission gagnée : 3 (participation+victoire) + 1/kill
-  // récompense de l'objectif bonus : seulement si gagné ET accompli. XP + moral (stress/fatigue ↓) + soins, pour l'escouade déployée.
-  function grantBonus(win){ if(!win||!campRun||!campRun.roster||!curMission||!curMission.bonusDone||!curMission.bonusActive)return null;
-    const r=curMission.bonusActive.reward||{}, deployed=new Set(units.filter(u=>u.team==="player").map(u=>u.name)), parts=[];
+  // applique une récompense (xp + moral + soins) à l'escouade déployée ; renvoie le résumé textuel (ou null).
+  function applyReward(r){ if(!campRun||!campRun.roster||!r)return null;
+    const deployed=new Set(units.filter(u=>u.team==="player").map(u=>u.name)), parts=[];
     for(const m of campRun.roster){ if(m.dead||!deployed.has(m.name))continue;
       if(r.xp)m.xp=(m.xp||0)+r.xp;
       if(r.morale){ m.stress=Math.max(0,(m.stress||0)-r.morale); m.fatigue=Math.max(0,(m.fatigue||0)-r.morale); } }
@@ -1235,7 +1239,40 @@
     if(r.morale)parts.push("moral remonté (−"+r.morale+" stress/fatigue)");
     if(r.potions){ campRun.potions=(campRun.potions||0)+r.potions; parts.push("+"+r.potions+" soin"+(r.potions>1?"s":"")); }
     if(typeof saveRosterProgress==="function")saveRosterProgress();
-    return parts.length?("✦ Objectif bonus accompli : "+parts.join(", ")+"."):null; }
+    return parts.length?parts.join(", "):null; }
+  // récompense de l'objectif bonus : seulement si gagné ET accompli.
+  function grantBonus(win){ if(!win||!campRun||!curMission||!curMission.bonusDone||!curMission.bonusActive)return null;
+    const s=applyReward(curMission.bonusActive.reward); return s?("✦ Objectif bonus accompli : "+s+"."):null; }
+  // ===== mission bonus enchaînée (kind « mission ») : un 2e affrontement, escouade déjà éprouvée, après une victoire =====
+  // petit choix oui/non (réutilise l'overlay plein écran). En test (autoPromote), tranché par le code appelant.
+  function askPush(text,onYes,onNo){ const el=document.getElementById("camptext"),body=document.getElementById("camptext-body"),btn=document.getElementById("camptext-btn");
+    if(!el||!body){ onNo&&onNo(); return; } if(btn)btn.style.display="none";
+    body.innerHTML=`<div style="margin-bottom:16px">${esc(text)}</div><button class="opt" data-push="1">⚔️ Tenter la mission bonus</button><button class="opt" data-push="0">↩ Rentrer au camp</button>`;
+    el.classList.add("show");
+    const close=()=>{ el.classList.remove("show"); if(btn)btn.style.display=""; };
+    body.querySelector("[data-push='1']").onclick=()=>{ close(); onYes&&onYes(); };
+    body.querySelector("[data-push='0']").onclick=()=>{ close(); onNo&&onNo(); }; }
+  function rewardBits(r){ r=r||{}; const b=[]; if(r.xp)b.push("+"+r.xp+" XP"); if(r.morale)b.push("du moral"); if(r.potions)b.push("+"+r.potions+" soin"+(r.potions>1?"s":"")); return b.length?b.join(", "):"une récompense"; }
+  // après une victoire : peut proposer une mission bonus (selon la chance). Sinon enchaîne directement `cont`.
+  function maybeOfferExtra(win,cont){ const cfg=curMission&&curMission.bonus;
+    if(!win||!campRun||!cfg||cfg.kind!=="mission"){ cont(); return; }
+    const chance=cfg.chance!=null?cfg.chance:0.35;
+    if(autoPromote||RND()>=chance){ cont(); return; }                  // tests : pas d'UI → on rentre
+    if(!campRun.roster.filter(memReady).length){ cont(); return; }     // personne en état de repartir
+    askPush("Une occasion se présente : "+(cfg.label||"une cible de plus, à découvert")+". L'escouade est déjà éprouvée — pousser plus loin ? Réussir rapporte "+rewardBits(cfg.reward)+" ; échouer peut coûter des soldats.",
+      ()=>launchMini(cfg,cont), ()=>cont()); }
+  function launchMini(cfg,onResolve){ if(!campRun)return; campRun.mini={onResolve,reward:cfg.reward};
+    const go=()=>{ if(curMission){curMission.bonus=null;} if(geoPlay)geoPlay.inMission=true; deployRoster(); startGame(); applyCarry(); refresh(); banner("Mission bonus ✦ — ils sont fatigués","enemy"); };
+    if(cfg.mission){ fetchText("missions-mesh/"+cfg.mission,ghCfg()).then(t=>{ let ok=false; if(t){try{applyMissionObj(JSON.parse(t));ok=true;}catch(e){}} if(!ok)genMission({diff:"facile",enemyCount:3+Math.floor(RND()*3),squad:campRun.roster.filter(memReady).length||3}); go(); }); }
+    else { genMission({diff:"facile",enemyCount:3+Math.floor(RND()*3),squad:campRun.roster.filter(memReady).length||3}); go(); } }
+  function miniMissionEnd(t){ const win=t.indexOf("Victoire")===0, mini=campRun.mini; campRun.mini=null; saveCarry(); const deaths=applyAttrition(win);
+    let reward=null; if(win){ const s=applyReward(mini.reward); reward=s?("🎯 Mission bonus réussie : "+s+"."):"🎯 Mission bonus réussie !"; }
+    if(geoPlay)geoPlay.inMission=false; over=false;
+    const announce=(msg,cb)=> autoPromote?cb():showCampText(msg,cb); const msgs=[];
+    if(reward)msgs.push(reward); else if(!win)msgs.push("La mission bonus a échoué — repli.");
+    if(deaths.length)msgs.push("✝ "+deaths.join(", ")+(deaths.length>1?" sont tombé·e·s.":" est tombé·e."));
+    const chain=()=>{ if(!msgs.length){ mini.onResolve&&mini.onResolve(win); return; } announce(msgs.shift(),chain); };
+    showPromotions(chain); }   // promotions (xp de la récompense), annonces, puis on rend la main au débrief
   // ===== usure (stress/fatigue) + mort =====
   const FATIGUE_MISSION=30, STRESS_DMG=3, STRESS_KO_ALLY=15, STRESS_SELF_KO=25, REST_RECOVER=100, WEARY=100, DEATH_PCT=50;
   const memReady=m=>m&&!m.dead&&(m.fatigue||0)<WEARY&&(m.stress||0)<WEARY;
@@ -1330,11 +1367,13 @@
     const introSeen=campRun&&campRun.seen&&campRun.seen.has(n.id+":intro");
     if(!retry&&!introSeen&&(n.intro||n.introFile)){ if(campRun&&campRun.seen)campRun.seen.add(n.id+":intro"); introBlocking=true;   // on ne peut pas jouer avant d'avoir lu toute l'intro
       resolveText(n.intro,n.introFile).then(txt=>{ if(txt)playText(txt,true,()=>{introBlocking=false;hideStory();setMsg("");}); else {introBlocking=false;} }); } }
-  function campEnd(t){ if(campRun&&geoPlay&&geoPlay.inMission){ geoMissionEnd(t); return; }
+  function campEnd(t){ if(campRun&&campRun.mini){ miniMissionEnd(t); return; }   // un combat « mission bonus » se termine
+    if(campRun&&geoPlay&&geoPlay.inMission){ geoMissionEnd(t); return; }
     const win=t.indexOf("Victoire")===0, n=campRun.camp.nodes.find(x=>x.id===campRun.nodeId);
     if(win){ saveCarry(); awardXp(); applyAttrition(true); if(campRun){campRun.potions=(inv.potion||0)+((curMission&&curMission.loot)||0); campRun.winCount=(campRun.winCount||0)+1;} const bonusMsg=grantBonus(true);   // butin + compteur de victoires, puis récompense bonus (sur les potions déjà posées)
       const after=()=>{ const lost=checkMortalConditions(); const msgs=[]; if(bonusMsg)msgs.push(bonusMsg); if(lost.length)msgs.push("★ "+lost.join(", ")+" — leur rôle est accompli : iels ne sont plus à l'abri du destin.");
-        const cont=()=>showPromotions(()=>{ if(n&&n.win)runNode(n.win); else endCampaignRun("Campagne terminée — victoire !"); });
+        const proceed=()=>{ if(n&&n.win)runNode(n.win); else endCampaignRun("Campagne terminée — victoire !"); };
+        const cont=()=>showPromotions(()=> maybeOfferExtra(true,proceed) );
         const chain=()=>{ if(!msgs.length||autoPromote){cont();return;} showCampText(msgs.shift(),chain); }; chain(); };
       resolveText(n&&n.outro,n&&n.outroFile).then(txt=>{ if(txt)playText(txt,true,after); else after(); }); }
     else { if(n&&n.lose)runNode(n.lose); else showCampText("Mission échouée…",()=>loadMissionNode(n,true)); } }
@@ -1601,9 +1640,10 @@
     const showEvents=after=>{ if(!events.length){after();return;} announce(events.shift(),()=>showEvents(after)); };
     const toCamp=()=>{ document.body.classList.add("geomap"); resetView(); geoBuildCells(); hoverCell=null;
       geoBanner(win?"région sécurisée — choisis la suite":"région perdue — la situation a changé"); draw(); };
-    const finish=()=>{ showEvents(()=>{ if(geoEndReached(node,st)){ const nx=node.next; geoPlay=null; document.body.classList.remove("geomap");
+    const resolveDebrief=()=>{ if(geoEndReached(node,st)){ const nx=node.next; geoPlay=null; document.body.classList.remove("geomap");
         announce((win?"Région sécurisée.":"Région perdue.")+" L'acte s'achève.",()=>{ if(nx)runNode(nx); else endCampaignRun("Acte terminé."); }); return; }
-      toCamp(); }); };
+      toCamp(); };
+    const finish=()=>{ showEvents(()=> maybeOfferExtra(win,resolveDebrief) ); };   // pertes/★/bonus, puis offre éventuelle d'une mission bonus, puis retour au camp
     showPromotions(finish); }   // promotions A/B, puis pertes / retraits de ★, puis retour au camp
 
   function init(){
