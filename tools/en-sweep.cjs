@@ -4,7 +4,7 @@ const M = loadMesh(); const actUnit = makeActUnit(M);
 function refreshAP(team){for(const u of M.units)if(u.team===team&&u.hp>0){u.ap=M.AP_MAX;u.freeAvail=true;u.overwatch=false;u.reacted=false;u.bracing=false;}}
 function sim(maxT){ M.mode="play";M.over=false;M.lastOutcome=null;M.turn="player";M.turnNum=1;let turns=0,side="player";
   while(turns<maxT&&!M.over){ if(side==="player"){M.turnNum=turns+1;M.checkEnd();if(M.over)break;} refreshAP(side);
-    for(const u of M.units.slice()){if(M.over)break;if(u.team!==side||u.hp<=0)continue;if(side==="enemy"&&!M.enemyActive(u))continue;if(side==="player")M.refresh();actUnit(u);M.checkEnd();if(M.over)break;}
+    for(const u of M.units.slice()){if(M.over)break;if(u.team!==side||u.hp<=0)continue;if(side==="enemy"&&!M.enemyActive(u))continue;if(side==="player")M.refresh();else M.computeEVis();actUnit(u);M.checkEnd();if(M.over)break;}
     if(side==="enemy")turns++;side=side==="player"?"enemy":"player";}
   return M.over?(M.lastOutcome||"loss"):"timeout"; }
 const ARCH=process.env.ARCH||"eliminate"; const POD=+(process.env.POD||2);

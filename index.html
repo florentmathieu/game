@@ -373,7 +373,7 @@
   function edgeCell(id){const c=cells[id];if(!c||!c.poly)return false;const e=2;return c.poly.some(p=>p[0]<=e||p[0]>=W-e||p[1]<=e||p[1]>=H-e);}   // cellule de lisière : son polygone touche le bord de la carte
   function reach(u){const occu=occ();const dist={};dist[u.cell]=0;const pq=[[0,u.cell]];const B=budget(u);
     while(pq.length){let bi=0;for(let i=1;i<pq.length;i++)if(pq[i][0]<pq[bi][0])bi=i;const[d,id]=pq.splice(bi,1)[0];if(d>dist[id])continue;
-      for(const n of cells[id].nb){if(occu.has(n))continue;if(u.team==="player"&&mode==="play"&&(!visible.has(n)||edgeCell(n)))continue;const c=enterCost(id,n);if(c===null)continue;const nd=d+c;if(nd<=B&&(dist[n]===undefined||nd<dist[n])){dist[n]=nd;pq.push([nd,n]);}}}   // le joueur n'accède pas au brouillard ni aux cases de lisière de carte
+      for(const n of cells[id].nb){if(occu.has(n))continue;if(mode==="play"&&(u.team==="player"?(!visible.has(n)||edgeCell(n)):u.team==="enemy"?(!evisible.has(n)||edgeCell(n)):false))continue;const c=enterCost(id,n);if(c===null)continue;const nd=d+c;if(nd<=B&&(dist[n]===undefined||nd<dist[n])){dist[n]=nd;pq.push([nd,n]);}}}   // joueur ET ennemi limités à leur champ de vision (brouillard + LdV) ; pas de cases de lisière
     delete dist[u.cell];return dist;}
   function pathTo(u,goal){const occu=occ();occu.delete(u.cell);const dist={},prev={};dist[u.cell]=0;const pq=[[0,u.cell]];
     while(pq.length){let bi=0;for(let i=1;i<pq.length;i++)if(pq[i][0]<pq[bi][0])bi=i;const[d,id]=pq.splice(bi,1)[0];if(d>dist[id])continue;
@@ -479,8 +479,11 @@
     turnActions++; u.hp=Math.min(u.max,u.hp+6); inv.potion--; sel.ap-=1; usingItem=false; log(`▲ ${sel.name} soigne ${u.name} : +PV`,"player"); refresh(); }
 
   // ===== brouillard / tours =====
-  let visible=new Set(), turn="player", sel=null, over=false, amode=null, hoverCell=null, aimTarget=null, introBlocking=false, lastOutcome=null;
+  let visible=new Set(), evisible=new Set(), turn="player", sel=null, over=false, amode=null, hoverCell=null, aimTarget=null, introBlocking=false, lastOutcome=null;
   function computeVis(){visible=new Set();for(const u of units)if(u.team==="player"&&u.hp>0&&cells[u.cell])for(const c of cells)if(hops(u.cell,c.id)<=7&&los(u.cell,c.id))visible.add(c.id);}
+  // brouillard ENNEMI : champ de vision collectif des pods éveillés (360° + ligne de vue, comme le joueur).
+  // gate les DÉPLACEMENTS ennemis (ils ne se faufilent pas dans des zones qu'ils ne voient pas / derrière un obstacle).
+  function computeEVis(){evisible=new Set();for(const u of units)if(u.team==="enemy"&&u.hp>0&&enemyActive(u)&&cells[u.cell])for(const c of cells)if(hops(u.cell,c.id)<=ENEMY_VIS&&los(u.cell,c.id))evisible.add(c.id);}
   const seen=u=>visible.has(u.cell);
   const defaultAttack=u=>(u.w.ranged&&(u.clip===undefined||u.ammo>0))?"ranged":"melee";
   const exitZoneName=()=>(curMission&&curMission.exitZone)||"exit";
@@ -507,7 +510,7 @@
   let msgT=null;
   function setMsg(t){const el=document.getElementById("msg");el.textContent=t;if(msgT){clearTimeout(msgT);msgT=null;}if(t)msgT=setTimeout(()=>{el.textContent="";msgT=null;},4000);}   // message éphémère : s'efface tout seul
   function refresh(){ if(geoPlay&&!geoPlay.inMission){ if(typeof drawGeoPlay==="function")drawGeoPlay(); return; }   // de retour sur la carte stratégique : pas de refresh « mission » (unités/cellules périmées)
-    if(mode==="play"){computeVis();detectEnemies();detectNeutralPods();updateEnemyMemory();
+    if(mode==="play"){computeVis();detectEnemies();detectNeutralPods();updateEnemyMemory();computeEVis();
       if(turn==="player"&&!over&&sel&&(sel.hp<=0||(sel.ap<=0&&!sel.freeAvail))){ const nxt=units.find(u=>u.team==="player"&&u.hp>0&&!(u.ap<=0&&!u.freeAvail)); if(nxt){sel=nxt;amode=null;aimTarget=null;throwing=false;usingItem=false;} }   // unité épuisée → passe à la suivante
     } else visible=new Set(cells.map(c=>c.id)); draw(); if(mode==="play"){renderActs();renderRoster();maybeAutoEnd();} else { renderCounts(); saveDraft(); } }
   // roster des soldats (haut-gauche) : nom, PV, PA ; clic = sélection

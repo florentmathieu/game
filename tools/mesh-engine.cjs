@@ -24,7 +24,7 @@ function loadMesh(htmlPath){
     setSeed(s){ seed=(s>>>0); },
     genMission, applyMissionObj, exportObj, startGame, setBoardSize, genMesh, buildAdj,
     U, CLASSES, reach, moveAlong, doAttack, inRange, hops, los, passable, occ, adjacent,
-    apForMove, budget, bestEnemyTarget, nearestOpposing, wakePod, wakeEnemy, checkEnd, refresh,
+    apForMove, budget, bestEnemyTarget, nearestOpposing, wakePod, wakeEnemy, checkEnd, refresh, computeEVis,
     hostile, uAt, enemyActive, shotFrom, pathTo,
     get lastOutcome(){return lastOutcome}, set lastOutcome(v){lastOutcome=v},
     get curMission(){return curMission}, set curMission(v){curMission=v},

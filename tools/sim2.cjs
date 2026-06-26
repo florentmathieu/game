@@ -12,7 +12,7 @@ function simulate(maxTurns){
   let turns=0,side="player";
   while(turns<maxTurns&&!M.over&&alive("player")&&alive("enemy")){
     refreshAP(side);
-    for(const u of M.units.slice()){if(M.over)break;if(u.team!==side||u.hp<=0)continue;if(side==="enemy"&&!M.enemyActive(u))continue;M.refresh();actUnit(u);}
+    for(const u of M.units.slice()){if(M.over)break;if(u.team!==side||u.hp<=0)continue;if(side==="enemy"&&!M.enemyActive(u))continue;if(side==="player")M.refresh();else M.computeEVis();actUnit(u);}
     if(side==="enemy")turns++; side=side==="player"?"enemy":"player";
   }
   const r=!alive("enemy")?"win":!alive("player")?"loss":"timeout";
