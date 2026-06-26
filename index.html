@@ -1076,7 +1076,7 @@
   function renderDetail(){ const el=document.getElementById("cdetail"); if(!el)return; const n=campNode(campSel);
     if(!n){ el.innerHTML='<div class="hint">Aucun nœud. Ajoute un Texte, une Mission ou un Choix, puis clique-le dans le graphe.</div>'; return; }
     let h=`<h3>${n.type==="mission"?"🗺 Mission":n.type==="choice"?"🔀 Choix":"📝 Texte"} <code style="font-size:.7rem;color:#9a8a74">${n.id}</code></h3>`;
-    if(n.type==="text") h+=`<div class="row">📄 fichier <select data-f="file">${txtOpts(n.file,"— texte saisi ci-dessous —")}</select></div><input data-f="text" type="text" placeholder="…ou texte plein écran" value="${esc(n.text)}"><div class="row">suite → <select data-f="next">${idOpts(n.next,true)}</select></div>`;
+    if(n.type==="text") h+=`<div class="row">📄 fichier <select data-f="file">${txtOpts(n.file,"— texte saisi ci-dessous —")}</select></div><input data-f="text" type="text" placeholder="…ou texte plein écran" value="${esc(n.text)}"><input data-f="mortal" type="text" placeholder="✝ rend mortel·s (noms, virgules) — « son rôle est fait »" value="${esc(Array.isArray(n.mortal)?n.mortal.join(', '):(n.mortal||''))}"><div class="row">suite → <select data-f="next">${idOpts(n.next,true)}</select></div>`;
     else if(n.type==="mission") h+=`<div class="row">mission <select data-f="mission">${missOpts(n.mission)}</select></div><div class="row">📄 intro <select data-f="introFile">${txtOpts(n.introFile)}</select></div><input data-f="intro" type="text" placeholder="…ou intro saisie" value="${esc(n.intro)}"><div class="row">📄 fin <select data-f="outroFile">${txtOpts(n.outroFile)}</select></div><input data-f="outro" type="text" placeholder="…ou fin saisie" value="${esc(n.outro)}"><div class="row">✓ vict. → <select data-f="win">${idOpts(n.win,true)}</select></div><div class="row">✕ déf. → <select data-f="lose">${idOpts(n.lose,true)}</select></div>`;
     else if(n.type==="choice") h+=`<input data-f="title" type="text" placeholder="titre du choix…" value="${esc(n.title)}"><div id="cdopts" style="margin:6px 0"></div><button data-addopt="1">+ option</button>`;
     else if(n.type==="geoscape"){ const ew=n.endWhen||{kind:"all"}; h+=`<div class="row">🌍 territoire <select data-gf="map">${geoMapOpts(n.map)}</select></div>
@@ -1185,6 +1185,10 @@
         if(selfKO&&!m.special&&!win&&RND()*100<DEATH_PCT){ m.dead=true; deaths.push(m.name); log&&log(`✝ ${m.name} est tombé·e définitivement.`,"enemy"); }
       } else { m.fatigue=Math.max(0,(m.fatigue||0)-REST_RECOVER); m.stress=Math.max(0,(m.stress||0)-REST_RECOVER); }   // au repos : récupère complètement
     } return deaths; }
+  // retrait scénarisé du statut spécial : « son rôle est fait » -> le perso devient mortel (un nœud de campagne peut le déclencher)
+  function applyMortal(names){ if(!campRun||!campRun.roster||names==null)return []; const list=(Array.isArray(names)?names:String(names).split(",")).map(s=>s.trim()).filter(Boolean); const hit=[];
+    for(const nm of list){ const m=campRun.roster.find(r=>r.name===nm); if(m&&m.special!==false){ m.special=false; hit.push(nm); } }
+    if(hit.length)saveRosterProgress(); return hit; }
   function pendingPromotions(){ const list=[]; if(!campRun||!campRun.roster)return list; for(const m of campRun.roster){ const reach=gradeFromXp(m.xp), have=(m.perks||[]).length; for(let g=have; g<reach; g++){ if(PERKS[m.cls]&&PERKS[m.cls][g])list.push({m,grade:g}); } } return list; }
   // persistance INTER-PARTIES : on conserve la progression (xp/perks) du roster, par campagne, en localStorage
   const SAVE_PREFIX="mgf_camp_save_";
@@ -1231,6 +1235,7 @@
     if(camp&&Array.isArray(camp.nodes)&&camp.nodes.length){ startCampaign({name:camp.name||"",start:camp.start||(camp.nodes[0]&&camp.nodes[0].id),roster:camp.roster||[],nodes:camp.nodes},"play"); }
     else { document.body.classList.add("testing"); setView("play"); startGame(); } }
   function runNode(id){ if(!campRun)return; const n=campRun.camp.nodes.find(x=>x.id===id); if(!n){endCampaignRun("Campagne terminée.");return;} campRun.nodeId=id;
+    if(n.mortal)applyMortal(n.mortal);   // « son rôle est fait » : ce nœud peut rendre des persos mortels
     if(n.type==="text"){ if(campRun.seen&&campRun.seen.has(id)){runNode(n.next);return;} if(campRun.seen)campRun.seen.add(id); resolveText(n.text,n.file).then(t=>showCampText(t||"…",()=>runNode(n.next)));return;}
     if(n.type==="choice"){showChoice(n);return;}
     if(n.type==="geoscape"){ enterGeoPlay(n); return; }

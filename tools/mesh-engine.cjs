@@ -31,7 +31,7 @@ function loadMesh(htmlPath){
     get turnNum(){return turnNum}, set turnNum(v){turnNum=v},
     get geoPlay(){return geoPlay}, set geoPlay(v){geoPlay=v},
     get campRun(){return campRun}, set campRun(v){campRun=v},
-    geoMissionEnd, awardXp, pendingPromotions, gradeFromXp, applyPerkMods, deployRoster,
+    geoMissionEnd, awardXp, applyAttrition, applyMortal, pendingPromotions, gradeFromXp, applyPerkMods, deployRoster,
     get PERKS(){return PERKS}, get GRADES(){return GRADES},
     setAutoPromote(fn){ autoPromote=fn; }, saveRosterProgress, loadRosterProgress, clearRosterProgress,
     get smoke(){return smoke},
