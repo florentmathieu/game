@@ -12,10 +12,24 @@ function makeActUnit(M){
   const defValue = (c)=>{ const cell=M.cells[c]; let v=(cell.elev||0); if(cell.terr==="cover")v+=1.5; return v+coverProxy(c)*0.4; };
   const nearestExit = (u)=>{ const cm=M.curMission; const z=(cm&&cm.exitZone)||"exit";
     let goal=null,gh=Infinity; for(const c of M.cells){ if(c.zone!==z)continue; const h=M.hops(u.cell,c.id); if(h<gh){gh=h;goal=c.id;} } return {goal,gh}; };
+  // utilisation OPPORTUNISTE des capacités spéciales (unités joueur perkées) — pour exercer les perks au banc d'essai
+  function useAbilities(u){
+    if(!u.abil||!u.abil.length)return;
+    const foes=M.units.filter(t=>M.hostile(u,t)&&t.hp>0);
+    const awakeNear=foes.some(t=>(t.team!=="enemy"||M.enemyActive(t))&&M.hops(u.cell,t.cell)<=6);
+    const adjAlly=()=>M.units.find(a=>a.team===u.team&&a!==u&&a.hp>0&&M.adjacent(a.cell,u.cell));
+    if(u.abil.includes("rally")&&u.ap>0){ const a=M.units.find(x=>x.team===u.team&&x!==u&&x.hp>0&&x.ap<=0&&!x.freeAvail&&M.adjacent(u.cell,x.cell)); if(a)M.execRally(u,a); }
+    if(u.abil.includes("taunt")&&u.ap>0&&!u.taunt&&awakeNear&&u.hp>=u.max*0.6)M.execTaunt(u);
+    if(u.abil.includes("wall")&&u.ap>0&&!u.wallStance&&awakeNear&&adjAlly())M.execWall(u);
+    if(u.abil.includes("vanish")&&u.ap>0&&!u.vanishUsed&&u.hp<u.max*0.4&&awakeNear)M.execVanish(u);
+  }
   return function actUnit(u){
     let guard=0;
     const extracting = u.team==="player" && M.curMission && M.curMission.objective==="extract";
+    if(!extracting)useAbilities(u);
     while(u.hp>0 && !M.over && (u.ap>0||u.freeAvail) && guard++<8){
+      // Frappe de l'ombre : l'assassin bondit sur un ennemi proche (remplace l'attaque normale)
+      if(u.abil&&u.abil.includes("shadowstrike")&&u.ap>0){ const foe=M.nearestOpposing&&M.nearestOpposing(u); if(foe&&M.hops(u.cell,foe.cell)<=4&&M.execShadow(u,foe))return; }
       const d=M.reach(u); d[u.cell]=0;
       // OBJECTIF EXTRACTION : foncer vers la zone de sortie (le combat est secondaire) ; on s'arrête une fois dessus.
       if(extracting){ const {goal,gh}=nearestExit(u); if(goal==null){ /* pas de zone : repli combat */ }
@@ -34,6 +48,8 @@ function makeActUnit(M){
           const score=(ch/100)*dmg*(kill?2.5:1) - apCost*0.15 + defValue(c)*0.25 + wounded*0.5;   // focus-fire + case de tir abritée
           if(!bestAtk||score>bestAtk.score)bestAtk={c,t,m,score}; } } }
       if(bestAtk){ if(bestAtk.c!==u.cell)M.moveAlong(u,bestAtk.c); if(u.ap>0)M.doAttack(u,bestAtk.t,bestAtk.m); return; }
+      // Fumigène : pas de tir et exposé au feu ennemi -> on se voile (sur place) pour casser la ligne de vue
+      if(u.abil&&u.abil.includes("smoke")&&u.ap>0){ const exposed=M.units.some(t=>t.team==="enemy"&&t.hp>0&&M.enemyActive(t)&&M.shotFrom(t.cell,t,u.cell,t.wtype)>0); if(exposed&&M.execSmoke(u,u.cell))continue; }
       // NB : la vigilance (overwatch) a été essayée ici mais, l'IA étant SYMÉTRIQUE (les deux camps
       // l'utilisent), elle s'annule et ne fait qu'allonger les parties — aucun gain de win%. C'est un
       // outil pour un HUMAIN vs IA (le joueur assaille des pods endormis), pas un levier de sim. Retiré.

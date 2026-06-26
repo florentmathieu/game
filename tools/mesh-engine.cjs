@@ -35,6 +35,7 @@ function loadMesh(htmlPath){
     get PERKS(){return PERKS}, get GRADES(){return GRADES},
     setAutoPromote(fn){ autoPromote=fn; }, saveRosterProgress, loadRosterProgress, clearRosterProgress,
     get smoke(){return smoke},
+    execSmoke, execBreach, execShadow, execRally, execVanish, execTaunt, execHoldline, execWall,
   };
   `;
   src = src.replace(/\}\)\(\);\s*$/, EXPORT + "\n})();");
