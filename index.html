@@ -96,6 +96,8 @@
   #cdetail h3{ margin:0 0 8px; color:var(--acc); font-size:.85rem; text-transform:uppercase; letter-spacing:1px }
   #cdetail input,#cdetail select{ font-size:.78rem; margin:1px 0 } #cdetail input[type=text]{ width:100% } #cdetail .row{ margin:5px 0 }
   #cdetail .opt-row{ display:flex; gap:5px; align-items:center; margin:3px 0 }
+  #geo-events .evrow{ border:1px solid #3a2c1c; border-radius:6px; padding:6px; margin:6px 0; background:#0b0906 }
+  #geo-events textarea,#geo-events input,#geo-events select{ font-size:.78rem; margin:2px 0 }
   #camptext .opt{ display:block; margin:4px auto; min-width:240px }
   #camptext{ position:fixed; inset:0; background:#000; color:#d8cdb4; display:none; flex-direction:column; align-items:center; justify-content:center; gap:20px; z-index:10; padding:40px }
   #camptext.show{ display:flex } #camptext-body{ width:min(620px,92vw); font-size:1.15rem; line-height:1.7; text-align:left }
@@ -216,6 +218,10 @@
     <div class="hint">Génère un maillage grossier (mêmes carrés/hexagones/pentagones, à grande échelle). <b>Clique</b> une cellule pour l'éditer, <b>double-clic</b> pour la renommer vite. ⚠ « Générer » remaille à neuf et remet les annotations à zéro.</div>
     <h2>Cellule sélectionnée</h2>
     <div id="geo-detail" class="hint">Clique une cellule de la carte pour l'éditer ici.</div>
+    <h2>Événements (scénario)</h2>
+    <div class="hint">Déclenchés en jeu : à la <b>1ʳᵉ arrivée</b> sur le territoire, après qu'une <b>région</b> est prise, ou après <b>N victoires</b>. Affiche un texte et/ou recrute / révèle une région.</div>
+    <div id="geo-events"></div>
+    <div class="row"><button id="geo-ev-add">+ Événement</button></div>
     <h2>Dépôt (GitHub)</h2>
     <div class="row"><select id="geo-loadsel" style="flex:1"></select><button id="geo-load">📂 Charger</button><button id="geo-del" title="Supprimer le territoire du dépôt">🗑</button></div>
     <input id="geo-token" type="password" placeholder="token GitHub (si pas déjà saisi dans l'onglet Mission)" style="width:100%;margin:2px 0">
@@ -264,6 +270,7 @@
     garde:{name:"Garde",hp:8,mob:6,shieldBlock:20,w:{melee:sword(65,3,4)}},
     archer:{name:"Archer",hp:6,mob:6,w:{ranged:bow(70,2,3,8)}},
     brute:{name:"Brute",hp:13,mob:8,w:{melee:sword(70,5,7)}},
+    mage:{name:"Mage",hp:6,mob:7,w:{ranged:bow(72,4,6,7,3),melee:sword(45,2,3)}},   // jeteur de sorts : trait magique (portée 7, « mana » = chargeur 3) + bâton faible au corps-à-corps
     homme:{name:"Homme",hp:6,mob:6,civ:true,w:{melee:{type:"melee",aim:40,dmgMin:1,dmgMax:2,bare:true}}},
     femme:{name:"Femme",hp:5,mob:6,civ:true,w:{melee:{type:"melee",aim:40,dmgMin:1,dmgMax:2,bare:true}}},
     enfant:{name:"Enfant",hp:3,mob:7,civ:true,w:{melee:{type:"melee",aim:25,dmgMin:0,dmgMax:1,bare:true}}},
@@ -288,6 +295,9 @@
     garde:[ {A:{id:"ga1a",name:"Bouclier protecteur",desc:"Intercepte un coup visant un allié adjacent",abil:"protect"}, B:{id:"ga1b",name:"Robuste",desc:"+4 PV",mod:{hp:4}}},
             {A:{id:"ga2a",name:"Mur mobile",desc:"Donne du couvert aux alliés adjacents",abil:"wall"}, B:{id:"ga2b",name:"Coup appuyé",desc:"+2 dégât",mod:{dmg:2}}},
             {A:{id:"ga3a",name:"Foulée",desc:"+1 mouvement",mod:{mob:1}}, B:{id:"ga3b",name:"Bastion",desc:"+5 PV",mod:{hp:5}}} ],
+    mage:[ {A:{id:"mg1a",name:"Trait perçant",desc:"+2 dégât",mod:{dmg:2}}, B:{id:"mg1b",name:"Robe renforcée",desc:"+4 PV",mod:{hp:4}}},
+           {A:{id:"mg2a",name:"Longue portée",desc:"+2 portée",mod:{range:2}}, B:{id:"mg2b",name:"Concentration",desc:"+10 visée",mod:{aim:10}}},
+           {A:{id:"mg3a",name:"Déflagration",desc:"+3 dégât",mod:{dmg:3}}, B:{id:"mg3b",name:"Vitalité",desc:"+5 PV",mod:{hp:5}}} ],
   };
   const perkById=(cls,id)=>{ for(const g of (PERKS[cls]||[])){ if(g.A.id===id)return g.A; if(g.B.id===id)return g.B; } return null; };
   function applyPerkMods(u,perkIds){ for(const id of (perkIds||[])){ const p=perkById(u.cls,id); if(!p)continue;
@@ -1335,7 +1345,27 @@
   function saveRosterProgress(){ if(!campRun||!campRun.camp)return; try{ localStorage.setItem(SAVE_PREFIX+campSlug(campRun.camp.name),
     JSON.stringify({roster:campRun.roster.map(m=>({name:m.name,cls:m.cls,xp:m.xp||0,perks:(m.perks||[]).slice(),stress:m.stress||0,fatigue:m.fatigue||0,special:m.special!==false,dead:!!m.dead}))})); }catch(e){} }
   function loadRosterProgress(name){ try{ const t=localStorage.getItem(SAVE_PREFIX+campSlug(name)); if(t){ const o=JSON.parse(t); if(o&&Array.isArray(o.roster))return o.roster; } }catch(e){} return null; }
-  function clearRosterProgress(name){ try{ localStorage.removeItem(SAVE_PREFIX+campSlug(name)); }catch(e){} }
+  function clearRosterProgress(name){ try{ localStorage.removeItem(SAVE_PREFIX+campSlug(name)); localStorage.removeItem(EVT_PREFIX+campSlug(name)); }catch(e){} }
+  // événements scénarisés déjà déclenchés (pour ne pas les rejouer), persistés par campagne
+  const EVT_PREFIX="mgf_camp_evt_";
+  function saveFiredEvents(){ if(!campRun||!campRun.camp)return; try{ localStorage.setItem(EVT_PREFIX+campSlug(campRun.camp.name),JSON.stringify([...(campRun.firedEvents||[])])); }catch(e){} }
+  function loadFiredEvents(name){ try{ const t=localStorage.getItem(EVT_PREFIX+campSlug(name)); if(t){ const a=JSON.parse(t); if(Array.isArray(a))return a; } }catch(e){} return []; }
+  // ===== événements scénarisés du geoscape (1ʳᵉ arrivée / région prise / N victoires → texte + effets) =====
+  function geoRegionCleared(name){ if(!geoPlay||!geoPlay.map||!campRun)return false; const st=campRun.geoStates&&campRun.geoStates[geoPlay.node.id]; if(!st)return false;
+    return geoPlay.map.cells.some((c,i)=>(c.name||"")===name&&st[i]==="cleared"); }
+  function geoRevealRegion(name){ if(!geoPlay||!geoPlay.map||!campRun)return; const st=campRun.geoStates[geoPlay.node.id]; if(!st)return;
+    geoPlay.map.cells.forEach((c,i)=>{ if((c.name||"")===name&&st[i]==="locked")st[i]="available"; }); }
+  function applyGeoEvent(e){ if(e.recruit)applyRecruit(e.recruit); if(e.reveal)geoRevealRegion(e.reveal); if(e.mortal)applyMortal(e.mortal); }
+  function runGeoEvents(phase,cb){ cb=cb||function(){}; if(!campRun||!geoPlay||!geoPlay.map||!Array.isArray(geoPlay.map.events)){ cb(); return; }
+    campRun.firedEvents=campRun.firedEvents||new Set();
+    const list=geoPlay.map.events.map((e,i)=>({e,id:e.id||("ev"+i)})).filter(({e,id})=>{ if(campRun.firedEvents.has(id))return false; const w=e.when||{};
+        if(phase==="arrive")return w.kind==="arrive";
+        if(w.kind==="cleared")return geoRegionCleared(w.value);
+        if(w.kind==="wins")return (campRun.winCount||0)>=(+w.value||0);
+        return false; });
+    const run=()=>{ if(!list.length){ cb(); return; } const {e,id}=list.shift(); campRun.firedEvents.add(id); applyGeoEvent(e); saveFiredEvents();
+      if(e.text&&!autoPromote)showCampText(e.text,run); else run(); };   // en test (autoPromote) : effets appliqués, pas de texte bloquant
+    run(); }
   // écran de montée (entre missions) : pour chaque grade gagné, choix A/B irréversible, puis on continue.
   // autoPromote (option/tests) : si défini, choisit sans UI ; sinon, écran cliquable.
   let autoPromote=null;
@@ -1366,7 +1396,7 @@
     const cur={mission:"nav-m",campaign:"nav-c",geoscape:"nav-g",play:"nav-p"}[v]; ["nav-m","nav-c","nav-g","nav-p"].forEach(id=>{const a=document.getElementById(id);if(a)a.classList.toggle("cur",id===cur);});
     if(v==="campaign"){ if(typeof drawGraph==="function")drawGraph(); }
     if(v==="geoscape"&&typeof geoEnter==="function")geoEnter(); }
-  function startCampaign(camp,from,fromNode){ campRun={camp,carry:{},winCount:0,roster:(camp.roster||[]).map(m=>({name:m.name,cls:m.cls,xp:m.xp||0,perks:Array.isArray(m.perks)?m.perks.slice():[],stress:0,fatigue:0,special:m.special!==false,mortalAfter:m.mortalAfter||null,dead:false})),nodeId:null,from:from||"campaign",seen:new Set(),potions:0};
+  function startCampaign(camp,from,fromNode){ campRun={camp,carry:{},winCount:0,roster:(camp.roster||[]).map(m=>({name:m.name,cls:m.cls,xp:m.xp||0,perks:Array.isArray(m.perks)?m.perks.slice():[],stress:0,fatigue:0,special:m.special!==false,mortalAfter:m.mortalAfter||null,dead:false})),nodeId:null,from:from||"campaign",seen:new Set(),potions:0,firedEvents:new Set(loadFiredEvents(camp.name))};
     const saved=loadRosterProgress(camp.name); if(saved){ for(const m of campRun.roster){ const s=saved.find(x=>x.name===m.name&&x.cls===m.cls); if(s){ m.xp=s.xp||0; m.perks=Array.isArray(s.perks)?s.perks.slice():[]; m.stress=s.stress||0; m.fatigue=s.fatigue||0; m.special=s.special!==false; m.dead=!!s.dead; } }   // reprend progression + usure + morts inter-parties
       for(const s of saved){ if(s.name&&!campRun.roster.some(m=>m.name===s.name))campRun.roster.push({name:s.name,cls:s.cls,xp:s.xp||0,perks:Array.isArray(s.perks)?s.perks.slice():[],stress:s.stress||0,fatigue:s.fatigue||0,special:s.special!==false,mortalAfter:null,dead:!!s.dead}); } }   // recrues scénarisées (absentes du roster de base) conservées
     document.body.classList.remove("testing"); setView("play"); runNode(fromNode||camp.start); }
@@ -1475,7 +1505,7 @@
 
   // ===================== GEOSCAPE — éditeur de territoire =====================
   // Réutilise le maillage (genMesh) en densité grossière ; chaque cellule = une région annotée.
-  let geoSel=null, geoCampId=null, geoG=170, geoStarted=false, geoPlay=null;
+  let geoSel=null, geoCampId=null, geoG=170, geoStarted=false, geoPlay=null, geoEventsDraft=[];
   function inGeo(){ return document.body.classList.contains("view-geoscape"); }
   const GEO_STATES=[["locked","verrouillé"],["available","disponible"],["cleared","nettoyé"],["lost","perdu"]];
   const GEO_FILL={locked:"#2c2f3a",available:"#2f6e4c",cleared:"#1c4e7a",lost:"#6a2b22"};
@@ -1492,7 +1522,27 @@
     // le nombre de régions *intérieures* visé (genMesh applique déjà le tri « île »).
     let g=Math.max(60,Math.round(Math.sqrt(W*H/tgt)*0.95));
     for(let it=0;it<16;it++){ genMesh(g); const n=cells.length; if(n>tgt*1.2)g=Math.round(g*1.1); else if(n<tgt*0.8)g=Math.round(g*0.9); else break; }
-    geoG=g; geoInitCells(); geoRefresh(); }
+    geoG=g; geoInitCells(); geoEventsDraft=[]; geoRenderEvents(); geoRefresh(); }
+  // éditeur d'événements scénarisés (liste répétable) — sérialisés dans le JSON du territoire
+  function geoRenderEvents(){ const el=document.getElementById("geo-events"); if(!el)return; geoEventsDraft=geoEventsDraft||[];
+    if(!geoEventsDraft.length){ el.innerHTML=`<div class="hint">Aucun événement.</div>`; return; }
+    el.innerHTML=geoEventsDraft.map((e,i)=>{ e.when=e.when||{kind:"arrive"}; const k=e.when.kind||"arrive";
+      return `<div class="evrow" data-i="${i}"><div class="row"><select data-ev-kind>
+        <option value="arrive"${k==="arrive"?" selected":""}>1ʳᵉ arrivée</option>
+        <option value="cleared"${k==="cleared"?" selected":""}>région prise</option>
+        <option value="wins"${k==="wins"?" selected":""}>après N victoires</option></select>
+        <input data-ev-val placeholder="${k==="wins"?"N (ex. 3)":"nom de région"}" value="${esc(e.when.value!=null?e.when.value:"")}" style="flex:1${k==="arrive"?";display:none":""}">
+        <button data-ev-del title="supprimer">🗑</button></div>
+        <textarea data-ev-text placeholder="texte affiché (vide = aucun ; « _ » sépare les pages)" rows="2" style="width:100%">${esc(e.text||"")}</textarea>
+        <div class="row"><input data-ev-recruit placeholder="➕ recrute (Nom:classe ; *=★)" value="${esc(e.recruit||"")}" style="flex:1">
+        <input data-ev-reveal placeholder="🔓 révèle région" value="${esc(e.reveal||"")}" style="flex:1"></div></div>`; }).join("");
+    el.querySelectorAll(".evrow").forEach(row=>{ const i=+row.getAttribute("data-i"), e=geoEventsDraft[i], q=s=>row.querySelector(s);
+      q("[data-ev-kind]").onchange=ev=>{ e.when=e.when||{}; e.when.kind=ev.target.value; geoRenderEvents(); };
+      const v=q("[data-ev-val]"); if(v)v.oninput=ev=>{ e.when=e.when||{}; e.when.value=ev.target.value; };
+      q("[data-ev-text]").oninput=ev=>{ e.text=ev.target.value; };
+      q("[data-ev-recruit]").oninput=ev=>{ e.recruit=ev.target.value; };
+      q("[data-ev-reveal]").oninput=ev=>{ e.reveal=ev.target.value; };
+      q("[data-ev-del]").onclick=()=>{ geoEventsDraft.splice(i,1); geoRenderEvents(); }; }); }
   // règle l'aspect ratio de la fenêtre geoscape (largeur de base fixe, hauteur dérivée), puis régénère
   function geoSetAspect(){ const sel=document.getElementById("geo-aspect"); const v=(sel&&sel.value)||"3:2"; const m=v.split(":").map(Number); const aw=m[0]||3, ah=m[1]||2;
     const baseW=720; const w=baseW, h=Math.round(baseW*ah/aw);
@@ -1546,7 +1596,9 @@
       mesh:{ infl, seed, g:geoG, cols:COLS, rows:ROWS },
       camp:geoCampId,
       cells:cells.map(c=>({ poly:c.poly.map(p=>[Math.round(p[0]),Math.round(p[1])]), name:c.gname||"", type:c.gtype||"region",
-        content:{kind:c.gkind||"empty", ref:c.gref||null}, state:c.gstate||"locked", unlockedBy:(c.gunlock||[]).slice(), diff:c.gdiff||0 })) }; }
+        content:{kind:c.gkind||"empty", ref:c.gref||null}, state:c.gstate||"locked", unlockedBy:(c.gunlock||[]).slice(), diff:c.gdiff||0 })),
+      events:(geoEventsDraft||[]).map(e=>{ const o={when:{kind:(e.when&&e.when.kind)||"arrive"}}; if(o.when.kind!=="arrive")o.when.value=e.when&&e.when.value;
+        if(e.text)o.text=e.text; if(e.recruit)o.recruit=e.recruit; if(e.reveal)o.reveal=e.reveal; return o; }).filter(e=>e.text||e.recruit||e.reveal) }; }
   function geoApply(o){ resetView();
     if(o.mesh&&Array.isArray(o.mesh.infl)){ infl=o.mesh.infl; ROWS=infl.length; COLS=(infl[0]&&infl[0].length)||COLS; W=COLS*MC;H=ROWS*MC; cv.width=W;cv.height=H; }
     if(o.mesh&&o.mesh.seed!=null)seed=o.mesh.seed; if(o.mesh&&o.mesh.g)geoG=o.mesh.g;
@@ -1557,7 +1609,9 @@
         gstate:c.state||"locked",gunlock:Array.isArray(c.unlockedBy)?c.unlockedBy.slice():[],gdiff:c.diff||0}; });
       buildAdj();
     } else { genMesh(geoG); geoInitCells(); }
-    geoCampId=(o.camp!=null)?o.camp:null; geoSel=null; geoStarted=true; geoRefresh(); }
+    geoCampId=(o.camp!=null)?o.camp:null; geoSel=null; geoStarted=true;
+    geoEventsDraft=Array.isArray(o.events)?o.events.map(e=>({when:{kind:(e.when&&e.when.kind)||"arrive",value:e.when&&e.when.value},text:e.text||"",recruit:e.recruit||"",reveal:e.reveal||""})):[]; geoRenderEvents();
+    geoRefresh(); }
 
   // dépôt GitHub (dossier geoscapes-mesh/)
   function geoFill(list){ const sel=document.getElementById("geo-loadsel"); if(sel)sel.innerHTML=list.length?list.map(x=>`<option value="${x.file}">${x.name}</option>`).join(""):`<option value="">(aucun)</option>`; }
@@ -1585,8 +1639,9 @@
     if(g("geo-aspect"))g("geo-aspect").onchange=geoSetAspect;
     if(g("geo-save"))g("geo-save").onclick=geoPublish;
     if(g("geo-load"))g("geo-load").onclick=geoLoad;
-    if(g("geo-del"))g("geo-del").onclick=geoDelete; }
-  geoFetchList();
+    if(g("geo-del"))g("geo-del").onclick=geoDelete;
+    if(g("geo-ev-add"))g("geo-ev-add").onclick=()=>{ geoEventsDraft.push({when:{kind:"arrive"},text:""}); geoRenderEvents(); }; }
+  geoRenderEvents(); geoFetchList();
 
   // ---- runtime : un nœud geoscape = sous-boucle (carte → mission de région → retour → endWhen → next) ----
   function geoBuildCells(){ const m=geoPlay.map, st=campRun.geoStates[geoPlay.node.id];
@@ -1599,7 +1654,7 @@
     let m; try{ m=JSON.parse(t); }catch(e){ showCampText("Territoire illisible.",()=>endCampaignRun("Fin.")); return; }
     campRun.geoStates=campRun.geoStates||{}; if(!campRun.geoStates[node.id])campRun.geoStates[node.id]=m.cells.map(c=>c.state||"locked");
     geoPlay={node,map:m,inMission:false}; { const tt=document.getElementById("title"); if(tt)tt.style.display="none"; }
-    document.body.classList.add("geomap"); over=false; resetView(); geoBuildCells(); hoverCell=null; geoBanner(); draw(); }
+    document.body.classList.add("geomap"); over=false; resetView(); geoBuildCells(); hoverCell=null; geoBanner(); draw(); runGeoEvents("arrive"); }   // événements de 1ʳᵉ arrivée
   function geoBanner(t){ const el=document.getElementById("geobanner"); if(!el||!geoPlay)return; const st=campRun.geoStates[geoPlay.node.id];
     const avail=geoPlay.map.cells.filter((c,i)=>(st[i]==="available"||st[i]==="lost")&&c.content&&c.content.kind==="mission").length;   // perdues = rejouables
     const sub=t!=null?esc(t):(avail?("choisis une région — "+avail+" à (re)prendre"):"aucune région disponible");
@@ -1666,7 +1721,8 @@
     if(lostSpecial.length)events.push("★ "+lostSpecial.join(", ")+" — leur rôle est accompli : iels ne sont plus à l'abri du destin.");
     const showEvents=after=>{ if(!events.length){after();return;} announce(events.shift(),()=>showEvents(after)); };
     const toCamp=()=>{ document.body.classList.add("geomap"); resetView(); geoBuildCells(); hoverCell=null;
-      geoBanner(win?"région sécurisée — choisis la suite":"région perdue — la situation a changé"); draw(); };
+      geoBanner(win?"région sécurisée — choisis la suite":"région perdue — la situation a changé"); draw();
+      runGeoEvents("debrief",()=>{ geoBuildCells(); draw(); geoBanner(); }); };   // événements « après région prise / N victoires » (puis redessine si un reveal a ouvert des régions)
     const resolveDebrief=()=>{ if(geoEndReached(node,st)){ const nx=node.next; geoPlay=null; document.body.classList.remove("geomap");
         announce((win?"Région sécurisée.":"Région perdue.")+" L'acte s'achève.",()=>{ if(nx)runNode(nx); else endCampaignRun("Acte terminé."); }); return; }
       toCamp(); };
@@ -1690,7 +1746,7 @@
       if(document.body.classList.contains("view-play")&&!campRun) startPlay(); }; }
   // « Recommencer à zéro » : efface la progression persistée de toutes les campagnes (le roster repart vierge)
   { const rb=document.getElementById("title-reset"); if(rb)rb.onclick=()=>{ if(!confirm("Effacer toute la progression sauvegardée (niveaux & compétences) ?"))return;
-      try{ const rm=[]; for(let i=0;i<localStorage.length;i++){ const k=localStorage.key(i); if(k&&k.indexOf(SAVE_PREFIX)===0)rm.push(k); } rm.forEach(k=>localStorage.removeItem(k)); }catch(e){}
+      try{ const rm=[]; for(let i=0;i<localStorage.length;i++){ const k=localStorage.key(i); if(k&&(k.indexOf(SAVE_PREFIX)===0||k.indexOf(EVT_PREFIX)===0))rm.push(k); } rm.forEach(k=>localStorage.removeItem(k)); }catch(e){}
       rb.textContent="✓ Progression effacée"; }; }
   // sections repliables : chaque <h2> de l'éditeur replie le bloc qui le suit
   function makeCollapsible(container){ if(!container||!container.querySelectorAll)return;

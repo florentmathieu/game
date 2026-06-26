@@ -34,6 +34,7 @@ function loadMesh(htmlPath){
     geoMissionEnd, awardXp, applyAttrition, applyMortal, applyRecruit, checkMortalConditions, pendingPromotions, gradeFromXp, applyPerkMods, deployRoster,
     setupBonus, checkBonus, grantBonus, applyReward, maybeOfferExtra, launchMini, miniMissionEnd,
     applyCarry, saveCarry, memMaxHp, memDeployHp,
+    runGeoEvents, geoRegionCleared, geoRevealRegion, applyGeoEvent, saveFiredEvents, loadFiredEvents,
     get PERKS(){return PERKS}, get GRADES(){return GRADES},
     setAutoPromote(fn){ autoPromote=fn; }, saveRosterProgress, loadRosterProgress, clearRosterProgress,
     get smoke(){return smoke},
