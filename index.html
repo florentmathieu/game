@@ -158,6 +158,7 @@
       <label>Pods <input id="gen-pods" type="number" min="1" max="6" placeholder="auto" style="width:54px"></label>
       <span class="hint" style="flex:1">total d'ennemis = vrai curseur ; vide = selon difficulté</span></div>
     <div class="row"><label style="flex:1">Couvert <input id="gen-cover" type="range" min="10" max="50" value="30"></label><span id="gen-coverv">30%</span></div>
+    <div class="row" style="flex-wrap:wrap;gap:8px"><span style="font-size:.85rem">Classes ennemies :</span><span id="gen-eclasses" style="display:flex;flex-wrap:wrap;gap:8px"></span></div>
     <div class="row"><button id="gen-mission">🎲 Générer une mission</button></div>
     <div class="hint">Génère forme (île) + relief/couvert + <b>déploiement & pods</b> (placement par graphe : pods loin du déploiement, espacés, hors de vue). <b>Objectif</b> au choix : élimination, assassinat (⊕ cible), sauvetage (otage au cœur des pods), défense d'un VIP / survie N tours, extraction (zone profonde). Rejoue à neuf à chaque clic (seed).</div>
     <h2>3 · Unités</h2>
@@ -287,6 +288,8 @@
     garde:{name:"Garde",hp:8,mob:6,shieldBlock:20,w:{melee:sword(65,3,4)}},
     archer:{name:"Archer",hp:6,mob:6,w:{ranged:bow(70,2,3,8)}},
     brute:{name:"Brute",hp:13,mob:8,w:{melee:sword(70,5,7)}},
+    shieldbearer:{name:"Porteur de bouclier",hp:12,mob:6,shieldBlock:45,enemyOnly:true,w:{melee:sword(60,3,5)}},   // tank ennemi : bloque ~45% des tirs de face/flanc
+    emage:{name:"Mage noir",hp:7,mob:7,enemyOnly:true,abil:["blast","frost"],w:{ranged:bow(70,4,6,7,3),melee:sword(45,2,3)}},   // caster ennemi : déflagration de zone + givre
     mage:{name:"Mage",hp:6,mob:7,w:{ranged:bow(72,4,6,7,3),melee:sword(45,2,3)}},   // jeteur de sorts : trait magique (portée 7, « mana » = chargeur 3) + bâton faible au corps-à-corps
     homme:{name:"Homme",hp:6,mob:6,civ:true,w:{melee:{type:"melee",aim:40,dmgMin:1,dmgMax:2,bare:true}}},
     femme:{name:"Femme",hp:5,mob:6,civ:true,w:{melee:{type:"melee",aim:40,dmgMin:1,dmgMax:2,bare:true}}},
@@ -406,6 +409,7 @@
     if(opts.pod!=null&&opts.pod!=="")u.pod=+opts.pod; if(opts.asleep&&team==="enemy"){u.asleep=true;u._asleep0=true;} if(opts.hostage&&team==="neutral")u.hostage=true;
     if(opts.hvt&&team==="enemy")u.hvt=true;   // cible de haute valeur (objectif « assassinat »)
     if(opts.guard&&team==="neutral")u.civ=false;   // PNJ à défendre : ciblé par l'ennemi ET compté dans la défaite (≠ civil d'ambiance)
+    if(t.abil)u.abil=t.abil.slice();   // capacités intégrées à la classe (ex. mage ennemi) — les joueurs les obtiennent via les perks
     return u; }
   const occ=()=>new Set(units.filter(u=>u.hp>0).map(u=>u.cell));
   const uAt=id=>units.find(u=>u.hp>0&&u.cell===id);
@@ -579,11 +583,11 @@
   function execWall(u){ if(onCd(u,"wall"))return false; u.wallStance=true; u.ap-=1; u.freeAvail=false; setCd(u,"wall"); log(`▲ ${u.name} forme un mur mobile`,"player"); refresh(); return true; }
   // ===== sorts du mage =====
   function execBlast(u,id){ if(onCd(u,"blast"))return false; if(hops(u.cell,id)>BLAST_RANGE||!los(u.cell,id)){setMsg("Déflagration : hors de portée / sans vue.");return false;}
-    for(const e of units){ if(e.team!=="enemy"||e.hp<=0||hops(id,e.cell)>BLAST_RADIUS)continue;
+    for(const e of units){ if(!hostile(u,e)||e.hp<=0||hops(id,e.cell)>BLAST_RADIUS)continue;   // touche les hostiles du lanceur (joueur OU ennemi)
       const dmg=BLAST_MIN+Math.floor(RND()*(BLAST_MAX-BLAST_MIN+1)); e.hp=Math.max(0,e.hp-dmg); pushDmg(e.cell,dmg,e.team);
-      if(e.hp<=0)u.kills=(u.kills||0)+1; else wakeEnemy(e,"noise"); }
+      if(e.hp<=0){ if(u.team==="player")u.kills=(u.kills||0)+1; } else if(e.team==="enemy")wakeEnemy(e,"noise"); }
     pushBlast(id,BLAST_RADIUS); screenShake(6); u.spellsCast=(u.spellsCast||0)+1; setCd(u,"blast"); u.ap=0; u.freeAvail=false; log(`▲ ${u.name} déchaîne une déflagration`,"player"); checkEnd(); if(!over)refresh(); return true; }
-  function execHeal(u,a){ if(onCd(u,"heal"))return false; if(!a||a.team!=="player"||a.hp<=0){setMsg("Vague de soin : choisis un allié visible.");return false;}
+  function execHeal(u,a){ if(onCd(u,"heal"))return false; if(!a||a.team!==u.team||a.hp<=0){setMsg("Vague de soin : choisis un allié visible.");return false;}
     if(hops(u.cell,a.cell)>HEAL_RANGE||!los(u.cell,a.cell)){setMsg("Vague de soin : hors de portée / sans vue.");return false;}
     if(a.hp>=a.max){setMsg(`${a.name} est déjà au max.`);return false;}
     const before=a.hp; a.hp=Math.min(a.max,a.hp+HEAL_AMT); pushHeal(a.cell,a.hp-before); u.spellsCast=(u.spellsCast||0)+1; setCd(u,"heal"); u.ap-=1; u.freeAvail=false; log(`▲ ${u.name} soigne ${a.name} (+${HEAL_AMT} PV)`,"player"); refresh(); return true; }
@@ -718,6 +722,14 @@
     for(const k in dist){ const cell=+k; const sc=hops(cell,goal)-cells[cell].elev*0.1; if(sc<bs){bs=sc;bestCell=cell;} }
     const tryShoot=()=>{ if(e.hp>0){ const t=bestEnemyTarget(e); if(t)doAttack(e,t,e.wtype); } done(); };
     if(bestCell!==e.cell){ moveAlong(e,bestCell); refresh(); setTimeout(tryShoot,(anim?anim.dur+150:200)); } else tryShoot(); }
+  // capacités du mage ennemi : déflagration sur un groupe de joueurs (termine le tour), sinon givre d'une cible (1 PA)
+  function enemyUseAbil(e){ if(!e.abil||e.ap<=0)return false;
+    if(e.abil.includes("blast")&&!onCd(e,"blast")){ let best=null;
+      for(const p of units){ if(!hostile(e,p)||p.hp<=0)continue; if(hops(e.cell,p.cell)>BLAST_RANGE||!los(e.cell,p.cell))continue;
+        let cnt=0; for(const q of units)if(hostile(e,q)&&q.hp>0&&hops(p.cell,q.cell)<=BLAST_RADIUS)cnt++; if(!best||cnt>best.cnt)best={cell:p.cell,cnt}; }
+      if(best&&best.cnt>=2&&execBlast(e,best.cell))return true; }
+    if(e.abil.includes("frost")&&!onCd(e,"frost")){ const t=bestEnemyTarget(e); if(t&&!t.slowed&&hops(e.cell,t.cell)<=FROST_RANGE&&los(e.cell,t.cell))execFrost(e,t); }
+    return false; }
   function endTurn(){turn="enemy";turnActions=0;sel=null;amode=null;aimTarget=null;for(const u of units)if(u.team==="enemy"){u.ap=u.slowed?Math.max(0,AP_MAX-1):AP_MAX;u.slowed=false;u.freeAvail=true;u.overwatch=false;u.reacted=false;u.bracing=false;}banner("Tour de l'ennemi","enemy");refresh();const foes=units.filter(u=>u.team==="enemy"&&u.hp>0);let i=0;
     (function step(){if(over)return;if(i>=foes.length){for(const u of units)if(u.team==="player"){u.ap=AP_MAX;u.freeAvail=true;u.overwatch=false;u.reacted=false;u.bracing=false;u.taunt=false;u.hidden=false;u.wallStance=false;}tickCd("player");for(const[k,v]of smoke){if(v-1<=0)smoke.delete(k);else smoke.set(k,v-1);}turn="player";turnNum++;turnActions=0;setMsg("");checkEnd();if(over)return;banner("Tour du joueur","player");refresh();emit("turn",{turn:turnNum});return;}
       const e=foes[i++];if(e.hp<=0){step();return;} e.overwatch=false; if(!enemyActive(e)){ try{patrolStep(e);}catch(err){} e.ap=0; step(); return; }   // pas alerté = patrouille dans sa zone
@@ -740,6 +752,7 @@
         const sc=off-0.7*thr-1.5*near+0.5*cells[cell].elev-clump+spread;
         if(sc>bestScore){bestScore=sc;bestCell=cell;} }
       const finish=()=>{ if(over)return; if(e.hp<=0){step();return;}
+        if(enemyUseAbil(e)){ setTimeout(step,420); return; }   // mage ennemi : sort (la déflagration termine le tour ; le givre laisse un tir ensuite)
         if(e.clip!==undefined&&e.ammo<=0&&e.ap>0&&hasPotentialShot(e)){ e.ap-=1; e.ammo=e.clip; log(`▼ ${e.name} recharge`,"enemy"); }   // recharge si une cible serait à portée
         const t=bestEnemyTarget(e); if(t){ doAttack(e,t,e.wtype); setTimeout(step,420); return; }
         if(e.shieldBlock>0&&e.ap>0&&!e.bracing&&units.some(p=>p.team==="player"&&p.hp>0&&shotFrom(p.cell,p,e.cell,p.wtype)>0)){ e.ap-=1; e.bracing=true; log(`▼ ${e.name} se met en garde`,"enemy"); }   // garde si exposé au feu
@@ -939,6 +952,10 @@
   { const b=document.createElement("button"); b.textContent="🎲 Profil auto"; b.title="Génère relief, rochers, couverts et murets aléatoires"; b.onclick=()=>autoTerrain(); document.getElementById("relief").appendChild(b); }
   { const gm=document.getElementById("gen-mission"); if(gm)gm.onclick=()=>genMission();
     const gc=document.getElementById("gen-cover"); if(gc)gc.oninput=()=>{document.getElementById("gen-coverv").textContent=gc.value+"%";}; }
+  // sélection des classes ennemies pour la génération (cases à cocher)
+  const ENEMY_POOL=["garde","archer","brute","shieldbearer","emage"];   // classes proposées pour les ennemis générés
+  { const box=document.getElementById("gen-eclasses"); if(box){ box.innerHTML=ENEMY_POOL.map(k=>`<label style="font-size:.82rem;display:inline-flex;align-items:center;gap:3px"><input type="checkbox" data-ecls="${k}"${["garde","archer","brute"].includes(k)?" checked":""}>${(CLASSES[k]&&CLASSES[k].name)||k}</label>`).join(""); } }
+  function chosenEnemyClasses(){ const box=document.getElementById("gen-eclasses"); if(!box)return null; const sel=[...box.querySelectorAll("input[data-ecls]:checked")].map(c=>c.dataset.ecls).filter(k=>CLASSES[k]); return sel.length?sel:null; }
   document.getElementById("tplace").onclick=()=>{editTool="unit";syncTools();};
   document.getElementById("terase").onclick=()=>{editTool="erase";syncTools();};
   document.getElementById("tpod").onclick=()=>{editTool="pod";syncTools();};
@@ -1007,7 +1024,7 @@
     far.sort((a,b)=>dist[b]-dist[a]);
     const podAnchors=[]; for(const id of far){ if(podAnchors.length>=podCount)break; if(podAnchors.every(a=>hops(a,id)>=podSpacing))podAnchors.push(id); }
     if(!podAnchors.length&&far.length)podAnchors.push(far[0]);
-    const ecls=P.enemyClasses||["garde","archer","brute"], occSet=new Set(units.map(u=>u.cell));
+    const ecls=P.enemyClasses||(typeof chosenEnemyClasses==="function"&&chosenEnemyClasses())||["garde","archer","brute"], occSet=new Set(units.map(u=>u.cell));
     // NOMBRE D'ENNEMIS CIBLE = vrai curseur de difficulté (le sim montre que le total écrase le nb de pods).
     // On le répartit de façon déterministe sur les pods (faible variance) au lieu de tailles aléatoires.
     const genEn=document.getElementById("gen-enemies"); const enFromDom=genEn&&genEn.value!==""?+genEn.value:null;
@@ -1187,7 +1204,7 @@
     if(campSel==null||!campNode(campSel))campSel=campNodes[0]?campNodes[0].id:null;
     renderDetail(); drawGraph(); renderRosterEditor(); saveCampDraft(); }
   // éditeur de roster (escouade de campagne) — persos déployés dans les missions
-  const PLAYER_CLASSES=Object.keys(CLASSES).filter(k=>!CLASSES[k].civ&&k!=="sergent");
+  const PLAYER_CLASSES=Object.keys(CLASSES).filter(k=>!CLASSES[k].civ&&!CLASSES[k].enemyOnly&&k!=="sergent");
   function renderRosterEditor(){ const el=document.getElementById("rosterlist"); if(!el)return;
     el.innerHTML=campRoster.length?campRoster.map((m,i)=>`<div class="row" data-ri="${i}" style="flex-wrap:wrap">
       <input data-rf="name" type="text" value="${esc(m.name||"")}" placeholder="nom" style="flex:1;min-width:90px">
