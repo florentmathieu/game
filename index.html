@@ -54,7 +54,7 @@
   /* vue campagne : grande fenêtre (le panneau prend toute la largeur, graphe & liste agrandis) */
   body.view-campaign .panel{ width:100%; max-width:1100px; margin:0 auto }
   body.view-campaign #cnodes{ max-height:46vh }
-  body.view-campaign #cgraph{ height:46vh; min-height:340px }
+  body.view-campaign #cgwrap{ height:46vh; min-height:340px }
   /* vue geoscape : carte (canvas) + panneau d'annotation à droite, comme la mission */
   body.view-geoscape .panel{ width:100%; max-width:480px }
   #geo-detail .row{ margin:3px 0 }
@@ -90,7 +90,8 @@
   #combatline .who{ color:#ffd479; font-weight:bold; margin-right:6px }
   #triglist{ max-height:90px; overflow:auto } #triglist .tdel{ padding:0 5px; margin-right:4px }
   #cwrap{ display:flex; gap:12px; align-items:stretch; flex-wrap:wrap; margin:6px 0 }
-  #cgraph{ flex:1 1 420px; min-width:300px; height:56vh; min-height:360px; background:#0b0906; border:1px solid #3a2c1c; border-radius:8px; cursor:grab }
+  #cgwrap{ flex:1 1 420px; min-width:300px; height:56vh; min-height:360px; overflow:auto; background:#0b0906; border:1px solid #3a2c1c; border-radius:8px }
+  #cgraph{ display:block; cursor:grab }
   #cdetail{ flex:0 0 330px; max-width:100%; max-height:56vh; overflow:auto; background:#0b0906; border:1px solid #3a2c1c; border-radius:8px; padding:10px; color:var(--ink) }
   #cdetail h3{ margin:0 0 8px; color:var(--acc); font-size:.85rem; text-transform:uppercase; letter-spacing:1px }
   #cdetail input,#cdetail select{ font-size:.78rem; margin:1px 0 } #cdetail input[type=text]{ width:100% } #cdetail .row{ margin:5px 0 }
@@ -111,7 +112,6 @@
   #title h1{ font-size:3rem; letter-spacing:10px; color:var(--acc); margin:0; text-shadow:0 0 24px rgba(202,162,74,.4) }
   #title-sub{ font-size:1.1rem; color:#d8cdb4 } #title-hint{ font-size:.85rem; color:#9a8a74; max-width:440px }
   #title-btn{ margin-top:10px; font-size:1.05rem; padding:9px 20px }
-  #cgraph{ width:100%; height:170px; background:#0b0906; border:1px solid #3a2c1c; border-radius:6px; margin-top:4px; cursor:grab }
 </style>
 </head>
 <body>
@@ -189,7 +189,7 @@
       <button id="cadd-text">+ Texte</button><button id="cadd-mission">+ Mission</button><button id="cadd-choice">+ Choix</button><button id="cadd-geo">+ Geoscape</button>
       <label>Départ <select id="cstart"></select></label></div>
     <div id="cwrap">
-      <canvas id="cgraph" width="640" height="440"></canvas>
+      <div id="cgwrap"><canvas id="cgraph" width="640" height="440"></canvas></div>
       <div id="cdetail" class="hint">Clique un nœud du graphe pour l'éditer ici.</div>
     </div>
     <select id="cmsel" style="display:none"></select>
@@ -1078,7 +1078,7 @@
   function renderDetail(){ const el=document.getElementById("cdetail"); if(!el)return; const n=campNode(campSel);
     if(!n){ el.innerHTML='<div class="hint">Aucun nœud. Ajoute un Texte, une Mission ou un Choix, puis clique-le dans le graphe.</div>'; return; }
     let h=`<h3>${n.type==="mission"?"🗺 Mission":n.type==="choice"?"🔀 Choix":"📝 Texte"} <code style="font-size:.7rem;color:#9a8a74">${n.id}</code></h3>`;
-    if(n.type==="text") h+=`<div class="row">📄 fichier <select data-f="file">${txtOpts(n.file,"— texte saisi ci-dessous —")}</select></div><input data-f="text" type="text" placeholder="…ou texte plein écran" value="${esc(n.text)}"><input data-f="mortal" type="text" placeholder="✝ rend mortel·s (noms, virgules) — « son rôle est fait »" value="${esc(Array.isArray(n.mortal)?n.mortal.join(', '):(n.mortal||''))}"><div class="row">suite → <select data-f="next">${idOpts(n.next,true)}</select></div>`;
+    if(n.type==="text") h+=`<div class="row">📄 fichier <select data-f="file">${txtOpts(n.file,"— texte saisi ci-dessous —")}</select></div><input data-f="text" type="text" placeholder="…ou texte plein écran" value="${esc(n.text)}"><input data-f="mortal" type="text" placeholder="✝ rend mortel·s (noms, virgules) — « son rôle est fait »" value="${esc(Array.isArray(n.mortal)?n.mortal.join(', '):(n.mortal||''))}"><input data-f="recruit" type="text" placeholder="➕ recrute (Nom:classe, … ; * = ★ spécial)" value="${esc(Array.isArray(n.recruit)?n.recruit.join(', '):(n.recruit||''))}"><div class="row">suite → <select data-f="next">${idOpts(n.next,true)}</select></div>`;
     else if(n.type==="mission") h+=`<div class="row">mission <select data-f="mission">${missOpts(n.mission)}</select></div><div class="row">📄 intro <select data-f="introFile">${txtOpts(n.introFile)}</select></div><input data-f="intro" type="text" placeholder="…ou intro saisie" value="${esc(n.intro)}"><div class="row">📄 fin <select data-f="outroFile">${txtOpts(n.outroFile)}</select></div><input data-f="outro" type="text" placeholder="…ou fin saisie" value="${esc(n.outro)}"><div class="row">✓ vict. → <select data-f="win">${idOpts(n.win,true)}</select></div><div class="row">✕ déf. → <select data-f="lose">${idOpts(n.lose,true)}</select></div>`;
     else if(n.type==="choice") h+=`<input data-f="title" type="text" placeholder="titre du choix…" value="${esc(n.title)}"><div id="cdopts" style="margin:6px 0"></div><button data-addopt="1">+ option</button>`;
     else if(n.type==="geoscape"){ const ew=n.endWhen||{kind:"all"}; h+=`<div class="row">🌍 territoire <select data-gf="map">${geoMapOpts(n.map)}</select></div>
@@ -1105,8 +1105,15 @@
   const cg=document.getElementById("cgraph"),cgx=cg?cg.getContext("2d"):null; let cgDrag=null,cgOff=[0,0],cgMoved=false; const NW=92,NH=34;
   function roundRect(x,y,w,h,r){cgx.beginPath();cgx.moveTo(x+r,y);cgx.arcTo(x+w,y,x+w,y+h,r);cgx.arcTo(x+w,y+h,x,y+h,r);cgx.arcTo(x,y+h,x,y,r);cgx.arcTo(x,y,x+w,y,r);cgx.closePath();}
   function shortLabel(n){ const base=n.type==="mission"?(n.mission||"mission").replace(/\.json$/,""):n.type==="choice"?(n.title||"choix"):n.type==="geoscape"?(n.map||"territoire").replace(/\.json$/,""):(n.file?fileName(n.file):(n.text||"texte")); return (n.type==="mission"?"🗺 ":n.type==="choice"?"🔀 ":n.type==="geoscape"?"🌍 ":"📝 ")+base.slice(0,11); }
-  function drawGraph(){ if(!cgx)return; const ncol=Math.max(2,Math.floor((cg.width-30)/(NW+24)));
+  function drawGraph(){ if(!cgx)return; const wrap=document.getElementById("cgwrap");
+    const vw=Math.max(60,(wrap&&wrap.clientWidth)||cg.width), vh=Math.max(60,(wrap&&wrap.clientHeight)||cg.height);
+    const ncol=Math.max(2,Math.floor((vw-30)/(NW+24)));
     campNodes.forEach((n,i)=>{ if(n.x==null){n.x=18+(i%ncol)*(NW+24);n.y=18+Math.floor(i/ncol)*(NH+34);} });
+    // taille du canevas = au moins la zone visible, sinon la boîte englobant tous les nœuds (=> ascenseur dans #cgwrap)
+    let maxX=vw,maxY=vh; campNodes.forEach(n=>{ if(n.x+NW+30>maxX)maxX=n.x+NW+30; if(n.y+NH+34>maxY)maxY=n.y+NH+34; });
+    const needW=Math.round(maxX),needH=Math.round(maxY);
+    if(cg.width!==needW)cg.width=needW; if(cg.height!==needH)cg.height=needH;
+    cg.style.width=needW+"px"; cg.style.height=needH+"px";
     cgx.clearRect(0,0,cg.width,cg.height); const ctr=id=>{const n=campNode(id);return n?[n.x+NW/2,n.y+NH/2]:null;};
     function arrow(a,b,col){ if(!a||!b)return; let dx=b[0]-a[0],dy=b[1]-a[1];const L=Math.hypot(dx,dy)||1;dx/=L;dy/=L;
       const sx=a[0]+dx*(NW/2*Math.abs(dx)>NH/2?NW/2:NH/1.4),sy=a[1]+dy*(NH/1.4),ex=b[0]-dx*(NW/2+4),ey=b[1]-dy*(NH/2+4);
@@ -1191,6 +1198,15 @@
   function applyMortal(names){ if(!campRun||!campRun.roster||names==null)return []; const list=(Array.isArray(names)?names:String(names).split(",")).map(s=>s.trim()).filter(Boolean); const hit=[];
     for(const nm of list){ const m=campRun.roster.find(r=>r.name===nm); if(m&&m.special!==false){ m.special=false; hit.push(nm); } }
     if(hit.length)saveRosterProgress(); return hit; }
+  // recrutement scénarisé : un nœud peut faire rejoindre de nouveaux persos. Format « Nom:classe, … » (classe + * = ★ spécial)
+  function applyRecruit(spec){ if(!campRun||!campRun.roster||spec==null)return []; const added=[];
+    const entries=(Array.isArray(spec)?spec:String(spec).split(",")).map(s=>s&&s.trim?s.trim():s).filter(Boolean);
+    for(const e of entries){ let name,cls,special=false;
+      if(e&&typeof e==="object"){ name=e.name; cls=e.cls; special=!!e.special; }
+      else { const p=String(e).split(":"); name=(p[0]||"").trim(); let c=(p[1]||"").trim(); special=/\*$/.test(c); cls=c.replace(/\*$/,"").trim(); }
+      if(!name||!CLASSES[cls]||CLASSES[cls].civ)continue; if(campRun.roster.some(m=>m.name===name))continue;
+      campRun.roster.push({name,cls,xp:0,perks:[],stress:0,fatigue:0,special,mortalAfter:null,dead:false}); added.push(name); }
+    if(added.length)saveRosterProgress(); return added; }
   // condition automatique : un perso perd son ★ « après N victoires » (nombre) ou « après région X nettoyée » (nom)
   function checkMortalConditions(){ if(!campRun||!campRun.roster)return []; const lost=[];
     const cleared=new Set(); const m0=geoPlay&&geoPlay.map, st=geoPlay&&campRun.geoStates&&campRun.geoStates[geoPlay.node.id];
@@ -1236,10 +1252,11 @@
     units=others.concat(placed); }
   function setView(v){ document.body.classList.remove("view-mission","view-campaign","view-geoscape","view-play"); document.body.classList.add("view-"+v); mode=(v==="play")?"play":"edit";
     const cur={mission:"nav-m",campaign:"nav-c",geoscape:"nav-g",play:"nav-p"}[v]; ["nav-m","nav-c","nav-g","nav-p"].forEach(id=>{const a=document.getElementById(id);if(a)a.classList.toggle("cur",id===cur);});
-    if(v==="campaign"){ const cg2=document.getElementById("cgraph"); if(cg2&&cg2.getBoundingClientRect){ const w=Math.round(cg2.getBoundingClientRect().width)||880,h=Math.round(cg2.getBoundingClientRect().height)||340; if(w>1){cg2.width=w;cg2.height=h;} if(typeof drawGraph==="function")drawGraph(); } }
+    if(v==="campaign"){ if(typeof drawGraph==="function")drawGraph(); }
     if(v==="geoscape"&&typeof geoEnter==="function")geoEnter(); }
   function startCampaign(camp,from,fromNode){ campRun={camp,carry:{},winCount:0,roster:(camp.roster||[]).map(m=>({name:m.name,cls:m.cls,xp:m.xp||0,perks:Array.isArray(m.perks)?m.perks.slice():[],stress:0,fatigue:0,special:m.special!==false,mortalAfter:m.mortalAfter||null,dead:false})),nodeId:null,from:from||"campaign",seen:new Set(),potions:0};
-    const saved=loadRosterProgress(camp.name); if(saved)for(const m of campRun.roster){ const s=saved.find(x=>x.name===m.name&&x.cls===m.cls); if(s){ m.xp=s.xp||0; m.perks=Array.isArray(s.perks)?s.perks.slice():[]; m.stress=s.stress||0; m.fatigue=s.fatigue||0; m.special=s.special!==false; m.dead=!!s.dead; } }   // reprend progression + usure + morts inter-parties
+    const saved=loadRosterProgress(camp.name); if(saved){ for(const m of campRun.roster){ const s=saved.find(x=>x.name===m.name&&x.cls===m.cls); if(s){ m.xp=s.xp||0; m.perks=Array.isArray(s.perks)?s.perks.slice():[]; m.stress=s.stress||0; m.fatigue=s.fatigue||0; m.special=s.special!==false; m.dead=!!s.dead; } }   // reprend progression + usure + morts inter-parties
+      for(const s of saved){ if(s.name&&!campRun.roster.some(m=>m.name===s.name))campRun.roster.push({name:s.name,cls:s.cls,xp:s.xp||0,perks:Array.isArray(s.perks)?s.perks.slice():[],stress:s.stress||0,fatigue:s.fatigue||0,special:s.special!==false,mortalAfter:null,dead:!!s.dead}); } }   // recrues scénarisées (absentes du roster de base) conservées
     document.body.classList.remove("testing"); setView("play"); runNode(fromNode||camp.start); }
   async function startPlay(){ let camp=loadCampDraft();
     if(!camp){ const t=await fetchText("campaigns-mesh/principale.json",ghCfg()); if(t){try{camp=JSON.parse(t);}catch(e){}} }
@@ -1247,6 +1264,7 @@
     else { document.body.classList.add("testing"); setView("play"); startGame(); } }
   function runNode(id){ if(!campRun)return; const n=campRun.camp.nodes.find(x=>x.id===id); if(!n){endCampaignRun("Campagne terminée.");return;} campRun.nodeId=id;
     if(n.mortal)applyMortal(n.mortal);   // « son rôle est fait » : ce nœud peut rendre des persos mortels
+    if(n.recruit)applyRecruit(n.recruit);   // renforts : ce nœud peut faire rejoindre de nouveaux persos
     if(n.type==="text"){ if(campRun.seen&&campRun.seen.has(id)){runNode(n.next);return;} if(campRun.seen)campRun.seen.add(id); resolveText(n.text,n.file).then(t=>showCampText(t||"…",()=>runNode(n.next)));return;}
     if(n.type==="choice"){showChoice(n);return;}
     if(n.type==="geoscape"){ enterGeoPlay(n); return; }
