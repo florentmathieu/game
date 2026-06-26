@@ -116,6 +116,18 @@
   #title h1{ font-size:3rem; letter-spacing:10px; color:var(--acc); margin:0; text-shadow:0 0 24px rgba(202,162,74,.4) }
   #title-sub{ font-size:1.1rem; color:#d8cdb4 } #title-hint{ font-size:.85rem; color:#9a8a74; max-width:440px }
   #title-btn{ margin-top:10px; font-size:1.05rem; padding:9px 20px }
+  #balance-fab{ position:fixed; right:14px; bottom:14px; z-index:18; width:42px; height:42px; border-radius:50%; font-size:1.3rem; background:rgba(12,9,6,.92); border:1px solid #5a4530; color:#e8ddc8; box-shadow:0 3px 10px rgba(0,0,0,.5); cursor:pointer }
+  #balance{ position:fixed; inset:0; background:rgba(0,0,0,.6); display:none; z-index:30; align-items:center; justify-content:center; padding:20px }
+  #balance.show{ display:flex }
+  #balance-card{ background:#14100a; border:1px solid #5a4530; border-radius:12px; width:min(560px,96vw); max-height:88vh; display:flex; flex-direction:column; box-shadow:0 12px 40px rgba(0,0,0,.7); color:var(--ink) }
+  #balance-hd{ padding:12px 16px; font-weight:bold; color:var(--acc); border-bottom:1px solid #3a2c1c; display:flex; justify-content:space-between; align-items:center; letter-spacing:1px }
+  #balance-x{ cursor:pointer; color:#caa24a; font-weight:bold }
+  #balance-body{ overflow:auto; padding:6px 16px 12px }
+  #balance-body h4{ margin:14px 0 4px; color:#caa24a; font-size:.82rem; text-transform:uppercase; letter-spacing:1px; border-bottom:1px solid #2a2018; padding-bottom:3px }
+  #balance-body .trow{ display:flex; align-items:center; justify-content:space-between; gap:10px; margin:5px 0 }
+  #balance-body .trow label{ font-size:.85rem; flex:1 }
+  #balance-body .trow input[type=range]{ flex:1.2 } #balance-body .trow .tval{ width:46px; text-align:right; font-weight:bold; color:#e8ddc8 }
+  #balance-ft{ padding:10px 16px; border-top:1px solid #3a2c1c; display:flex; gap:12px; align-items:center; justify-content:space-between }
 </style>
 </head>
 <body>
@@ -247,7 +259,9 @@
 <div id="banner"></div>
 <div id="geobanner"></div>
 <div id="georoster"></div>
-<div id="title"><button id="title-btn">New game</button><button id="title-reset" style="margin-top:10px;font-size:.8rem;opacity:.6;background:none;border:1px solid #555;color:#bbb">↺ Recommencer à zéro</button></div>
+<div id="title"><button id="title-btn">New game</button><button id="title-reset" style="margin-top:10px;font-size:.8rem;opacity:.6;background:none;border:1px solid #555;color:#bbb">↺ Recommencer à zéro</button><button id="title-balance" style="margin-top:8px;font-size:.8rem;opacity:.6;background:none;border:1px solid #555;color:#bbb">⚖ Équilibrage</button></div>
+<button id="balance-fab" title="Réglages d'équilibrage">⚖</button>
+<div id="balance"><div id="balance-card"><div id="balance-hd">⚖ Équilibrage <span id="balance-x">✕</span></div><div id="balance-body"></div><div id="balance-ft"><button id="balance-reset">↺ Valeurs par défaut</button><span class="hint" style="font-size:.74rem">Sauvé automatiquement · s'applique aux prochains combats</span></div></div></div>
 <div id="camptext"><div id="camptext-body"></div><button id="camptext-btn">…</button></div>
 <div id="storybox"><div id="storybox-body"></div><button id="storybox-btn">…</button></div>
 <div id="over"><h2 id="overtxt"></h2><button id="overbtn">Rejouer</button></div>
@@ -261,7 +275,8 @@
   function clampPan(){ panX=Math.min(0,Math.max(W-W*zoom,panX)); panY=Math.min(0,Math.max(H-H*zoom,panY)); }
   function resetView(){ zoom=1;panX=0;panY=0; }
   let FREE_MP=2,AP_MAX=2,MOB=3;   // mouvement (réglable : paramètre d'équilibrage / génération)
-  const HEIGHT_BONUS=6,COVER_PEN=30,DEF_BRACE=20,PB={1:30,2:15};
+  let HEIGHT_BONUS=6,COVER_PEN=30,DEF_BRACE=20; const PB={1:30,2:15};   // réglables via le panneau d'équilibrage
+  let ENEMY_COUNT={facile:4,moyen:5,difficile:7};   // nombre d'ennemis cible par difficulté (curseur principal)
   const sword=(a,l,h)=>({type:"melee",aim:a,dmgMin:l,dmgMax:h});
   const bow=(a,l,h,r,c)=>({type:"ranged",aim:a,dmgMin:l,dmgMax:h,range:r,clip:c});
   const dagger=(a,l,h,b,s)=>({type:"melee",aim:a,dmgMin:l,dmgMax:h,flank:{back:b,side:s}});
@@ -538,8 +553,9 @@
   };
   // recharge (en tours) avant de pouvoir relancer une capacité. u.cd[id] = tours restants (décrémenté au début du tour).
   const COOLDOWN={smoke:3,breach:4,shadowstrike:2,rally:3,taunt:3,holdline:3,wall:3,blast:3,heal:2,frost:2};
+  let CD_MULT=1;   // multiplicateur global des recharges (panneau d'équilibrage)
   const onCd=(u,id)=>!!(u&&u.cd&&u.cd[id]>0);
-  function setCd(u,id){ const c=COOLDOWN[id]; if(c){ u.cd=u.cd||{}; u.cd[id]=c; } }
+  function setCd(u,id){ const c=COOLDOWN[id]; if(c){ u.cd=u.cd||{}; u.cd[id]=Math.max(1,Math.round(c*CD_MULT)); } }
   function tickCd(team){ for(const u of units)if(u.team===team&&u.cd){ for(const k in u.cd)if(u.cd[k]>0)u.cd[k]--; } }   // début de tour : les recharges baissent
   const SMOKE_TURNS=2, SMOKE_RANGE=6, SMOKE_RADIUS=1, BREACH_RANGE=6;
   const BLAST_RANGE=6, BLAST_RADIUS=1, BLAST_MIN=4, BLAST_MAX=7, HEAL_RANGE=6, HEAL_AMT=6, FROST_RANGE=7;   // sorts du mage
@@ -995,7 +1011,7 @@
     // NOMBRE D'ENNEMIS CIBLE = vrai curseur de difficulté (le sim montre que le total écrase le nb de pods).
     // On le répartit de façon déterministe sur les pods (faible variance) au lieu de tailles aléatoires.
     const genEn=document.getElementById("gen-enemies"); const enFromDom=genEn&&genEn.value!==""?+genEn.value:null;
-    const enemyCount=P.enemyCount!=null?P.enemyCount:(enFromDom!=null?enFromDom:(diff==="facile"?4:diff==="moyen"?5:7));
+    const enemyCount=P.enemyCount!=null?P.enemyCount:(enFromDom!=null?enFromDom:(ENEMY_COUNT[diff]!=null?ENEMY_COUNT[diff]:5));
     const PN=Math.max(1,podAnchors.length);
     const sizes=Array.from({length:PN},(_,i)=>Math.floor(enemyCount/PN)+(i<(enemyCount%PN)?1:0));   // réparti au mieux
     podAnchors.forEach((anc,pi)=>{ const ball=bfsBall(anc,2);   // pool autour de l'ancre (rayon 2) plutôt que les seuls voisins immédiats
@@ -1346,7 +1362,7 @@
     const chain=()=>{ if(!msgs.length){ mini.onResolve&&mini.onResolve(win); return; } announce(msgs.shift(),chain); };
     showPromotions(chain); }   // promotions (xp de la récompense), annonces, puis on rend la main au débrief
   // ===== usure (stress/fatigue) + mort =====
-  const FATIGUE_MISSION=30, STRESS_DMG=3, STRESS_KO_ALLY=15, STRESS_SELF_KO=25, REST_FRAC=0.5, WEARY=100, DEATH_PCT=50, SPELL_FATIGUE=6;   // REST_FRAC : part du stress/fatigue récupérée au repos ; SPELL_FATIGUE : fatigue par sort lancé (canalisation épuisante)
+  let FATIGUE_MISSION=30, STRESS_DMG=3, STRESS_KO_ALLY=15, STRESS_SELF_KO=25, REST_FRAC=0.5, WEARY=100, DEATH_PCT=50, SPELL_FATIGUE=6;   // réglables (panneau d'équilibrage) ; REST_FRAC : part récupérée au repos ; SPELL_FATIGUE : fatigue par sort
   const memReady=m=>m&&!m.dead&&(m.fatigue||0)<WEARY&&(m.stress||0)<WEARY;
   function applyAttrition(win,isMini){ const deaths=[]; if(!campRun||!campRun.roster)return deaths; const deployed=new Set(units.filter(u=>u.team==="player").map(u=>u.name));
     const koCount=units.filter(u=>u.team==="player"&&u.hp<=0).length;
@@ -1795,7 +1811,7 @@
   // ===== « prime express » : incitation à tenter vite les régions DURES =====
   // Une région difficile porte une prime (XP + moral) qui FOND à chaque mission jouée. On la touche en
   // plus si on la prend avant qu'elle s'épuise → dilemme : foncer sur le dur maintenant, ou jouer safe.
-  const PRIME_DIFF_MIN=3, PRIME_XP_STEP=2, PRIME_MORALE_STEP=5;
+  let PRIME_DIFF_MIN=3, PRIME_XP_STEP=2, PRIME_MORALE_STEP=5;   // réglables (panneau d'équilibrage)
   function primeInit(){ if(!campRun||!geoPlay||!geoPlay.map)return; campRun.primes=campRun.primes||{};
     geoPlay.map.cells.forEach((c,i)=>{ const st=campRun.geoStates[geoPlay.node.id];
       if(c.content&&c.content.kind==="mission"&&(c.diff||0)>=PRIME_DIFF_MIN&&c.name&&campRun.primes[c.name]===undefined&&st&&st[i]!=="cleared"){
@@ -1845,6 +1861,48 @@
     setView(view);
     refresh();
   }
+  // ===== panneau d'équilibrage : règle les constantes en direct (curseurs), persisté en localStorage =====
+  const TUNE_KEY="mgf_tune";
+  const TUNE_GROUPS=[
+    {name:"Mouvement & PA", items:[
+      {k:"MOB",label:"Mobilité (cases / PA)",get:()=>MOB,set:v=>MOB=v,min:1,max:8,step:1},
+      {k:"AP_MAX",label:"PA par tour",get:()=>AP_MAX,set:v=>AP_MAX=v,min:1,max:4,step:1},
+      {k:"FREE_MP",label:"Déplacement gratuit",get:()=>FREE_MP,set:v=>FREE_MP=v,min:0,max:6,step:1} ]},
+    {name:"Combat", items:[
+      {k:"COVER_PEN",label:"Pénalité de couvert",get:()=>COVER_PEN,set:v=>COVER_PEN=v,min:0,max:60,step:5,suffix:"%"},
+      {k:"HEIGHT_BONUS",label:"Bonus de hauteur (/niv.)",get:()=>HEIGHT_BONUS,set:v=>HEIGHT_BONUS=v,min:0,max:15,step:1,suffix:"%"},
+      {k:"DEF_BRACE",label:"Défense « en garde »",get:()=>DEF_BRACE,set:v=>DEF_BRACE=v,min:0,max:40,step:5,suffix:"%"},
+      {k:"CD_MULT",label:"Recharges des capacités",get:()=>Math.round(CD_MULT*100),set:v=>CD_MULT=v/100,min:25,max:200,step:25,suffix:"%"} ]},
+    {name:"Usure & mort", items:[
+      {k:"FATIGUE_MISSION",label:"Fatigue par mission",get:()=>FATIGUE_MISSION,set:v=>FATIGUE_MISSION=v,min:0,max:60,step:5},
+      {k:"SPELL_FATIGUE",label:"Fatigue par sort",get:()=>SPELL_FATIGUE,set:v=>SPELL_FATIGUE=v,min:0,max:20,step:1},
+      {k:"REST_FRAC",label:"Récup. au repos",get:()=>Math.round(REST_FRAC*100),set:v=>REST_FRAC=v/100,min:0,max:100,step:5,suffix:"%"},
+      {k:"WEARY",label:"Seuil d'épuisement",get:()=>WEARY,set:v=>WEARY=v,min:50,max:100,step:5},
+      {k:"DEATH_PCT",label:"Risque mort (K.O.+défaite)",get:()=>DEATH_PCT,set:v=>DEATH_PCT=v,min:0,max:100,step:5,suffix:"%"} ]},
+    {name:"Primes express", items:[
+      {k:"PRIME_DIFF_MIN",label:"Difficulté min. (★)",get:()=>PRIME_DIFF_MIN,set:v=>PRIME_DIFF_MIN=v,min:1,max:5,step:1},
+      {k:"PRIME_XP_STEP",label:"Décrue XP / mission",get:()=>PRIME_XP_STEP,set:v=>PRIME_XP_STEP=v,min:0,max:6,step:1},
+      {k:"PRIME_MORALE_STEP",label:"Décrue moral / mission",get:()=>PRIME_MORALE_STEP,set:v=>PRIME_MORALE_STEP=v,min:0,max:15,step:1} ]},
+    {name:"Ennemis par difficulté", items:[
+      {k:"EN_facile",label:"Facile",get:()=>ENEMY_COUNT.facile,set:v=>ENEMY_COUNT.facile=v,min:1,max:12,step:1},
+      {k:"EN_moyen",label:"Moyen",get:()=>ENEMY_COUNT.moyen,set:v=>ENEMY_COUNT.moyen=v,min:1,max:12,step:1},
+      {k:"EN_difficile",label:"Difficile",get:()=>ENEMY_COUNT.difficile,set:v=>ENEMY_COUNT.difficile=v,min:1,max:16,step:1} ]},
+  ];
+  const tuneItems=()=>{ const a=[]; for(const g of TUNE_GROUPS)for(const it of g.items)a.push(it); return a; };
+  const TUNE_DEFAULTS=(()=>{ const o={}; for(const it of tuneItems())o[it.k]=it.get(); return o; })();   // capturé aux valeurs par défaut
+  function saveTune(){ try{ const o={}; for(const it of tuneItems())o[it.k]=it.get(); localStorage.setItem(TUNE_KEY,JSON.stringify(o)); }catch(e){} }
+  function loadTune(){ try{ const o=JSON.parse(localStorage.getItem(TUNE_KEY)||"null"); if(!o)return; for(const it of tuneItems())if(o[it.k]!=null)it.set(o[it.k]); }catch(e){} }
+  function renderBalance(){ const b=document.getElementById("balance-body"); if(!b)return;
+    b.innerHTML=TUNE_GROUPS.map(g=>`<h4>${g.name}</h4>`+g.items.map(it=>{ const v=it.get(); return `<div class="trow"><label>${esc(it.label)}</label><input type="range" data-tk="${it.k}" min="${it.min}" max="${it.max}" step="${it.step}" value="${v}"><span class="tval" data-tv="${it.k}">${v}${it.suffix||""}</span></div>`; }).join("")).join("");
+    b.querySelectorAll("input[data-tk]").forEach(inp=>{ const it=tuneItems().find(x=>x.k===inp.dataset.tk); inp.oninput=()=>{ const v=+inp.value; it.set(v); const sp=b.querySelector(`[data-tv="${it.k}"]`); if(sp)sp.textContent=v+(it.suffix||""); saveTune(); }; }); }
+  function openBalance(){ renderBalance(); const el=document.getElementById("balance"); if(el)el.classList.add("show"); }
+  function closeBalance(){ const el=document.getElementById("balance"); if(el)el.classList.remove("show"); }
+  { const f=document.getElementById("balance-fab"); if(f)f.onclick=openBalance;
+    const x=document.getElementById("balance-x"); if(x)x.onclick=closeBalance;
+    const tb2=document.getElementById("title-balance"); if(tb2)tb2.onclick=openBalance;
+    const ov=document.getElementById("balance"); if(ov)ov.onclick=e=>{ if(e.target===ov)closeBalance(); };
+    const rb=document.getElementById("balance-reset"); if(rb)rb.onclick=()=>{ for(const it of tuneItems())it.set(TUNE_DEFAULTS[it.k]); try{localStorage.removeItem(TUNE_KEY);}catch(e){} renderBalance(); }; }
+  loadTune();   // applique les réglages sauvegardés
   { const tb=document.getElementById("title-btn"); if(tb)tb.onclick=()=>{ const t=document.getElementById("title"); if(t)t.style.display="none";
       if(document.body.classList.contains("view-play")&&!campRun) startPlay(); }; }
   // « Recommencer à zéro » : efface la progression persistée de toutes les campagnes (le roster repart vierge)
