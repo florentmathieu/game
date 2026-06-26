@@ -264,7 +264,7 @@
   const bow=(a,l,h,r,c)=>({type:"ranged",aim:a,dmgMin:l,dmgMax:h,range:r,clip:c});
   const dagger=(a,l,h,b,s)=>({type:"melee",aim:a,dmgMin:l,dmgMax:h,flank:{back:b,side:s}});
   const CLASSES={
-    sergent:{name:"Sergent",hp:10,mob:8,shieldBlock:30,w:{melee:sword(75,4,6)}},
+    soldat:{name:"Soldat",hp:10,mob:8,shieldBlock:30,w:{melee:sword(75,4,6)}},   // infanterie de base à pied (un « sergent » = un soldat déjà aguerri)
     sapeur:{name:"Sapeur",hp:7,mob:8,crackers:1,w:{ranged:bow(65,3,4,6,1),melee:sword(70,3,5),cracker:{type:"throw",dmgMin:5,dmgMax:9,range:6,radius:2,scatter:2}}},
     assassin:{name:"Assassin",hp:7,mob:8,parry:35,stealth:true,w:{melee:dagger(80,3,4,5,2)}},
     garde:{name:"Garde",hp:8,mob:6,shieldBlock:20,w:{melee:sword(65,3,4)}},
@@ -275,37 +275,46 @@
     femme:{name:"Femme",hp:5,mob:6,civ:true,w:{melee:{type:"melee",aim:40,dmgMin:1,dmgMax:2,bare:true}}},
     enfant:{name:"Enfant",hp:3,mob:7,civ:true,w:{melee:{type:"melee",aim:25,dmgMin:0,dmgMax:1,bare:true}}},
   };
+  CLASSES.sergent=CLASSES.soldat;   // compat : anciennes données « sergent » → soldat (non listé comme classe dans les éditeurs)
   // ===== progression : grades discrets + perks exclusifs A/B (moteur = XP de mission) =====
   // La montée est HORIZONTALE (un perk = un avantage qualitatif), l'XP n'est qu'une porte plafonnée.
-  const GRADES=["Recrue","Aguerri","Vétéran","Élite"];     // grade 0..3 (grade = nb de perks choisis)
-  const XP_THRESH=[0,3,7,12];                               // XP cumulée requise pour atteindre le grade i
+  const GRADES=["Recrue","Aguerri","Vétéran","Élite","Champion"];   // grade 0..4 (grade = nb de perks choisis ; grade 4 = capstone mêlée)
+  const XP_THRESH=[0,3,7,12,17];                            // XP cumulée requise pour atteindre le grade i
   const gradeFromXp=xp=>{ let g=0; for(let i=0;i<XP_THRESH.length;i++)if((xp||0)>=XP_THRESH[i])g=i; return g; };
   // catalogue : par classe, une paire A/B par grade (index 0 = 1er grade). mod = bonus appliqués au déploiement.
   // A = capacité spéciale (verbe), B = bonus chiffré. abil = id d'une capacité active (cf. ABIL).
   const PERKS={
-    sergent:[ {A:{id:"se1a",name:"Cri de ralliement",desc:"Rend 1 PA à un allié adjacent",abil:"rally"}, B:{id:"se1b",name:"Tenace",desc:"+4 PV",mod:{hp:4}}},
+    soldat:[ {A:{id:"se1a",name:"Cri de ralliement",desc:"Rend 1 PA à un allié adjacent",abil:"rally"}, B:{id:"se1b",name:"Tenace",desc:"+4 PV",mod:{hp:4}}},
               {A:{id:"se2a",name:"Provocation",desc:"Les ennemis te visent en priorité",abil:"taunt"}, B:{id:"se2b",name:"Meneur",desc:"+1 dégât",mod:{dmg:1}}},
-              {A:{id:"se3a",name:"Tenir la ligne",desc:"Vigilance des alliés adjacents",abil:"holdline"}, B:{id:"se3b",name:"Garde d'acier",desc:"+15% blocage",mod:{shieldBlock:15}}} ],
+              {A:{id:"se3a",name:"Tenir la ligne",desc:"Vigilance des alliés adjacents",abil:"holdline"}, B:{id:"se3b",name:"Garde d'acier",desc:"+15% blocage",mod:{shieldBlock:15}}},
+              {A:{id:"se4a",name:"Allonge",desc:"+1 point de mouvement gratuit (sans PA)",mod:{freeMp:1}}, B:{id:"se4b",name:"Vétéran",desc:"+2 dégât",mod:{dmg:2}}} ],
     sapeur:[ {A:{id:"sa1a",name:"Fumigène",desc:"Voile la ligne de vue (zone, 2 tours)",abil:"smoke"}, B:{id:"sa1b",name:"Œil de lynx",desc:"+10 visée",mod:{aim:10}}},
              {A:{id:"sa2a",name:"Charge creuse",desc:"Détruit un rocher/muret (ouvre un passage)",abil:"breach"}, B:{id:"sa2b",name:"Endurci",desc:"+3 PV",mod:{hp:3}}},
              {A:{id:"sa3a",name:"Artificier",desc:"Cracker plus précis (moins de dispersion)",mod:{scatter:1}}, B:{id:"sa3b",name:"Charge lourde",desc:"+2 dégât",mod:{dmg:2}}} ],
     assassin:[ {A:{id:"as1a",name:"Frappe de l'ombre",desc:"Bond au flanc/dos d'un ennemi + dégâts",abil:"shadowstrike"}, B:{id:"as1b",name:"Lame vive",desc:"+2 dégât",mod:{dmg:2}}},
                {A:{id:"as2a",name:"Estompe",desc:"Redevient indétectable un tour (1×/combat)",abil:"vanish"}, B:{id:"as2b",name:"Précision",desc:"+10 visée",mod:{aim:10}}},
-               {A:{id:"as3a",name:"Tueur",desc:"+2 dégât",mod:{dmg:2}}, B:{id:"as3b",name:"Insaisissable",desc:"+20% parade",mod:{parry:20}}} ],
+               {A:{id:"as3a",name:"Tueur",desc:"+2 dégât",mod:{dmg:2}}, B:{id:"as3b",name:"Insaisissable",desc:"+20% parade",mod:{parry:20}}},
+               {A:{id:"as4a",name:"Allonge",desc:"+1 point de mouvement gratuit (sans PA)",mod:{freeMp:1}}, B:{id:"as4b",name:"Coupe-jarret",desc:"+2 dégât",mod:{dmg:2}}} ],
     garde:[ {A:{id:"ga1a",name:"Bouclier protecteur",desc:"Intercepte un coup visant un allié adjacent",abil:"protect"}, B:{id:"ga1b",name:"Robuste",desc:"+4 PV",mod:{hp:4}}},
             {A:{id:"ga2a",name:"Mur mobile",desc:"Donne du couvert aux alliés adjacents",abil:"wall"}, B:{id:"ga2b",name:"Coup appuyé",desc:"+2 dégât",mod:{dmg:2}}},
-            {A:{id:"ga3a",name:"Foulée",desc:"+1 mouvement",mod:{mob:1}}, B:{id:"ga3b",name:"Bastion",desc:"+5 PV",mod:{hp:5}}} ],
+            {A:{id:"ga3a",name:"Foulée",desc:"+1 mouvement",mod:{mob:1}}, B:{id:"ga3b",name:"Bastion",desc:"+5 PV",mod:{hp:5}}},
+            {A:{id:"ga4a",name:"Allonge",desc:"+1 point de mouvement gratuit (sans PA)",mod:{freeMp:1}}, B:{id:"ga4b",name:"Rempart",desc:"+15% blocage",mod:{shieldBlock:15}}} ],
+    brute:[ {A:{id:"br1a",name:"Colosse",desc:"+5 PV",mod:{hp:5}}, B:{id:"br1b",name:"Bourrin",desc:"+2 dégât",mod:{dmg:2}}},
+            {A:{id:"br2a",name:"Fracasse",desc:"+3 dégât",mod:{dmg:3}}, B:{id:"br2b",name:"Foulée",desc:"+1 mouvement",mod:{mob:1}}},
+            {A:{id:"br3a",name:"Cuir épais",desc:"+6 PV",mod:{hp:6}}, B:{id:"br3b",name:"Carnage",desc:"+3 dégât",mod:{dmg:3}}},
+            {A:{id:"br4a",name:"Allonge",desc:"+1 point de mouvement gratuit (sans PA)",mod:{freeMp:1}}, B:{id:"br4b",name:"Titan",desc:"+8 PV",mod:{hp:8}}} ],
     mage:[ {A:{id:"mg1a",name:"Déflagration",desc:"Explosion de zone (dégâts en aire)",abil:"blast"}, B:{id:"mg1b",name:"Trait perçant",desc:"+2 dégât",mod:{dmg:2}}},
            {A:{id:"mg2a",name:"Vague de soin",desc:"Soigne un allié à distance",abil:"heal"}, B:{id:"mg2b",name:"Longue portée",desc:"+2 portée",mod:{range:2}}},
            {A:{id:"mg3a",name:"Givre",desc:"Ralentit un ennemi (−1 PA à son tour)",abil:"frost"}, B:{id:"mg3b",name:"Vitalité",desc:"+5 PV",mod:{hp:5}}} ],
   };
+  PERKS.sergent=PERKS.soldat;   // compat : « sergent » utilise l'arbre du soldat
   const perkById=(cls,id)=>{ for(const g of (PERKS[cls]||[])){ if(g.A.id===id)return g.A; if(g.B.id===id)return g.B; } return null; };
   function applyPerkMods(u,perkIds){ for(const id of (perkIds||[])){ const p=perkById(u.cls,id); if(!p)continue;
     if(p.abil){ (u.abil||(u.abil=[])).push(p.abil); if(p.abil==="protect")u.protect=true; continue; }
     const m=p.mod; if(!m)continue;
     if(m.hp){u.max+=m.hp;u.hp+=m.hp;} if(m.shieldBlock)u.shieldBlock=(u.shieldBlock||0)+m.shieldBlock; if(m.parry)u.parry=(u.parry||0)+m.parry;
     if(m.crackers){u.crackers=(u.crackers||0)+m.crackers;u.crackers0=(u.crackers0||0)+m.crackers;} if(m.mob)u.mobBonus=(u.mobBonus||0)+m.mob; if(m.aim)u.aimBonus=(u.aimBonus||0)+m.aim;
-    if(m.dmg)u.dmgBonus=(u.dmgBonus||0)+m.dmg; if(m.range)u.rangeBonus=(u.rangeBonus||0)+m.range; if(m.scatter)u.scatterBonus=(u.scatterBonus||0)+m.scatter; } }
+    if(m.dmg)u.dmgBonus=(u.dmgBonus||0)+m.dmg; if(m.range)u.rangeBonus=(u.rangeBonus||0)+m.range; if(m.scatter)u.scatterBonus=(u.scatterBonus||0)+m.scatter; if(m.freeMp)u.freeMpBonus=(u.freeMpBonus||0)+m.freeMp; } }
   const ENEMY_VIS=7, SLEEP_VIS=4;
   const mk=s=>()=>{s|=0;s=s+0x6D2B79F5|0;let t=Math.imul(s^s>>>15,1|s);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;};
   let RND=mk(7), seed=7, mode="edit", editTool="zone:square", islandTrim=true;   // islandTrim : retire les cellules de bord (effet île), mission + geoscape
@@ -400,8 +409,9 @@
 
   // ===== distance / portée / déplacement =====
   const mobOf=u=>MOB+(u.mobBonus||0);   // mobilité par unité (perks)
-  function budget(u){return (u.freeAvail?FREE_MP:0)+u.ap*mobOf(u);}
-  function apForMove(u,cost){return Math.max(0,Math.ceil((cost-(u.freeAvail?FREE_MP:0))/mobOf(u)));}
+  const freeMpOf=u=>FREE_MP+(u.freeMpBonus||0);   // déplacement gratuit par unité (perk « Allonge »)
+  function budget(u){return (u.freeAvail?freeMpOf(u):0)+u.ap*mobOf(u);}
+  function apForMove(u,cost){return Math.max(0,Math.ceil((cost-(u.freeAvail?freeMpOf(u):0))/mobOf(u)));}
   function edgeCell(id){const c=cells[id];if(!c||!c.poly)return false;const e=2;return c.poly.some(p=>p[0]<=e||p[0]>=W-e||p[1]<=e||p[1]>=H-e);}   // cellule de lisière : son polygone touche le bord de la carte
   function reach(u){const occu=occ();const dist={};dist[u.cell]=0;const pq=[[0,u.cell]];const B=budget(u);
     while(pq.length){let bi=0;for(let i=1;i<pq.length;i++)if(pq[i][0]<pq[bi][0])bi=i;const[d,id]=pq.splice(bi,1)[0];if(d>dist[id])continue;
@@ -896,7 +906,7 @@
 
   // ===== UI éditeur =====
   const distEl=document.getElementById("dist"),dens=document.getElementById("dens"),uteam=document.getElementById("uteam"),ucls=document.getElementById("ucls"),upod=document.getElementById("upod"),uasleep=document.getElementById("uasleep"),uhostage=document.getElementById("uhostage"),uname=document.getElementById("uname");
-  Object.keys(CLASSES).forEach(k=>{const o=document.createElement("option");o.value=k;o.textContent=CLASSES[k].name;ucls.appendChild(o);});
+  Object.keys(CLASSES).filter(k=>k!=="sergent").forEach(k=>{const o=document.createElement("option");o.value=k;o.textContent=CLASSES[k].name;ucls.appendChild(o);});
   function btnRow(host,items){ host.innerHTML=""; items.forEach(([label,tool])=>{const b=document.createElement("button");b.textContent=label;b.dataset.tool=tool;b.className=editTool===tool?"on":"";b.onclick=()=>{editTool=tool;syncTools();refresh();};host.appendChild(b);}); }
   function syncTools(){ document.querySelectorAll("#zones button,#terr button,#relief button,#tplace,#terase,#tpod,#tsleep,#tzpaint,#tzerase").forEach(b=>b.classList.toggle("on",b.dataset.tool===editTool)); }
   btnRow(document.getElementById("zones"),[["⬛","zone:square"],["⬡","zone:hex"],["⬠","zone:pentagon"],["🔀","zone:mix"]]);
@@ -963,7 +973,7 @@
     const sortedSlots=reachIds.slice().sort((a,b)=>dist[a]-dist[b]); const slots=[];
     for(const id of sortedSlots){ if(slots.length>=S)break; if(slots.every(s=>hops(s,id)>=2))slots.push(id); }
     for(const id of sortedSlots){ if(slots.length>=S)break; if(!slots.includes(id))slots.push(id); }
-    units=[]; const pcls=P.squadClasses||["sergent","sapeur","assassin","garde"]; slots.forEach((id,i)=>units.push(U("player",pcls[i%pcls.length],id)));
+    units=[]; const pcls=P.squadClasses||["soldat","sapeur","assassin","garde"]; slots.forEach((id,i)=>units.push(U("player",pcls[i%pcls.length],id)));
     const genPods=document.getElementById("gen-pods"); const podsFromDom=genPods&&genPods.value!==""?+genPods.value:null;
     const podCount=P.podCount!=null?P.podCount:(podsFromDom!=null?podsFromDom:(diff==="facile"?1:diff==="moyen"?2:3));   // pods = groupes d'activation
     const podSpacing=P.podSpacing!=null?P.podSpacing:4;                              // distance MIN entre pods (sauts) — ≥4 = activation séquentielle
@@ -1153,7 +1163,7 @@
     if(campSel==null||!campNode(campSel))campSel=campNodes[0]?campNodes[0].id:null;
     renderDetail(); drawGraph(); renderRosterEditor(); saveCampDraft(); }
   // éditeur de roster (escouade de campagne) — persos déployés dans les missions
-  const PLAYER_CLASSES=Object.keys(CLASSES).filter(k=>!CLASSES[k].civ);
+  const PLAYER_CLASSES=Object.keys(CLASSES).filter(k=>!CLASSES[k].civ&&k!=="sergent");
   function renderRosterEditor(){ const el=document.getElementById("rosterlist"); if(!el)return;
     el.innerHTML=campRoster.length?campRoster.map((m,i)=>`<div class="row" data-ri="${i}" style="flex-wrap:wrap">
       <input data-rf="name" type="text" value="${esc(m.name||"")}" placeholder="nom" style="flex:1;min-width:90px">
@@ -1547,7 +1557,7 @@
     const byX=cells.map((c,i)=>({i,cx:c.cx,cy:c.cy})).filter(o=>passable(o.i));
     const L=byX.slice().sort((a,b)=>a.cx-b.cx).slice(0,16).sort((a,b)=>a.cy-b.cy);
     const Rr=byX.slice().sort((a,b)=>b.cx-a.cx).slice(0,16).sort((a,b)=>a.cy-b.cy);
-    units=[U("player","sergent",L[2].i,{name:"Stiff"}),U("player","sapeur",L[6].i,{name:"Merry"}),U("player","assassin",L[10].i,{name:"Gizzard"}),
+    units=[U("player","soldat",L[2].i,{name:"Stiff"}),U("player","sapeur",L[6].i,{name:"Merry"}),U("player","assassin",L[10].i,{name:"Gizzard"}),
            U("enemy","garde",Rr[2].i,{pod:0}),U("enemy","archer",Rr[6].i,{pod:0,asleep:true}),U("enemy","brute",Rr[10].i,{pod:1,asleep:true})];
   }
 
