@@ -32,9 +32,10 @@ function buildRun(){ const roster=(camp.roster||[]).map(m=>({name:m.name,cls:m.c
 
 function runOnce(tag){ const cr=buildRun(); M.campRun=cr; M.curMission=null;
   M.geoPlay={ node:{id:geoNode.id,map:geoNode.map,endWhen:geoNode.endWhen,next:geoNode.next}, map:JSON.parse(JSON.stringify(geo0)), inMission:false };
+  M.geoBuildCells();   // adjacence du territoire → on respecte le gating « chemin libre depuis le camp »
   let missions=0,wins=0,losses=0,to=0,guard=0;
-  while(guard++<30){ const st=cr.geoStates[geoNode.id];
-    const avail=geo0.cells.map((c,i)=>({c,i})).filter(x=>x.c.content&&x.c.content.kind==="mission"&&st[x.i]==="available");
+  while(guard++<30){ const st=cr.geoStates[geoNode.id]; const acc=M.geoAccessibleSet(geoNode.id);
+    const avail=geo0.cells.map((c,i)=>({c,i})).filter(x=>x.c.content&&x.c.content.kind==="mission"&&acc.has(x.i));   // seulement les régions sur le front (accessibles)
     if(!avail.length) break; avail.sort((a,b)=>(a.c.diff||9)-(b.c.diff||9)); const pick=avail[0];
     try{
       M.applyMissionObj(loadMission(pick.c.content.ref)); M.deployRoster();
