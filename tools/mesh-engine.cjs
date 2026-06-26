@@ -41,6 +41,7 @@ function loadMesh(htmlPath){
     setAutoPromote(fn){ autoPromote=fn; }, saveRosterProgress, loadRosterProgress, clearRosterProgress,
     get smoke(){return smoke},
     execSmoke, execBreach, execShadow, execRally, execVanish, execTaunt, execHoldline, execWall,
+    execBlast, execHeal, execFrost,
   };
   `;
   src = src.replace(/\}\)\(\);\s*$/, EXPORT + "\n})();");
