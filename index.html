@@ -1654,7 +1654,7 @@
     let m; try{ m=JSON.parse(t); }catch(e){ showCampText("Territoire illisible.",()=>endCampaignRun("Fin.")); return; }
     campRun.geoStates=campRun.geoStates||{}; if(!campRun.geoStates[node.id])campRun.geoStates[node.id]=m.cells.map(c=>c.state||"locked");
     geoPlay={node,map:m,inMission:false}; { const tt=document.getElementById("title"); if(tt)tt.style.display="none"; }
-    document.body.classList.add("geomap"); over=false; resetView(); geoBuildCells(); hoverCell=null; geoBanner(); draw(); runGeoEvents("arrive"); }   // événements de 1ʳᵉ arrivée
+    document.body.classList.add("geomap"); over=false; resetView(); geoBuildCells(); hoverCell=null; primeInit(); geoBanner(); draw(); runGeoEvents("arrive"); }   // primes des régions dures + événements de 1ʳᵉ arrivée
   function geoBanner(t){ const el=document.getElementById("geobanner"); if(!el||!geoPlay)return; const st=campRun.geoStates[geoPlay.node.id];
     const avail=geoPlay.map.cells.filter((c,i)=>(st[i]==="available"||st[i]==="lost")&&c.content&&c.content.kind==="mission").length;   // perdues = rejouables
     const sub=t!=null?esc(t):(avail?("choisis une région — "+avail+" à (re)prendre"):"aucune région disponible");
@@ -1673,7 +1673,8 @@
     for(const c of cells){ const isCamp=c.id===geoCampId; const icon=isCamp?"⛺":(c.gstate==="cleared"?"✓":(c.gstate==="lost"?"↻":(c.gstate==="available"&&c.gkind==="mission"?"⚔":(c.gstate==="locked"?"🔒":""))));
       if(icon){ ctx.font="bold 15px system-ui"; ctx.fillStyle="#fff"; ctx.fillText(icon,c.cx,c.cy-8); }
       const nm=c.gname||("#"+c.id); ctx.font="11px system-ui"; ctx.fillStyle=(c.gstate==="locked")?"rgba(255,255,255,.42)":"rgba(255,255,255,.92)"; ctx.fillText(nm,c.cx,c.cy+10);
-      if(c.gdiff>0&&c.gkind==="mission"&&c.gstate!=="cleared"){ ctx.font="10px system-ui"; ctx.fillStyle=(c.gstate==="locked")?"rgba(224,179,65,.45)":"#e0b341"; ctx.fillText("★".repeat(c.gdiff),c.cx,c.cy+22); } }   // étoiles = difficulté
+      if(c.gdiff>0&&c.gkind==="mission"&&c.gstate!=="cleared"){ ctx.font="10px system-ui"; ctx.fillStyle=(c.gstate==="locked")?"rgba(224,179,65,.45)":"#e0b341"; ctx.fillText("★".repeat(c.gdiff),c.cx,c.cy+22); }   // étoiles = difficulté
+      const pr=campRun&&campRun.primes&&campRun.primes[c.gname]; if(pr&&(c.gstate==="available"||c.gstate==="lost")){ ctx.font="bold 10px system-ui"; ctx.fillStyle="#ffd479"; ctx.fillText("⏳+"+(pr.xp||0)+"xp",c.cx,c.cy+33); } }   // prime express qui fond
     if(geoCampId!=null&&cells[geoCampId]){ poly(cells[geoCampId]); ctx.lineWidth=3; ctx.strokeStyle="#e0b341"; ctx.stroke(); } }
   function geoPlayClick(X,Y){ const c=cellAtXY(X,Y); if(!c)return;
     if(c.gstate!=="available"&&c.gstate!=="lost"){ geoBanner(c.gstate==="locked"?"région verrouillée":(c.gstate==="cleared"?"région déjà nettoyée":"région indisponible")); return; }   // une région perdue est rejouable
@@ -1708,19 +1709,33 @@
   function geoEndReached(node,st){ const ew=node.endWhen||{kind:"all"}; const cs=geoPlay.map.cells;
     if(ew.kind==="key"){ const idx=cs.findIndex(c=>(c.name||"")===(ew.name||"")); return idx>=0&&st[idx]==="cleared"; }
     return cs.every((c,i)=> !(c.type!=="camp"&&c.content&&c.content.kind==="mission") || st[i]==="cleared" || st[i]==="lost"); }
-  function geoMissionEnd(resultTxt){ const win=resultTxt.indexOf("Victoire")===0; const ret=campRun.geoReturn; const st=campRun.geoStates[ret.nodeId]; saveCarry(); if(win)awardXp(); const deaths=applyAttrition(win); let bonusMsg=null;
+  // ===== « prime express » : incitation à tenter vite les régions DURES =====
+  // Une région difficile porte une prime (XP + moral) qui FOND à chaque mission jouée. On la touche en
+  // plus si on la prend avant qu'elle s'épuise → dilemme : foncer sur le dur maintenant, ou jouer safe.
+  const PRIME_DIFF_MIN=3, PRIME_XP_STEP=2, PRIME_MORALE_STEP=5;
+  function primeInit(){ if(!campRun||!geoPlay||!geoPlay.map)return; campRun.primes=campRun.primes||{};
+    geoPlay.map.cells.forEach((c,i)=>{ const st=campRun.geoStates[geoPlay.node.id];
+      if(c.content&&c.content.kind==="mission"&&(c.diff||0)>=PRIME_DIFF_MIN&&c.name&&campRun.primes[c.name]===undefined&&st&&st[i]!=="cleared"){
+        const d=c.diff||3; campRun.primes[c.name]={xp:d*2,morale:d*5,potions:d>=5?1:0}; } }); }
+  function primeDecay(){ if(!campRun||!campRun.primes)return; for(const k of Object.keys(campRun.primes)){ const p=campRun.primes[k];
+      p.xp=Math.max(0,(p.xp||0)-PRIME_XP_STEP); p.morale=Math.max(0,(p.morale||0)-PRIME_MORALE_STEP); if(!p.xp&&!p.morale&&!p.potions)delete campRun.primes[k]; } }
+  function geoMissionEnd(resultTxt){ const win=resultTxt.indexOf("Victoire")===0; const ret=campRun.geoReturn; const st=campRun.geoStates[ret.nodeId]; saveCarry(); if(win)awardXp(); const deaths=applyAttrition(win); let bonusMsg=null,primeMsg=null;
+    const rn=geoPlay.map.cells[ret.cellId]&&geoPlay.map.cells[ret.cellId].name;
     if(win){ st[ret.cellId]="cleared"; campRun.potions=(inv.potion||0)+((curMission&&curMission.loot)||0); bonusMsg=grantBonus(win); campRun.winCount=(campRun.winCount||0)+1;
+      if(rn&&campRun.primes&&campRun.primes[rn]){ const s=applyReward(campRun.primes[rn]); delete campRun.primes[rn]; if(s)primeMsg="⏳ Prime express empochée : "+s+"."; }   // prime de la région prise (avant qu'elle fonde)
       geoPlay.map.cells.forEach((c,i)=>{ if((c.unlockedBy||[]).includes(ret.cellId)&&st[i]==="locked")st[i]="available"; }); }
     else st[ret.cellId]="lost";
+    primeDecay();   // une mission a été jouée : toutes les primes restantes fondent d'un cran
     const lostSpecial=checkMortalConditions();   // ★ retiré selon conditions (N victoires / région nettoyée)
     geoPlay.inMission=false; over=false; const node=geoPlay.node;
     const announce=(msg,cb)=> autoPromote?cb():showCampText(msg,cb);   // bloquant en jeu, immédiat en test (autoPromote)
-    const events=[];   // récompense bonus + pertes + retraits de statut spécial, annoncés un par un
+    const events=[];   // prime + récompense bonus + pertes + retraits de statut spécial, annoncés un par un
+    if(primeMsg)events.push(primeMsg);
     if(bonusMsg)events.push(bonusMsg);
     if(deaths.length)events.push("✝ "+deaths.join(", ")+(deaths.length>1?" sont tombé·e·s au combat. Iels quittent le roster.":" est tombé·e au combat. Iel quitte le roster."));
     if(lostSpecial.length)events.push("★ "+lostSpecial.join(", ")+" — leur rôle est accompli : iels ne sont plus à l'abri du destin.");
     const showEvents=after=>{ if(!events.length){after();return;} announce(events.shift(),()=>showEvents(after)); };
-    const toCamp=()=>{ document.body.classList.add("geomap"); resetView(); geoBuildCells(); hoverCell=null;
+    const toCamp=()=>{ document.body.classList.add("geomap"); resetView(); geoBuildCells(); hoverCell=null; primeInit();
       geoBanner(win?"région sécurisée — choisis la suite":"région perdue — la situation a changé"); draw();
       runGeoEvents("debrief",()=>{ geoBuildCells(); draw(); geoBanner(); }); };   // événements « après région prise / N victoires » (puis redessine si un reveal a ouvert des régions)
     const resolveDebrief=()=>{ if(geoEndReached(node,st)){ const nx=node.next; geoPlay=null; document.body.classList.remove("geomap");

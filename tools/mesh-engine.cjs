@@ -35,6 +35,7 @@ function loadMesh(htmlPath){
     setupBonus, checkBonus, grantBonus, applyReward, maybeOfferExtra, launchMini, miniMissionEnd,
     applyCarry, saveCarry, memMaxHp, memDeployHp,
     runGeoEvents, geoRegionCleared, geoRevealRegion, applyGeoEvent, saveFiredEvents, loadFiredEvents,
+    primeInit, primeDecay,
     get PERKS(){return PERKS}, get GRADES(){return GRADES},
     setAutoPromote(fn){ autoPromote=fn; }, saveRosterProgress, loadRosterProgress, clearRosterProgress,
     get smoke(){return smoke},
