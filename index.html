@@ -78,6 +78,12 @@
   #promote-hd{ font-size:1.15rem; color:#e0b341; margin-bottom:14px } #promote-hd .who{ font-weight:bold; color:#fff } #promote-hd .gr{ color:#9fd0a8 }
   #promote-opts{ display:flex; gap:14px } .perkopt{ flex:1; background:#1f2330; border:1px solid #39405a; border-radius:10px; padding:14px; cursor:pointer; transition:.12s } .perkopt:hover{ background:#283150; border-color:#e0b341 }
   .perkopt .pn{ font-weight:bold; color:#fff; font-size:1.05rem } .perkopt .pd{ color:#aab; font-size:.9rem; margin-top:5px } .perkopt .ab{ color:#e0b341; font-size:.8rem; font-weight:bold }
+  #squad{ position:fixed; inset:0; background:rgba(8,10,14,.86); display:none; align-items:center; justify-content:center; z-index:11 } #squad.show{display:flex}
+  #squad-card{ width:min(560px,94vw); max-height:88vh; overflow-y:auto; background:#171a22; border:1px solid #2c2f3a; border-radius:12px; padding:20px 22px; box-shadow:0 12px 40px rgba(0,0,0,.5) }
+  #squad-hd{ font-size:1.1rem; color:#e0b341; margin-bottom:12px } #squad-hd .who{ color:#fff; font-weight:bold }
+  .squ{ display:flex; align-items:center; gap:8px; background:#1f2330; border:1px solid #39405a; border-radius:9px; padding:9px 11px; margin:5px 0; cursor:pointer } .squ.sel{ border-color:#e0b341; background:#283150 } .squ.dis{ opacity:.4; cursor:not-allowed }
+  .squ .sq-n{ flex:1; color:#fff } .squ .sq-c{ color:#8a93a5; font-size:.85rem } .squ .sq-bar{ width:40px; height:6px; border-radius:3px; background:#2c2f3a; overflow:hidden } .squ .sq-bar i{ display:block; height:100% } .squ .sq-x{ width:18px; text-align:center }
+  #squad-foot{ display:flex; justify-content:flex-end; gap:10px; margin-top:12px } #squad-go:disabled{ opacity:.4 }
   #combatline{ position:fixed; left:50%; transform:translateX(-50%); bottom:92px; width:min(720px,92vw); display:none; cursor:pointer; z-index:11;
     background:rgba(10,8,5,.96); border:1px solid #5a4530; border-radius:8px; padding:14px 16px; color:#e8ddc8; font-family:Georgia,serif; font-size:1.05rem; line-height:1.6; box-shadow:0 6px 24px rgba(0,0,0,.6) }
   #combatline .skip{ float:right; margin-left:14px; color:#caa24a; background:#1c150e; border:1px solid #5a4530; border-radius:6px; padding:3px 13px; font-weight:bold }
@@ -231,6 +237,7 @@
 <div id="storybox"><div id="storybox-body"></div><button id="storybox-btn">…</button></div>
 <div id="over"><h2 id="overtxt"></h2><button id="overbtn">Rejouer</button></div>
 <div id="promote"><div id="promote-card"><div id="promote-hd"></div><div id="promote-opts"></div></div></div>
+<div id="squad"><div id="squad-card"><div id="squad-hd"></div><div id="squad-list"></div><div id="squad-foot"><button id="squad-cancel">Annuler</button><button id="squad-go">Lancer la mission</button></div></div></div>
 <script>
 (function(){
   const cv=document.getElementById("board"),ctx=cv.getContext("2d"),TWO=Math.PI*2;
@@ -1204,8 +1211,11 @@
   function deployRoster(){ if(!campRun||!campRun.roster||!campRun.roster.length)return;
     const slots=units.filter(u=>u.team==="player").sort((a,b)=>(cells[a.cell].cy-cells[b.cell].cy)||(cells[a.cell].cx-cells[b.cell].cx));
     if(!slots.length)return; const others=units.filter(u=>u.team!=="player"); const placed=[];
-    const ready=campRun.roster.filter(memReady);   // seuls les prêts (ni morts, ni épuisés/à bout) sont déployés -> rotation
-    for(let i=0;i<slots.length&&i<ready.length;i++){ const m=ready[i]; if(!CLASSES[m.cls])continue;
+    const ready=campRun.roster.filter(memReady);   // seuls les prêts (ni morts, ni épuisés/à bout) sont déployables
+    let chosen=ready;   // sélection joueur si fournie (écran d'escouade), sinon les premiers prêts (auto / sim)
+    if(campRun.deploySel&&campRun.deploySel.length){ chosen=campRun.deploySel.map(n=>ready.find(m=>m.name===n)).filter(Boolean); }
+    campRun.deploySel=null;
+    for(let i=0;i<slots.length&&i<chosen.length;i++){ const m=chosen[i]; if(!CLASSES[m.cls])continue;
       const u=U("player",m.cls,slots[i].cell,{name:m.name,facing:slots[i].facing}); applyPerkMods(u,m.perks); u.grade=(m.perks||[]).length; placed.push(u); }
     units=others.concat(placed); }
   function setView(v){ document.body.classList.remove("view-mission","view-campaign","view-geoscape","view-play"); document.body.classList.add("view-"+v); mode=(v==="play")?"play":"edit";
@@ -1456,12 +1466,32 @@
     if(c.gstate!=="available"){ geoBanner(c.gstate==="locked"?"région verrouillée":(c.gstate==="cleared"?"région déjà nettoyée":"région indisponible")); return; }
     if(c.gkind!=="mission"||!c.gref){ geoBanner("rien à faire ici pour l'instant"); return; }
     geoLaunchMission(c.id,c.gref); }
+  // écran de sélection d'escouade avant de partir : choisir jusqu'à N soldats PRÊTS (ni épuisés ni morts)
+  function showSquadSelect(maxN,regionName,onConfirm){ const el=document.getElementById("squad"); if(!el||!campRun){ onConfirm(null); return; }
+    const ready=campRun.roster.filter(memReady); const sel=new Set(ready.slice(0,maxN).map(m=>m.name));
+    const bar=(v,col)=>`<div class="sq-bar"><i style="width:${Math.min(100,Math.round(v||0))}%;background:${col}"></i></div>`;
+    function draw(){ document.getElementById("squad-hd").innerHTML=`<span class="who">${esc(regionName||"Mission")}</span> — choisis ton escouade (${sel.size}/${maxN})`;
+      const list=document.getElementById("squad-list"); list.innerHTML="";
+      for(const m of campRun.roster){ const ok=memReady(m), on=sel.has(m.name); const d=document.createElement("div");
+        d.className="squ"+(on?" sel":"")+(ok?"":" dis");
+        const tag=m.dead?"✝":(!ok?"⛔":(m.special!==false?"★":""));
+        d.innerHTML=`<span class="sq-x">${on?"✓":(ok?"":tag)}</span><span class="sq-n">${esc(m.name)} <span class="sq-c">${(CLASSES[m.cls]&&CLASSES[m.cls].name)||m.cls}${(m.perks&&m.perks.length)?" "+"★".repeat(m.perks.length):""}</span></span>`
+          +(m.dead?`<span class="sq-c">mort</span>`:`💪${bar(m.fatigue,"#5fa9d8")} 🧠${bar(m.stress,"#d8a23f")}<span class="sq-x">${m.special!==false?"★":""}</span>`);
+        if(ok)d.onclick=()=>{ if(sel.has(m.name))sel.delete(m.name); else { if(sel.size>=maxN){ return; } sel.add(m.name); } draw(); };
+        list.appendChild(d); }
+      const go=document.getElementById("squad-go"); go.disabled=sel.size<1; }
+    draw(); el.classList.add("show");
+    document.getElementById("squad-go").onclick=()=>{ if(sel.size<1)return; el.classList.remove("show"); onConfirm([...sel]); };
+    document.getElementById("squad-cancel").onclick=()=>{ el.classList.remove("show"); onConfirm(null); }; }
   async function geoLaunchMission(cellId,ref){ const t=await fetchText("missions-mesh/"+ref,ghCfg());
     if(!t){ geoBanner("mission introuvable : "+ref); return; }
     let m; try{ m=JSON.parse(t); }catch(e){ geoBanner("mission illisible"); return; }
-    campRun.geoReturn={nodeId:geoPlay.node.id,cellId}; geoPlay.inMission=true; document.body.classList.remove("geomap");
-    try{ applyMissionObj(m); }catch(e){ geoBanner("mission illisible"); geoPlay.inMission=false; document.body.classList.add("geomap"); return; }
-    deployRoster(); startGame(); if(!(curMission&&curMission.fullheal))applyCarry(); refresh(); }
+    const slots=(m.units||[]).filter(u=>u.team==="player").length||1;
+    const regionName=(cells[cellId]&&cells[cellId].gname)||"Mission";
+    showSquadSelect(slots, regionName, (chosen)=>{ if(!chosen){ geoBanner("départ annulé"); return; }   // Annuler = on reste au camp
+      campRun.deploySel=chosen; campRun.geoReturn={nodeId:geoPlay.node.id,cellId}; geoPlay.inMission=true; document.body.classList.remove("geomap");
+      try{ applyMissionObj(m); }catch(e){ geoBanner("mission illisible"); geoPlay.inMission=false; document.body.classList.add("geomap"); return; }
+      deployRoster(); startGame(); if(!(curMission&&curMission.fullheal))applyCarry(); refresh(); }); }
   function geoEndReached(node,st){ const ew=node.endWhen||{kind:"all"}; const cs=geoPlay.map.cells;
     if(ew.kind==="key"){ const idx=cs.findIndex(c=>(c.name||"")===(ew.name||"")); return idx>=0&&st[idx]==="cleared"; }
     return cs.every((c,i)=> !(c.type!=="camp"&&c.content&&c.content.kind==="mission") || st[i]==="cleared" || st[i]==="lost"); }
