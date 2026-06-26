@@ -34,6 +34,7 @@ function loadMesh(htmlPath){
     geoMissionEnd, awardXp, pendingPromotions, gradeFromXp, applyPerkMods, deployRoster,
     get PERKS(){return PERKS}, get GRADES(){return GRADES},
     setAutoPromote(fn){ autoPromote=fn; }, saveRosterProgress, loadRosterProgress, clearRosterProgress,
+    get smoke(){return smoke},
   };
   `;
   src = src.replace(/\}\)\(\);\s*$/, EXPORT + "\n})();");

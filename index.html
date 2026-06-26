@@ -255,25 +255,28 @@
   const XP_THRESH=[0,3,7,12];                               // XP cumulée requise pour atteindre le grade i
   const gradeFromXp=xp=>{ let g=0; for(let i=0;i<XP_THRESH.length;i++)if((xp||0)>=XP_THRESH[i])g=i; return g; };
   // catalogue : par classe, une paire A/B par grade (index 0 = 1er grade). mod = bonus appliqués au déploiement.
+  // A = capacité spéciale (verbe), B = bonus chiffré. abil = id d'une capacité active (cf. ABIL).
   const PERKS={
-    sergent:[ {A:{id:"se1a",name:"Cuirasse",desc:"+3 PV",mod:{hp:3}}, B:{id:"se1b",name:"Mur de boucliers",desc:"+20% blocage",mod:{shieldBlock:20}}},
-              {A:{id:"se2a",name:"Meneur",desc:"+1 dégât",mod:{dmg:1}}, B:{id:"se2b",name:"Tenace",desc:"+4 PV",mod:{hp:4}}},
-              {A:{id:"se3a",name:"Foulée",desc:"+1 mouvement",mod:{mob:1}}, B:{id:"se3b",name:"Garde d'acier",desc:"+15% blocage",mod:{shieldBlock:15}}} ],
-    sapeur:[ {A:{id:"sa1a",name:"Munitions",desc:"+1 cracker",mod:{crackers:1}}, B:{id:"sa1b",name:"Œil de lynx",desc:"+10 visée",mod:{aim:10}}},
-             {A:{id:"sa2a",name:"Longue portée",desc:"+1 portée",mod:{range:1}}, B:{id:"sa2b",name:"Endurci",desc:"+3 PV",mod:{hp:3}}},
-             {A:{id:"sa3a",name:"Charge lourde",desc:"+2 dégât",mod:{dmg:2}}, B:{id:"sa3b",name:"Sac à malice",desc:"+1 cracker",mod:{crackers:1}}} ],
-    assassin:[ {A:{id:"as1a",name:"Parade affûtée",desc:"+20% parade",mod:{parry:20}}, B:{id:"as1b",name:"Lame vive",desc:"+2 dégât",mod:{dmg:2}}},
-               {A:{id:"as2a",name:"Foulée",desc:"+1 mouvement",mod:{mob:1}}, B:{id:"as2b",name:"Précision",desc:"+10 visée",mod:{aim:10}}},
+    sergent:[ {A:{id:"se1a",name:"Cri de ralliement",desc:"Rend 1 PA à un allié adjacent",abil:"rally"}, B:{id:"se1b",name:"Tenace",desc:"+4 PV",mod:{hp:4}}},
+              {A:{id:"se2a",name:"Provocation",desc:"Les ennemis te visent en priorité",abil:"taunt"}, B:{id:"se2b",name:"Meneur",desc:"+1 dégât",mod:{dmg:1}}},
+              {A:{id:"se3a",name:"Tenir la ligne",desc:"Vigilance des alliés adjacents",abil:"holdline"}, B:{id:"se3b",name:"Garde d'acier",desc:"+15% blocage",mod:{shieldBlock:15}}} ],
+    sapeur:[ {A:{id:"sa1a",name:"Fumigène",desc:"Voile la ligne de vue (zone, 2 tours)",abil:"smoke"}, B:{id:"sa1b",name:"Œil de lynx",desc:"+10 visée",mod:{aim:10}}},
+             {A:{id:"sa2a",name:"Charge creuse",desc:"Détruit un rocher/muret (ouvre un passage)",abil:"breach"}, B:{id:"sa2b",name:"Endurci",desc:"+3 PV",mod:{hp:3}}},
+             {A:{id:"sa3a",name:"Artificier",desc:"Cracker plus précis (moins de dispersion)",mod:{scatter:1}}, B:{id:"sa3b",name:"Charge lourde",desc:"+2 dégât",mod:{dmg:2}}} ],
+    assassin:[ {A:{id:"as1a",name:"Frappe de l'ombre",desc:"Bond au flanc/dos d'un ennemi + dégâts",abil:"shadowstrike"}, B:{id:"as1b",name:"Lame vive",desc:"+2 dégât",mod:{dmg:2}}},
+               {A:{id:"as2a",name:"Estompe",desc:"Redevient indétectable un tour (1×/combat)",abil:"vanish"}, B:{id:"as2b",name:"Précision",desc:"+10 visée",mod:{aim:10}}},
                {A:{id:"as3a",name:"Tueur",desc:"+2 dégât",mod:{dmg:2}}, B:{id:"as3b",name:"Insaisissable",desc:"+20% parade",mod:{parry:20}}} ],
-    garde:[ {A:{id:"ga1a",name:"Rempart",desc:"+20% blocage",mod:{shieldBlock:20}}, B:{id:"ga1b",name:"Robuste",desc:"+4 PV",mod:{hp:4}}},
-            {A:{id:"ga2a",name:"Coup appuyé",desc:"+2 dégât",mod:{dmg:2}}, B:{id:"ga2b",name:"Vigueur",desc:"+3 PV",mod:{hp:3}}},
+    garde:[ {A:{id:"ga1a",name:"Bouclier protecteur",desc:"Intercepte un coup visant un allié adjacent",abil:"protect"}, B:{id:"ga1b",name:"Robuste",desc:"+4 PV",mod:{hp:4}}},
+            {A:{id:"ga2a",name:"Mur mobile",desc:"Donne du couvert aux alliés adjacents",abil:"wall"}, B:{id:"ga2b",name:"Coup appuyé",desc:"+2 dégât",mod:{dmg:2}}},
             {A:{id:"ga3a",name:"Foulée",desc:"+1 mouvement",mod:{mob:1}}, B:{id:"ga3b",name:"Bastion",desc:"+5 PV",mod:{hp:5}}} ],
   };
   const perkById=(cls,id)=>{ for(const g of (PERKS[cls]||[])){ if(g.A.id===id)return g.A; if(g.B.id===id)return g.B; } return null; };
-  function applyPerkMods(u,perkIds){ for(const id of (perkIds||[])){ const p=perkById(u.cls,id); if(!p||!p.mod)continue; const m=p.mod;
+  function applyPerkMods(u,perkIds){ for(const id of (perkIds||[])){ const p=perkById(u.cls,id); if(!p)continue;
+    if(p.abil){ (u.abil||(u.abil=[])).push(p.abil); if(p.abil==="protect")u.protect=true; continue; }
+    const m=p.mod; if(!m)continue;
     if(m.hp){u.max+=m.hp;u.hp+=m.hp;} if(m.shieldBlock)u.shieldBlock=(u.shieldBlock||0)+m.shieldBlock; if(m.parry)u.parry=(u.parry||0)+m.parry;
     if(m.crackers){u.crackers=(u.crackers||0)+m.crackers;u.crackers0=(u.crackers0||0)+m.crackers;} if(m.mob)u.mobBonus=(u.mobBonus||0)+m.mob; if(m.aim)u.aimBonus=(u.aimBonus||0)+m.aim;
-    if(m.dmg)u.dmgBonus=(u.dmgBonus||0)+m.dmg; if(m.range)u.rangeBonus=(u.rangeBonus||0)+m.range; } }
+    if(m.dmg)u.dmgBonus=(u.dmgBonus||0)+m.dmg; if(m.range)u.rangeBonus=(u.rangeBonus||0)+m.range; if(m.scatter)u.scatterBonus=(u.scatterBonus||0)+m.scatter; } }
   const ENEMY_VIS=7, SLEEP_VIS=4;
   const mk=s=>()=>{s|=0;s=s+0x6D2B79F5|0;let t=Math.imul(s^s>>>15,1|s);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;};
   let RND=mk(7), seed=7, mode="edit", editTool="zone:square", islandTrim=true;   // islandTrim : retire les cellules de bord (effet île), mission + geoscape
@@ -337,7 +340,7 @@
   const norm=a=>{while(a<=-Math.PI)a+=TWO;while(a>Math.PI)a-=TWO;return a;};
   const ang=(a,b)=>Math.atan2(cells[b].cy-cells[a].cy,cells[b].cx-cells[a].cx);
   const passable=id=>cells[id].terr!=="wall";
-  const opaque=id=>cells[id].terr==="wall";
+  const opaque=id=>cells[id].terr==="wall"||smoke.has(id);   // rocher OU fumée bloquent la ligne de vue
   const enterCost=(from,to)=>{ if(!passable(to))return null; if(cells[to].elev-cells[from].elev>=2)return null; const climb=Math.max(0,cells[to].elev-cells[from].elev); return (cells[to].terr==="rough"?2:1)+climb; };
 
   // ===== unités =====
@@ -397,8 +400,10 @@
   function muretCover(tgt,att){ const T=cells[tgt.cell],A=cells[att.cell]; let ax=A.cx-T.cx,ay=A.cy-T.cy; const al=Math.hypot(ax,ay)||1; ax/=al;ay/=al; let best=0;
     for(const n of T.nb){ if(!wallBetween(tgt.cell,n))continue; if(T.elev>cells[n].elev)continue; let dx=cells[n].cx-T.cx,dy=cells[n].cy-T.cy; const dl=Math.hypot(dx,dy)||1; dx/=dl;dy/=dl; const align=ax*dx+ay*dy; if(align<=0)continue; best=Math.max(best,(COVER_PEN/2)*align); }
     return Math.round(best); }
-  function chance(att,tgt,m){const w=att.w[m];let cover=0;if(w.type==="ranged"){if(cells[tgt.cell].terr==="cover")cover=COVER_PEN;cover=Math.max(cover,muretCover(tgt,att));}const dh=Math.max(-3,Math.min(3,cells[att.cell].elev-cells[tgt.cell].elev))*HEIGHT_BONUS;const pb=w.type==="ranged"?(PB[hops(att.cell,tgt.cell)]||0):0;const def=tgt.bracing?DEF_BRACE:0;return Math.max(5,Math.min(95,Math.round(w.aim+(att.aimBonus||0)-cover+dh-pb-def)));}
-  function doAttack(att,tgt,m,reaction){const w=att.w[m];att.facing=ang(att.cell,tgt.cell);if(!reaction){att.ap=0;att.freeAvail=false;turnActions++;}if(w.type==="ranged"&&att.clip!==undefined)att.ammo--;
+  function chance(att,tgt,m){const w=att.w[m];let cover=0;if(w.type==="ranged"){if(cells[tgt.cell].terr==="cover")cover=COVER_PEN;cover=Math.max(cover,muretCover(tgt,att));if(units.some(a=>a.hp>0&&a.team===tgt.team&&a!==tgt&&a.wallStance&&adjacent(a.cell,tgt.cell)))cover=Math.max(cover,Math.round(COVER_PEN*0.5));}const dh=Math.max(-3,Math.min(3,cells[att.cell].elev-cells[tgt.cell].elev))*HEIGHT_BONUS;const pb=w.type==="ranged"?(PB[hops(att.cell,tgt.cell)]||0):0;const def=tgt.bracing?DEF_BRACE:0;return Math.max(5,Math.min(95,Math.round(w.aim+(att.aimBonus||0)-cover+dh-pb-def)));}
+  function doAttack(att,tgt,m,reaction){
+    if(!reaction&&tgt.team==="player"&&!tgt.protect){ const g=units.find(o=>o!==tgt&&o.team==="player"&&o.hp>0&&o.protect&&!o.reacted&&adjacent(o.cell,tgt.cell)); if(g){g.reacted=true;log(`🛡 ${g.name} protège ${tgt.name}`,"player");tgt=g;} }   // Bouclier protecteur : le garde s'interpose
+    const w=att.w[m];att.facing=ang(att.cell,tgt.cell);if(!reaction){att.ap=0;att.freeAvail=false;turnActions++;}if(w.type==="ranged"&&att.clip!==undefined)att.ammo--;
     const ch=Math.max(5,chance(att,tgt,m)-(reaction?15:0)),hit=RND()*100<ch,back=flankOf(att,tgt)==="back";let txt,result,dmg=0;
     if(!hit){txt="raté";result="miss";}
     else if(!back&&tgt.shieldBlock&&RND()*100<tgt.shieldBlock){txt="bloqué 🛡";result="blocked";}
@@ -459,13 +464,14 @@
   function crackerJitTick(){ crackerTimer=null; if(!throwing||!sel){ crackerJit=null; return; }
     const cr=sel.w.cracker;
     if(cr&&hoverCell!=null&&cells[hoverCell]&&hops(sel.cell,hoverCell)<=cr.range&&los(sel.cell,hoverCell)){
-      const cand=cells.filter(c=>passable(c.id)&&hops(hoverCell,c.id)<=cr.scatter);   // dispersion (random visuel, n'entame pas la RNG de jeu)
+      const cand=cells.filter(c=>passable(c.id)&&hops(hoverCell,c.id)<=Math.max(0,cr.scatter-(sel.scatterBonus||0)));   // dispersion (random visuel, n'entame pas la RNG de jeu)
       crackerJit=cand.length?cand[Math.floor(Math.random()*cand.length)].id:hoverCell;
     } else crackerJit=null;
     draw(); crackerTimer=setTimeout(crackerJitTick,150); }
   function startCrackerJit(){ if(!crackerTimer)crackerJitTick(); }
   function resolveThrow(thrower,target){ const cr=thrower.w.cracker; thrower.crackers--; thrower.ap=0; thrower.freeAvail=false; throwing=false; turnActions++;
-    const cand=cells.filter(c=>passable(c.id)&&hops(target,c.id)<=cr.scatter); const imp=cand.length?cand[Math.floor(RND()*cand.length)].id:target;
+    const scat=Math.max(0,cr.scatter-(thrower.scatterBonus||0));   // Artificier réduit la dispersion
+    const cand=cells.filter(c=>passable(c.id)&&hops(target,c.id)<=scat); const imp=cand.length?cand[Math.floor(RND()*cand.length)].id:target;
     pushBlast(imp,cr.radius); pushNoise(imp,cr.radius+2); screenShake(6);   // explosion + onde de bruit
     let enemiesHit=0,alliesHit=0,killed=0;
     for(const u of units){ if(u.hp<=0)continue; if(hops(imp,u.cell)<=cr.radius){ const dmg=cr.dmgMin+Math.floor(RND()*(cr.dmgMax-cr.dmgMin+1)); u.hp-=dmg; pushDmg(u.cell,dmg,u.team); if(u.team===thrower.team)alliesHit++; else enemiesHit++;
@@ -474,12 +480,53 @@
     log(`▲ ${thrower.name} lance un cracker`,thrower.team);
     for(const e of units)if(e.team==="enemy"&&e.hp>0&&hops(imp,e.cell)<=cr.radius+2)wakeEnemy(e,"noise");
     emit("cracker",{actorName:thrower.name,actorCls:thrower.cls,actorTeam:thrower.team,enemiesHit,alliesHit,killed}); checkEnd(); refresh(); }
+
+  // ===== capacités spéciales (perks actifs) =====
+  const ABIL={
+    smoke:{icon:"🌫",label:"Fumigène — voile la ligne de vue (zone, 1 PA)",target:"cell"},
+    breach:{icon:"💥",label:"Charge creuse — détruit un rocher/muret (termine le tour)",target:"cell"},
+    shadowstrike:{icon:"🌑",label:"Frappe de l'ombre — bond au flanc/dos + dégâts",target:"enemy"},
+    rally:{icon:"📣",label:"Cri de ralliement — +1 PA à un allié adjacent (1 PA)",target:"ally"},
+    vanish:{icon:"💨",label:"Estompe — indétectable un tour (1 PA, 1×/combat)",target:"self"},
+    taunt:{icon:"💢",label:"Provocation — les ennemis te visent (1 PA)",target:"self"},
+    holdline:{icon:"🛡👁",label:"Tenir la ligne — vigilance des alliés adjacents (1 PA)",target:"self"},
+    wall:{icon:"🧱",label:"Mur mobile — couvert aux alliés adjacents (1 PA)",target:"self"},
+  };
+  const SMOKE_TURNS=2, SMOKE_RANGE=6, SMOKE_RADIUS=1, BREACH_RANGE=6;
+  const flankOfCell=(cellId,tgt)=>{ const diff=Math.abs(norm(Math.atan2(cells[cellId].cy-cells[tgt.cell].cy,cells[cellId].cx-cells[tgt.cell].cx)-tgt.facing)); return diff>2.2?"back":diff>1.0?"side":"front"; };
+  function execSmoke(u,id){ if(hops(u.cell,id)>SMOKE_RANGE||!los(u.cell,id)){setMsg("Fumigène : hors de portée / sans vue.");return false;}
+    for(const c of cells)if(hops(id,c.id)<=SMOKE_RADIUS)smoke.set(c.id,SMOKE_TURNS); u.ap-=1; u.freeAvail=false; log(`▲ ${u.name} déploie un fumigène`,"player"); refresh(); return true; }
+  function execBreach(u,id){ if(hops(u.cell,id)>BREACH_RANGE||!los(u.cell,id)){setMsg("Charge creuse : hors de portée / sans vue.");return false;}
+    let done=false; if(cells[id].terr==="wall"){cells[id].terr="plain";done=true;} for(const n of cells[id].nb){const k=wkey(id,n);if(walls.has(k)){walls.delete(k);done=true;}}
+    if(!done){setMsg("Charge creuse : vise un rocher ou un muret.");return false;}
+    u.ap=0; u.freeAvail=false; pushBlast(id,1); screenShake(5); log(`▲ ${u.name} : charge creuse — passage ouvert`,"player"); for(const e of units)if(e.team==="enemy"&&e.hp>0&&hops(id,e.cell)<=3)wakeEnemy(e,"noise"); refresh(); return true; }
+  function execShadow(u,tgt){ const d=reach(u); let best=null,bs=-1;
+    for(const n of cells[tgt.cell].nb){ if(!adjacent(n,tgt.cell))continue; if(n!==u.cell&&(d[n]===undefined||uAt(n)))continue; const s={back:3,side:2,front:1}[flankOfCell(n,tgt)]; if(s>bs){bs=s;best=n;} }
+    if(best===null){setMsg("Frappe de l'ombre : pas de case d'assaut atteignable.");return false;}
+    if(best!==u.cell)moveAlong(u,best); if(over)return true; u.dmgBonus=(u.dmgBonus||0)+2; if(u.ap>0||u.freeAvail)doAttack(u,tgt,"melee"); u.dmgBonus-=2; return true; }
+  function execRally(u,a){ if(!a||a===u||a.team!=="player"||a.hp<=0||!adjacent(u.cell,a.cell)){setMsg("Cri de ralliement : choisis un allié adjacent.");return false;}
+    a.ap=Math.min(AP_MAX,a.ap+1); u.ap-=1; u.freeAvail=false; log(`▲ ${u.name} galvanise ${a.name} (+1 PA)`,"player"); refresh(); return true; }
+  function execVanish(u){ if(u.vanishUsed){setMsg("Estompe déjà utilisée ce combat.");return false;} u.hidden=true; u.vanishUsed=true; lastSeen.delete(u); u.ap-=1; u.freeAvail=false; log(`▲ ${u.name} s'estompe`,"player"); refresh(); return true; }
+  function execTaunt(u){ u.taunt=true; u.ap-=1; u.freeAvail=false; log(`▲ ${u.name} provoque l'ennemi`,"player"); refresh(); return true; }
+  function execHoldline(u){ let n=0; for(const a of units)if(a.team==="player"&&a.hp>0&&a!==u&&adjacent(u.cell,a.cell)&&a.ap>0){ const m=(a.w.ranged&&(a.clip===undefined||a.ammo>0))?"ranged":(a.w.melee?"melee":null); if(m){a.overwatch=true;a.owMode=m;a.reacted=false;n++;} }
+    u.ap-=1; u.freeAvail=false; log(`▲ ${u.name} : « Tenez la ligne ! » (${n} allié·s en vigilance)`,"player"); refresh(); return true; }
+  function execWall(u){ u.wallStance=true; u.ap-=1; u.freeAvail=false; log(`▲ ${u.name} forme un mur mobile`,"player"); refresh(); return true; }
+  function armOrExec(id){ if(!sel||sel.ap<=0)return; const A=ABIL[id]; if(!A)return;
+    if(A.target==="self"){ ({vanish:execVanish,taunt:execTaunt,holdline:execHoldline,wall:execWall}[id])(sel); ability=null; renderActs(); return; }
+    ability=(ability===id)?null:id; amode=null;throwing=false;usingItem=false;
+    setMsg(ability?({smoke:"Clique une case à enfumer.",breach:"Clique un rocher/muret à détruire.",shadowstrike:"Clique un ennemi à frapper.",rally:"Clique un allié adjacent."}[ability]||""):""); renderActs(); }
+  function resolveAbilityClick(id){ const A=ABIL[ability]; if(!A||!sel)return; const tgt=uAt(id); let ok=false;
+    if(A.target==="cell")ok=(ability==="smoke")?execSmoke(sel,id):execBreach(sel,id);
+    else if(A.target==="enemy")ok=(tgt&&hostile(sel,tgt)&&tgt.hp>0&&seen(tgt))?execShadow(sel,tgt):(setMsg("Choisis un ennemi visible."),false);
+    else if(A.target==="ally")ok=(tgt&&tgt.team==="player")?execRally(sel,tgt):(setMsg("Choisis un allié adjacent."),false);
+    if(ok)ability=null; renderActs(); }
   // ===== objet : potion (soi ou allié adjacent) =====
   function applyItem(u){ if(!sel||u.team!=="player"||u.hp<=0||sel.ap<=0)return; if(u!==sel&&hops(sel.cell,u.cell)>1){setMsg("Potion : soi-même ou un allié adjacent.");return;} if(inv.potion<=0){setMsg("Plus de potion.");return;} if(u.hp>=u.max){setMsg(`${u.name} est déjà au max.`);return;}
     turnActions++; u.hp=Math.min(u.max,u.hp+6); inv.potion--; sel.ap-=1; usingItem=false; log(`▲ ${sel.name} soigne ${u.name} : +PV`,"player"); refresh(); }
 
   // ===== brouillard / tours =====
   let visible=new Set(), evisible=new Set(), turn="player", sel=null, over=false, amode=null, hoverCell=null, aimTarget=null, introBlocking=false, lastOutcome=null;
+  let ability=null, smoke=new Map();   // ability = capacité spéciale armée (en attente de cible) ; smoke = cases enfumées -> tours restants
   function computeVis(){visible=new Set();for(const u of units)if(u.team==="player"&&u.hp>0&&cells[u.cell])for(const c of cells)if(hops(u.cell,c.id)<=7&&los(u.cell,c.id))visible.add(c.id);}
   // brouillard ENNEMI : champ de vision collectif des pods éveillés (360° + ligne de vue, comme le joueur).
   // gate les DÉPLACEMENTS ennemis (ils ne se faufilent pas dans des zones qu'ils ne voient pas / derrière un obstacle).
@@ -526,9 +573,9 @@
   function shotFrom(fromCell,att,tgtCell,m){ const w=att.w&&att.w[m]; if(!w)return 0;
     if(w.type==="ranged"){ if(hops(fromCell,tgtCell)>(w.range||1)||!los(fromCell,tgtCell))return 0; } else if(hops(fromCell,tgtCell)>1)return 0;
     return chance({cell:fromCell,w:att.w,clip:att.clip,ammo:att.ammo,team:att.team},{cell:tgtCell},m); }
-  function bestEnemyTarget(e){ let best=null,bk=-1e9; for(const p of units){ if(!hostile(e,p)||p.hp<=0||!inRange(e,p,e.wtype))continue; const k=shotFrom(e.cell,e,p.cell,e.wtype)*1000-p.hp; if(k>bk){bk=k;best=p;} } return best; }
+  function bestEnemyTarget(e){ let best=null,bk=-1e9; for(const p of units){ if(!hostile(e,p)||p.hp<=0||!inRange(e,p,e.wtype))continue; const k=shotFrom(e.cell,e,p.cell,e.wtype)*1000-p.hp+(p.taunt?100000:0); if(k>bk){bk=k;best=p;} } return best; }   // Provocation : forte priorité au provocateur s'il est à portée
   // ===== mémoire & comportement de l'IA (porté de la version hex) =====
-  function enemySeesP(e,p){ const vis=e.asleep?SLEEP_VIS:ENEMY_VIS; if(hops(e.cell,p.cell)>vis||!los(e.cell,p.cell))return false; const fl=flankOf(p,e); return p.stealth?(fl==="front"):(fl!=="back"); }   // vue d'un ennemi : portée + LdV ; unité normale = hors angle mort arrière, unité furtive = uniquement dans le cône avant
+  function enemySeesP(e,p){ if(p.hidden)return false; const vis=e.asleep?SLEEP_VIS:ENEMY_VIS; if(hops(e.cell,p.cell)>vis||!los(e.cell,p.cell))return false; const fl=flankOf(p,e); return p.stealth?(fl==="front"):(fl!=="back"); }   // p.hidden (Estompe) = totalement indétectable   // vue d'un ennemi : portée + LdV ; unité normale = hors angle mort arrière, unité furtive = uniquement dans le cône avant
   function anyEnemySees(p){ return units.some(e=>e.team==="enemy"&&e.hp>0&&enemyActive(e)&&enemySeesP(e,p)); }
   function updateEnemyMemory(){ for(const p of [...lastSeen.keys()])if(!units.includes(p)||p.hp<=0)lastSeen.delete(p);   // mémoire d'escouade : dernière position connue des joueurs
     for(const p of units){ if(p.team!=="player"||p.hp<=0||!anyEnemySees(p))continue; const prev=lastSeen.get(p); if(!prev||prev.cell!==p.cell)lastSeen.set(p,{cell:p.cell,prev:prev?prev.cell:p.cell}); } }
@@ -564,13 +611,14 @@
     const tryShoot=()=>{ if(e.hp>0){ const t=bestEnemyTarget(e); if(t)doAttack(e,t,e.wtype); } done(); };
     if(bestCell!==e.cell){ moveAlong(e,bestCell); refresh(); setTimeout(tryShoot,(anim?anim.dur+150:200)); } else tryShoot(); }
   function endTurn(){turn="enemy";turnActions=0;sel=null;amode=null;aimTarget=null;for(const u of units)if(u.team==="enemy"){u.ap=AP_MAX;u.freeAvail=true;u.overwatch=false;u.reacted=false;u.bracing=false;}banner("Tour de l'ennemi","enemy");refresh();const foes=units.filter(u=>u.team==="enemy"&&u.hp>0);let i=0;
-    (function step(){if(over)return;if(i>=foes.length){for(const u of units)if(u.team==="player"){u.ap=AP_MAX;u.freeAvail=true;u.overwatch=false;u.reacted=false;u.bracing=false;}turn="player";turnNum++;turnActions=0;setMsg("");checkEnd();if(over)return;banner("Tour du joueur","player");refresh();emit("turn",{turn:turnNum});return;}
+    (function step(){if(over)return;if(i>=foes.length){for(const u of units)if(u.team==="player"){u.ap=AP_MAX;u.freeAvail=true;u.overwatch=false;u.reacted=false;u.bracing=false;u.taunt=false;u.hidden=false;u.wallStance=false;}for(const[k,v]of smoke){if(v-1<=0)smoke.delete(k);else smoke.set(k,v-1);}turn="player";turnNum++;turnActions=0;setMsg("");checkEnd();if(over)return;banner("Tour du joueur","player");refresh();emit("turn",{turn:turnNum});return;}
       const e=foes[i++];if(e.hp<=0){step();return;} e.overwatch=false; if(!enemyActive(e)){ try{patrolStep(e);}catch(err){} e.ap=0; step(); return; }   // pas alerté = patrouille dans sa zone
       const next=()=>setTimeout(step,200);
       const tgts=units.filter(p=>p.hp>0&&hostile(e,p)&&enemySeesP(e,p));   // seulement ce que cet ennemi voit réellement
       if(!tgts.length){ searchAct(e,()=>{ holdWatch(e); refresh(); next(); }); return; }   // personne en vue : poursuite de la dernière position connue
       if(e.w.cracker&&e.crackers>0&&e.ap>0){ const g=bestGrenadeCell(e); if(g!=null){ resolveThrow(e,g); refresh(); setTimeout(step,460); return; } }   // grenade ennemie
-      const primary=tgts.reduce((a,b)=>hops(e.cell,b.cell)<hops(e.cell,a.cell)?b:a,tgts[0]); const pcX=cells[primary.cell].cx,pcY=cells[primary.cell].cy;
+      const taunters=tgts.filter(t=>t.taunt), pool=taunters.length?taunters:tgts;   // Provocation : viser en priorité le provocateur
+      const primary=pool.reduce((a,b)=>hops(e.cell,b.cell)<hops(e.cell,a.cell)?b:a,pool[0]); const pcX=cells[primary.cell].cx,pcY=cells[primary.cell].cy;
       const allies=units.filter(o=>o!==e&&o.team==="enemy"&&o.hp>0);
       // évalue chaque case : offense − 0.7·menace − 1.5·distance + 0.5·relief − agglutinement + encerclement
       const dist=reach(e); const cands=[e.cell]; for(const k in dist)cands.push(+k);
@@ -636,10 +684,11 @@
     refresh();
   }
   function playClick(X,Y){if(over||turn!=="player"||introBlocking||speaking)return;const cell=cellAtXY(X,Y);if(!cell)return;const id=cell.id;const u=uAt(id);
+    if(ability&&sel){ resolveAbilityClick(id); return; }   // une capacité spéciale est armée : ce clic la résout
     if(throwing&&sel){const cr=sel.w.cracker;if(cr&&sel.crackers>0&&sel.ap>0&&hops(sel.cell,id)<=cr.range&&los(sel.cell,id))resolveThrow(sel,id);else setMsg("Cracker : hors de portée / sans vue.");return;}
     if(usingItem&&sel){if(u&&u.team==="player")applyItem(u);else setMsg("Choisis un allié (soi ou adjacent).");return;}
     if(u&&u.team==="player"){ if(u===sel&&!throwing&&!usingItem){u.facing=norm((u.facing||0)+Math.PI/4);refresh();return;}   // re-cliquer son unité sélectionnée = la faire pivoter (45°, gratuit)
-      sel=u;amode=null;aimTarget=null;throwing=false;usingItem=false;refresh();return;}if(!sel)return;
+      sel=u;amode=null;aimTarget=null;throwing=false;usingItem=false;ability=null;refresh();return;}if(!sel)return;
     if(u&&hostile(sel,u)&&u.hp>0&&seen(u)){ let m=(amode&&sel.w[amode]&&inRange(sel,u,amode))?amode:["ranged","melee"].find(mm=>sel.w[mm]&&(mm!=="ranged"||sel.clip===undefined||sel.ammo>0)&&inRange(sel,u,mm)); if(m){ if(sel.ap>0)doAttack(sel,u,m); else setMsg("Plus de PA pour attaquer."); } else moveToAttack(sel,u); return; }
     const d=reach(sel);if(d[id]!==undefined){moveAlong(sel,id);if(!over)emit("move",{actorName:sel.name,actorCls:sel.cls,actorTeam:"player"});refresh();}}
   // clic sur un ennemi hors de portée : on s'approche puis on attaque (mouvement + attaque en un clic)
@@ -703,7 +752,8 @@
       const rockEdge=mode==="play"&&c.terr==="wall"&&!vis&&c.nb.some(n=>visible.has(n));   // rocher en lisière de vision : on le voit, mais pas les cases derrière
       const unseen=mode==="play"&&!vis&&!rockEdge; const col=shade(c,unseen);
       poly(c); ctx.fillStyle=col; ctx.fill(); ctx.lineWidth=1.5; ctx.strokeStyle=col; ctx.stroke();   // remplissage + bord = couleur finale identique → aucune frontière, quelle que soit la forme
-      if(c.terr==="wall"&&!unseen){ drawRock(c); } }   // 🪨 rocher seulement sur les cases visibles (caché par le brouillard)
+      if(c.terr==="wall"&&!unseen){ drawRock(c); }
+      if(smoke.has(c.id)&&!unseen){ poly(c); ctx.fillStyle="rgba(200,205,212,.55)"; ctx.fill(); } }   // 🌫 fumigène : voile gris sur les cases enfumées
     if(mode==="edit"){ ctx.textAlign="center"; ctx.textBaseline="middle"; ctx.font="bold 11px system-ui";   // zones de déclenchement : visibles seulement dans l'éditeur
       for(const c of cells)if(c.zone){ poly(c); ctx.fillStyle="rgba(96,165,250,.22)"; ctx.fill(); ctx.fillStyle="#dcebff"; ctx.fillText(c.zone,c.cx,c.cy); }
       ctx.textAlign="start"; ctx.textBaseline="alphabetic"; }
@@ -1193,12 +1243,14 @@
       if(sel.w.cracker&&sel.crackers>0&&sel.ap>0)btn("💣","Cracker ×"+sel.crackers+" — termine le tour",throwing,()=>{throwing=!throwing;usingItem=false;amode=null;setMsg(throwing?"Clique une case cible (aire — la zone d'arrivée est incertaine).":"");if(throwing)startCrackerJit();else{crackerJit=null;draw();}renderActs();});
       if(inv.potion>0&&sel.ap>0)btn("🧪","Potion ×"+inv.potion+" (1 PA, ne termine pas le tour)",usingItem,()=>{usingItem=!usingItem;throwing=false;amode=null;setMsg(usingItem?"Clique un allié (soi/adjacent).":"");renderActs();});
       if(sel.clip!==undefined&&sel.ammo<sel.clip&&sel.ap>0)btn("🔄","Recharger (1 PA, ne termine pas le tour)",false,()=>{sel.ap--;sel.ammo=sel.clip;refresh();});
-      if(sel.shieldBlock>0&&sel.ap>0&&!sel.bracing)btn("🛡","Se mettre en garde (+déf., 1 PA, ne termine pas le tour)",false,()=>{sel.ap--;sel.freeAvail=false;sel.bracing=true;setMsg("En garde — défense renforcée ce tour.");refresh();}); }
+      if(sel.shieldBlock>0&&sel.ap>0&&!sel.bracing)btn("🛡","Se mettre en garde (+déf., 1 PA, ne termine pas le tour)",false,()=>{sel.ap--;sel.freeAvail=false;sel.bracing=true;setMsg("En garde — défense renforcée ce tour.");refresh();});
+      if(sel.abil)for(const aid of sel.abil){ const A=ABIL[aid]; if(!A)continue; if(aid==="vanish"&&sel.vanishUsed)continue; if(sel.ap>0)btn(A.icon,A.label,ability===aid,()=>armOrExec(aid)); }   // capacités spéciales (perks actifs)
+    }
     // Fin de tour = bouton 0, toujours en dernier
     const e=document.createElement("button");e.id="act-end";e.innerHTML=`<span class="bn">0</span><span class="bi">🙅</span>`;e.title="Fin de tour";e.onclick=()=>{if(!over&&turn==="player")endTurn();};el.appendChild(e);}
   function startGame(){ resetView(); { const t=document.getElementById("title"); if(t)t.style.display="none"; }   // une partie démarre : on retire l'écran-titre
     if(!units.some(u=>u.team==="player")||!units.some(u=>u.team==="enemy")){ setMsg("Place au moins 1 allié et 1 ennemi (mode Éditer)."); }
-    for(const u of units){u.hp=u.max;u.ap=AP_MAX;u.freeAvail=true;u.overwatch=false;u.reacted=false;u.bracing=false;u.asleep=!!u._asleep0;if(u.clip!==undefined)u.ammo=u.clip;if(u.crackers!==undefined)u.crackers=(u.crackers0!==undefined?u.crackers0:CLASSES[u.cls].crackers);} turn="player";over=false;sel=null;amode=null;aimTarget=null;throwing=false;usingItem=false;inv={potion:campRun?(campRun.potions||0):0};
+    for(const u of units){u.hp=u.max;u.ap=AP_MAX;u.freeAvail=true;u.overwatch=false;u.reacted=false;u.bracing=false;u.taunt=false;u.hidden=false;u.wallStance=false;u.vanishUsed=false;u.asleep=!!u._asleep0;if(u.clip!==undefined)u.ammo=u.clip;if(u.crackers!==undefined)u.crackers=(u.crackers0!==undefined?u.crackers0:CLASSES[u.cls].crackers);} smoke=new Map();ability=null; turn="player";over=false;sel=null;amode=null;aimTarget=null;throwing=false;usingItem=false;inv={potion:campRun?(campRun.potions||0):0};
     fired=new Set(); podAlerted=new Set(); neutralSeen=new Set(); lastSeen=new Map(); turnNum=1; turnActions=0; lastOutcome=null; speechQ=[]; speaking=false; if(speechT){clearTimeout(speechT);speechT=null;} document.getElementById("combatline").style.display="none";
     document.getElementById("over").classList.remove("show");document.getElementById("log").innerHTML="";setMsg("");refresh();
     banner("Tour du joueur","player"); emit("start",{}); emit("turn",{turn:1}); }
@@ -1225,7 +1277,7 @@
   function cycleSel(dir){ if(mode!=="play"||turn!=="player")return; const ps=units.filter(u=>u.team==="player"&&u.hp>0); if(!ps.length)return; let i=ps.indexOf(sel); i=(i<0?0:(i+dir+ps.length)%ps.length); sel=ps[i]; amode=null;aimTarget=null;throwing=false;usingItem=false; refresh(); }
   window.addEventListener("keydown",e=>{ if(mode!=="play"||introBlocking||speaking||(geoPlay&&!geoPlay.inMission)||document.getElementById("camptext").classList.contains("show"))return;
     if(e.key==="Tab"){e.preventDefault(); if(amode&&cycleTarget(e.shiftKey?-1:1))return; cycleSel(e.shiftKey?-1:1);}   // en visée : Tab change de cible, sinon d'unité
-    else if(e.key==="Escape"){amode=null;aimTarget=null;throwing=false;usingItem=false;setMsg("");refresh();}
+    else if(e.key==="Escape"){amode=null;aimTarget=null;throwing=false;usingItem=false;ability=null;setMsg("");refresh();}
     else if(e.key==="Enter"){e.preventDefault(); if(amode&&aimTarget&&aimTarget.hp>0&&inRange(sel,aimTarget,amode)){doAttack(sel,aimTarget,amode);} else if(!over&&turn==="player")endTurn();}
     else if(e.key===" "){e.preventDefault();if(!over&&turn==="player")endTurn();}
     else if(e.code==="Digit0"||e.code==="Numpad0"){const b=document.getElementById("act-end");if(b)b.click();}   // touche du clavier (FR : sans MAJ)
