@@ -33,6 +33,7 @@ function loadMesh(htmlPath){
     get campRun(){return campRun}, set campRun(v){campRun=v},
     geoMissionEnd, awardXp, applyAttrition, applyMortal, applyRecruit, checkMortalConditions, pendingPromotions, gradeFromXp, applyPerkMods, deployRoster,
     setupBonus, checkBonus, grantBonus, applyReward, maybeOfferExtra, launchMini, miniMissionEnd,
+    applyCarry, saveCarry, memMaxHp, memDeployHp,
     get PERKS(){return PERKS}, get GRADES(){return GRADES},
     setAutoPromote(fn){ autoPromote=fn; }, saveRosterProgress, loadRosterProgress, clearRosterProgress,
     get smoke(){return smoke},

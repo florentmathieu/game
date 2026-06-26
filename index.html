@@ -1225,8 +1225,16 @@
     body.querySelectorAll("[data-go]").forEach(b=>b.onclick=()=>{el.classList.remove("show");btn.style.display="";runNode(b.dataset.go);}); }
   // report des PV entre missions : un blessé garde ses PV ; un K.O. (héros récupérable, pas mort) revient
   // rétabli (pas de spirale à 1 PV). La récupération fine au camp viendra avec l'usure (stress/fatigue).
-  function applyCarry(){ if(!campRun)return; for(const u of units)if(u.team==="player"){const c=campRun.carry[u.name];if(c!=null)u.hp=c>0?Math.min(u.max,c):u.max;} }
+  // PV au camp : qui repart tout de suite n'est soigné qu'à moitié (50 % des PV manquants) ; qui se repose une mission
+  // revient full (sa blessure est effacée à la fin de la mission qu'il a sautée, cf. applyAttrition).
+  // En mini-mission (exact=true), les PV sont EXACTEMENT conservés — pas de passage au camp.
+  function applyCarry(exact){ if(!campRun)return; for(const u of units)if(u.team==="player"){ const c=campRun.carry[u.name]; if(c==null)continue;
+    u.hp = exact ? Math.min(u.max,Math.max(1,c)) : Math.min(u.max, c+Math.ceil((u.max-c)*0.5)); } }   // c==null → reste full (déjà posé par startGame)
   function saveCarry(){ if(!campRun)return; for(const u of units)if(u.team==="player")campRun.carry[u.name]=Math.max(0,u.hp); }
+  function memMaxHp(m){ let h=(CLASSES[m.cls]&&CLASSES[m.cls].hp)||10; for(const id of (m.perks||[])){ const p=perkById(m.cls,id); if(p&&p.mod&&p.mod.hp)h+=p.mod.hp; } return h; }
+  // PV projetés au déploiement (après soin partiel) — pour l'affichage de la sélection d'escouade / du camp
+  function memDeployHp(m){ const max=memMaxHp(m), c=(campRun&&campRun.carry)?campRun.carry[m.name]:null;
+    const hp=(c==null)?max:Math.min(max,c+Math.ceil((max-c)*0.5)); return {hp,max,full:hp>=max}; }   // full = repart à PV pleins
   // ===== XP de mission → grades → promotion A/B =====
   function awardXp(){ if(!campRun||!campRun.roster)return; for(const u of units){ if(u.team!=="player")continue; const m=campRun.roster.find(r=>r.name===u.name); if(!m)continue; m.xp=(m.xp||0)+3+(u.kills||0); } }   // mission gagnée : 3 (participation+victoire) + 1/kill
   // applique une récompense (xp + moral + soins) à l'escouade déployée ; renvoie le résumé textuel (ou null).
@@ -1262,10 +1270,12 @@
     askPush("Une occasion se présente : "+(cfg.label||"une cible de plus, à découvert")+". L'escouade est déjà éprouvée — pousser plus loin ? Réussir rapporte "+rewardBits(cfg.reward)+" ; échouer peut coûter des soldats.",
       ()=>launchMini(cfg,cont), ()=>cont()); }
   function launchMini(cfg,onResolve){ if(!campRun)return; campRun.mini={onResolve,reward:cfg.reward};
-    const go=()=>{ if(curMission){curMission.bonus=null;} if(geoPlay)geoPlay.inMission=true; deployRoster(); startGame(); applyCarry(); refresh(); banner("Mission bonus ✦ — ils sont fatigués","enemy"); };
+    const go=()=>{ if(curMission){curMission.bonus=null;} if(geoPlay)geoPlay.inMission=true;
+      campRun.deploySel=campRun.roster.filter(m=>memReady(m)&&((campRun.carry?campRun.carry[m.name]:null)==null||campRun.carry[m.name]>0)).map(m=>m.name);   // mini : seuls les survivants encore debout repartent
+      deployRoster(); startGame(); applyCarry(true); refresh(); banner("Mission bonus ✦ — ils sont fatigués","enemy"); };   // PV exactement conservés (pas de camp)
     if(cfg.mission){ fetchText("missions-mesh/"+cfg.mission,ghCfg()).then(t=>{ let ok=false; if(t){try{applyMissionObj(JSON.parse(t));ok=true;}catch(e){}} if(!ok)genMission({diff:"facile",enemyCount:3+Math.floor(RND()*3),squad:campRun.roster.filter(memReady).length||3}); go(); }); }
     else { genMission({diff:"facile",enemyCount:3+Math.floor(RND()*3),squad:campRun.roster.filter(memReady).length||3}); go(); } }
-  function miniMissionEnd(t){ const win=t.indexOf("Victoire")===0, mini=campRun.mini; campRun.mini=null; saveCarry(); const deaths=applyAttrition(win);
+  function miniMissionEnd(t){ const win=t.indexOf("Victoire")===0, mini=campRun.mini; campRun.mini=null; saveCarry(); const deaths=applyAttrition(win,true);
     let reward=null; if(win){ const s=applyReward(mini.reward); reward=s?("🎯 Mission bonus réussie : "+s+"."):"🎯 Mission bonus réussie !"; }
     if(geoPlay)geoPlay.inMission=false; over=false;
     const announce=(msg,cb)=> autoPromote?cb():showCampText(msg,cb); const msgs=[];
@@ -1276,14 +1286,14 @@
   // ===== usure (stress/fatigue) + mort =====
   const FATIGUE_MISSION=30, STRESS_DMG=3, STRESS_KO_ALLY=15, STRESS_SELF_KO=25, REST_RECOVER=100, WEARY=100, DEATH_PCT=50;
   const memReady=m=>m&&!m.dead&&(m.fatigue||0)<WEARY&&(m.stress||0)<WEARY;
-  function applyAttrition(win){ const deaths=[]; if(!campRun||!campRun.roster)return deaths; const deployed=new Set(units.filter(u=>u.team==="player").map(u=>u.name));
+  function applyAttrition(win,isMini){ const deaths=[]; if(!campRun||!campRun.roster)return deaths; const deployed=new Set(units.filter(u=>u.team==="player").map(u=>u.name));
     const koCount=units.filter(u=>u.team==="player"&&u.hp<=0).length;
     for(const m of campRun.roster){ if(m.dead)continue; const u=units.find(x=>x.team==="player"&&x.name===m.name);
       if(deployed.has(m.name)&&u){ m.fatigue=Math.min(100,(m.fatigue||0)+FATIGUE_MISSION);
         const selfKO=u.hp<=0; m.stress=Math.min(100,(m.stress||0)+(u.dmgTaken||0)*STRESS_DMG+(selfKO?STRESS_SELF_KO:0)+Math.max(0,koCount-(selfKO?1:0))*STRESS_KO_ALLY);
         // mort définitive d'un non-spécial : seulement s'il tombe K.O. ET que la mission est PERDUE ET au jet (gagner = on récupère ses K.O.)
         if(selfKO&&!m.special&&!win&&RND()*100<DEATH_PCT){ m.dead=true; deaths.push(m.name); log&&log(`✝ ${m.name} est tombé·e définitivement.`,"enemy"); }
-      } else { m.fatigue=Math.max(0,(m.fatigue||0)-REST_RECOVER); m.stress=Math.max(0,(m.stress||0)-REST_RECOVER); }   // au repos : récupère complètement
+      } else if(!isMini){ m.fatigue=Math.max(0,(m.fatigue||0)-REST_RECOVER); m.stress=Math.max(0,(m.stress||0)-REST_RECOVER); if(campRun.carry)delete campRun.carry[m.name]; }   // repos au camp : récup stress/fatigue + soin COMPLET des PV (la blessure est effacée). En mini-mission : rien (pas de camp).
     } return deaths; }
   // retrait scénarisé du statut spécial : « son rôle est fait » -> le perso devient mortel (un nœud de campagne peut le déclencher)
   function applyMortal(names){ if(!campRun||!campRun.roster||names==null)return []; const list=(Array.isArray(names)?names:String(names).split(",")).map(s=>s.trim()).filter(Boolean); const hit=[];
@@ -1580,10 +1590,10 @@
   // panneau « camp » : état du roster (grade, fatigue, stress, statut spécial, mort)
   function renderGeoRoster(){ const el=document.getElementById("georoster"); if(!el||!campRun||!campRun.roster)return;
     const bar=(v,col)=>`<div class="gr-bar"><i style="width:${Math.min(100,Math.round(v||0))}%;background:${col}"></i></div>`;
-    el.innerHTML=`<div class="gr-h">⛺ Roster</div>`+campRun.roster.map(m=>{ const weary=!m.dead&&((m.fatigue||0)>=100||(m.stress||0)>=100); const cls="gr-u"+(m.dead?" gr-dead":"")+(weary?" gr-weary":"");
+    el.innerHTML=`<div class="gr-h">⛺ Roster</div>`+campRun.roster.map(m=>{ const weary=!m.dead&&((m.fatigue||0)>=100||(m.stress||0)>=100); const cls="gr-u"+(m.dead?" gr-dead":"")+(weary?" gr-weary":""); const dh=memDeployHp(m);
       const tag=m.dead?"✝":(weary?"⛔":((m.special!==false)?"★":""));
       return `<div class="${cls}"><span class="gr-n">${esc(m.name)} <span style="color:#8a93a5">${(CLASSES[m.cls]&&CLASSES[m.cls].name)||m.cls}</span></span>`+
-        (m.dead?`<span style="color:#d8635f">mort</span>`:`💪${bar(m.fatigue,"#5fa9d8")} 🧠${bar(m.stress,"#d8a23f")}`)+`<span>${tag}</span></div>`; }).join(""); }
+        (m.dead?`<span style="color:#d8635f">mort</span>`:`<span title="PV au déploiement (soin partiel si déjà sorti)">❤️${bar(Math.round(dh.hp/dh.max*100),dh.full?"#6fd06f":"#d8a23f")}</span> 💪${bar(m.fatigue,"#5fa9d8")} 🧠${bar(m.stress,"#d8a23f")}`)+`<span>${tag}</span></div>`; }).join(""); }
   function drawGeoPlay(){ ctx.setTransform(1,0,0,1,0,0); ctx.clearRect(0,0,cv.width,cv.height); ctx.setTransform(zoom,0,0,zoom,panX,panY);
     for(const c of cells){ poly(c); ctx.fillStyle=GEO_FILL[c.gstate]||GEO_FILL.locked; ctx.fill(); ctx.lineWidth=1.5; ctx.strokeStyle="rgba(10,12,16,.5)"; ctx.stroke(); }
     for(const c of cells){ if((c.gstate==="available"||c.gstate==="lost")&&c.gkind==="mission"){ poly(c); ctx.lineWidth=3; ctx.strokeStyle=(c.id===hoverCell)?"#ffe08a":(c.gstate==="lost"?"#d89a8a":"#9fd0a8"); ctx.stroke(); } }   // perdue = liseré rouge (rejouable)
@@ -1605,9 +1615,9 @@
       const list=document.getElementById("squad-list"); list.innerHTML="";
       for(const m of campRun.roster){ const ok=memReady(m), on=sel.has(m.name); const d=document.createElement("div");
         d.className="squ"+(on?" sel":"")+(ok?"":" dis");
-        const tag=m.dead?"✝":(!ok?"⛔":(m.special!==false?"★":""));
+        const tag=m.dead?"✝":(!ok?"⛔":(m.special!==false?"★":"")); const dh=memDeployHp(m);
         d.innerHTML=`<span class="sq-x">${on?"✓":(ok?"":tag)}</span><span class="sq-n">${esc(m.name)} <span class="sq-c">${(CLASSES[m.cls]&&CLASSES[m.cls].name)||m.cls}${(m.perks&&m.perks.length)?" "+"★".repeat(m.perks.length):""}</span></span>`
-          +(m.dead?`<span class="sq-c">mort</span>`:`💪${bar(m.fatigue,"#5fa9d8")} 🧠${bar(m.stress,"#d8a23f")}<span class="sq-x">${m.special!==false?"★":""}</span>`);
+          +(m.dead?`<span class="sq-c">mort</span>`:`<span title="${dh.full?'PV pleins (reposé)':'soin partiel — il vient de combattre'}">❤️${bar(Math.round(dh.hp/dh.max*100),dh.full?"#6fd06f":"#d8a23f")}</span><span class="sq-c">${dh.hp}/${dh.max}</span> 💪${bar(m.fatigue,"#5fa9d8")} 🧠${bar(m.stress,"#d8a23f")}<span class="sq-x">${m.special!==false?"★":""}</span>`);
         if(ok)d.onclick=()=>{ if(sel.has(m.name))sel.delete(m.name); else { if(sel.size>=maxN){ return; } sel.add(m.name); } draw(); };
         list.appendChild(d); }
       const go=document.getElementById("squad-go"); go.disabled=sel.size<1; }

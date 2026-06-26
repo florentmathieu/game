@@ -39,7 +39,7 @@ function runOnce(tag){ const cr=buildRun(); M.campRun=cr; M.curMission=null;
     try{
       M.applyMissionObj(loadMission(pick.c.content.ref)); M.deployRoster();
       M.mode="play"; M.startGame();
-      for(const u of M.units)if(u.team==="player"){ const c=cr.carry[u.name]; if(c!=null)u.hp=Math.max(1,Math.min(u.max,c)); }   // applyCarry
+      M.applyCarry();   // PV au camp : soin partiel pour qui repart direct, full pour qui s'est reposé
       cr.geoReturn={nodeId:geoNode.id,cellId:pick.i}; M.geoPlay.inMission=true;
       if(process.env.TRACE)console.log("    play",pick.c.name,"diff",pick.c.diff,"cells",M.cells.length,"J",M.units.filter(u=>u.team==="player").length,"E",M.units.filter(u=>u.team==="enemy").length); const res=simMission(+(process.env.MAXT||36));
       missions++; if(res==="win")wins++; else if(res==="loss")losses++; else to++;
