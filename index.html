@@ -546,18 +546,17 @@
   function execWall(u){ u.wallStance=true; u.ap-=1; u.freeAvail=false; log(`▲ ${u.name} forme un mur mobile`,"player"); refresh(); return true; }
   // ===== sorts du mage =====
   function execBlast(u,id){ if(hops(u.cell,id)>BLAST_RANGE||!los(u.cell,id)){setMsg("Déflagration : hors de portée / sans vue.");return false;}
-    let any=false; for(const e of units){ if(e.team!=="enemy"||e.hp<=0||hops(id,e.cell)>BLAST_RADIUS)continue;
-      const dmg=BLAST_MIN+Math.floor(RND()*(BLAST_MAX-BLAST_MIN+1)); e.hp=Math.max(0,e.hp-dmg); any=true;
+    for(const e of units){ if(e.team!=="enemy"||e.hp<=0||hops(id,e.cell)>BLAST_RADIUS)continue;
+      const dmg=BLAST_MIN+Math.floor(RND()*(BLAST_MAX-BLAST_MIN+1)); e.hp=Math.max(0,e.hp-dmg); pushDmg(e.cell,dmg,e.team);
       if(e.hp<=0)u.kills=(u.kills||0)+1; else wakeEnemy(e,"noise"); }
-    if(!any&&!units.some(e=>e.team==="enemy"&&e.hp>0&&hops(id,e.cell)<=BLAST_RADIUS)){}   // (peut viser à vide pour le bruit)
-    pushBlast(id,BLAST_RADIUS); screenShake(6); u.ap=0; u.freeAvail=false; log(`▲ ${u.name} déchaîne une déflagration`,"player"); checkEnd(); if(!over)refresh(); return true; }
+    pushBlast(id,BLAST_RADIUS); screenShake(6); u.spellsCast=(u.spellsCast||0)+1; u.ap=0; u.freeAvail=false; log(`▲ ${u.name} déchaîne une déflagration`,"player"); checkEnd(); if(!over)refresh(); return true; }
   function execHeal(u,a){ if(!a||a.team!=="player"||a.hp<=0){setMsg("Vague de soin : choisis un allié visible.");return false;}
     if(hops(u.cell,a.cell)>HEAL_RANGE||!los(u.cell,a.cell)){setMsg("Vague de soin : hors de portée / sans vue.");return false;}
     if(a.hp>=a.max){setMsg(`${a.name} est déjà au max.`);return false;}
-    a.hp=Math.min(a.max,a.hp+HEAL_AMT); u.ap-=1; u.freeAvail=false; log(`▲ ${u.name} soigne ${a.name} (+${HEAL_AMT} PV)`,"player"); refresh(); return true; }
+    const before=a.hp; a.hp=Math.min(a.max,a.hp+HEAL_AMT); pushHeal(a.cell,a.hp-before); u.spellsCast=(u.spellsCast||0)+1; u.ap-=1; u.freeAvail=false; log(`▲ ${u.name} soigne ${a.name} (+${HEAL_AMT} PV)`,"player"); refresh(); return true; }
   function execFrost(u,tgt){ if(!tgt||!hostile(u,tgt)||tgt.hp<=0){setMsg("Givre : choisis un ennemi visible.");return false;}
     if(hops(u.cell,tgt.cell)>FROST_RANGE||!los(u.cell,tgt.cell)){setMsg("Givre : hors de portée / sans vue.");return false;}
-    tgt.slowed=true; tgt.ap=Math.max(0,(tgt.ap||0)-1); u.ap-=1; u.freeAvail=false; log(`▲ ${u.name} givre ${tgt.name} — ralenti`,"player"); refresh(); return true; }
+    tgt.slowed=true; tgt.ap=Math.max(0,(tgt.ap||0)-1); pushFrost(tgt.cell); u.spellsCast=(u.spellsCast||0)+1; u.ap-=1; u.freeAvail=false; log(`▲ ${u.name} givre ${tgt.name} — ralenti`,"player"); refresh(); return true; }
   function armOrExec(id){ if(!sel||sel.ap<=0)return; const A=ABIL[id]; if(!A)return;
     if(A.target==="self"){ ({vanish:execVanish,taunt:execTaunt,holdline:execHoldline,wall:execWall}[id])(sel); ability=null; renderActs(); return; }
     ability=(ability===id)?null:id; amode=null;throwing=false;usingItem=false;
@@ -804,6 +803,8 @@
   function pushAlert(id){ const[x,y]=pcx(id); fx.push({alert:true,x,y:y-20,t0:fxNow(),dur:1100}); ensureFxLoop(); }
   function pushNoise(id,radTiles){ if(radTiles<=0)return; const[x,y]=pcx(id); fx.push({noise:true,x,y,rad:radTiles*TILEPX,t0:fxNow(),dur:600}); ensureFxLoop(); }
   function pushBlast(id,radius){ const[x,y]=pcx(id); fx.push({blast:true,bx:x,by:y,rad:(radius+0.5)*TILEPX,t0:fxNow(),dur:FX_DUR}); ensureFxLoop(); }
+  function pushHeal(id,val){ const[x,y]=pcx(id); fx.push({heal:true,x,y:y-16,val,t0:fxNow(),dur:950}); ensureFxLoop(); }
+  function pushFrost(id){ const[x,y]=pcx(id); fx.push({frost:true,x,y,t0:fxNow(),dur:850}); ensureFxLoop(); }
   function pushShot(att,tgt,melee){ const[ax,ay]=pcx(att.cell),[bx,by]=pcx(tgt.cell); fx.push({melee,ax,ay,bx,by,t0:fxNow(),dur:melee?260:300}); if(fx.length>24)fx.shift(); ensureFxLoop(); }
   function screenShake(mag){ shakeUntil=fxNow()+260; shakeMag=mag; ensureFxLoop(); }
   function drawFx(){ const now=fxNow();
@@ -813,6 +814,10 @@
       else if(f.noise){ ctx.globalAlpha=(1-p)*0.6; ctx.lineWidth=2; ctx.setLineDash([4,4]); ctx.strokeStyle="#bcd0e0"; ctx.beginPath(); ctx.arc(f.x,f.y,f.rad*(0.2+0.8*p),0,TWO); ctx.stroke(); ctx.setLineDash([]); }
       else if(f.blast){ ctx.globalAlpha=(1-p)*0.5; ctx.fillStyle="#ff9b4a"; ctx.beginPath(); ctx.arc(f.bx,f.by,f.rad*(0.4+0.6*p),0,TWO); ctx.fill(); ctx.globalAlpha=1-p; ctx.lineWidth=3; ctx.strokeStyle="#ffd479"; ctx.beginPath(); ctx.arc(f.bx,f.by,f.rad*(0.4+0.6*p),0,TWO); ctx.stroke(); }
       else if(f.melee){ ctx.globalAlpha=1-p; ctx.strokeStyle="#fff0c0"; ctx.lineWidth=3; const ang=Math.atan2(f.by-f.ay,f.bx-f.ax); ctx.beginPath(); ctx.arc(f.bx,f.by,14,ang-0.9,ang+0.9); ctx.stroke(); }
+      else if(f.heal){ ctx.globalAlpha=1-p; ctx.font="bold 15px 'Trebuchet MS',sans-serif"; ctx.textAlign="center"; ctx.textBaseline="middle"; ctx.lineWidth=3; ctx.strokeStyle="rgba(0,0,0,0.7)"; ctx.fillStyle="#7fe6a0"; const yy=f.y-22*p; ctx.strokeText("+"+f.val,f.x,yy); ctx.fillText("+"+f.val,f.x,yy);   // ✨ soin : +PV vert qui s'élève + anneau
+        ctx.globalAlpha=(1-p)*0.6; ctx.strokeStyle="#7fe6a0"; ctx.lineWidth=2; ctx.beginPath(); ctx.arc(f.x,f.y+16,8+16*p,0,TWO); ctx.stroke(); }
+      else if(f.frost){ const pop=p<0.3?p/0.3:1; ctx.globalAlpha=(1-p)*0.7; ctx.strokeStyle="#9fd8ff"; ctx.lineWidth=2; ctx.beginPath(); ctx.arc(f.x,f.y,22*(1-0.45*p),0,TWO); ctx.stroke();   // ❄ givre : flocon + anneau glacé qui se resserre
+        ctx.globalAlpha=(1-p)*0.95; ctx.fillStyle="#dff1ff"; ctx.font=`bold ${14+9*pop}px 'Trebuchet MS',sans-serif`; ctx.textAlign="center"; ctx.textBaseline="middle"; ctx.lineWidth=3; ctx.strokeStyle="rgba(20,40,70,0.7)"; ctx.strokeText("❄",f.x,f.y-18); ctx.fillText("❄",f.x,f.y-18); }
       else { const x=f.ax+(f.bx-f.ax)*p,y=f.ay+(f.by-f.ay)*p; const xp=f.ax+(f.bx-f.ax)*Math.max(0,p-0.18),yp=f.ay+(f.by-f.ay)*Math.max(0,p-0.18); ctx.globalAlpha=0.5; ctx.strokeStyle="#caa64a"; ctx.lineWidth=2; ctx.beginPath(); ctx.moveTo(xp,yp); ctx.lineTo(x,y); ctx.stroke(); ctx.globalAlpha=1; ctx.fillStyle="#ffe08a"; ctx.beginPath(); ctx.arc(x,y,3,0,TWO); ctx.fill(); }
       ctx.restore(); } }
   function draw(){
@@ -1323,12 +1328,12 @@
     const chain=()=>{ if(!msgs.length){ mini.onResolve&&mini.onResolve(win); return; } announce(msgs.shift(),chain); };
     showPromotions(chain); }   // promotions (xp de la récompense), annonces, puis on rend la main au débrief
   // ===== usure (stress/fatigue) + mort =====
-  const FATIGUE_MISSION=30, STRESS_DMG=3, STRESS_KO_ALLY=15, STRESS_SELF_KO=25, REST_FRAC=0.5, WEARY=100, DEATH_PCT=50;   // REST_FRAC : part du stress/fatigue récupérée par mission de repos (récup partielle, comme les PV)
+  const FATIGUE_MISSION=30, STRESS_DMG=3, STRESS_KO_ALLY=15, STRESS_SELF_KO=25, REST_FRAC=0.5, WEARY=100, DEATH_PCT=50, SPELL_FATIGUE=6;   // REST_FRAC : part du stress/fatigue récupérée au repos ; SPELL_FATIGUE : fatigue par sort lancé (canalisation épuisante)
   const memReady=m=>m&&!m.dead&&(m.fatigue||0)<WEARY&&(m.stress||0)<WEARY;
   function applyAttrition(win,isMini){ const deaths=[]; if(!campRun||!campRun.roster)return deaths; const deployed=new Set(units.filter(u=>u.team==="player").map(u=>u.name));
     const koCount=units.filter(u=>u.team==="player"&&u.hp<=0).length;
     for(const m of campRun.roster){ if(m.dead)continue; const u=units.find(x=>x.team==="player"&&x.name===m.name);
-      if(deployed.has(m.name)&&u){ m.fatigue=Math.min(100,(m.fatigue||0)+FATIGUE_MISSION);
+      if(deployed.has(m.name)&&u){ m.fatigue=Math.min(100,(m.fatigue||0)+FATIGUE_MISSION+(u.spellsCast||0)*SPELL_FATIGUE);   // les mages s'épuisent à canaliser : +fatigue selon le nombre de sorts lancés
         const selfKO=u.hp<=0; m.stress=Math.min(100,(m.stress||0)+(u.dmgTaken||0)*STRESS_DMG+(selfKO?STRESS_SELF_KO:0)+Math.max(0,koCount-(selfKO?1:0))*STRESS_KO_ALLY);
         // mort définitive d'un non-spécial : seulement s'il tombe K.O. ET que la mission est PERDUE ET au jet (gagner = on récupère ses K.O.)
         if(selfKO&&!m.special&&!win&&RND()*100<DEATH_PCT){ m.dead=true; deaths.push(m.name); log&&log(`✝ ${m.name} est tombé·e définitivement.`,"enemy"); }
@@ -1502,7 +1507,7 @@
     const e=document.createElement("button");e.id="act-end";e.innerHTML=`<span class="bn">0</span><span class="bi">🙅</span>`;e.title="Fin de tour";e.onclick=()=>{if(!over&&turn==="player")endTurn();};el.appendChild(e);}
   function startGame(){ resetView(); { const t=document.getElementById("title"); if(t)t.style.display="none"; }   // une partie démarre : on retire l'écran-titre
     if(!units.some(u=>u.team==="player")||!units.some(u=>u.team==="enemy")){ setMsg("Place au moins 1 allié et 1 ennemi (mode Éditer)."); }
-    for(const u of units){u.hp=u.max;u.ap=AP_MAX;u.freeAvail=true;u.overwatch=false;u.reacted=false;u.bracing=false;u.taunt=false;u.hidden=false;u.wallStance=false;u.vanishUsed=false;u.slowed=false;u.dmgTaken=0;u.asleep=!!u._asleep0;if(u.clip!==undefined)u.ammo=u.clip;if(u.crackers!==undefined)u.crackers=(u.crackers0!==undefined?u.crackers0:CLASSES[u.cls].crackers);} smoke=new Map();ability=null; turn="player";over=false;sel=null;amode=null;aimTarget=null;throwing=false;usingItem=false;inv={potion:campRun?(campRun.potions||0):0};
+    for(const u of units){u.hp=u.max;u.ap=AP_MAX;u.freeAvail=true;u.overwatch=false;u.reacted=false;u.bracing=false;u.taunt=false;u.hidden=false;u.wallStance=false;u.vanishUsed=false;u.slowed=false;u.spellsCast=0;u.dmgTaken=0;u.asleep=!!u._asleep0;if(u.clip!==undefined)u.ammo=u.clip;if(u.crackers!==undefined)u.crackers=(u.crackers0!==undefined?u.crackers0:CLASSES[u.cls].crackers);} smoke=new Map();ability=null; turn="player";over=false;sel=null;amode=null;aimTarget=null;throwing=false;usingItem=false;inv={potion:campRun?(campRun.potions||0):0};
     fired=new Set(); podAlerted=new Set(); neutralSeen=new Set(); lastSeen=new Map(); turnNum=1; turnActions=0; lastOutcome=null; speechQ=[]; speaking=false; if(speechT){clearTimeout(speechT);speechT=null;} document.getElementById("combatline").style.display="none";
     document.getElementById("over").classList.remove("show");document.getElementById("log").innerHTML="";setMsg("");setupBonus();refresh();
     banner("Tour du joueur","player"); emit("start",{}); emit("turn",{turn:1}); }
