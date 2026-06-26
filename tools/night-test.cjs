@@ -6,7 +6,8 @@ const { makeActUnit } = require("./ai.cjs");
 const M = loadMesh(); const actUnit = makeActUnit(M);
 
 // politique de promotion auto : survie d'abord (PV/blocage), puis offensive
-M.setAutoPromote((m,grade,pair)=>{ const s=p=>{const x=(p&&p.mod)||{};return (x.hp||0)+(x.shieldBlock||0)*0.06+(x.parry||0)*0.06+(x.dmg||0)*1.3+(x.aim||0)*0.07+(x.mob||0)*1.6+(x.range||0)*1.3+(x.crackers||0);}; return s(pair.A)>=s(pair.B)?"A":"B"; });
+M.setAutoPromote((m,grade,pair)=>{ if(m.cls==="mage")return "A";   // le mage prend ses sorts (blast/heal/frost) pour exercer l'IA des sorts
+  const s=p=>{const x=(p&&p.mod)||{};return (x.hp||0)+(x.shieldBlock||0)*0.06+(x.parry||0)*0.06+(x.dmg||0)*1.3+(x.aim||0)*0.07+(x.mob||0)*1.6+(x.range||0)*1.3+(x.crackers||0);}; return s(pair.A)>=s(pair.B)?"A":"B"; });
 
 const geo0 = JSON.parse(fs.readFileSync("geoscapes-mesh/acte1.json","utf8"));
 const camp = JSON.parse(fs.readFileSync("campaigns-mesh/acte1.json","utf8"));
