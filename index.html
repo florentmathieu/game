@@ -157,6 +157,12 @@
     <div class="row"><input id="mname" type="text" placeholder="nom de la mission" style="flex:1"></div>
     <div class="row"><label style="font-size:.85rem;display:flex;align-items:center;gap:4px">PNJ à protéger (min)<input id="m-protect" type="number" min="0" placeholder="tous" style="width:54px"></label><label style="font-size:.85rem;display:flex;align-items:center;gap:4px"><input id="m-fullheal" type="checkbox"> soin complet</label></div>
     <div class="row"><label style="font-size:.85rem;display:flex;align-items:center;gap:4px">Butin victoire (potions)<input id="m-loot" type="number" min="0" value="0" style="width:54px"></label></div>
+    <div class="hint" style="margin-top:6px">Objectif <b>bonus</b> (risque/récompense) : apparaît au hasard ; si on pousse jusqu'à l'accomplir <i>et</i> qu'on gagne, l'escouade touche la récompense.</div>
+    <div class="row"><label style="font-size:.85rem;display:flex;align-items:center;gap:4px">Bonus<select id="m-bonus-kind"><option value="">aucun</option><option value="pillage">💰 Pillage (atteindre une case-butin lointaine)</option><option value="target">✦ Cible de valeur (abattre un officier gardé)</option></select></label>
+      <label style="font-size:.85rem;display:flex;align-items:center;gap:4px">chance %<input id="m-bonus-chance" type="number" min="0" max="100" value="35" style="width:50px"></label></div>
+    <div class="row"><label style="font-size:.85rem;display:flex;align-items:center;gap:4px">Récompense :  +XP<input id="m-bonus-xp" type="number" min="0" value="5" style="width:46px"></label>
+      <label style="font-size:.85rem;display:flex;align-items:center;gap:4px">moral −<input id="m-bonus-morale" type="number" min="0" value="25" style="width:46px" title="réduit stress & fatigue de l'escouade déployée"></label>
+      <label style="font-size:.85rem;display:flex;align-items:center;gap:4px">soins<input id="m-bonus-pot" type="number" min="0" value="0" style="width:46px"></label></div>
     <div class="row"><select id="repo-missions" style="flex:1"></select><button id="repo-load">Charger</button><button id="repo-del" title="Supprimer la mission du dépôt">🗑</button></div>
     <div class="row"><button id="repo-save">💾 Enregistrer dans le dépôt</button></div>
     <input id="gh-token" type="password" placeholder="token GitHub (Contents: write)" style="width:100%;margin:2px 0">
@@ -556,7 +562,7 @@
     const guard=units.filter(u=>u.team==="neutral"&&!u.hostage&&!u.civ);   // PNJ à défendre (hors civils d'ambiance)
     if(guard.length){ const alive=guard.filter(u=>u.hp>0).length, need=(curMission&&curMission.protect!=null)?curMission.protect:guard.length; if(alive<need)return end("Défaite — trop de PNJ à défendre sont tombés…"); }
     if(!units.some(u=>u.team==="player"&&u.hp>0))return end("Défaite…");
-    const noEnemies=!units.some(u=>u.team==="enemy"&&u.hp>0);
+    const noEnemies=!units.some(u=>u.team==="enemy"&&u.hp>0&&!u.bonus);   // l'officier bonus (✦) ne bloque pas la victoire : il est optionnel
     // --- victoires par objectif ---
     if(obj==="assassinate"){ if(!units.some(u=>u.team==="enemy"&&u.hvt&&u.hp>0))return end("Victoire — cible éliminée !"); return; }
     if(obj==="survive"||obj==="defend"){ const N=(curMission&&curMission.surviveTurns)||6; if(turnNum>N)return end("Victoire — position tenue !"); if(noEnemies)return end("Victoire !"); return; }
@@ -564,12 +570,39 @@
     if(obj==="rescue"){ if(noEnemies)return end("Victoire — otage libéré !"); return; }   // libérer = neutraliser tous les geôliers (l'otage doit survivre, géré plus haut)
     if(noEnemies)end("Victoire !");   // eliminate
   }
+  // ===== objectif bonus (risque/récompense) : tiré au sort au lancement, accompli sur le terrain, récompensé à la victoire =====
+  // place le bonus (case-butin lointaine OU officier gardé) si le tirage passe. Appelé en fin de startGame.
+  function setupBonus(){ if(!curMission)return;
+    for(const c of cells)if(c.bonusLoot)c.bonusLoot=false;   // nettoie un éventuel bonus précédent (relance/retry)
+    units=units.filter(u=>!u.bonus); curMission.bonusActive=null; curMission.bonusDone=false;
+    const cfg=curMission.bonus; if(!cfg||!cfg.kind||mode!=="play")return;
+    const chance=cfg.chance!=null?cfg.chance:0.35; if(RND()>=chance)return;   // pas tiré cette fois
+    const reward=cfg.reward||{xp:5,morale:25};
+    const occSet=new Set(units.map(u=>u.cell)), start=units.filter(u=>u.team==="player").map(u=>u.cell);
+    if(!start.length)return;
+    // case la plus éloignée du déploiement (poche profonde) : c'est là que se trouve le bonus → il faut s'exposer
+    let best=null,bd=-1; for(const c of cells){ if(!passable(c.id)||occSet.has(c.id))continue;
+      const dm=Math.min(...start.map(s=>hops(s,c.id))); if(isFinite(dm)&&dm>bd){bd=dm;best=c.id;} }
+    if(best==null)return;
+    if(cfg.kind==="pillage"){ cells[best].bonusLoot=true; curMission.bonusActive={kind:"pillage",cell:best,reward,label:cfg.label||"Piller le dépôt"}; }
+    else if(cfg.kind==="target"){ const ec=["brute","garde","archer"].find(c=>CLASSES[c])||Object.keys(CLASSES).find(c=>CLASSES[c]&&!CLASSES[c].civ);
+      const e=U("enemy",ec,best,{}); e.bonus=true; e.pod=900; e.asleep=true; e.name="✦ "+e.name; e.max=Math.round(e.max*1.4); e.hp=e.max; units.push(e);   // officier endormi, gardien, hors objectif principal
+      curMission.bonusActive={kind:"target",cell:best,reward,label:cfg.label||"Abattre l'officier"}; }
+    if(curMission.bonusActive){ const r=curMission.bonusActive.reward,bits=[]; if(r.xp)bits.push("+"+r.xp+" XP"); if(r.morale)bits.push("moral"); if(r.potions)bits.push("+"+r.potions+" soin");
+      setMsg("✦ Objectif bonus : "+curMission.bonusActive.label+(bits.length?" (récompense : "+bits.join(", ")+")":"")); if(typeof log==="function")log("✦ Objectif bonus disponible : "+curMission.bonusActive.label+".","player"); } }
+  // détecte l'accomplissement du bonus (appelé dans refresh)
+  function checkBonus(){ if(!curMission||!curMission.bonusActive||curMission.bonusDone)return; const b=curMission.bonusActive;
+    let done=false;
+    if(b.kind==="pillage")done=units.some(u=>u.team==="player"&&u.hp>0&&u.cell===b.cell);
+    else if(b.kind==="target")done=!units.some(u=>u.bonus&&u.hp>0);
+    if(done){ curMission.bonusDone=true; if(b.cell!=null&&cells[b.cell])cells[b.cell].bonusLoot=false;
+      setMsg("✦ Objectif bonus accompli ! (récompense à la victoire)"); if(typeof log==="function")log("✦ Objectif bonus accompli — récompense si la mission est gagnée.","player"); if(typeof banner==="function")banner("Objectif bonus accompli ✦","player"); } }
   function end(t){over=true;lastOutcome=t.indexOf("Victoire")===0?"win":"loss";emit(lastOutcome==="win"?"win":"lose",{});if(campRun){campEnd(t);return;}document.getElementById("overtxt").textContent=t;document.getElementById("over").classList.add("show");draw();}
   function log(m,team){if(mode!=="play")return;const el=document.getElementById("log");const d=document.createElement("div");d.className=team==="player"?"pl":"en";d.textContent=m;el.prepend(d);}
   let msgT=null;
   function setMsg(t){const el=document.getElementById("msg");el.textContent=t;if(msgT){clearTimeout(msgT);msgT=null;}if(t)msgT=setTimeout(()=>{el.textContent="";msgT=null;},4000);}   // message éphémère : s'efface tout seul
   function refresh(){ if(geoPlay&&!geoPlay.inMission){ if(typeof drawGeoPlay==="function")drawGeoPlay(); return; }   // de retour sur la carte stratégique : pas de refresh « mission » (unités/cellules périmées)
-    if(mode==="play"){computeVis();detectEnemies();detectNeutralPods();updateEnemyMemory();computeEVis();
+    if(mode==="play"){computeVis();detectEnemies();detectNeutralPods();updateEnemyMemory();computeEVis();checkBonus();
       if(turn==="player"&&!over&&sel&&(sel.hp<=0||(sel.ap<=0&&!sel.freeAvail))){ const nxt=units.find(u=>u.team==="player"&&u.hp>0&&!(u.ap<=0&&!u.freeAvail)); if(nxt){sel=nxt;amode=null;aimTarget=null;throwing=false;usingItem=false;} }   // unité épuisée → passe à la suivante
     } else visible=new Set(cells.map(c=>c.id)); draw(); if(mode==="play"){renderActs();renderRoster();maybeAutoEnd();} else { renderCounts(); saveDraft(); } }
   // roster des soldats (haut-gauche) : nom, PV, PA ; clic = sélection
@@ -766,6 +799,7 @@
       poly(c); ctx.fillStyle=col; ctx.fill(); ctx.lineWidth=1.5; ctx.strokeStyle=col; ctx.stroke();   // remplissage + bord = couleur finale identique → aucune frontière, quelle que soit la forme
       if(c.terr==="wall"&&!unseen){ drawRock(c); }
       if(smoke.has(c.id)&&!unseen){ poly(c); ctx.fillStyle="rgba(200,205,212,.55)"; ctx.fill(); } }   // 🌫 fumigène : voile gris sur les cases enfumées
+    if(mode==="play")for(const c of cells)if(c.bonusLoot&&visible.has(c.id)){ ctx.save(); poly(c); ctx.fillStyle="rgba(255,212,121,.18)"; ctx.fill(); ctx.font="18px sans-serif"; ctx.textAlign="center"; ctx.textBaseline="middle"; ctx.fillText("💰",c.cx,c.cy); ctx.restore(); }   // case-butin de l'objectif bonus
     if(mode==="edit"){ ctx.textAlign="center"; ctx.textBaseline="middle"; ctx.font="bold 11px system-ui";   // zones de déclenchement : visibles seulement dans l'éditeur
       for(const c of cells)if(c.zone){ poly(c); ctx.fillStyle="rgba(96,165,250,.22)"; ctx.fill(); ctx.fillStyle="#dcebff"; ctx.fillText(c.zone,c.cx,c.cy); }
       ctx.textAlign="start"; ctx.textBaseline="alphabetic"; }
@@ -935,7 +969,7 @@
       const ez=[deepId,...cells[deepId].nb.filter(passable)]; ez.forEach(id=>{ if(cells[id])cells[id].zone="exit"; });
       extractCount=P.extractCount||Math.max(1, slots.length-1);
     }
-    curMission={ objective:archetype, surviveTurns, extractCount, exitZone };
+    curMission={ objective:archetype, surviveTurns, extractCount, exitZone, bonus:bonusFromDom() };
     triggers=[]; renderTrigList(); refresh();
     return { cells:cells.length, podCount:podAnchors.length, enemies:units.filter(u=>u.team==="enemy").length, deploy:anchor.id, podAnchors:podAnchors.slice(), maxD, cover, slots:slots.length, objective:archetype, surviveTurns, extractCount }; }
   // dispose des zones aléatoires (patchs Voronoi de types), en conservant le terrain posé
@@ -963,7 +997,13 @@
     objective:(curMission&&curMission.objective&&curMission.objective!=="eliminate")?curMission.objective:undefined,   // archétype + paramètres d'objectif
     surviveTurns:curMission&&curMission.surviveTurns, extractCount:curMission&&curMission.extractCount, exitZone:curMission&&curMission.exitZone,
     fullheal:!!(document.getElementById("m-fullheal")&&document.getElementById("m-fullheal").checked),
-    loot:(document.getElementById("m-loot")&&+document.getElementById("m-loot").value)||0 }; }
+    loot:(document.getElementById("m-loot")&&+document.getElementById("m-loot").value)||0,
+    bonus:bonusFromDom() }; }
+  // objectif bonus configuré dans l'éditeur (ou rien). chance en 0..1.
+  function bonusFromDom(){ const k=document.getElementById("m-bonus-kind"); if(!k||!k.value)return undefined;
+    const num=(id,d)=>{const e=document.getElementById(id);const v=e?+e.value:NaN;return isNaN(v)?d:v;};
+    return { kind:k.value, chance:Math.max(0,Math.min(1,num("m-bonus-chance",35)/100)),
+      reward:{ xp:Math.max(0,num("m-bonus-xp",0)), morale:Math.max(0,num("m-bonus-morale",0)), potions:Math.max(0,num("m-bonus-pot",0)) } }; }
   function applyMissionObj(m){ resetView(); curMission=m;
     if(!m||!Array.isArray(m.cells))throw new Error("format invalide");
     cells=m.cells.map((c,i)=>{const ct=polyCentroid(c.poly);return {id:i,poly:c.poly,cx:ct[0],cy:ct[1],nb:[],terr:c.terr||"plain",elev:c.elev||0,zone:c.zone};});
@@ -972,6 +1012,9 @@
     units=(m.units||[]).map(u=>U(u.team,u.cls,u.cell,{name:u.name,pod:u.pod,asleep:u.asleep,hostage:u.hostage,hvt:u.hvt,guard:u.guard,facing:u.facing})).filter(u=>cells[u.cell]);
     triggers=Array.isArray(m.triggers)?m.triggers:[]; renderTrigList();
     { const mp=document.getElementById("m-protect"),mf=document.getElementById("m-fullheal"),ml=document.getElementById("m-loot"); if(mp)mp.value=m.protect!=null?m.protect:""; if(mf)mf.checked=!!m.fullheal; if(ml)ml.value=m.loot||0; }
+    { const bk=document.getElementById("m-bonus-kind"); if(bk){ const b=m.bonus||{},r=b.reward||{}; bk.value=b.kind||"";
+        const set=(id,v)=>{const e=document.getElementById(id);if(e)e.value=v;};
+        set("m-bonus-chance",b.chance!=null?Math.round(b.chance*100):35); set("m-bonus-xp",r.xp!=null?r.xp:5); set("m-bonus-morale",r.morale!=null?r.morale:25); set("m-bonus-pot",r.potions||0); } }
     if(m.form){ if(m.form.infl){infl=m.form.infl; ROWS=infl.length; COLS=(infl[0]&&infl[0].length)||COLS; W=COLS*MC;H=ROWS*MC; cv.width=W;cv.height=H;
         const bw=document.getElementById("bw"),bh=document.getElementById("bh"); if(bw)bw.value=COLS; if(bh)bh.value=ROWS; }
       if(m.form.dist!=null){distEl.value=m.form.dist;document.getElementById("distv").textContent=m.form.dist+"%";} if(m.form.dens!=null){dens.value=m.form.dens;document.getElementById("densv").textContent=m.form.dens;} if(m.form.seed!=null)seed=m.form.seed; }
@@ -1182,6 +1225,17 @@
   function saveCarry(){ if(!campRun)return; for(const u of units)if(u.team==="player")campRun.carry[u.name]=Math.max(0,u.hp); }
   // ===== XP de mission → grades → promotion A/B =====
   function awardXp(){ if(!campRun||!campRun.roster)return; for(const u of units){ if(u.team!=="player")continue; const m=campRun.roster.find(r=>r.name===u.name); if(!m)continue; m.xp=(m.xp||0)+3+(u.kills||0); } }   // mission gagnée : 3 (participation+victoire) + 1/kill
+  // récompense de l'objectif bonus : seulement si gagné ET accompli. XP + moral (stress/fatigue ↓) + soins, pour l'escouade déployée.
+  function grantBonus(win){ if(!win||!campRun||!campRun.roster||!curMission||!curMission.bonusDone||!curMission.bonusActive)return null;
+    const r=curMission.bonusActive.reward||{}, deployed=new Set(units.filter(u=>u.team==="player").map(u=>u.name)), parts=[];
+    for(const m of campRun.roster){ if(m.dead||!deployed.has(m.name))continue;
+      if(r.xp)m.xp=(m.xp||0)+r.xp;
+      if(r.morale){ m.stress=Math.max(0,(m.stress||0)-r.morale); m.fatigue=Math.max(0,(m.fatigue||0)-r.morale); } }
+    if(r.xp)parts.push("+"+r.xp+" XP");
+    if(r.morale)parts.push("moral remonté (−"+r.morale+" stress/fatigue)");
+    if(r.potions){ campRun.potions=(campRun.potions||0)+r.potions; parts.push("+"+r.potions+" soin"+(r.potions>1?"s":"")); }
+    if(typeof saveRosterProgress==="function")saveRosterProgress();
+    return parts.length?("✦ Objectif bonus accompli : "+parts.join(", ")+"."):null; }
   // ===== usure (stress/fatigue) + mort =====
   const FATIGUE_MISSION=30, STRESS_DMG=3, STRESS_KO_ALLY=15, STRESS_SELF_KO=25, REST_RECOVER=100, WEARY=100, DEATH_PCT=50;
   const memReady=m=>m&&!m.dead&&(m.fatigue||0)<WEARY&&(m.stress||0)<WEARY;
@@ -1278,9 +1332,10 @@
       resolveText(n.intro,n.introFile).then(txt=>{ if(txt)playText(txt,true,()=>{introBlocking=false;hideStory();setMsg("");}); else {introBlocking=false;} }); } }
   function campEnd(t){ if(campRun&&geoPlay&&geoPlay.inMission){ geoMissionEnd(t); return; }
     const win=t.indexOf("Victoire")===0, n=campRun.camp.nodes.find(x=>x.id===campRun.nodeId);
-    if(win){ saveCarry(); awardXp(); applyAttrition(true); if(campRun){campRun.potions=(inv.potion||0)+((curMission&&curMission.loot)||0); campRun.winCount=(campRun.winCount||0)+1;}   // butin + compteur de victoires
-      const after=()=>{ const lost=checkMortalConditions(); const cont=()=>showPromotions(()=>{ if(n&&n.win)runNode(n.win); else endCampaignRun("Campagne terminée — victoire !"); });
-        if(lost.length&&!autoPromote)showCampText("★ "+lost.join(", ")+" — leur rôle est accompli : iels ne sont plus à l'abri du destin.",cont); else cont(); };
+    if(win){ saveCarry(); awardXp(); applyAttrition(true); if(campRun){campRun.potions=(inv.potion||0)+((curMission&&curMission.loot)||0); campRun.winCount=(campRun.winCount||0)+1;} const bonusMsg=grantBonus(true);   // butin + compteur de victoires, puis récompense bonus (sur les potions déjà posées)
+      const after=()=>{ const lost=checkMortalConditions(); const msgs=[]; if(bonusMsg)msgs.push(bonusMsg); if(lost.length)msgs.push("★ "+lost.join(", ")+" — leur rôle est accompli : iels ne sont plus à l'abri du destin.");
+        const cont=()=>showPromotions(()=>{ if(n&&n.win)runNode(n.win); else endCampaignRun("Campagne terminée — victoire !"); });
+        const chain=()=>{ if(!msgs.length||autoPromote){cont();return;} showCampText(msgs.shift(),chain); }; chain(); };
       resolveText(n&&n.outro,n&&n.outroFile).then(txt=>{ if(txt)playText(txt,true,after); else after(); }); }
     else { if(n&&n.lose)runNode(n.lose); else showCampText("Mission échouée…",()=>loadMissionNode(n,true)); } }
   function endCampaignRun(msg){ const from=campRun?campRun.from:"campaign"; geoPlay=null; document.body.classList.remove("geomap"); showCampText(msg,()=>{ campRun=null;
@@ -1316,7 +1371,7 @@
     if(!units.some(u=>u.team==="player")||!units.some(u=>u.team==="enemy")){ setMsg("Place au moins 1 allié et 1 ennemi (mode Éditer)."); }
     for(const u of units){u.hp=u.max;u.ap=AP_MAX;u.freeAvail=true;u.overwatch=false;u.reacted=false;u.bracing=false;u.taunt=false;u.hidden=false;u.wallStance=false;u.vanishUsed=false;u.dmgTaken=0;u.asleep=!!u._asleep0;if(u.clip!==undefined)u.ammo=u.clip;if(u.crackers!==undefined)u.crackers=(u.crackers0!==undefined?u.crackers0:CLASSES[u.cls].crackers);} smoke=new Map();ability=null; turn="player";over=false;sel=null;amode=null;aimTarget=null;throwing=false;usingItem=false;inv={potion:campRun?(campRun.potions||0):0};
     fired=new Set(); podAlerted=new Set(); neutralSeen=new Set(); lastSeen=new Map(); turnNum=1; turnActions=0; lastOutcome=null; speechQ=[]; speaking=false; if(speechT){clearTimeout(speechT);speechT=null;} document.getElementById("combatline").style.display="none";
-    document.getElementById("over").classList.remove("show");document.getElementById("log").innerHTML="";setMsg("");refresh();
+    document.getElementById("over").classList.remove("show");document.getElementById("log").innerHTML="";setMsg("");setupBonus();refresh();
     banner("Tour du joueur","player"); emit("start",{}); emit("turn",{turn:1}); }
   document.getElementById("end").onclick=()=>{if(!over&&turn==="player"&&mode==="play")endTurn();};
   { const jh=document.getElementById("journal-hd"); if(jh)jh.onclick=()=>document.getElementById("journal").classList.toggle("collapsed"); }
@@ -1532,14 +1587,15 @@
   function geoEndReached(node,st){ const ew=node.endWhen||{kind:"all"}; const cs=geoPlay.map.cells;
     if(ew.kind==="key"){ const idx=cs.findIndex(c=>(c.name||"")===(ew.name||"")); return idx>=0&&st[idx]==="cleared"; }
     return cs.every((c,i)=> !(c.type!=="camp"&&c.content&&c.content.kind==="mission") || st[i]==="cleared" || st[i]==="lost"); }
-  function geoMissionEnd(resultTxt){ const win=resultTxt.indexOf("Victoire")===0; const ret=campRun.geoReturn; const st=campRun.geoStates[ret.nodeId]; saveCarry(); if(win)awardXp(); const deaths=applyAttrition(win);
-    if(win){ st[ret.cellId]="cleared"; campRun.potions=(inv.potion||0)+((curMission&&curMission.loot)||0); campRun.winCount=(campRun.winCount||0)+1;
+  function geoMissionEnd(resultTxt){ const win=resultTxt.indexOf("Victoire")===0; const ret=campRun.geoReturn; const st=campRun.geoStates[ret.nodeId]; saveCarry(); if(win)awardXp(); const deaths=applyAttrition(win); let bonusMsg=null;
+    if(win){ st[ret.cellId]="cleared"; campRun.potions=(inv.potion||0)+((curMission&&curMission.loot)||0); bonusMsg=grantBonus(win); campRun.winCount=(campRun.winCount||0)+1;
       geoPlay.map.cells.forEach((c,i)=>{ if((c.unlockedBy||[]).includes(ret.cellId)&&st[i]==="locked")st[i]="available"; }); }
     else st[ret.cellId]="lost";
     const lostSpecial=checkMortalConditions();   // ★ retiré selon conditions (N victoires / région nettoyée)
     geoPlay.inMission=false; over=false; const node=geoPlay.node;
     const announce=(msg,cb)=> autoPromote?cb():showCampText(msg,cb);   // bloquant en jeu, immédiat en test (autoPromote)
-    const events=[];   // pertes + retraits de statut spécial, annoncés un par un
+    const events=[];   // récompense bonus + pertes + retraits de statut spécial, annoncés un par un
+    if(bonusMsg)events.push(bonusMsg);
     if(deaths.length)events.push("✝ "+deaths.join(", ")+(deaths.length>1?" sont tombé·e·s au combat. Iels quittent le roster.":" est tombé·e au combat. Iel quitte le roster."));
     if(lostSpecial.length)events.push("★ "+lostSpecial.join(", ")+" — leur rôle est accompli : iels ne sont plus à l'abri du destin.");
     const showEvents=after=>{ if(!events.length){after();return;} announce(events.shift(),()=>showEvents(after)); };
