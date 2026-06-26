@@ -1064,12 +1064,14 @@
   // éditeur de roster (escouade de campagne) — persos déployés dans les missions
   const PLAYER_CLASSES=Object.keys(CLASSES).filter(k=>!CLASSES[k].civ);
   function renderRosterEditor(){ const el=document.getElementById("rosterlist"); if(!el)return;
-    el.innerHTML=campRoster.length?campRoster.map((m,i)=>`<div class="row" data-ri="${i}">
-      <input data-rf="name" type="text" value="${esc(m.name||"")}" placeholder="nom" style="flex:1">
+    el.innerHTML=campRoster.length?campRoster.map((m,i)=>`<div class="row" data-ri="${i}" style="flex-wrap:wrap">
+      <input data-rf="name" type="text" value="${esc(m.name||"")}" placeholder="nom" style="flex:1;min-width:90px">
       <select data-rf="cls">${PLAYER_CLASSES.map(c=>`<option value="${c}"${m.cls===c?" selected":""}>${CLASSES[c].name}</option>`).join("")}</select>
+      <label title="Indispensable : K.O. au lieu de mort tant que coché" style="display:inline-flex;align-items:center;gap:2px"><input data-rf="special" type="checkbox"${m.special!==false?" checked":""}>★</label>
+      <input data-rf="mortalAfter" type="text" value="${esc(m.mortalAfter||"")}" placeholder="mortel après… (ex: 3 ou Bastion)" title="Perd le statut ★ après N victoires (nombre) ou après une région nettoyée (nom)" style="width:150px">
       <button data-rdel="${i}" title="Retirer">✕</button></div>`).join(""):`<div class="hint">(roster vide — les missions joueront leurs unités placées)</div>`;
     el.querySelectorAll("[data-ri]").forEach(row=>{ const i=+row.getAttribute("data-ri");
-      row.querySelectorAll("[data-rf]").forEach(inp=>{ const set=()=>{ campRoster[i][inp.dataset.rf]=inp.value; saveCampDraft(); }; inp.tagName==="SELECT"?inp.onchange=set:inp.oninput=set; }); });
+      row.querySelectorAll("[data-rf]").forEach(inp=>{ const set=()=>{ campRoster[i][inp.dataset.rf]=(inp.type==="checkbox"?inp.checked:inp.value); saveCampDraft(); }; (inp.tagName==="SELECT"||inp.type==="checkbox")?inp.onchange=set:inp.oninput=set; }); });
     el.querySelectorAll("[data-rdel]").forEach(b=>b.onclick=()=>{ campRoster.splice(+b.getAttribute("data-rdel"),1); saveCampDraft(); renderRosterEditor(); }); }
   { const ra=document.getElementById("roster-add"); if(ra)ra.onclick=()=>{ campRoster.push({name:"",cls:PLAYER_CLASSES[0]}); saveCampDraft(); renderRosterEditor(); }; }
   // détail du nœud sélectionné (à droite du graphe)
@@ -1189,6 +1191,15 @@
   function applyMortal(names){ if(!campRun||!campRun.roster||names==null)return []; const list=(Array.isArray(names)?names:String(names).split(",")).map(s=>s.trim()).filter(Boolean); const hit=[];
     for(const nm of list){ const m=campRun.roster.find(r=>r.name===nm); if(m&&m.special!==false){ m.special=false; hit.push(nm); } }
     if(hit.length)saveRosterProgress(); return hit; }
+  // condition automatique : un perso perd son ★ « après N victoires » (nombre) ou « après région X nettoyée » (nom)
+  function checkMortalConditions(){ if(!campRun||!campRun.roster)return []; const lost=[];
+    const cleared=new Set(); const m0=geoPlay&&geoPlay.map, st=geoPlay&&campRun.geoStates&&campRun.geoStates[geoPlay.node.id];
+    if(m0&&st)m0.cells.forEach((c,i)=>{ if(st[i]==="cleared"&&c.name)cleared.add(c.name); });
+    for(const mem of campRun.roster){ if(mem.dead||mem.special===false||!mem.mortalAfter)continue; const ma=(""+mem.mortalAfter).trim(); let trip=false;
+      if(/^\d+/.test(ma)){ if((campRun.winCount||0)>=parseInt(ma,10))trip=true; }   // « 3 » / « 3 victoires »
+      else if(cleared.has(ma))trip=true;                                            // nom d'une région nettoyée
+      if(trip){ mem.special=false; lost.push(mem.name); } }
+    if(lost.length)saveRosterProgress(); return lost; }
   function pendingPromotions(){ const list=[]; if(!campRun||!campRun.roster)return list; for(const m of campRun.roster){ const reach=gradeFromXp(m.xp), have=(m.perks||[]).length; for(let g=have; g<reach; g++){ if(PERKS[m.cls]&&PERKS[m.cls][g])list.push({m,grade:g}); } } return list; }
   // persistance INTER-PARTIES : on conserve la progression (xp/perks) du roster, par campagne, en localStorage
   const SAVE_PREFIX="mgf_camp_save_";
@@ -1227,7 +1238,7 @@
     const cur={mission:"nav-m",campaign:"nav-c",geoscape:"nav-g",play:"nav-p"}[v]; ["nav-m","nav-c","nav-g","nav-p"].forEach(id=>{const a=document.getElementById(id);if(a)a.classList.toggle("cur",id===cur);});
     if(v==="campaign"){ const cg2=document.getElementById("cgraph"); if(cg2&&cg2.getBoundingClientRect){ const w=Math.round(cg2.getBoundingClientRect().width)||880,h=Math.round(cg2.getBoundingClientRect().height)||340; if(w>1){cg2.width=w;cg2.height=h;} if(typeof drawGraph==="function")drawGraph(); } }
     if(v==="geoscape"&&typeof geoEnter==="function")geoEnter(); }
-  function startCampaign(camp,from,fromNode){ campRun={camp,carry:{},roster:(camp.roster||[]).map(m=>({name:m.name,cls:m.cls,xp:m.xp||0,perks:Array.isArray(m.perks)?m.perks.slice():[],stress:0,fatigue:0,special:m.special!==false,dead:false})),nodeId:null,from:from||"campaign",seen:new Set(),potions:0};
+  function startCampaign(camp,from,fromNode){ campRun={camp,carry:{},winCount:0,roster:(camp.roster||[]).map(m=>({name:m.name,cls:m.cls,xp:m.xp||0,perks:Array.isArray(m.perks)?m.perks.slice():[],stress:0,fatigue:0,special:m.special!==false,mortalAfter:m.mortalAfter||null,dead:false})),nodeId:null,from:from||"campaign",seen:new Set(),potions:0};
     const saved=loadRosterProgress(camp.name); if(saved)for(const m of campRun.roster){ const s=saved.find(x=>x.name===m.name&&x.cls===m.cls); if(s){ m.xp=s.xp||0; m.perks=Array.isArray(s.perks)?s.perks.slice():[]; m.stress=s.stress||0; m.fatigue=s.fatigue||0; m.special=s.special!==false; m.dead=!!s.dead; } }   // reprend progression + usure + morts inter-parties
     document.body.classList.remove("testing"); setView("play"); runNode(fromNode||camp.start); }
   async function startPlay(){ let camp=loadCampDraft();
@@ -1249,8 +1260,10 @@
       resolveText(n.intro,n.introFile).then(txt=>{ if(txt)playText(txt,true,()=>{introBlocking=false;hideStory();setMsg("");}); else {introBlocking=false;} }); } }
   function campEnd(t){ if(campRun&&geoPlay&&geoPlay.inMission){ geoMissionEnd(t); return; }
     const win=t.indexOf("Victoire")===0, n=campRun.camp.nodes.find(x=>x.id===campRun.nodeId);
-    if(win){ saveCarry(); awardXp(); applyAttrition(true); if(campRun)campRun.potions=(inv.potion||0)+((curMission&&curMission.loot)||0);   // butin : potions restantes + récompense de mission
-      const after=()=>{ showPromotions(()=>{ if(n&&n.win)runNode(n.win); else endCampaignRun("Campagne terminée — victoire !"); }); }; resolveText(n&&n.outro,n&&n.outroFile).then(txt=>{ if(txt)playText(txt,true,after); else after(); }); }
+    if(win){ saveCarry(); awardXp(); applyAttrition(true); if(campRun){campRun.potions=(inv.potion||0)+((curMission&&curMission.loot)||0); campRun.winCount=(campRun.winCount||0)+1;}   // butin + compteur de victoires
+      const after=()=>{ const lost=checkMortalConditions(); const cont=()=>showPromotions(()=>{ if(n&&n.win)runNode(n.win); else endCampaignRun("Campagne terminée — victoire !"); });
+        if(lost.length&&!autoPromote)showCampText("★ "+lost.join(", ")+" — leur rôle est accompli : iels ne sont plus à l'abri du destin.",cont); else cont(); };
+      resolveText(n&&n.outro,n&&n.outroFile).then(txt=>{ if(txt)playText(txt,true,after); else after(); }); }
     else { if(n&&n.lose)runNode(n.lose); else showCampText("Mission échouée…",()=>loadMissionNode(n,true)); } }
   function endCampaignRun(msg){ const from=campRun?campRun.from:"campaign"; geoPlay=null; document.body.classList.remove("geomap"); showCampText(msg,()=>{ campRun=null;
     if(from==="play"){ setView("play"); const t=document.getElementById("title"); if(t)t.style.display="flex"; }
@@ -1502,19 +1515,22 @@
     if(ew.kind==="key"){ const idx=cs.findIndex(c=>(c.name||"")===(ew.name||"")); return idx>=0&&st[idx]==="cleared"; }
     return cs.every((c,i)=> !(c.type!=="camp"&&c.content&&c.content.kind==="mission") || st[i]==="cleared" || st[i]==="lost"); }
   function geoMissionEnd(resultTxt){ const win=resultTxt.indexOf("Victoire")===0; const ret=campRun.geoReturn; const st=campRun.geoStates[ret.nodeId]; saveCarry(); if(win)awardXp(); const deaths=applyAttrition(win);
-    if(win){ st[ret.cellId]="cleared"; campRun.potions=(inv.potion||0)+((curMission&&curMission.loot)||0);
+    if(win){ st[ret.cellId]="cleared"; campRun.potions=(inv.potion||0)+((curMission&&curMission.loot)||0); campRun.winCount=(campRun.winCount||0)+1;
       geoPlay.map.cells.forEach((c,i)=>{ if((c.unlockedBy||[]).includes(ret.cellId)&&st[i]==="locked")st[i]="available"; }); }
     else st[ret.cellId]="lost";
+    const lostSpecial=checkMortalConditions();   // ★ retiré selon conditions (N victoires / région nettoyée)
     geoPlay.inMission=false; over=false; const node=geoPlay.node;
-    const dnote=deaths.length?("  ✝ "+deaths.join(", ")+(deaths.length>1?" sont tombé·e·s.":" est tombé·e.")):"";
     const announce=(msg,cb)=> autoPromote?cb():showCampText(msg,cb);   // bloquant en jeu, immédiat en test (autoPromote)
+    const events=[];   // pertes + retraits de statut spécial, annoncés un par un
+    if(deaths.length)events.push("✝ "+deaths.join(", ")+(deaths.length>1?" sont tombé·e·s au combat. Iels quittent le roster.":" est tombé·e au combat. Iel quitte le roster."));
+    if(lostSpecial.length)events.push("★ "+lostSpecial.join(", ")+" — leur rôle est accompli : iels ne sont plus à l'abri du destin.");
+    const showEvents=after=>{ if(!events.length){after();return;} announce(events.shift(),()=>showEvents(after)); };
     const toCamp=()=>{ document.body.classList.add("geomap"); resetView(); geoBuildCells(); hoverCell=null;
       geoBanner(win?"région sécurisée — choisis la suite":"région perdue — la situation a changé"); draw(); };
-    const finish=()=>{ if(geoEndReached(node,st)){ const nx=node.next; geoPlay=null; document.body.classList.remove("geomap");
-        announce((win?"Région sécurisée.":"Région perdue.")+" L'acte s'achève."+dnote,()=>{ if(nx)runNode(nx); else endCampaignRun("Acte terminé."); }); return; }
-      if(deaths.length) announce("✝ "+deaths.join(", ")+(deaths.length>1?" sont tombé·e·s au combat.":" est tombé·e au combat.")+" Iel quitte le roster.",toCamp);   // annonce des pertes
-      else toCamp(); };
-    showPromotions(finish); }   // promotions A/B, puis annonce des pertes, puis retour au camp
+    const finish=()=>{ showEvents(()=>{ if(geoEndReached(node,st)){ const nx=node.next; geoPlay=null; document.body.classList.remove("geomap");
+        announce((win?"Région sécurisée.":"Région perdue.")+" L'acte s'achève.",()=>{ if(nx)runNode(nx); else endCampaignRun("Acte terminé."); }); return; }
+      toCamp(); }); };
+    showPromotions(finish); }   // promotions A/B, puis pertes / retraits de ★, puis retour au camp
 
   function init(){
     let draft=null; try{ draft=JSON.parse(localStorage.getItem("mgf_mesh_draft")||"null"); }catch(e){}
