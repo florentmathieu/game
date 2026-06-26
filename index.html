@@ -1274,9 +1274,9 @@
     const s=applyReward(curMission.bonusActive.reward); return s?("✦ Objectif bonus accompli : "+s+"."):null; }
   // ===== mission bonus enchaînée (kind « mission ») : un 2e affrontement, escouade déjà éprouvée, après une victoire =====
   // petit choix oui/non (réutilise l'overlay plein écran). En test (autoPromote), tranché par le code appelant.
-  function askPush(text,onYes,onNo){ const el=document.getElementById("camptext"),body=document.getElementById("camptext-body"),btn=document.getElementById("camptext-btn");
+  function askPush(text,onYes,onNo,yesLabel,noLabel){ const el=document.getElementById("camptext"),body=document.getElementById("camptext-body"),btn=document.getElementById("camptext-btn");
     if(!el||!body){ onNo&&onNo(); return; } if(btn)btn.style.display="none";
-    body.innerHTML=`<div style="margin-bottom:16px">${esc(text)}</div><button class="opt" data-push="1">⚔️ Tenter la mission bonus</button><button class="opt" data-push="0">↩ Rentrer au camp</button>`;
+    body.innerHTML=`<div style="margin-bottom:16px">${esc(text)}</div><button class="opt" data-push="1">${esc(yesLabel||"⚔️ Tenter la mission bonus")}</button><button class="opt" data-push="0">${esc(noLabel||"↩ Rentrer au camp")}</button>`;
     el.classList.add("show");
     const close=()=>{ el.classList.remove("show"); if(btn)btn.style.display=""; };
     body.querySelector("[data-push='1']").onclick=()=>{ close(); onYes&&onYes(); };
@@ -1350,6 +1350,23 @@
   const EVT_PREFIX="mgf_camp_evt_";
   function saveFiredEvents(){ if(!campRun||!campRun.camp)return; try{ localStorage.setItem(EVT_PREFIX+campSlug(campRun.camp.name),JSON.stringify([...(campRun.firedEvents||[])])); }catch(e){} }
   function loadFiredEvents(name){ try{ const t=localStorage.getItem(EVT_PREFIX+campSlug(name)); if(t){ const a=JSON.parse(t); if(Array.isArray(a))return a; } }catch(e){} return []; }
+  // ===== sauvegarde COMPLÈTE d'un acte en cours (carte stratégique incluse) : quitter et reprendre =====
+  const RUN_PREFIX="mgf_camp_run_";
+  function saveCampRun(){ if(!campRun||!campRun.camp||(geoPlay&&geoPlay.inMission))return;   // jamais en pleine mission
+    try{ const onGeo=!!(geoPlay&&!geoPlay.inMission&&geoPlay.node);
+      const s={ nodeId:campRun.nodeId, winCount:campRun.winCount||0, potions:campRun.potions||0,
+        roster:campRun.roster, carry:campRun.carry||{}, geoStates:campRun.geoStates||{}, primes:campRun.primes||{},
+        seen:[...(campRun.seen||[])], firedEvents:[...(campRun.firedEvents||[])], geoNodeId:onGeo?geoPlay.node.id:null };
+      localStorage.setItem(RUN_PREFIX+campSlug(campRun.camp.name),JSON.stringify(s)); }catch(e){} }
+  function loadCampRunSave(name){ try{ const t=localStorage.getItem(RUN_PREFIX+campSlug(name)); if(t)return JSON.parse(t); }catch(e){} return null; }
+  function clearCampRunSave(name){ try{ localStorage.removeItem(RUN_PREFIX+campSlug(name)); }catch(e){} }
+  function resumeCampaign(camp,save){ campRun={ camp, carry:save.carry||{}, winCount:save.winCount||0,
+      roster:Array.isArray(save.roster)?save.roster:[], nodeId:save.nodeId, from:"play",
+      seen:new Set(save.seen||[]), potions:save.potions||0, firedEvents:new Set(save.firedEvents||[]),
+      geoStates:save.geoStates||{}, primes:save.primes||{} };
+    document.body.classList.remove("testing"); setView("play");
+    const gn=save.geoNodeId&&camp.nodes.find(n=>n.id===save.geoNodeId);
+    if(gn)enterGeoPlay(gn); else runNode(save.nodeId||camp.start); }
   // ===== événements scénarisés du geoscape (1ʳᵉ arrivée / région prise / N victoires → texte + effets) =====
   function geoRegionCleared(name){ if(!geoPlay||!geoPlay.map||!campRun)return false; const st=campRun.geoStates&&campRun.geoStates[geoPlay.node.id]; if(!st)return false;
     return geoPlay.map.cells.some((c,i)=>(c.name||"")===name&&st[i]==="cleared"); }
@@ -1402,11 +1419,18 @@
     document.body.classList.remove("testing"); setView("play"); runNode(fromNode||camp.start); }
   async function startPlay(){ let camp=loadCampDraft();
     if(!camp){ const t=await fetchText("campaigns-mesh/principale.json",ghCfg()); if(t){try{camp=JSON.parse(t);}catch(e){}} }
-    if(camp&&Array.isArray(camp.nodes)&&camp.nodes.length){ startCampaign({name:camp.name||"",start:camp.start||(camp.nodes[0]&&camp.nodes[0].id),roster:camp.roster||[],nodes:camp.nodes},"play"); }
+    if(camp&&Array.isArray(camp.nodes)&&camp.nodes.length){ const C={name:camp.name||"",start:camp.start||(camp.nodes[0]&&camp.nodes[0].id),roster:camp.roster||[],nodes:camp.nodes};
+      const save=loadCampRunSave(C.name);
+      if(save&&Array.isArray(save.roster)&&save.roster.length){   // un acte est en cours : proposer de reprendre
+        askPush("Un acte est en cours — "+(save.winCount||0)+" mission(s) gagnée(s). Reprendre où tu t'es arrêté, ou tout recommencer ?",
+          ()=>resumeCampaign(C,save), ()=>{ clearCampRunSave(C.name); startCampaign(C,"play"); },
+          "▶ Reprendre l'acte", "↺ Recommencer la campagne"); return; }
+      startCampaign(C,"play"); }
     else { document.body.classList.add("testing"); setView("play"); startGame(); } }
   function runNode(id){ if(!campRun)return; const n=campRun.camp.nodes.find(x=>x.id===id); if(!n){endCampaignRun("Campagne terminée.");return;} campRun.nodeId=id;
     if(n.mortal)applyMortal(n.mortal);   // « son rôle est fait » : ce nœud peut rendre des persos mortels
     if(n.recruit)applyRecruit(n.recruit);   // renforts : ce nœud peut faire rejoindre de nouveaux persos
+    if(n.type==="text"||n.type==="choice")saveCampRun();   // point de reprise (hors combat)
     if(n.type==="text"){ if(campRun.seen&&campRun.seen.has(id)){runNode(n.next);return;} if(campRun.seen)campRun.seen.add(id); resolveText(n.text,n.file).then(t=>showCampText(t||"…",()=>runNode(n.next)));return;}
     if(n.type==="choice"){showChoice(n);return;}
     if(n.type==="geoscape"){ enterGeoPlay(n); return; }
@@ -1428,7 +1452,8 @@
         const chain=()=>{ if(!msgs.length||autoPromote){cont();return;} showCampText(msgs.shift(),chain); }; chain(); };
       resolveText(n&&n.outro,n&&n.outroFile).then(txt=>{ if(txt)playText(txt,true,after); else after(); }); }
     else { if(n&&n.lose)runNode(n.lose); else showCampText("Mission échouée…",()=>loadMissionNode(n,true)); } }
-  function endCampaignRun(msg){ const from=campRun?campRun.from:"campaign"; geoPlay=null; document.body.classList.remove("geomap"); showCampText(msg,()=>{ campRun=null;
+  function endCampaignRun(msg){ const from=campRun?campRun.from:"campaign"; if(campRun&&campRun.camp)clearCampRunSave(campRun.camp.name);   // campagne finie : plus rien à reprendre
+    geoPlay=null; document.body.classList.remove("geomap"); showCampText(msg,()=>{ campRun=null;
     if(from==="play"){ setView("play"); const t=document.getElementById("title"); if(t)t.style.display="flex"; }
     else { setView("campaign"); refresh(); } }); }
   { const cd=loadCampDraft(); if(cd){ cname.value=cd.name||""; campNodes=cd.nodes||[]; campStart=cd.start||(campNodes[0]&&campNodes[0].id)||""; campRoster=cd.roster||[]; } }  // restaure le brouillon AVANT le 1er rendu (sinon saveCampDraft l'écrase)
@@ -1667,7 +1692,7 @@
     let m; try{ m=JSON.parse(t); }catch(e){ showCampText("Territoire illisible.",()=>endCampaignRun("Fin.")); return; }
     campRun.geoStates=campRun.geoStates||{}; if(!campRun.geoStates[node.id])campRun.geoStates[node.id]=m.cells.map(c=>c.state||"locked");
     geoPlay={node,map:m,inMission:false}; { const tt=document.getElementById("title"); if(tt)tt.style.display="none"; }
-    document.body.classList.add("geomap"); over=false; resetView(); geoBuildCells(); hoverCell=null; primeInit(); geoBanner(); draw(); runGeoEvents("arrive"); }   // primes des régions dures + événements de 1ʳᵉ arrivée
+    document.body.classList.add("geomap"); over=false; resetView(); geoBuildCells(); hoverCell=null; primeInit(); geoBanner(); draw(); runGeoEvents("arrive",()=>saveCampRun()); }   // primes des régions dures + événements de 1ʳᵉ arrivée, puis point de reprise
   function geoBanner(t){ const el=document.getElementById("geobanner"); if(!el||!geoPlay)return;
     const avail=geoAccessibleSet().size;   // régions accessibles (sur le front, reliées au camp)
     const sub=t!=null?esc(t):(avail?("choisis une région — "+avail+" sur le front"):"aucune région accessible");
@@ -1756,7 +1781,7 @@
     const showEvents=after=>{ if(!events.length){after();return;} announce(events.shift(),()=>showEvents(after)); };
     const toCamp=()=>{ document.body.classList.add("geomap"); resetView(); geoBuildCells(); hoverCell=null; primeInit();
       geoBanner(win?"région sécurisée — choisis la suite":"région perdue — la situation a changé"); draw();
-      runGeoEvents("debrief",()=>{ geoBuildCells(); draw(); geoBanner(); }); };   // événements « après région prise / N victoires » (puis redessine si un reveal a ouvert des régions)
+      runGeoEvents("debrief",()=>{ geoBuildCells(); draw(); geoBanner(); saveCampRun(); }); };   // événements « après région prise / N victoires », redessine si reveal, puis point de reprise
     const resolveDebrief=()=>{ if(geoEndReached(node,st)){ const nx=node.next; geoPlay=null; document.body.classList.remove("geomap");
         announce((win?"Région sécurisée.":"Région perdue.")+" L'acte s'achève.",()=>{ if(nx)runNode(nx); else endCampaignRun("Acte terminé."); }); return; }
       toCamp(); };
@@ -1780,7 +1805,7 @@
       if(document.body.classList.contains("view-play")&&!campRun) startPlay(); }; }
   // « Recommencer à zéro » : efface la progression persistée de toutes les campagnes (le roster repart vierge)
   { const rb=document.getElementById("title-reset"); if(rb)rb.onclick=()=>{ if(!confirm("Effacer toute la progression sauvegardée (niveaux & compétences) ?"))return;
-      try{ const rm=[]; for(let i=0;i<localStorage.length;i++){ const k=localStorage.key(i); if(k&&(k.indexOf(SAVE_PREFIX)===0||k.indexOf(EVT_PREFIX)===0))rm.push(k); } rm.forEach(k=>localStorage.removeItem(k)); }catch(e){}
+      try{ const rm=[]; for(let i=0;i<localStorage.length;i++){ const k=localStorage.key(i); if(k&&(k.indexOf(SAVE_PREFIX)===0||k.indexOf(EVT_PREFIX)===0||k.indexOf(RUN_PREFIX)===0))rm.push(k); } rm.forEach(k=>localStorage.removeItem(k)); }catch(e){}
       rb.textContent="✓ Progression effacée"; }; }
   // sections repliables : chaque <h2> de l'éditeur replie le bloc qui le suit
   function makeCollapsible(container){ if(!container||!container.querySelectorAll)return;
