@@ -1,0 +1,13 @@
+# ──────────────────────────────────────────────────────────
+# Sente grise — DÉBUT
+# Acte 2 — La Faille · difficulté 2★
+# RÔLE NARRATIF : Rencontre d'anciens habitants devenus complices.
+# ALLÉGORIE : « Ils ont choisi ça » : la révélation rendue concrète.
+# PERSOS (suggestion) : Sorne (témoin/culpabilité)
+# FORMAT : "_" seul sur une ligne = nouvelle page · "Nom:" = réplique (gras doré) · "…" = page d'attente · "[...]" à remplacer
+# ──────────────────────────────────────────────────────────
+[... réplique d'ouverture ...]
+_
+…
+_
+[... mise en place de la mission ...]

@@ -1,0 +1,13 @@
+# ──────────────────────────────────────────────────────────
+# Dédale noyé — FIN
+# Acte 2 — La Faille · difficulté 3★
+# RÔLE NARRATIF : Labyrinthe distordu. L'incertitude au maximum.
+# ALLÉGORIE : Perdre le nord : le monde ne se lit plus.
+# PERSOS (suggestion) : Escouade
+# FORMAT : "_" seul sur une ligne = nouvelle page · "Nom:" = réplique (gras doré) · "…" = page d'attente · "[...]" à remplacer
+# ──────────────────────────────────────────────────────────
+[... réaction à chaud après la mission ...]
+_
+…
+_
+[... ce que ça change / ce qu'on apprend ...]

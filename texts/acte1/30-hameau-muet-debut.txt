@@ -1,0 +1,14 @@
+# ──────────────────────────────────────────────────────────
+# Hameau muet — DÉBUT
+# Acte 1 — La Marche de Velhaur · difficulté 3★
+# RÔLE NARRATIF : PIVOT : on libère Sorne, cadre mage complice du Forage.
+# ALLÉGORIE : La vérité : la Faille est la faute de l'Empire, et certains l'ont servie sciemment.
+# PERSOS (suggestion) : Sorne (rencontre + recrutement), Stiff
+# NOTE : Région avec objectif de pillage + recrutement de Sorne (event geoscape).
+# FORMAT : "_" seul sur une ligne = nouvelle page · "Nom:" = réplique (gras doré) · "…" = page d'attente · "[...]" à remplacer
+# ──────────────────────────────────────────────────────────
+[... réplique d'ouverture ...]
+_
+…
+_
+[... mise en place de la mission ...]

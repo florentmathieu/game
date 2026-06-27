@@ -1,0 +1,14 @@
+# ──────────────────────────────────────────────────────────
+# Cœur de la Faille — FIN
+# Acte 2 — La Faille · difficulté 5★
+# RÔLE NARRATIF : FINALE : on étouffe le Cœur sous l'otataral.
+# ALLÉGORIE : Tuer la magie pour sauver le monde. L'Empire classera le dossier.
+# PERSOS (suggestion) : Tous
+# NOTE : Boss de fin. La fin enchaîne sur 99-fin.txt.
+# FORMAT : "_" seul sur une ligne = nouvelle page · "Nom:" = réplique (gras doré) · "…" = page d'attente · "[...]" à remplacer
+# ──────────────────────────────────────────────────────────
+[... réaction à chaud après la mission ...]
+_
+…
+_
+[... ce que ça change / ce qu'on apprend ...]

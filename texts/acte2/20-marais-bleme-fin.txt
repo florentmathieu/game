@@ -1,0 +1,13 @@
+# ──────────────────────────────────────────────────────────
+# Marais blême — FIN
+# Acte 2 — La Faille · difficulté 2★
+# RÔLE NARRATIF : La distorsion s'installe dans les têtes.
+# ALLÉGORIE : Le confort de ne plus se poser de questions.
+# PERSOS (suggestion) : Escouade
+# FORMAT : "_" seul sur une ligne = nouvelle page · "Nom:" = réplique (gras doré) · "…" = page d'attente · "[...]" à remplacer
+# ──────────────────────────────────────────────────────────
+[... réaction à chaud après la mission ...]
+_
+…
+_
+[... ce que ça change / ce qu'on apprend ...]

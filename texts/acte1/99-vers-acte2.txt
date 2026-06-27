@@ -1,0 +1,13 @@
+# ──────────────────────────────────────────────────────────
+# TRANSITION — vers l'Acte 2
+# Acte 1 — La Marche de Velhaur
+# RÔLE NARRATIF : Bastion pris. On descend vers la Faille. Recrutement de Kael (garde) et Wren (assassin).
+# ALLÉGORIE : On s'enfonce volontairement plus près de la distorsion.
+# PERSOS (suggestion) : Kael, Wren, Stiff
+# FORMAT : "_" seul sur une ligne = nouvelle page · "Nom:" = réplique (gras doré) · "…" = page d'attente · "[...]" à remplacer
+# ──────────────────────────────────────────────────────────
+[... après Bastion, la décision de descendre ...]
+_
+…
+_
+[... Kael et Wren rejoignent l'escouade ...]

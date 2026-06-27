@@ -1,0 +1,13 @@
+# ──────────────────────────────────────────────────────────
+# ARRIVÉE — Acte 2 (Avant-poste)
+# Acte 2 — La Faille
+# RÔLE NARRATIF : On établit l'avant-poste au bord de la Faille.
+# ALLÉGORIE : Plus on avance, plus le monde se tord (la distorsion est visible).
+# PERSOS (suggestion) : Escouade + recrues
+# FORMAT : "_" seul sur une ligne = nouvelle page · "Nom:" = réplique (gras doré) · "…" = page d'attente · "[...]" à remplacer
+# ──────────────────────────────────────────────────────────
+[... l'avant-poste, la Faille en contrebas ...]
+_
+…
+_
+[... ce qui les attend ...]

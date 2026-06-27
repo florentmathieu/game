@@ -1,0 +1,13 @@
+# ──────────────────────────────────────────────────────────
+# Carrière noyée — FIN
+# Acte 1 — La Marche de Velhaur · difficulté 1★
+# RÔLE NARRATIF : Mission facile. Premiers signes que le terrain n'est pas normal.
+# ALLÉGORIE : On exploitait ce lieu : l'industrie impériale a laissé ses traces.
+# PERSOS (suggestion) : Escouade de base
+# FORMAT : "_" seul sur une ligne = nouvelle page · "Nom:" = réplique (gras doré) · "…" = page d'attente · "[...]" à remplacer
+# ──────────────────────────────────────────────────────────
+[... réaction à chaud après la mission ...]
+_
+…
+_
+[... ce que ça change / ce qu'on apprend ...]
