@@ -17,12 +17,39 @@ L'ouverture l'installe sans ambiguïté : réalité distordue (« *It's like som
 | Le thème… | …se traduit en | Réf. |
 |---|---|---|
 | La réalité se distord (visible) | **Maillage irrégulier** (carrés→hexa→pentagones jittés) — combat **et** carte du monde | géométrie |
-| Le monde se dérègle dans le temps | **Maillage qui peut se déformer au fil de la campagne** | geoscape |
+| Le monde se dérègle dans le temps | **Maillage qui se déforme de mission en mission et d'acte en acte** — *implémenté* (voile violacé + veines, distorsion géométrique cumulée) | geoscape |
 | L'incertitude augmente | **RNG assumé** en combat (potentiellement croissant) | C7 écarté |
 | On ne retrouve pas la certitude/le passé | **Pas de retour en arrière** (pas de respec/undo/reload) | réversibilité |
 | La déformation est irréversible | **Choix de perks & macro définitifs** | B1, C5 |
 | On vit avec le monde déformé | **L'échec fait avancer**, on ne recharge pas | C4 |
 | Le doute ronge les personnages | **Stress + fatigue**, identité forte (on doute de ce à quoi on tient) | C3, B9 |
+
+---
+
+## 0 bis. Le cadre narratif — l'allégorie *(figé)*
+
+Le thème abstrait (« tout se déforme ») reçoit une **incarnation narrative arrêtée**. Elle dirige l'écriture des textes, le bestiaire et la fin.
+
+**Le lieu — la Marche de Velhaur.** Une frontière 100 % originale dans un monde d'inspiration *Malazan* (Warrens, otataral), sans en reprendre les personnages ni la carte. Une marche impériale reculée, là où l'Empire « met en valeur » des terres.
+
+**La cause — la faute de l'Empire.** Pas d'entité ancienne, pas de malédiction venue d'ailleurs : **l'Empire a foré un nœud de Warren** pour en exploiter la puissance et a **mal confiné l'otataral** censé le contenir. Le résultat est **la Faille** — la distorsion qui ronge le terrain (et que le joueur voit grandir, mission après mission). La catastrophe est **industrielle et choisie**, pas surnaturelle et subie.
+
+**Le sens — une allégorie du capitalisme.** C'est le pivot directeur, et il déborde sur la fiction *et* la mécanique :
+
+> Les corrompus ne sont **pas** de simples victimes perverties par la magie. Ce sont **des gens qui ont choisi** d'accompagner la distorsion **parce que ça paie**.
+
+- Les ennemis « tournés » (**mages noirs, porteurs de bouclier**) couvrent un **spectre du désespoir à la cupidité** : on sert la Faille par survie, par ambition, ou par confort. C'est de la **complicité par choix**, pas une possession.
+- La mécanique **encode déjà l'allégorie**, sans surcouche : les **primes** sont l'appât / le leurre d'extraction (on pousse l'escouade trop loin pour le gain) ; l'**usure et la mort** sont le coût humain encaissé par ceux d'en bas ; le motif du **Fallen** (perte du statut protégé une fois le rôle joué) = le travailleur utilisé puis effacé.
+
+**La résolution.** On **étouffe le Cœur de la Faille sous l'otataral** — tuer la magie pour sauver le monde. L'Empire **reclasse le dossier et passe à autre chose** : la machine ne tire aucune leçon. Pas de rédemption institutionnelle ; la seule dignité est individuelle.
+
+**Quelques figures (ancrage).**
+- **Sorne** — cadre mage **complice du Forage**, libéré au *Hameau muet*, qui porte la culpabilité ; recrutable.
+- **Kael / Wren** — recrues de la frontière, intégrées en **Acte 2**.
+
+> **À l'écriture.** Ton sobre, elliptique, amer. Arc : le mensonge officiel à l'arrivée → le doute qui monte → la révélation « *ils ont choisi ça* » → la vérité de Sorne au Hameau muet → la fin à l'otataral. Diégétiser les libellés (primes, usure) plutôt que les laisser purement « gameplay ».
+>
+> **Question en pause :** une **méca de pacte / tentation** (la distorsion *propose des marchés* : prime corrompue contre avantage immédiat + plus d'usure) pour rendre le « choix de la complicité » jouable. *Non tranché — gelé volontairement.*
 
 ---
 
@@ -69,7 +96,7 @@ C'est l'élégance du système : **une seule pression** — « mes bonnes unité
 - **Une cellule stratégique = une région** porteuse d'une opportunité (mission), dont les voisines sont menacées/verrouillables. L'escouade est un pion qui s'y déplace ; le déplacement **coûte du temps** → rend les unités indisponibles (branche le fil rouge §2).
 - **Génération hybride** (cohérent A6) : graines **posées à la main** pour les lieux nommés du golden path + remplissage **procédural borné** autour.
 - **Réemploi gratuit des mécaniques tactiques au niveau stratégique :** élévation = terrain stratégique (relief lent), murets/arêtes = routes coupées / fronts, **pods = menaces qui rôdent** sur la carte (la pression locale, A1).
-- **Levier thème fort à explorer :** le maillage du monde **se déforme au fil de la campagne** (l'incertitude qui monte rendue spatiale). À prototyper.
+- **Levier thème fort — implémenté :** le maillage **se déforme de mission en mission et d'acte en acte** (niveau de corruption cumulé), avec voile violacé + veines en combat. Distorsion *purement géométrique* (sommets déplacés par un bruit déterministe de position) : l'adjacence topologique est figée avant déformation → arêtes jointes, rendu sans couture, jeu inchangé. L'incertitude qui monte, rendue spatiale.
 - **À surveiller — lisibilité.** Un Voronoï irrégulier se « lit » moins bien comme un *lieu* qu'un graphe propre → iconographie par cellule indispensable (type de mission, menace, statut).
 
 ---

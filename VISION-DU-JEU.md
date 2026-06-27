@@ -30,7 +30,23 @@ Le plateau n'est pas un damier régulier. Il est fait de **cellules irrégulièr
 
 **Ce n'est pas un effet de style : c'est le thème, rendu visible à chaque case.** La réalité est distordue, et tu la vois distordue.
 
-Et là où ça devient fort : **la carte du monde utilise la même grille déformée que les combats.** Le monde et le champ de bataille ont le même ADN visuel. Mieux — cette grille peut **se déformer au fil de la partie** : plus tu avances, plus l'incertitude monte, plus le monde se distord. La forme même du jeu raconte le thème.
+Et là où ça devient fort : **la carte du monde utilise la même grille déformée que les combats.** Le monde et le champ de bataille ont le même ADN visuel. Mieux — cette grille **se déforme vraiment au fil de la partie** (c'est en place dans le jeu) : **de mission en mission et d'acte en acte**, le terrain se tord un peu plus, gagné par un **voile violacé et des veines** qui s'intensifient. Plus tu avances, plus l'incertitude monte, plus le monde se distord. La forme même du jeu raconte le thème.
+
+---
+
+## L'histoire qu'on raconte (et pourquoi c'est ça)
+
+Le thème « tout se déforme » a maintenant un **décor et un sens précis**.
+
+On est sur **une frontière reculée d'un Empire** — la *Marche de Velhaur*, un monde original d'inspiration sombre (de la magie qu'on puise dans des « veines » du monde, une matière rare capable d'éteindre cette magie).
+
+**Ce qui a tout déclenché n'est pas une malédiction : c'est une faute.** L'Empire a voulu **exploiter une de ces veines** de magie, et a **mal contenu** ce qui devait la maîtriser. La distorsion que tu combats — **la Faille** — est le résultat de cette avidité. Une catastrophe **industrielle**, décidée d'en haut, pas un mauvais sort tombé du ciel.
+
+**Et c'est là le vrai propos : une allégorie du capitalisme.** Les ennemis que tu affrontes ne sont pas de pauvres gens « possédés » par la magie. Ce sont **des gens qui ont choisi** d'accompagner la distorsion **parce que ça paie** — par désespoir pour les uns, par ambition ou confort pour les autres. La corruption, ici, est une **complicité**, pas une fatalité.
+
+Le jeu ne te le dit pas avec de gros discours : **les règles le racontent déjà.** Les **primes** qui te poussent à aller trop loin, c'est l'appât. L'**usure et la mort** de tes gens, c'est le coût payé par ceux d'en bas. Et le fait que même tes héros perdent leur protection « une fois qu'ils ont servi », c'est le travailleur qu'on utilise puis qu'on oublie.
+
+**La fin ?** On **étouffe la source de la Faille** pour sauver le monde — et l'Empire **classe le dossier et passe à la suite**, sans rien apprendre. La seule dignité possible est individuelle, jamais celle de la machine.
 
 ---
 
