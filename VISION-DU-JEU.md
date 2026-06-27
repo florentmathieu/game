@@ -58,7 +58,7 @@ Dans beaucoup de jeux, « progresser » veut juste dire **accumuler des chiffres
 
 ---
 
-## L'idée centrale qui relie tout
+## Principe de jeu
 
 > **Tu ne peux pas toujours aligner ta meilleure équipe.**
 
