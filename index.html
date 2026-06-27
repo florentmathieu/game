@@ -1797,10 +1797,22 @@
       const tag=m.dead?"✝":(weary?"⛔":((m.special!==false)?"★":""));
       return `<div class="${cls}"><span class="gr-n">${esc(m.name)} <span style="color:#8a93a5">${(CLASSES[m.cls]&&CLASSES[m.cls].name)||m.cls}</span></span>`+
         (m.dead?`<span style="color:#d8635f">mort</span>`:`<span title="PV au déploiement (soin partiel si déjà sorti)">❤️${bar(Math.round(dh.hp/dh.max*100),dh.full?"#6fd06f":"#d8a23f")}</span> 💪${bar(m.fatigue,"#5fa9d8")} 🧠${bar(m.stress,"#d8a23f")}`)+`<span>${tag}</span></div>`; }).join(""); }
+  // plus court chemin (régions) du camp jusqu'à `target`, via l'adjacence du territoire
+  function geoPathTo(target){ if(geoCampId==null||target==null||target===geoCampId||!cells[target]||!cells[geoCampId])return null;
+    const prev={}, seen=new Set([geoCampId]), q=[geoCampId];
+    while(q.length){ const u=q.shift(); if(u===target)break; for(const v of cells[u].nb){ if(seen.has(v))continue; seen.add(v); prev[v]=u; q.push(v); } }
+    if(!seen.has(target))return null; const path=[target]; let x=target; while(x!==geoCampId){ x=prev[x]; if(x==null)return null; path.unshift(x); } return path; }
   function drawGeoPlay(){ ctx.setTransform(1,0,0,1,0,0); ctx.clearRect(0,0,cv.width,cv.height); ctx.setTransform(zoom,0,0,zoom,panX,panY);
     const acc=geoAccessibleSet();
     for(const c of cells){ const es=geoEffState(c,acc); poly(c); ctx.fillStyle=geoFillForState(c,es); ctx.fill(); ctx.lineWidth=1.5; ctx.strokeStyle="rgba(10,12,16,.5)"; ctx.stroke(); }
-    for(const c of cells){ const es=geoEffState(c,acc); if((es==="available"||es==="lost")&&c.gkind==="mission"){ poly(c); ctx.lineWidth=3; ctx.strokeStyle=(c.id===hoverCell)?"#ffe08a":(es==="lost"?"#d89a8a":"#9fd0a8"); ctx.stroke(); } }   // front jouable mis en valeur (perdue = liseré rouge, rejouable)
+    for(const c of cells){ const es=geoEffState(c,acc); if((es==="available"||es==="lost")&&c.gkind==="mission"){ poly(c); ctx.lineWidth=3; ctx.strokeStyle=(es==="lost"?"#d89a8a":"#9fd0a8"); ctx.stroke(); } }   // front jouable (perdue = liseré rouge, rejouable)
+    // survol : chemin mauve depuis le camp (comme l'aperçu de déplacement en combat) + région survolée allumée
+    if(hoverCell!=null&&cells[hoverCell]){ const path=geoPathTo(hoverCell);
+      if(path&&path.length>1){ ctx.save(); ctx.lineJoin="round"; ctx.lineCap="round";
+        ctx.strokeStyle="rgba(0,0,0,.45)"; ctx.lineWidth=7; ctx.beginPath(); path.forEach((id,i)=>{const cc=cells[id]; i?ctx.lineTo(cc.cx,cc.cy):ctx.moveTo(cc.cx,cc.cy);}); ctx.stroke();
+        ctx.strokeStyle="#c77dff"; ctx.lineWidth=4; ctx.beginPath(); path.forEach((id,i)=>{const cc=cells[id]; i?ctx.lineTo(cc.cx,cc.cy):ctx.moveTo(cc.cx,cc.cy);}); ctx.stroke();
+        for(const id of path){ const cc=cells[id]; ctx.fillStyle="#c77dff"; ctx.beginPath(); ctx.arc(cc.cx,cc.cy,4,0,TWO); ctx.fill(); } ctx.restore(); }
+      const hc=cells[hoverCell]; poly(hc); ctx.save(); ctx.fillStyle="rgba(255,255,255,.13)"; ctx.fill(); ctx.lineWidth=3.5; ctx.strokeStyle="#ffe08a"; ctx.stroke(); ctx.restore(); }
     ctx.textAlign="center"; ctx.textBaseline="middle";
     for(const c of cells){ const es=geoEffState(c,acc); const isCamp=es==="camp"; const icon=isCamp?"⛺":(es==="cleared"?"✓":(es==="lost"?"↻":(es==="available"&&c.gkind==="mission"?"⚔":(es==="locked"?"🔒":""))));
       if(icon){ ctx.font="bold 15px system-ui"; ctx.fillStyle="#fff"; ctx.fillText(icon,c.cx,c.cy-8); }
