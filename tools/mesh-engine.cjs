@@ -42,6 +42,7 @@ function loadMesh(htmlPath){
     get smoke(){return smoke},
     execSmoke, execBreach, execShadow, execRally, execVanish, execTaunt, execHoldline, execWall,
     execBlast, execHeal, execFrost, onCd, setCd, tickCd, enemyUseAbil,
+    corruptLevel, distortTerrain, polyCentroid,
   };
   `;
   src = src.replace(/\}\)\(\);\s*$/, EXPORT + "\n})();");

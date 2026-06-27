@@ -391,6 +391,35 @@
     for(const [key,arr] of map.entries())for(let a=0;a<arr.length;a++)for(let b=a+1;b<arr.length;b++){const x=arr[a],y=arr[b];if(x!==y&&!cells[x].nb.includes(y)){cells[x].nb.push(y);cells[y].nb.push(x);wallSeg.set(wkey(x,y),segOf.get(key));}}
     // voisin réel partageant chaque arête : échantillon géométrique juste à l'extérieur de l'arête (robuste pour les contours)
     cells.forEach(c=>{ const p=c.poly; for(let k=0;k<p.length;k++){ const a=p[k],b=p[(k+1)%p.length],mx=(a[0]+b[0])/2,my=(a[1]+b[1])/2; let dx=mx-c.cx,dy=my-c.cy; const L=Math.hypot(dx,dy)||1; dx/=L;dy/=L; const o=cellAtXY(mx+dx*3.5,my+dy*3.5); c.edgeNb[k]=(o&&o.id!==c.id)?o.id:-1; } }); }
+  // ===== distorsion du terrain : le monde se tord de mission en mission (et d'acte en acte) =====
+  // niveau cumulatif basé sur le nombre de missions du geoscape déjà entreprises (persiste à travers les actes)
+  function corruptLevel(){ if(!campRun)return 0; return Math.min(1,(campRun.missionN||0)*0.06); }
+  // déplace chaque sommet par un bruit DÉTERMINISTE de sa position : deux cellules qui partagent un sommet
+  // le déplacent à l'identique → les arêtes restent jointes (rendu sans couture) et l'adjacence est conservée.
+  function distortTerrain(level){ if(!level||level<=0||!cells.length)return;
+    const A=level*9;
+    // la distorsion est PUREMENT géométrique : on fige l'adjacence topologique (qui est voisin de qui)
+    // AVANT de tordre, sinon le ré-appariement par arête arrondie peut créer de fausses adjacences à
+    // forte amplitude. Les vrais voisins partagent leurs sommets → restent joints après déformation.
+    const keepNb = cells.map(c=>c.nb.slice());
+    for(const cell of cells){ cell.poly=cell.poly.map(pt=>{ const x=pt[0],y=pt[1];
+      const sx=Math.sin(x*0.045+y*0.021)+Math.sin(x*0.017-y*0.039);
+      const sy=Math.cos(x*0.031-y*0.05)+Math.cos(x*0.023+y*0.041);
+      return [x+sx*A*0.5, y+sy*A*0.5]; }); }
+    for(const cell of cells){ const ct=polyCentroid(cell.poly); cell.cx=ct[0]; cell.cy=ct[1]; }
+    cells.forEach((c,i)=>{ c.nb=keepNb[i].slice(); });   // adjacence préservée à l'identique
+    // arêtes-murets reconstruites depuis les polygones tordus, restreintes aux vraies paires de voisins
+    wallSeg=new Map();
+    cells.forEach((c)=>{ for(const j of c.nb){ if(j<=c.id)continue; const seg=sharedEdge(c,cells[j]); if(seg)wallSeg.set(wkey(c.id,j),seg); }});
+    // voisin réel par arête : échantillon géométrique juste à l'extérieur (robuste sur maillage tordu)
+    cells.forEach(c=>{ const p=c.poly; c.edgeNb=[]; for(let k=0;k<p.length;k++){ const a=p[k],b=p[(k+1)%p.length],mx=(a[0]+b[0])/2,my=(a[1]+b[1])/2; let dx=mx-c.cx,dy=my-c.cy; const L=Math.hypot(dx,dy)||1; dx/=L;dy/=L; const o=cellAtXY(mx+dx*3.5,my+dy*3.5); c.edgeNb[k]=(o&&o.id!==c.id&&c.nb.includes(o.id))?o.id:-1; } });
+    if(curMission)curMission._corrupt=level; }
+  // arête partagée entre deux cellules voisines : l'arête de A dont le milieu est le plus proche d'une arête de B
+  function sharedEdge(a,b){ let best=null,bd=Infinity; const pa=a.poly,pb=b.poly;
+    for(let i=0;i<pa.length;i++){ const a0=pa[i],a1=pa[(i+1)%pa.length],amx=(a0[0]+a1[0])/2,amy=(a0[1]+a1[1])/2;
+      for(let j=0;j<pb.length;j++){ const b0=pb[j],b1=pb[(j+1)%pb.length],bmx=(b0[0]+b1[0])/2,bmy=(b0[1]+b1[1])/2;
+        const d=Math.hypot(amx-bmx,amy-bmy); if(d<bd){bd=d;best=[a0,a1];} } }
+    return best; }
 
   // ===== géométrie utilitaire =====
   function pointIn(poly,x,y){let c=false;for(let i=0,j=poly.length-1;i<poly.length;j=i++){const xi=poly[i][0],yi=poly[i][1],xj=poly[j][0],yj=poly[j][1];if(((yi>y)!=(yj>y))&&(x<(xj-xi)*(y-yi)/(yj-yi)+xi))c=!c;}return c;}
@@ -881,6 +910,13 @@
       poly(c); ctx.fillStyle=col; ctx.fill(); ctx.lineWidth=1.5; ctx.strokeStyle=col; ctx.stroke();   // remplissage + bord = couleur finale identique → aucune frontière, quelle que soit la forme
       if(c.terr==="wall"&&!unseen){ drawRock(c); }
       if(smoke.has(c.id)&&!unseen){ poly(c); ctx.fillStyle="rgba(200,205,212,.55)"; ctx.fill(); } }   // 🌫 fumigène : voile gris sur les cases enfumées
+    // distorsion : voile de corruption (violacé) + veines/fractures, d'intensité croissante avec l'avancée
+    if(mode==="play"&&curMission&&curMission._corrupt>0){ const L=curMission._corrupt; ctx.save();
+      ctx.fillStyle="rgba(120,38,128,"+(0.06+0.20*L).toFixed(3)+")"; ctx.fillRect(0,0,W,H);   // teinte
+      const nv=Math.round(2+L*7); ctx.strokeStyle="rgba(150,60,160,"+(0.18+0.3*L).toFixed(3)+")"; ctx.lineWidth=1+2*L; ctx.lineCap="round";
+      for(let i=0;i<nv;i++){ const r=mk((i*1013+777)>>>0); let x=r()*W,y=r()*H; ctx.beginPath(); ctx.moveTo(x,y);   // veines déterministes
+        const seg=3+Math.floor(L*4); for(let s=0;s<seg;s++){ x+=(r()-0.5)*W*0.22; y+=(r()-0.5)*H*0.22; ctx.lineTo(x,y);} ctx.stroke(); }
+      ctx.restore(); }
     if(mode==="play")for(const c of cells)if(c.bonusLoot&&visible.has(c.id)){ ctx.save(); poly(c); ctx.fillStyle="rgba(255,212,121,.18)"; ctx.fill(); ctx.font="18px sans-serif"; ctx.textAlign="center"; ctx.textBaseline="middle"; ctx.fillText("💰",c.cx,c.cy); ctx.restore(); }   // case-butin de l'objectif bonus
     if(mode==="edit"){ ctx.textAlign="center"; ctx.textBaseline="middle"; ctx.font="bold 11px system-ui";   // zones de déclenchement : visibles seulement dans l'éditeur
       for(const c of cells)if(c.zone){ poly(c); ctx.fillStyle="rgba(96,165,250,.22)"; ctx.fill(); ctx.fillStyle="#dcebff"; ctx.fillText(c.zone,c.cx,c.cy); }
@@ -1520,6 +1556,7 @@
     loadMissionNode(n,false); }
   async function loadMissionNode(n,retry){ const t=await fetchText("missions-mesh/"+n.mission,ghCfg()); if(!t){showCampText("Mission introuvable : "+n.mission,()=>endCampaignRun("Fin."));return;}
     try{applyMissionObj(JSON.parse(t));}catch(e){showCampText("Mission illisible.",()=>endCampaignRun("Fin."));return;}
+    distortTerrain(corruptLevel());   // distorsion progressive (les missions de nœud avant le geoscape restent intactes : missionN=0)
     const begin=()=>{ deployRoster(); startGame(); if(!(curMission&&curMission.fullheal))applyCarry(); refresh(); };   // déploie le roster, puis soin complet : on garde les PV pleins de startGame
     begin();   // la carte d'abord ; le texte d'intro est superposé en bas, par-dessus le jeu
     const introSeen=campRun&&campRun.seen&&campRun.seen.has(n.id+":intro");
@@ -1854,6 +1891,7 @@
     showSquadSelect(slots, regionName, (chosen)=>{ if(!chosen){ geoBanner("départ annulé"); return; }   // Annuler = on reste au camp
       campRun.deploySel=chosen; campRun.geoReturn={nodeId:geoPlay.node.id,cellId}; campRun.missionN=(campRun.missionN||0)+1; geoPlay.inMission=true; document.body.classList.remove("geomap");
       try{ applyMissionObj(m); }catch(e){ geoBanner("mission illisible"); geoPlay.inMission=false; document.body.classList.add("geomap"); return; }
+      distortTerrain(corruptLevel());   // le terrain se tord davantage à mesure qu'on avance
       deployRoster(); startGame(); if(!(curMission&&curMission.fullheal))applyCarry(); refresh();
       runGeoEvents("before",{region:regionName,missionN:campRun.missionN}); }); }   // texte d'avant-mission (plein écran ou surimpression sur le champ de bataille)
   function geoEndReached(node,st){ const ew=node.endWhen||{kind:"all"}; const cs=geoPlay.map.cells;

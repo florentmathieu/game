@@ -39,7 +39,10 @@ function runOnce(tag){ const cr=buildRun(); M.campRun=cr; M.curMission=null;
     const avail=geo0.cells.map((c,i)=>({c,i})).filter(x=>x.c.content&&x.c.content.kind==="mission"&&acc.has(x.i));   // seulement les régions sur le front (accessibles)
     if(!avail.length) break; avail.sort((a,b)=>(a.c.diff||9)-(b.c.diff||9)); const pick=avail[0];
     try{
-      M.applyMissionObj(loadMission(pick.c.content.ref)); M.deployRoster();
+      cr.missionN=(cr.missionN||0)+1;   // compteur de missions (porte la distorsion ; incrémenté par geoLaunchMission en jeu réel)
+      M.applyMissionObj(loadMission(pick.c.content.ref));
+      M.distortTerrain(M.corruptLevel());   // terrain de plus en plus tordu de mission en mission (adjacence préservée)
+      M.deployRoster();
       M.mode="play"; M.startGame();
       M.applyCarry();   // PV au camp : soin partiel pour qui repart direct, full pour qui s'est reposé
       cr.geoReturn={nodeId:geoNode.id,cellId:pick.i}; M.geoPlay.inMission=true;
