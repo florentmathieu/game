@@ -251,8 +251,9 @@ func _run_node(id: String) -> void:
 		"text":
 			Run.save_game()
 			var txt := String(n.get("text", ""))
-			if txt.strip_edges() == "": _run_node(String(n.get("next", "")))
-			else: _play_text([txt], func(): _run_node(String(n.get("next", ""))))
+			var nxt := String(n.get("next", ""))
+			if txt.strip_edges() == "": _run_node(nxt)
+			else: _play_text([txt], func(): _run_node(nxt))
 		"choice":
 			Run.save_game(); _show_choice(n)
 		"mission":
@@ -290,7 +291,8 @@ func _run_mission_node(n: Dictionary) -> void:
 	if typeof(mp) == TYPE_DICTIONARY and not mp.is_empty(): Run.mission["map"] = mp
 	_sel_title = "Déploiement — " + String(n.get("mission", "Mission"))
 	_sel_confirm = _confirm_node
-	_sel_cancel = func(): _clear(_sel_layer); _sel_layer = null; _run_node(String(n.get("id", "")))
+	var self_id := String(n.get("id", ""))
+	_sel_cancel = func(): _clear(_sel_layer); _sel_layer = null; _run_node(self_id)
 	_show_squad_select()
 
 func _confirm_node() -> void:
@@ -312,11 +314,12 @@ func _on_graph_mission_end(win: bool) -> void:
 	_clear(battle); battle = null
 	var n: Dictionary = _cur_node
 	var outro := String(Run.mission.get("outro", ""))
+	var self_id := String(n.get("id", ""))
+	var nxt := String(n.get("win", "")) if win else String(n.get("lose", ""))
 	var go := func():
-		var nxt := String(n.get("win", "")) if win else String(n.get("lose", ""))
 		if nxt == "":
 			if win: _campaign_end("Campagne terminée — victoire !")
-			else: _run_node(String(n.get("id", "")))   # défaite sans branche → on rejoue le nœud
+			else: _run_node(self_id)   # défaite sans branche → on rejoue le nœud
 		else: _run_node(nxt)
 	if outro.strip_edges() != "": _play_text([outro], go)
 	else: go.call()
