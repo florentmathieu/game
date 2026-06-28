@@ -4,6 +4,7 @@ class_name Combat
 extends RefCounted
 
 const Data := preload("res://rules/Data.gd")
+const Hazard := preload("res://rules/Hazard.gd")
 const HEIGHT_BONUS := Data.HEIGHT_BONUS
 const COVER_PEN := Data.COVER_PEN
 const DEF_BRACE := Data.DEF_BRACE
@@ -82,18 +83,18 @@ static func do_attack(mesh, units: Array, att, tgt, m: String, reaction := false
 	if not reaction: att.ap = 0
 	if w.type == "ranged" and att.has("ammo"): att.ammo -= 1
 	var ch: int = max(5, chance(mesh, units, att, tgt, m) - (15 if reaction else 0))
-	var hit := randf() * 100.0 < ch
+	var hit := Hazard.f100() < ch
 	var back := flank_of(mesh, att, tgt) == "back"
 	var res := {"hit":hit, "result":"miss", "dmg":0, "killed":false, "txt":"raté", "target":tgt}
 	if not hit:
 		pass
-	elif not back and int(tgt.get("shieldBlock", 0)) > 0 and randf() * 100.0 < int(tgt.shieldBlock):
+	elif not back and int(tgt.get("shieldBlock", 0)) > 0 and Hazard.f100() < int(tgt.shieldBlock):
 		res.result = "blocked"; res.txt = "bloqué"
-	elif not back and w.type == "melee" and int(tgt.get("parry", 0)) > 0 and randf() * 100.0 < int(tgt.parry):
+	elif not back and w.type == "melee" and int(tgt.get("parry", 0)) > 0 and Hazard.f100() < int(tgt.parry):
 		res.result = "blocked"; res.txt = "paré"
 	else:
 		res.result = "hit"
-		var dmg: int = w.dmg_min + (randi() % (w.dmg_max - w.dmg_min + 1)) + int(att.get("dmgBonus", 0))
+		var dmg: int = w.dmg_min + Hazard.rint(w.dmg_max - w.dmg_min + 1) + int(att.get("dmgBonus", 0))
 		if w.has("flank") and w.type == "melee":
 			var f := flank_of(mesh, att, tgt)
 			if f == "back": dmg += int(w.flank.back)

@@ -5,6 +5,7 @@ extends Node3D
 const VMesh := preload("res://rules/Mesh.gd")
 const Data := preload("res://rules/Data.gd")
 const Combat := preload("res://rules/Combat.gd")
+const Hazard := preload("res://rules/Hazard.gd")
 
 signal mission_ended(win)
 
@@ -63,6 +64,7 @@ func _ready() -> void:
 	if mis.has("enemies"): n_enemies = int(mis.enemies)
 	var _r = get_node_or_null("/root/Run")
 	if _r != null and not _r.camp.is_empty(): potions = int(_r.camp.get("potions", 2))
+	Hazard.seed_with(seed_value ^ 0x1a2b3c4d)   # hasard de combat reproductible par mission
 	_setup_world()
 	_gen_battle(seed_value)
 	mesh.distort(_corrupt_level())   # distorsion progressive : le terrain se tord à mesure qu'on avance
@@ -358,7 +360,7 @@ func exec_blast(u, center: int) -> bool:
 	if on_cd(u, "blast") or mesh.hops(u.cell, center) > Data.BLAST_RANGE or not mesh.los(u.cell, center): return false
 	for e in _hostiles_of(u):
 		if mesh.hops(center, e.cell) <= Data.BLAST_RADIUS:
-			var dmg := Data.BLAST_MIN + randi() % (Data.BLAST_MAX - Data.BLAST_MIN + 1)
+			var dmg := Data.BLAST_MIN + Hazard.rint(Data.BLAST_MAX - Data.BLAST_MIN + 1)
 			e.hp = max(0, e.hp - dmg); _flash(e, str(dmg), Color(1, 0.6, 0.2)); _hit_react(e)
 			if e.team == "player": e.dmgTaken = int(e.get("dmgTaken", 0)) + dmg
 			if e.hp <= 0 and u.team == "player": u.kills = int(u.get("kills", 0)) + 1
@@ -394,7 +396,7 @@ func exec_shove(u, tgt) -> bool:
 	set_cd(u, "shove")
 	var dest := _shove_dest(u, tgt)
 	if dest >= 0: tgt.cell = dest; _place(tgt)
-	var stun := randf() * 100.0 < 50.0
+	var stun := Hazard.chance(50.0)
 	if stun: tgt.stunned = true
 	_flash(tgt, "repoussé" + (" ✦" if stun else ""), Color(1, 0.8, 0.4)); u.ap = 0
 	return true
@@ -511,11 +513,11 @@ func exec_cracker(u, target: int) -> bool:
 	var cand: Array = []
 	for c in mesh.cells:
 		if mesh.passable(c.id) and mesh.hops(target, c.id) <= scat: cand.append(c.id)
-	var imp: int = cand[randi() % cand.size()] if not cand.is_empty() else target
+	var imp: int = cand[Hazard.rint(cand.size())] if not cand.is_empty() else target
 	for o in units:
 		if o.hp <= 0: continue
 		if mesh.hops(imp, o.cell) <= int(cr.radius):
-			var dmg := int(cr.dmg_min) + randi() % (int(cr.dmg_max) - int(cr.dmg_min) + 1)
+			var dmg := int(cr.dmg_min) + Hazard.rint(int(cr.dmg_max) - int(cr.dmg_min) + 1)
 			o.hp = max(0, o.hp - dmg)
 			if o.team == "player": o.dmgTaken = int(o.get("dmgTaken", 0)) + dmg
 			if o.hp <= 0 and u.team == "player" and o.team == "enemy": u.kills = int(u.get("kills", 0)) + 1
@@ -687,7 +689,7 @@ func patrol_step(e) -> void:
 	for id in ball:
 		if pod_owns(e, id) and (id == e.cell or not occ.has(id)): zone.append(id)
 	if zone.is_empty(): return
-	var goal: int = zone[randi() % zone.size()]
+	var goal: int = zone[Hazard.rint(zone.size())]
 	var best := -1; var bd: int = mesh.hops(e.cell, goal)
 	for n in mesh.cells[e.cell].nb:
 		if not mesh.passable(n) or occ.has(n) or not ball.has(n) or not pod_owns(e, n): continue
