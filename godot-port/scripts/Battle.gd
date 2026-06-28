@@ -135,7 +135,8 @@ func _make_unit(team: String, cls: String, cell: int) -> void:
 		"mob":int(d.mob), "facing":(PI if team == "enemy" else 0.0), "w":w, "wtype":wtype,
 		"shieldBlock":int(d.get("shieldBlock", 0)), "parry":int(d.get("parry", 0)), "stealth":d.get("stealth", false),
 		"civ":d.get("civ", false), "aimBonus":0, "dmgBonus":0, "rangeBonus":0, "reacted":false, "bracing":false, "wallStance":false,
-		"asleep":false, "pod":-1, "home":cell}
+		"asleep":false, "pod":-1, "home":cell,
+		"abil":(d.get("abil", []) as Array).duplicate(), "cd":{}, "slowed":false, "stunned":false, "spellsCast":0}
 	if wtype == "ranged" and w.ranged.has("clip"): u.clip = int(w.ranged.clip); u.ammo = int(w.ranged.clip)
 	var node := Node3D.new(); add_child(node)
 	var ball := MeshInstance3D.new()
@@ -174,7 +175,7 @@ func _spawn_units() -> void:
 			if ok: _make_unit("player", cls, id); used[id] = true; break
 	var far := pass_cells.duplicate(); far.reverse()
 	var pod := 0
-	for cls in ["garde", "archer", "shieldbearer", "brute"]:
+	for cls in ["garde", "archer", "emage", "shieldbearer", "brute"]:
 		for id in far:
 			if used.has(id): continue
 			var ok := true
@@ -183,6 +184,122 @@ func _spawn_units() -> void:
 				_make_unit("enemy", cls, id); used[id] = true
 				units[-1].asleep = true; units[-1].pod = pod; pod += 1
 				break
+
+# ---------- cooldowns / statuts ----------
+func on_cd(u, id: String) -> bool: return u.cd.has(id) and u.cd[id] > 0
+func set_cd(u, id: String) -> void:
+	if Data.COOLDOWN.has(id): u.cd[id] = Data.COOLDOWN[id]
+func tick_cd(team: String) -> void:
+	for u in units:
+		if u.team == team:
+			for k in u.cd: if u.cd[k] > 0: u.cd[k] -= 1
+
+# ---------- capacités (port de exec* d'index.html) ----------
+func _hostiles_of(u) -> Array:
+	var r := []
+	for o in units:
+		if o.hp > 0 and o.team != u.team and not (u.team == "neutral" or o.team == "neutral"): r.append(o)
+	return r
+
+func exec_blast(u, center: int) -> bool:
+	if on_cd(u, "blast") or mesh.hops(u.cell, center) > Data.BLAST_RANGE or not mesh.los(u.cell, center): return false
+	for e in _hostiles_of(u):
+		if mesh.hops(center, e.cell) <= Data.BLAST_RADIUS:
+			var dmg := Data.BLAST_MIN + randi() % (Data.BLAST_MAX - Data.BLAST_MIN + 1)
+			e.hp = max(0, e.hp - dmg); _flash(e, str(dmg), Color(1, 0.6, 0.2))
+			if e.hp > 0 and e.team == "enemy": wake_enemy(e)
+	_fx_burst(center, Color(1, 0.55, 0.15), 1.6)
+	u.spellsCast += 1; set_cd(u, "blast"); u.ap = 0
+	return true
+
+func exec_frost(u, tgt) -> bool:
+	if on_cd(u, "frost") or mesh.hops(u.cell, tgt.cell) > Data.FROST_RANGE or not mesh.los(u.cell, tgt.cell): return false
+	tgt.slowed = true; tgt.ap = max(0, tgt.ap - 1); _fx_burst(tgt.cell, Color(0.5, 0.8, 1.0), 1.0)
+	_flash(tgt, "givré", Color(0.6, 0.85, 1.0)); u.spellsCast += 1; set_cd(u, "frost"); u.ap -= 1
+	return true
+
+func exec_heal(u, a) -> bool:
+	if on_cd(u, "heal") or a.hp >= a.max or mesh.hops(u.cell, a.cell) > Data.HEAL_RANGE or not mesh.los(u.cell, a.cell): return false
+	var before: int = a.hp; a.hp = min(a.max, a.hp + Data.HEAL_AMT)
+	_flash(a, "+%d" % (a.hp - before), Color(0.5, 1.0, 0.6)); u.spellsCast += 1; set_cd(u, "heal"); u.ap -= 1
+	return true
+
+func _shove_dest(u, tgt) -> int:
+	var a0 := atan2(mesh.cells[tgt.cell].cy - mesh.cells[u.cell].cy, mesh.cells[tgt.cell].cx - mesh.cells[u.cell].cx)
+	var best := -1; var bd := 1.0
+	for n in mesh.cells[tgt.cell].nb:
+		if not mesh.passable(n) or _unit_at(n) >= 0: continue
+		var an := atan2(mesh.cells[n].cy - mesh.cells[tgt.cell].cy, mesh.cells[n].cx - mesh.cells[tgt.cell].cx)
+		var diff := abs(Combat._norm(an - a0))
+		if diff < bd: bd = diff; best = n
+	return best
+
+func exec_shove(u, tgt) -> bool:
+	if on_cd(u, "shove") or not Combat.adjacent(mesh, u.cell, tgt.cell): return false
+	set_cd(u, "shove")
+	var dest := _shove_dest(u, tgt)
+	if dest >= 0: tgt.cell = dest; _place(tgt)
+	var stun := randf() * 100.0 < 50.0
+	if stun: tgt.stunned = true
+	_flash(tgt, "repoussé" + (" ✦" if stun else ""), Color(1, 0.8, 0.4)); u.ap = 0
+	return true
+
+func exec_charge(u, tgt) -> bool:
+	if on_cd(u, "charge"): return false
+	var best := -1; var bl := 1 << 30
+	for n in mesh.cells[tgt.cell].nb:
+		if n != u.cell and (_unit_at(n) >= 0 or not mesh.passable(n)): continue
+		var len: int = (0 if n == u.cell else mesh.hops(u.cell, n))
+		if len <= 0 or len > Data.CHARGE_RANGE: continue
+		if len < bl: bl = len; best = n
+	if best < 0 or bl < 2: return false
+	set_cd(u, "charge"); u.cell = best; _place(u)
+	var bonus: int = min(6, 1 + bl); u.dmgBonus += bonus
+	var res := Combat.do_attack(mesh, units, u, tgt, "melee")
+	u.dmgBonus -= bonus; u.ap = 0
+	if res.dmg > 0: _flash(res.target, str(res.dmg), Color(1, 0.5, 0.4))
+	for o in units: if o.hp <= 0 and is_instance_valid(o.node): o.node.visible = false
+	return true
+
+func enemy_use_abil(e) -> bool:
+	if e.abil.is_empty() or e.ap <= 0: return false
+	if e.abil.has("blast") and not on_cd(e, "blast"):
+		var best := -1; var bc := 0
+		for p in units:
+			if p.team == e.team or p.hp <= 0: continue
+			if mesh.hops(e.cell, p.cell) > Data.BLAST_RANGE or not mesh.los(e.cell, p.cell): continue
+			var cnt := 0
+			for q in units: if q.team != e.team and q.hp > 0 and mesh.hops(p.cell, q.cell) <= Data.BLAST_RADIUS: cnt += 1
+			if cnt > bc: bc = cnt; best = p.cell
+		if best >= 0 and bc >= 2 and exec_blast(e, best): return true
+	if e.abil.has("frost") and not on_cd(e, "frost"):
+		var t := _best_target(e)
+		if t >= 0 and not units[t].slowed and exec_frost(e, units[t]): return true
+	return false
+
+func enemy_shield_act(e, tgts: Array) -> bool:
+	if e.ap <= 0: return false
+	if e.abil.has("charge") and not on_cd(e, "charge"):
+		var pick := -1; var pd := 1 << 30
+		for j in tgts:
+			var h: int = mesh.hops(e.cell, units[j].cell)
+			if h >= 2 and h <= Data.CHARGE_RANGE and mesh.los(e.cell, units[j].cell) and h < pd: pd = h; pick = j
+		if pick >= 0 and exec_charge(e, units[pick]): return true
+	if e.abil.has("shove") and not on_cd(e, "shove"):
+		for j in tgts:
+			if Combat.adjacent(mesh, e.cell, units[j].cell) and exec_shove(e, units[j]): return true
+	return false
+
+func _fx_burst(cell: int, col: Color, scale: float) -> void:
+	var s := MeshInstance3D.new()
+	var sm := SphereMesh.new(); sm.radius = 0.5; sm.height = 1.0; s.mesh = sm
+	var mt := StandardMaterial3D.new(); mt.albedo_color = col; mt.emission_enabled = true; mt.emission = col
+	mt.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA; mt.albedo_color.a = 0.7
+	s.material_override = mt; s.position = world(cell) + Vector3(0, 0.9, 0); add_child(s)
+	var tw := create_tween()
+	tw.tween_property(s, "scale", Vector3.ONE * (2.0 + scale), 0.45)
+	tw.parallel().tween_property(mt, "albedo_color:a", 0.0, 0.45)
+	tw.tween_callback(s.queue_free)
 
 # ---------- vision / brouillard ----------
 func compute_vis() -> void:
@@ -355,12 +472,20 @@ func _click(screen: Vector2) -> void:
 			u.cell = cell; _place(u); detect_enemies(); _compute_reach(); _refresh()
 
 # ---------- tours ----------
+func _begin_turn(team: String) -> void:
+	for u in units:
+		if u.team != team or u.hp <= 0: continue
+		u.ap = AP_MAX - (1 if u.slowed else 0); u.slowed = false
+		if u.stunned: u.ap = 0; u.stunned = false
+		u.reacted = false; u.bracing = false
+	tick_cd(team)
+
 func _end_turn() -> void:
 	if turn != "player": return
 	turn = "enemy"; sel = -1; reachable = {}; _refresh()
+	_begin_turn("enemy")
 	await _enemy_turn()
-	for u in units:
-		if u.hp > 0: u.ap = AP_MAX; u.reacted = false; u.bracing = false
+	_begin_turn("player")
 	turn = "player"; _refresh()
 
 func _nearest_player(e) -> int:
@@ -392,6 +517,12 @@ func _enemy_turn() -> void:
 		var tgts := []
 		for j in units.size():
 			if units[j].team == "player" and units[j].hp > 0 and Combat.enemy_sees_p(mesh, e, units[j]): tgts.append(j)
+		if not tgts.is_empty():
+			var used := enemy_use_abil(e)
+			if not used: used = enemy_shield_act(e, tgts)
+			if used:
+				detect_enemies(); _refresh(); await get_tree().create_timer(0.3).timeout
+				if e.ap <= 0: continue
 		if tgts.is_empty():
 			var foe := _nearest_player(e)
 			if foe >= 0:

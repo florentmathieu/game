@@ -37,3 +37,14 @@ static func classes() -> Dictionary:
 		"femme":    {"name":"Femme",  "hp":5, "mob":6,"civ":true, "w":{"melee":{"type":"melee","aim":40,"dmg_min":1,"dmg_max":2,"bare":true}}},
 		"enfant":   {"name":"Enfant", "hp":3, "mob":7,"civ":true, "w":{"melee":{"type":"melee","aim":25,"dmg_min":0,"dmg_max":1,"bare":true}}},
 	}
+
+# capacités : portées + recharges (port de index.html)
+const COOLDOWN := {"smoke":3,"breach":4,"shadowstrike":2,"rally":3,"taunt":3,"holdline":3,"wall":3,"blast":3,"heal":2,"frost":2,"shove":3,"charge":4}
+const BLAST_RANGE := 6
+const BLAST_RADIUS := 1
+const BLAST_MIN := 4
+const BLAST_MAX := 7
+const HEAL_RANGE := 6
+const HEAL_AMT := 6
+const FROST_RANGE := 7
+const CHARGE_RANGE := 7
