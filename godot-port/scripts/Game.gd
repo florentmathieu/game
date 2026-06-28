@@ -116,11 +116,14 @@ var _txt_idx := 0
 var _txt_cb: Callable = func(): pass
 func _play_text(texts, cb: Callable) -> void:
 	var all: Array = texts if texts is Array else [texts]
+	_dbg("play_text: %d bloc(s), 1er=%d car" % [all.size(), String(all[0]).length() if all.size() > 0 else -1])
 	_txt_pages = []
 	for t in all: _txt_pages.append_array(Narrative.pages(str(t)))
+	_dbg("play_text: %d page(s)" % _txt_pages.size())
 	_txt_idx = 0; _txt_cb = cb
 	_txt_layer = CanvasLayer.new(); _txt_layer.layer = 30; add_child(_txt_layer)
 	_render_text_page()
+	_dbg("play_text: page rendue")
 
 func _render_text_page() -> void:
 	for c in _txt_layer.get_children(): c.queue_free()
@@ -270,8 +273,10 @@ func _run_node(id: String) -> void:
 	match t:
 		"text":
 			Run.save_game()
+			_dbg("texte: save ok")
 			var txt := String(n.get("text", ""))
 			var nxt := String(n.get("next", ""))
+			_dbg("texte: len=%d next=%s" % [txt.length(), nxt])
 			if txt.strip_edges() == "": _run_node(nxt)
 			else: _play_text([txt], func(): _run_node(nxt))
 		"choice":
