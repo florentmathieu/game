@@ -37,6 +37,7 @@ func _diag(s: String) -> void:
 # ne se résout pas en web) + anti-cache ; filet de sécurité si pas de réponse.
 func _fetch_campaign() -> void:
 	var http := HTTPRequest.new(); add_child(http)
+	http.accept_gzip = false   # en web le navigateur décompresse déjà → éviter RESULT_BODY_DECOMPRESS_FAILED
 	http.request_completed.connect(_on_campaign_fetched)
 	var url := "campaign.json"
 	var base = JavaScriptBridge.eval("window.location.href.replace(/[#?].*$/,'').replace(/[^/]*$/,'')", true)
