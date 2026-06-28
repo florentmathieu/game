@@ -11,6 +11,7 @@ signal mission_ended(win)
 const S := 0.06          # px -> unités monde
 const STEP := 2.2        # hauteur monde par niveau d'élévation
 const AP_MAX := 2
+const MOB := 3           # mobilité de base (plate) par PA — cf. MOB global d'index.html
 
 var CL := {}
 var mesh: VMesh
@@ -246,7 +247,7 @@ func _make_unit(team: String, cls: String, cell: int, mem := {}) -> void:
 		"civ":d.get("civ", false), "aimBonus":0, "dmgBonus":0, "rangeBonus":0, "reacted":false, "bracing":false, "wallStance":false,
 		"asleep":false, "pod":-1, "home":cell, "freeAvail":true, "freeMpBonus":0,
 		"abil":(d.get("abil", []) as Array).duplicate(), "cd":{}, "slowed":false, "stunned":false,
-		"spellsCast":0, "dmgTaken":0, "kills":0, "crackers":int(d.get("crackers", 0)), "scatterBonus":0}
+		"spellsCast":0, "dmgTaken":0, "kills":0, "crackers":int(d.get("crackers", 0)), "scatterBonus":0, "mobBonus":0}
 	if wtype == "ranged" and w.ranged.has("clip"): u.clip = int(w.ranged.clip); u.ammo = int(w.ranged.clip)
 	if team == "player":
 		var ids: Array = mem.get("perks", []) if not mem.is_empty() else []
@@ -468,7 +469,7 @@ func apply_perk_mods(u, ids: Array) -> void:
 		if m.has("hp"): u.max += m.hp; u.hp += m.hp
 		if m.has("shieldBlock"): u.shieldBlock += m.shieldBlock
 		if m.has("parry"): u.parry += m.parry
-		if m.has("mob"): u.mob += m.mob
+		if m.has("mob"): u.mobBonus += m.mob
 		if m.has("aim"): u.aimBonus += m.aim
 		if m.has("dmg"): u.dmgBonus += m.dmg
 		if m.has("range"): u.rangeBonus += m.range
@@ -587,7 +588,7 @@ func exec_shadowstrike(u, tgt) -> bool:
 	var best := -1; var bs := -1
 	for n in mesh.cells[tgt.cell].nb:
 		if n != u.cell and (_unit_at(n) >= 0 or not mesh.passable(n)): continue
-		if n != u.cell and mesh.hops(u.cell, n) > u.mob: continue
+		if n != u.cell and mesh.hops(u.cell, n) > _mob_of(u): continue
 		var f := Combat.flank_of(mesh, {"cell":n}, tgt)
 		var s: int = {"back":3, "side":2, "front":1}[f]
 		if s > bs: bs = s; best = n
@@ -725,10 +726,12 @@ func _unit_at(cell: int) -> int:
 
 # mouvement : déplacement gratuit (freeAvail) + PA × mobilité (modèle d'index.html)
 func _free_mp(u) -> int: return Data.FREE_MP + int(u.get("freeMpBonus", 0))
-func budget(u) -> int: return (_free_mp(u) if u.get("freeAvail", true) else 0) + u.ap * u.mob
+# mobilité de DÉPLACEMENT = base plate (3) + perks (cf. mobOf d'index.html) ; le mob de classe ne sert pas au mouvement
+func _mob_of(u) -> int: return MOB + int(u.get("mobBonus", 0))
+func budget(u) -> int: return (_free_mp(u) if u.get("freeAvail", true) else 0) + u.ap * _mob_of(u)
 func ap_for_move(u, cost: int) -> int:
 	var free: int = _free_mp(u) if u.get("freeAvail", true) else 0
-	return max(0, int(ceil(float(cost - free) / u.mob)))
+	return max(0, int(ceil(float(cost - free) / _mob_of(u))))
 
 func _compute_reach() -> void:
 	reachable = {}
