@@ -1554,7 +1554,7 @@
   function clearRosterProgress(name){ try{ localStorage.removeItem(SAVE_PREFIX+campSlug(name)); localStorage.removeItem(EVT_PREFIX+campSlug(name)); }catch(e){} }
   // événements scénarisés déjà déclenchés (pour ne pas les rejouer), persistés par campagne
   const EVT_PREFIX="mgf_camp_evt_";
-  function saveFiredEvents(){ if(!campRun||!campRun.camp)return; try{ localStorage.setItem(EVT_PREFIX+campSlug(campRun.camp.name),JSON.stringify([...(campRun.firedEvents||[])])); }catch(e){} }
+  function saveFiredEvents(){ if(!campRun||!campRun.camp||campRun.ephemeral)return; try{ localStorage.setItem(EVT_PREFIX+campSlug(campRun.camp.name),JSON.stringify([...(campRun.firedEvents||[])])); }catch(e){} }   // en test (éphémère) on ne mémorise pas les événements déclenchés
   function loadFiredEvents(name){ try{ const t=localStorage.getItem(EVT_PREFIX+campSlug(name)); if(t){ const a=JSON.parse(t); if(Array.isArray(a))return a; } }catch(e){} return []; }
   // ===== sauvegarde COMPLÈTE d'un acte en cours (carte stratégique incluse) : quitter et reprendre =====
   const RUN_PREFIX="mgf_camp_run_";
@@ -1637,7 +1637,8 @@
     const cur={mission:"nav-m",campaign:"nav-c",geoscape:"nav-g",play:"nav-p"}[v]; ["nav-m","nav-c","nav-g","nav-p"].forEach(id=>{const a=document.getElementById(id);if(a)a.classList.toggle("cur",id===cur);});
     if(v==="campaign"){ if(typeof drawGraph==="function")drawGraph(); }
     if(v==="geoscape"&&typeof geoEnter==="function")geoEnter(); }
-  function startCampaign(camp,from,fromNode){ campRun={camp,carry:{},winCount:0,roster:(camp.roster||[]).map(m=>({name:m.name,cls:m.cls,xp:m.xp||0,perks:Array.isArray(m.perks)?m.perks.slice():[],stress:0,fatigue:0,special:m.special!==false,mortalAfter:m.mortalAfter||null,dead:false})),nodeId:null,from:from||"campaign",seen:new Set(),potions:0,firedEvents:new Set(loadFiredEvents(camp.name))};
+  function startCampaign(camp,from,fromNode){ const ephemeral=(from!=="play");   // lancé depuis l'éditeur (test) : les événements (1ʳᵉ arrivée…) se rejouent à chaque essai et ne sont pas mémorisés
+    campRun={camp,carry:{},winCount:0,roster:(camp.roster||[]).map(m=>({name:m.name,cls:m.cls,xp:m.xp||0,perks:Array.isArray(m.perks)?m.perks.slice():[],stress:0,fatigue:0,special:m.special!==false,mortalAfter:m.mortalAfter||null,dead:false})),nodeId:null,from:from||"campaign",seen:new Set(),potions:0,ephemeral,firedEvents:new Set(ephemeral?[]:loadFiredEvents(camp.name))};
     const saved=loadRosterProgress(camp.name); if(saved){ for(const m of campRun.roster){ const s=saved.find(x=>x.name===m.name&&x.cls===m.cls); if(s){ m.xp=s.xp||0; m.perks=Array.isArray(s.perks)?s.perks.slice():[]; m.stress=s.stress||0; m.fatigue=s.fatigue||0; m.special=s.special!==false; m.dead=!!s.dead; } }   // reprend progression + usure + morts inter-parties
       for(const s of saved){ if(s.name&&!campRun.roster.some(m=>m.name===s.name))campRun.roster.push({name:s.name,cls:s.cls,xp:s.xp||0,perks:Array.isArray(s.perks)?s.perks.slice():[],stress:s.stress||0,fatigue:s.fatigue||0,special:s.special!==false,mortalAfter:null,dead:!!s.dead}); } }   // recrues scénarisées (absentes du roster de base) conservées
     document.body.classList.remove("testing"); setView("play"); runNode(fromNode||camp.start); }
