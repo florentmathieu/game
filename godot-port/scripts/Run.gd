@@ -47,7 +47,9 @@ func new_campaign(def := {}) -> void:
 		"seenActs":[], "seenBoss":[], "potions":int(def.get("potions", 2)),
 		"title":String(def.get("name", "")), "narr":def.get("narrative", {}), "acts":acts,
 		"missions":def.get("missions", []), "defSig":"",
-		"missionIntros":def.get("missionIntros", []), "missionOutros":def.get("missionOutros", [])}
+		"missionIntros":def.get("missionIntros", []), "missionOutros":def.get("missionOutros", []),
+		"graphNodes":def.get("graphNodes", []), "graphStart":String(def.get("graphStart", "")),
+		"nodeId":String(def.get("graphStart", ""))}
 	mission = {}
 	auto_select()
 
@@ -95,9 +97,8 @@ func _convert_html_campaign(data: Dictionary) -> Dictionary:
 			if String(n.get("text", "")) != "": opening = String(n.get("text")); break
 	var def := {"name":String(data.get("name", "")), "roster":roster}
 	if opening != "": def["narrative"] = {"1": {"arrive": opening}}
-	if data.has("missions"): def["missions"] = data.missions   # cartes authored inlinées par l'éditeur
-	if data.has("missionIntros"): def["missionIntros"] = data.missionIntros   # TES textes d'intro par mission
-	if data.has("missionOutros"): def["missionOutros"] = data.missionOutros   # TES textes de fin par mission
+	if data.has("nodes"):   # GRAPHE complet → interprété par le port (choix/branches)
+		def["graphNodes"] = data.nodes; def["graphStart"] = String(data.get("start", ""))
 	return def
 
 # ---------- roster : grades, perks, PV ----------
@@ -239,6 +240,15 @@ func resolve_bonus(win: bool, report: Dictionary = {}) -> Array:
 	auto_select(); save_game()
 	return deaths
 
+# issue d'une mission de GRAPHE : usure/XP/carry/mort + compteurs, sans progression geoscape ni butin
+func resolve_node(win: bool, report: Dictionary = {}) -> Array:
+	var deaths := apply_attrition(win, report)
+	if win: award_xp(report)
+	camp.missionN = int(camp.missionN) + 1
+	if win: camp.winCount = int(camp.winCount) + 1
+	auto_select(); save_game()
+	return deaths
+
 # ---------- issue de mission : carry, usure, XP, progression ----------
 # report : { name -> {hp, max, dmgTaken, kills, spellsCast, ko} }
 func resolve_mission(win: bool, report: Dictionary = {}) -> Array:
@@ -293,6 +303,31 @@ func award_xp(report: Dictionary) -> void:
 		for g in range(old_g + 1, new_g + 1):
 			if not promo_pair(m.cls, g).is_empty(): promos.append({"name":m.name, "grade":g})
 	camp.pendingPromos = promos
+
+# ---------- graphe de campagne (interprété par Game) ----------
+func has_graph() -> bool: return (camp.get("graphNodes", []) as Array).size() > 0
+func node_by_id(id: String) -> Dictionary:
+	for n in camp.get("graphNodes", []):
+		if String(n.get("id", "")) == id: return n
+	return {}
+
+# renforts scénarisés : « Nom:classe, Autre:classe* » (* = héros spécial). Renvoie les noms ajoutés.
+func apply_recruit(spec) -> Array:
+	var added: Array = []
+	var list: Array = spec if spec is Array else String(spec).split(",")
+	for raw in list:
+		var s := String(raw).strip_edges()
+		if s == "": continue
+		var special := s.ends_with("*")
+		if special: s = s.substr(0, s.length() - 1).strip_edges()
+		var parts := s.split(":")
+		var nm := String(parts[0]).strip_edges()
+		if nm == "" or not member(nm).is_empty(): continue
+		var cls := String(parts[1]).strip_edges() if parts.size() > 1 else "soldat"
+		camp.roster.append({"name":nm, "cls":cls, "xp":0, "stress":0, "fatigue":0, "special":special, "dead":false, "perks":[]})
+		added.append(nm)
+	if not added.is_empty(): auto_select()
+	return added
 
 # retrait scénarisé du statut spécial (« son rôle est fait ») → devient mortel
 func apply_mortal(names: Array) -> Array:

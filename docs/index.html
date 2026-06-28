@@ -1383,21 +1383,18 @@
       // PORT GODOT : publie aussi campaign.json (à côté du build) — roster + narratif + cartes authored inlinées.
       // Le port Godot le récupère au démarrage et charge TOUJOURS cette campagne.
       cstatus.textContent="Export Godot…";
-      // aplatit le graphe (suit next / win, 1re option des choix) → missions ORDONNÉES avec TES textes
-      // intro/outro de chaque mission + textes des nœuds « texte » fusionnés dans l'intro suivante.
-      const byId={}; campNodes.forEach(n=>byId[n.id]=n);
-      const seq=[],seen=new Set(); let cur=campStart,pend="",guard=0;
-      while(cur&&byId[cur]&&!seen.has(cur)&&guard++<300){ const n=byId[cur]; seen.add(cur);
-        if(n.type==="mission"){ seq.push({ref:n.mission,intro:(pend?pend+"\n_\n":"")+(n.intro||""),outro:n.outro||""}); pend=""; cur=n.win; }
-        else if(n.type==="text"){ if(n.text)pend+=(pend?"\n_\n":"")+n.text; cur=n.next; }
-        else if(n.type==="choice"){ cur=(n.options&&n.options[0])||null; }
-        else cur=n.next||null; }
-      const missions=[],missionIntros=[],missionOutros=[];
-      for(const s of seq){ let mp=null; if(s.ref){const t=await fetchText("missions-mesh/"+s.ref,cfg); if(t){try{mp=JSON.parse(t);}catch(e){}}}
-        missions.push(mp); missionIntros.push(s.intro||""); missionOutros.push(s.outro||""); }
-      const godotCamp={name,start:campStart,roster:campRoster,nodes:campNodes,missions,missionIntros,missionOutros};
+      // GRAPHE COMPLET pour le port : on inline la carte de chaque mission et on résout les
+      // textes-fichiers en texte. Le port Godot interprète le graphe (choix/branches compris).
+      const nodesOut=JSON.parse(JSON.stringify(campNodes));
+      for(const n of nodesOut){
+        if(n.type==="mission"&&n.mission){ const t=await fetchText("missions-mesh/"+n.mission,cfg); if(t){try{n._map=JSON.parse(t);}catch(e){}} }
+        if(n.introFile){ const t=await fetchText(n.introFile,cfg); if(t!=null)n.intro=t; }
+        if(n.outroFile){ const t=await fetchText(n.outroFile,cfg); if(t!=null)n.outro=t; }
+        if(n.type==="text"&&n.file){ const t=await fetchText(n.file,cfg); if(t!=null)n.text=t; } }
+      const godotCamp={name,start:campStart,roster:campRoster,nodes:nodesOut};
       await ghPut("docs/godot/campaign.json",JSON.stringify(godotCamp),"campaign.json (port Godot) : "+name,cfg);
-      cstatus.textContent="✓ Campagne publiée (+ port Godot : "+seq.length+" mission·s, tes textes inclus)."; }catch(e){cstatus.textContent="Échec : "+e.message;} }
+      const nmiss=nodesOut.filter(n=>n.type==="mission").length;
+      cstatus.textContent="✓ Campagne publiée (+ port Godot : graphe, "+nmiss+" mission·s)."; }catch(e){cstatus.textContent="Échec : "+e.message;} }
   document.getElementById("csave").onclick=campSave;
   document.getElementById("cplay").onclick=()=>{ if(!campNodes.length){cstatus.textContent="Ajoute au moins un nœud.";return;} if(!campNode(campStart)){cstatus.textContent="Choisis un nœud de départ.";return;} startCampaign({name:cname.value,start:campStart,roster:campRoster,nodes:campNodes},"campaign"); };
   // lecteur de texte paginé : pages séparées par une ligne « _ », « Nom : … » en doré, bouton « … » pour passer.

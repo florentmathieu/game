@@ -36,23 +36,21 @@ func _initialize() -> void:
 	if not (same_cells and same_walls and n_enemy2 == n_enemy1 and n_player2 >= 1 and B2.objective == "eliminate"): ok = false
 	B2.free()
 
-	# --- Pont 1 : conversion d'une campagne format éditeur HTML ---
+	# --- Pont 1 : campagne format éditeur HTML (GRAPHE) → carte inlinée + TES textes par nœud ---
 	var html_camp := {"name":"Essai HTML", "start":"n0",
 		"roster":[{"name":"Zed","cls":"soldat","special":false}, {"name":"Nyx","cls":"assassin"}],
-		"nodes":[{"id":"n0","kind":"text","text":"Narrateur: La campagne commence."}],
-		"missions":[authored], "missionIntros":["Aldric: Premiere cible en vue."], "missionOutros":["Vesna: Zone securisee."]}
+		"nodes":[
+			{"id":"n0", "type":"text", "text":"Narrateur: La campagne commence.", "next":"m0"},
+			{"id":"m0", "type":"mission", "mission":"alpha", "_map":authored,
+				"intro":"Aldric: Premiere cible en vue.", "outro":"Vesna: Zone securisee.", "win":"", "lose":""}]}
 	Run.apply_campaign(html_camp, Run.campaign_sig(html_camp))
-	var conv_ok: bool = String(Run.camp.title) == "Essai HTML" and (Run.camp.roster as Array).size() == 2 and (Run.camp.missions as Array).size() == 1
-	var narr: Dictionary = Run.camp.get("narr", {})
-	var narr_ok: bool = typeof(narr.get("1", {})) == TYPE_DICTIONARY and String(narr.get("1", {}).get("arrive", "")).contains("Narrateur:")
-	if not narr_ok: ok = false
-	# vérifie l'attache de carte authored sur la 1re mission
-	Run.set_mission(0, {"name":"R","diff":1,"forge":false,"boss":false})
-	var map_attached: bool = Run.mission.has("map")
-	var intro_ok: bool = String(Run.mission.get("intro", "")).contains("Aldric:")
-	var outro_ok: bool = String(Run.mission.get("outro", "")).contains("Vesna:")
-	print("Pont 1 — titre/roster/missions=%s  carte=%s  TON intro=%s  TON outro=%s" % [conv_ok, map_attached, intro_ok, outro_ok])
-	if not (conv_ok and map_attached and intro_ok and outro_ok): ok = false
+	var conv_ok: bool = String(Run.camp.title) == "Essai HTML" and (Run.camp.roster as Array).size() == 2 and Run.has_graph()
+	var mnode: Dictionary = Run.node_by_id("m0")
+	var map_ok: bool = typeof(mnode.get("_map", null)) == TYPE_DICTIONARY and (mnode["_map"] as Dictionary).has("cells")
+	var intro_ok: bool = String(mnode.get("intro", "")).contains("Aldric:")
+	var outro_ok: bool = String(mnode.get("outro", "")).contains("Vesna:")
+	print("Pont 1 — titre/roster/graphe=%s  carte inlinée=%s  TON intro=%s  TON outro=%s" % [conv_ok, map_ok, intro_ok, outro_ok])
+	if not (conv_ok and map_ok and intro_ok and outro_ok): ok = false
 
 	print("\n%s" % ("OK — ponts HTML→Godot (campagne + carte) fonctionnels" if ok else "!! échec ponts"))
 	quit()

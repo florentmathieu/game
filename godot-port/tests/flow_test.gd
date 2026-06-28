@@ -15,7 +15,7 @@ func _initialize() -> void:
 		print("région choisie=%d (%s)" % [cell, game.geoscape.geo.info[cell].name])
 		game._on_region(cell)          # ouvre l'écran de sélection d'escouade
 		await process_frame
-		game._confirm_deploy()         # valide l'escouade auto-sélectionnée → lance le combat
+		game._confirm_region()         # valide l'escouade auto-sélectionnée → lance le combat
 		await process_frame
 		await process_frame
 		if game.battle == null: print("!! battle non instancié"); ok = false

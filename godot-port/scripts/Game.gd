@@ -47,7 +47,10 @@ func _begin() -> void:
 	_started = true
 	if Run.camp.is_empty():
 		if not Run.load_campaign_file("res://campaigns/marche.json"): Run.new_campaign()
-	_show_geoscape()
+	if Run.has_graph():
+		_run_node(String(Run.camp.get("nodeId", Run.camp.get("graphStart", ""))))   # campagne à graphe (éditeur)
+	else:
+		_show_geoscape()   # campagne procédurale (geoscape)
 
 func _clear(node: Node) -> void:
 	if node != null and is_instance_valid(node): node.queue_free()
@@ -143,11 +146,18 @@ func _update_banner() -> void:
 const Data := preload("res://rules/Data.gd")
 var _sel_layer: CanvasLayer = null
 var _pending := -1
+var _sel_title := ""
+var _sel_confirm: Callable = func(): pass
+var _sel_cancel: Callable = func(): pass
 
-# --- choix d'une région → écran de sélection d'escouade ---
+# --- géoscape : choix d'une région → écran de sélection d'escouade ---
 func _on_region(cell: int) -> void:
 	_pending = cell
-	_show_squad_select(geoscape.geo.info[cell])
+	var ginfo: Dictionary = geoscape.geo.info[cell]
+	_sel_title = "Déploiement — %s  (%s, %d ennemis)" % [ginfo.name, ("BOSS" if ginfo.boss else "diff %d" % ginfo.diff), Run.mission_preview_enemies(ginfo)]
+	_sel_confirm = _confirm_region
+	_sel_cancel = _cancel_deploy
+	_show_squad_select()
 
 func _bar(frac: float, col: Color) -> Control:
 	var bg := ColorRect.new(); bg.color = Color(0.17, 0.18, 0.23); bg.custom_minimum_size = Vector2(60, 8)
@@ -155,7 +165,7 @@ func _bar(frac: float, col: Color) -> Control:
 	fg.size = Vector2(60.0 * clampf(frac, 0, 1), 8); fg.position = Vector2.ZERO
 	bg.add_child(fg); return bg
 
-func _show_squad_select(ginfo: Dictionary) -> void:
+func _show_squad_select() -> void:
 	_sel_layer = CanvasLayer.new(); _sel_layer.layer = 20; add_child(_sel_layer)
 	var panel := Control.new(); panel.set_anchors_preset(Control.PRESET_FULL_RECT); _sel_layer.add_child(panel)
 	var dim := ColorRect.new(); dim.color = Color(0.04, 0.04, 0.06, 1.0); dim.set_anchors_preset(Control.PRESET_FULL_RECT)
@@ -163,7 +173,7 @@ func _show_squad_select(ginfo: Dictionary) -> void:
 	var box := VBoxContainer.new(); box.position = Vector2(60, 50); box.add_theme_constant_override("separation", 6)
 	panel.add_child(box)
 	var title := Label.new()
-	title.text = "Déploiement — %s  (%s, %d ennemis)" % [ginfo.name, ("BOSS" if ginfo.boss else "diff %d" % ginfo.diff), Run.mission_preview_enemies(ginfo)]
+	title.text = _sel_title
 	title.add_theme_font_size_override("font_size", 22); title.add_theme_color_override("font_color", Color(1, 0.88, 0.5))
 	box.add_child(title)
 	var hint := Label.new(); hint.text = "Choisis jusqu'a %d soldats (clic pour selectionner). fat = fatigue, str = stress, PV au depart." % Run.SQUAD_MAX
@@ -171,8 +181,8 @@ func _show_squad_select(ginfo: Dictionary) -> void:
 	for m in Run.camp.roster:
 		box.add_child(_member_row(m))
 	var btns := HBoxContainer.new(); btns.add_theme_constant_override("separation", 12); box.add_child(btns)
-	var go := Button.new(); go.text = "Deployer"; go.pressed.connect(_confirm_deploy); btns.add_child(go)
-	var back := Button.new(); back.text = "Retour"; back.pressed.connect(_cancel_deploy); btns.add_child(back)
+	var go := Button.new(); go.text = "Deployer"; go.pressed.connect(func(): _sel_confirm.call()); btns.add_child(go)
+	var back := Button.new(); back.text = "Retour"; back.pressed.connect(func(): _sel_cancel.call()); btns.add_child(back)
 
 func _member_row(m: Dictionary) -> Control:
 	var row := HBoxContainer.new(); row.add_theme_constant_override("separation", 10)
@@ -198,14 +208,13 @@ func _member_row(m: Dictionary) -> Control:
 	return row
 
 func _refresh_select() -> void:
-	var ginfo: Dictionary = geoscape.geo.info[_pending]
 	_clear(_sel_layer); _sel_layer = null
-	_show_squad_select(ginfo)
+	_show_squad_select()
 
 func _cancel_deploy() -> void:
 	_clear(_sel_layer); _sel_layer = null; _pending = -1
 
-func _confirm_deploy() -> void:
+func _confirm_region() -> void:
 	if Run.camp.deploySel.is_empty(): return
 	var cell := _pending; _pending = -1
 	_clear(_sel_layer); _sel_layer = null
@@ -219,6 +228,97 @@ func _launch_battle() -> void:
 	battle = BattleScene.instantiate()
 	add_child(battle)
 	battle.mission_ended.connect(_on_mission_end)
+
+# ---------- interpréteur de graphe de campagne (port de runNode) ----------
+var _cur_node := {}
+func _as_list(v) -> Array:
+	return v if v is Array else String(v).split(",")
+
+func _run_node(id: String) -> void:
+	var n: Dictionary = Run.node_by_id(id)
+	if n.is_empty(): return _campaign_end("Campagne terminée.")
+	Run.camp.nodeId = id
+	if n.has("mortal"): Run.apply_mortal(_as_list(n.mortal))     # « son rôle est fait »
+	if n.has("recruit"): Run.apply_recruit(n.recruit)            # renforts
+	var t := String(n.get("type", "text"))
+	match t:
+		"text":
+			Run.save_game()
+			var txt := String(n.get("text", ""))
+			if txt.strip_edges() == "": _run_node(String(n.get("next", "")))
+			else: _play_text([txt], func(): _run_node(String(n.get("next", ""))))
+		"choice":
+			Run.save_game(); _show_choice(n)
+		"mission":
+			_run_mission_node(n)
+		_:
+			_run_node(String(n.get("next", "")))   # geoscape/autre non géré en graphe → on enchaîne
+
+func _node_label(n: Dictionary) -> String:
+	if n.is_empty(): return "Suite"
+	var t := String(n.get("type", ""))
+	if t == "mission": return "Mission : " + String(n.get("mission", "mission"))
+	if t == "choice": return String(n.get("title", "choix"))
+	var tx := String(n.get("text", "")); return tx.substr(0, min(40, tx.length())) if tx != "" else "Suite"
+
+func _show_choice(n: Dictionary) -> void:
+	var lay := CanvasLayer.new(); lay.layer = 24; add_child(lay)
+	var panel := Control.new(); panel.set_anchors_preset(Control.PRESET_FULL_RECT); lay.add_child(panel)
+	var dim := ColorRect.new(); dim.color = Color(0.03, 0.03, 0.05, 0.96); dim.set_anchors_preset(Control.PRESET_FULL_RECT); panel.add_child(dim)
+	var box := VBoxContainer.new(); box.position = Vector2(80, 150); box.add_theme_constant_override("separation", 12); panel.add_child(box)
+	var t := Label.new(); t.text = String(n.get("title", "Quelle route ?"))
+	t.add_theme_font_size_override("font_size", 23); t.add_theme_color_override("font_color", Color(1, 0.88, 0.5)); box.add_child(t)
+	for opt in n.get("options", []):
+		var oid := String(opt)
+		var b := Button.new(); b.custom_minimum_size = Vector2(460, 0)
+		b.text = _node_label(Run.node_by_id(oid))
+		b.pressed.connect(func(): _clear(lay); _run_node(oid))
+		box.add_child(b)
+
+func _run_mission_node(n: Dictionary) -> void:
+	_cur_node = n
+	var mp = n.get("_map", {})
+	Run.mission = {"seed": (int(Run.camp.seed) ^ String(n.get("id", "")).hash()) & 0x7fffffff | 1,
+		"objective":"eliminate", "name":String(n.get("mission", "Mission")), "forge":false, "boss":false,
+		"intro":String(n.get("intro", "")), "outro":String(n.get("outro", ""))}
+	if typeof(mp) == TYPE_DICTIONARY and not mp.is_empty(): Run.mission["map"] = mp
+	_sel_title = "Déploiement — " + String(n.get("mission", "Mission"))
+	_sel_confirm = _confirm_node
+	_sel_cancel = func(): _clear(_sel_layer); _sel_layer = null; _run_node(String(n.get("id", "")))
+	_show_squad_select()
+
+func _confirm_node() -> void:
+	if Run.camp.deploySel.is_empty(): return
+	_clear(_sel_layer); _sel_layer = null
+	var intro := String(Run.mission.get("intro", ""))
+	if intro.strip_edges() != "": _play_text([intro], _launch_graph_battle)
+	else: _launch_graph_battle()
+
+func _launch_graph_battle() -> void:
+	battle = BattleScene.instantiate(); add_child(battle)
+	battle.mission_ended.connect(_on_graph_mission_end)
+
+func _on_graph_mission_end(win: bool) -> void:
+	var report: Dictionary = battle.build_report() if battle != null else {}
+	if battle != null: Run.camp.potions = int(battle.potions)
+	var deaths: Array = Run.resolve_node(win, report)
+	Run.auto_promote()
+	_clear(battle); battle = null
+	var n: Dictionary = _cur_node
+	var outro := String(Run.mission.get("outro", ""))
+	var go := func():
+		var nxt := String(n.get("win", "")) if win else String(n.get("lose", ""))
+		if nxt == "":
+			if win: _campaign_end("Campagne terminée — victoire !")
+			else: _run_node(String(n.get("id", "")))   # défaite sans branche → on rejoue le nœud
+		else: _run_node(nxt)
+	if outro.strip_edges() != "": _play_text([outro], go)
+	else: go.call()
+
+func _campaign_end(msg: String) -> void:
+	Run.camp.done = true; Run.save_game()
+	banner.text = msg
+	_victory_screen()
 
 # --- issue de mission → progression → retour au territoire ---
 func _on_mission_end(win: bool) -> void:
