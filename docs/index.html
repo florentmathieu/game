@@ -544,7 +544,7 @@
     startAnim(u,visited); }
   function startAnim(u,ids){ if(typeof requestAnimationFrame==="undefined"||typeof performance==="undefined"||ids.length<2)return;
     anim={u,pts:ids.map(id=>cells[id]?[cells[id].cx,cells[id].cy]:[0,0]),t0:performance.now(),dur:(u.team==="enemy"?240:160)*(ids.length-1),t:0};   // ennemi plus lent = mouvements plus lisibles
-    (function loop(now){ if(!anim)return; anim.t=Math.min(1,(now-anim.t0)/anim.dur); draw(); if(anim.t<1)requestAnimationFrame(loop); else {anim=null;draw();} })(performance.now()); }
+    (function loop(now){ if(!anim)return; anim.t=Math.min(1,(now-anim.t0)/anim.dur); draw(); if(anim.t<1)requestAnimationFrame(loop); else {anim=null;draw();checkEnd();if(!over&&turn==="player")maybeAutoEnd();} })(performance.now()); }   // fin d'anim : ré-évalue victoire + fin de tour auto (sinon ça n'arrivait qu'au prochain refresh)
   function animPos(){ const n=anim.pts.length-1,seg=Math.min(n-1e-9,anim.t*n),i=Math.floor(seg),f=seg-i,a=anim.pts[i],b=anim.pts[i+1]; return [a[0]+(b[0]-a[0])*f,a[1]+(b[1]-a[1])*f]; }
   function doOverwatch(m){ if(!sel||sel.ap<=0||!sel.w[m])return; sel.overwatch=true; sel.owMode=m; sel.ap=0; sel.freeAvail=false; sel.reacted=false; amode=null; setMsg("En vigilance — réagira au mouvement ennemi."); refresh(); }
   // ===== cracker (aire) =====
@@ -1994,7 +1994,7 @@
     el.innerHTML=`<div class="gr-h">⛺ Roster</div>`+campRun.roster.map(m=>{ const weary=!m.dead&&((m.fatigue||0)>=100||(m.stress||0)>=100); const cls="gr-u"+(m.dead?" gr-dead":"")+(weary?" gr-weary":""); const dh=memDeployHp(m);
       const tag=m.dead?"✝":(weary?"⛔":((m.special!==false)?"★":""));
       return `<div class="${cls}"><span class="gr-n">${esc(m.name)} <span style="color:#8a93a5">${(CLASSES[m.cls]&&CLASSES[m.cls].name)||m.cls}</span></span>`+
-        (m.dead?`<span style="color:#d8635f">mort</span>`:`<span title="PV au déploiement (soin partiel si déjà sorti)">❤️${bar(Math.round(dh.hp/dh.max*100),dh.full?"#6fd06f":"#d8a23f")}</span> 💪${bar(m.fatigue,"#5fa9d8")} 🧠${bar(m.stress,"#d8a23f")}`)+`<span>${tag}</span></div>`; }).join(""); }
+        (m.dead?`<span style="color:#d8635f">mort</span>`:`<span title="PV au déploiement (soin partiel si déjà sorti)">❤️${bar(Math.round(dh.hp/dh.max*100),dh.full?"#6fd06f":"#d8a23f")}</span> <span title="Fatigue : monte en mission, baisse au repos ; à 100 le perso ne peut plus partir">😮‍💨${bar(m.fatigue,"#5fa9d8")}</span> <span title="Stress : monte sous le feu / aux K.O. d'alliés ; à 100 le perso ne peut plus partir">😰${bar(m.stress,"#d8a23f")}</span>`)+`<span>${tag}</span></div>`; }).join(""); }
   // chemin (régions) du camp jusqu'à `target` : Dijkstra qui PRÉFÈRE passer par les régions ouvertes
   // (camp / prises / disponibles) ; traverser une région verrouillée coûte cher → on les évite si une route ouverte existe.
   function geoPathTo(target){ if(geoCampId==null||target==null||target===geoCampId||!cells[target]||!cells[geoCampId])return null;
@@ -2037,7 +2037,7 @@
         d.className="squ"+(on?" sel":"")+(ok?"":" dis");
         const tag=m.dead?"✝":(!ok?"⛔":(m.special!==false?"★":"")); const dh=memDeployHp(m);
         d.innerHTML=`<span class="sq-x">${on?"✓":(ok?"":tag)}</span><span class="sq-n">${esc(m.name)} <span class="sq-c">${(CLASSES[m.cls]&&CLASSES[m.cls].name)||m.cls}${(m.perks&&m.perks.length)?" "+"★".repeat(m.perks.length):""}</span></span>`
-          +(m.dead?`<span class="sq-c">mort</span>`:`<span title="${dh.full?'PV pleins (reposé)':'soin partiel — il vient de combattre'}">❤️${bar(Math.round(dh.hp/dh.max*100),dh.full?"#6fd06f":"#d8a23f")}</span><span class="sq-c">${dh.hp}/${dh.max}</span> 💪${bar(m.fatigue,"#5fa9d8")} 🧠${bar(m.stress,"#d8a23f")}<span class="sq-x">${m.special!==false?"★":""}</span>`);
+          +(m.dead?`<span class="sq-c">mort</span>`:`<span title="${dh.full?'PV pleins (reposé)':'soin partiel — il vient de combattre'}">❤️${bar(Math.round(dh.hp/dh.max*100),dh.full?"#6fd06f":"#d8a23f")}</span><span class="sq-c">${dh.hp}/${dh.max}</span> <span title="Fatigue : monte en mission, baisse au repos ; à 100 le perso ne peut plus partir">😮‍💨${bar(m.fatigue,"#5fa9d8")}</span> <span title="Stress : monte sous le feu / aux K.O. d'alliés ; à 100 le perso ne peut plus partir">😰${bar(m.stress,"#d8a23f")}</span><span class="sq-x">${m.special!==false?"★":""}</span>`);
         if(ok)d.onclick=()=>{ if(sel.has(m.name))sel.delete(m.name); else { if(sel.size>=maxN){ return; } sel.add(m.name); } draw(); };
         list.appendChild(d); }
       const go=document.getElementById("squad-go"); go.disabled=sel.size<1; }
