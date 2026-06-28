@@ -6,6 +6,8 @@ const VMesh := preload("res://rules/Mesh.gd")
 const Data := preload("res://rules/Data.gd")
 const Combat := preload("res://rules/Combat.gd")
 
+signal mission_ended(win)
+
 const S := 0.06          # px -> unités monde
 const STEP := 2.2        # hauteur monde par niveau d'élévation
 const AP_MAX := 2
@@ -36,12 +38,22 @@ var protect_n := 0
 var exit_set := {}
 var turn_num := 1
 var over := false
+var mis := {}                # Run.mission (vide = combat autonome aléatoire)
+var n_enemies := 5
+
+func _run_mission() -> Dictionary:
+	var r = get_node_or_null("/root/Run")
+	if r != null and not r.mission.is_empty(): return r.mission
+	return {}
 
 func _ready() -> void:
 	randomize()
 	CL = Data.classes()
+	mis = _run_mission()
+	var seed_value: int = (int(mis.seed) if mis.has("seed") else int(Time.get_unix_time_from_system())) & 0x7fffffff
+	if mis.has("enemies"): n_enemies = int(mis.enemies)
 	_setup_world()
-	_gen_battle(int(Time.get_unix_time_from_system()) & 0x7fffffff)
+	_gen_battle(seed_value)
 	_build_tiles()
 	_build_walls()
 	_spawn_units()
@@ -72,8 +84,11 @@ func _make_neutral(cls: String, cell: int, hostage: bool) -> void:
 	else: u.civ = false   # VIP à défendre (compté)
 
 func setup_objective() -> void:
-	var kinds := ["eliminate", "assassinate", "rescue", "defend", "survive", "extract"]
-	objective = kinds[randi() % kinds.size()]
+	if mis.has("objective"):
+		objective = mis.objective
+	else:
+		var kinds := ["eliminate", "assassinate", "rescue", "defend", "survive", "extract"]
+		objective = kinds[randi() % kinds.size()]
 	match objective:
 		"assassinate":
 			var deep := -1; var bd := -1
@@ -254,16 +269,28 @@ func _spawn_units() -> void:
 			var ok := true
 			for k in used: if mesh.hops(k, id) < 2: ok = false; break
 			if ok: _make_unit("player", cls, id); used[id] = true; break
+	# bonus de forge appliqué à l'escouade (PV/dégâts), cf. campRun.forgeBonus du JS
+	var fb: Dictionary = mis.get("forgeBonus", {})
+	if fb.is_empty():
+		var r = get_node_or_null("/root/Run")
+		if r != null and r.camp.has("forgeBonus"): fb = r.camp.forgeBonus
+	if not fb.is_empty():
+		for u in units:
+			if u.team == "player":
+				u.max += int(fb.get("hp", 0)); u.hp += int(fb.get("hp", 0)); u.dmgBonus += int(fb.get("dmg", 0))
+	# escouade ennemie : nombre selon difficulté, répartie en pods, la plus loin = boss
+	var pool := ["garde", "archer", "emage", "shieldbearer", "brute", "archer", "garde", "brute"]
 	var far := pass_cells.duplicate(); far.reverse()
-	var pod := 0
-	for cls in ["garde", "archer", "emage", "shieldbearer", "brute"]:
+	var pod := 0; var placed := 0
+	for k in min(n_enemies, pool.size()):
+		var cls: String = pool[k]
 		for id in far:
 			if used.has(id): continue
 			var ok := true
-			for k in used: if mesh.hops(k, id) < 4: ok = false; break
+			for u in used: if mesh.hops(u, id) < 4: ok = false; break
 			if ok:
 				_make_unit("enemy", cls, id); used[id] = true
-				units[-1].asleep = true; units[-1].pod = pod; pod += 1
+				units[-1].asleep = true; units[-1].pod = pod; pod += 1; placed += 1
 				break
 
 # ---------- cooldowns / statuts ----------
@@ -799,37 +826,40 @@ func _enemy_turn() -> void:
 			e.facing = atan2(mesh.cells[best].cy - mesh.cells[e.cell].cy, mesh.cells[best].cx - mesh.cells[e.cell].cx)
 			e.cell = best; _place(e); react_to(e); detect_enemies(); await get_tree().create_timer(0.18).timeout
 
-func _end(msg: String) -> void:
+func _end(msg: String, win: bool) -> void:
 	over = true; armed = ""; reachable = {}; hud.text = "■ " + msg
+	hud.text += "\n— retour au territoire dans un instant —"
+	var t := get_tree().create_timer(2.4)
+	t.timeout.connect(func(): mission_ended.emit(win))
 
 func _check_end() -> void:
 	if over: return
 	# défaites communes
 	for u in units:
-		if u.team == "neutral" and u.get("hostage", false) and u.hp <= 0: return _end("Défaite — l'otage est tombé.")
+		if u.team == "neutral" and u.get("hostage", false) and u.hp <= 0: return _end("Défaite — l'otage est tombé.", false)
 	var guard := []
 	for u in units: if u.team == "neutral" and not u.get("hostage", false) and not u.civ: guard.append(u)
 	if guard.size() > 0:
 		var aliveg := 0
 		for u in guard: if u.hp > 0: aliveg += 1
 		var need: int = protect_n if protect_n > 0 else guard.size()
-		if aliveg < need: return _end("Défaite — le VIP est tombé.")
-	if not units.any(func(u): return u.team == "player" and u.hp > 0): return _end("Défaite.")
+		if aliveg < need: return _end("Défaite — le VIP est tombé.", false)
+	if not units.any(func(u): return u.team == "player" and u.hp > 0): return _end("Défaite.", false)
 	var no_enemies := not units.any(func(u): return u.team == "enemy" and u.hp > 0)
 	match objective:
 		"assassinate":
-			if not units.any(func(u): return u.team == "enemy" and u.get("hvt", false) and u.hp > 0): _end("Victoire — cible éliminée !")
+			if not units.any(func(u): return u.team == "enemy" and u.get("hvt", false) and u.hp > 0): _end("Victoire — cible éliminée !", true)
 		"survive", "defend":
-			if turn_num > survive_turns: _end("Victoire — position tenue !")
-			elif no_enemies: _end("Victoire !")
+			if turn_num > survive_turns: _end("Victoire — position tenue !", true)
+			elif no_enemies: _end("Victoire !", true)
 		"extract":
 			var on_exit := 0
 			for u in units: if u.team == "player" and u.hp > 0 and exit_set.has(u.cell): on_exit += 1
-			if on_exit >= extract_count: _end("Victoire — extraction réussie !")
+			if on_exit >= extract_count: _end("Victoire — extraction réussie !", true)
 		"rescue":
-			if no_enemies: _end("Victoire — otage libéré !")
+			if no_enemies: _end("Victoire — otage libéré !", true)
 		_:
-			if no_enemies: _end("Victoire !")
+			if no_enemies: _end("Victoire !", true)
 
 # ---------- HUD / surbrillance ----------
 func _update_fog() -> void:

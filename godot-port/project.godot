@@ -3,7 +3,11 @@ config_version=5
 [application]
 config/name="Cœur maillage — port Godot"
 config/features=PackedStringArray("4.3")
-run/main_scene="res://scenes/Battle.tscn"
+run/main_scene="res://scenes/Game.tscn"
+
+[autoload]
+
+Run="*res://scripts/Run.gd"
 
 [rendering]
 renderer/rendering_method="gl_compatibility"
