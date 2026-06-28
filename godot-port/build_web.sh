@@ -27,6 +27,9 @@ sed -i "s|<script src=\"index.js\">|<script src=\"index.$VER.js\">|" "$EXPORT/in
 sed -i "s|\"executable\":\"index\"|\"executable\":\"index.$VER\"|" "$EXPORT/index.html"
 sed -i "s|\"index.pck\":|\"index.$VER.pck\":|;s|\"index.wasm\":|\"index.$VER.wasm\":|" "$EXPORT/index.html"
 
+# badge de version visible (diagnostic cache) : si tu ne le vois pas, c'est l'ancien build en cache
+sed -i "s|</body>|<div id=\"buildtag\" style=\"position:fixed;top:4px;right:6px;z-index:9999;font:11px monospace;color:#7c7;background:#0008;padding:2px 6px;border-radius:4px;pointer-events:none\">build $VER</div>\n</body>|" "$EXPORT/index.html"
+
 # synchro vers docs/ : purge les anciens binaires versionnés, garde campaign.json + icônes
 mkdir -p "$DOCS"
 find "$DOCS" -maxdepth 1 -type f \( -name 'index.*.wasm' -o -name 'index.*.pck' -o -name 'index.*.js' -o -name 'index.*.audio.worklet.js' -o -name 'index.html' \) -delete
