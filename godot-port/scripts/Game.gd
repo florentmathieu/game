@@ -126,6 +126,7 @@ func _play_text(texts, cb: Callable) -> void:
 	_dbg("play_text: page rendue")
 
 func _render_text_page() -> void:
+	_dbg("→ page %d/%d" % [_txt_idx + 1, _txt_pages.size()])
 	for c in _txt_layer.get_children(): c.queue_free()
 	var panel := Control.new(); panel.set_anchors_preset(Control.PRESET_FULL_RECT); _txt_layer.add_child(panel)
 	var dim := ColorRect.new(); dim.color = Color(0.03, 0.03, 0.05, 0.94); dim.set_anchors_preset(Control.PRESET_FULL_RECT); panel.add_child(dim)
@@ -153,6 +154,7 @@ func _page_bbcode(page: String) -> String:
 func _text_next() -> void:
 	_txt_idx += 1
 	if _txt_idx >= _txt_pages.size():
+		_dbg("texte fini → cb")
 		_clear(_txt_layer); _txt_layer = null
 		var cb := _txt_cb; _txt_cb = func(): pass; cb.call()
 	else:
