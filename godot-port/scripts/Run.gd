@@ -46,7 +46,8 @@ func new_campaign(def := {}) -> void:
 		"roster":roster, "carry":{}, "deploySel":[], "pendingPromos":[],
 		"seenActs":[], "seenBoss":[], "potions":int(def.get("potions", 2)),
 		"title":String(def.get("name", "")), "narr":def.get("narrative", {}), "acts":acts,
-		"missions":def.get("missions", []), "defSig":""}
+		"missions":def.get("missions", []), "defSig":"",
+		"missionIntros":def.get("missionIntros", []), "missionOutros":def.get("missionOutros", [])}
 	mission = {}
 	auto_select()
 
@@ -95,6 +96,8 @@ func _convert_html_campaign(data: Dictionary) -> Dictionary:
 	var def := {"name":String(data.get("name", "")), "roster":roster}
 	if opening != "": def["narrative"] = {"1": {"arrive": opening}}
 	if data.has("missions"): def["missions"] = data.missions   # cartes authored inlinées par l'éditeur
+	if data.has("missionIntros"): def["missionIntros"] = data.missionIntros   # TES textes d'intro par mission
+	if data.has("missionOutros"): def["missionOutros"] = data.missionOutros   # TES textes de fin par mission
 	return def
 
 # ---------- roster : grades, perks, PV ----------
@@ -193,9 +196,15 @@ func set_mission(cell: int, ginfo: Dictionary) -> void:
 		"diff": diff, "act": int(camp.act), "objective": objective_for(boss),
 		"cell": cell, "name": ginfo.name, "forge": ginfo.forge, "boss": boss,
 		"enemies": enemy_count(diff, boss) }
-	# carte authored (éditeur HTML) pour cette mission, jouée dans l'ordre des missions entreprises
+	# carte authored + TES textes (intro/fin) pour cette mission, dans l'ordre des missions entreprises
+	var idx: int = int(camp.missionN)
 	var maps: Array = camp.get("missions", [])
-	if int(camp.missionN) < maps.size(): mission["map"] = maps[int(camp.missionN)]
+	if idx < maps.size() and typeof(maps[idx]) == TYPE_DICTIONARY and not (maps[idx] as Dictionary).is_empty():
+		mission["map"] = maps[idx]
+	var intros: Array = camp.get("missionIntros", [])
+	var outros: Array = camp.get("missionOutros", [])
+	if idx < intros.size(): mission["intro"] = String(intros[idx])
+	if idx < outros.size(): mission["outro"] = String(outros[idx])
 
 # mission bonus enchaînée : un 2e affrontement, escouade déjà éprouvée (PV conservés exactement)
 func set_bonus_mission() -> void:

@@ -211,6 +211,11 @@ func _confirm_deploy() -> void:
 	_clear(_sel_layer); _sel_layer = null
 	Run.set_mission(cell, geoscape.geo.info[cell])
 	_clear(geoscape); geoscape = null
+	var intro := String(Run.mission.get("intro", ""))   # TON texte d'avant-mission
+	if intro.strip_edges() != "": _play_text([intro], _launch_battle)
+	else: _launch_battle()
+
+func _launch_battle() -> void:
 	battle = BattleScene.instantiate()
 	add_child(battle)
 	battle.mission_ended.connect(_on_mission_end)
@@ -219,6 +224,7 @@ func _confirm_deploy() -> void:
 func _on_mission_end(win: bool) -> void:
 	var report: Dictionary = battle.build_report() if battle != null else {}
 	if battle != null: Run.camp.potions = int(battle.potions)   # stock de soins restant
+	var outro := String(Run.mission.get("outro", ""))           # TON texte de fin de mission
 	var was_forge: bool = win and bool(Run.mission.get("forge", false))
 	var was_boss: bool = bool(Run.mission.get("boss", false))
 	var deaths: Array = Run.resolve_mission(win, report)
@@ -230,6 +236,7 @@ func _on_mission_end(win: bool) -> void:
 		banner.text = Narrative.fmt(Narrative.MESSAGES.forge, {"thp": int(fb.hp), "tdmg": int(fb.dmg)})
 	if not deaths.is_empty():
 		banner.text = "+ " + ", ".join(deaths) + (" sont tombé·e·s." if deaths.size() > 1 else " est tombé·e.")
+	if outro.strip_edges() != "": _play_text([outro], func(): pass)   # débrief narratif (par-dessus)
 	if not (Run.camp.get("pendingPromos", []) as Array).is_empty():
 		_show_promotions()
 	elif win and not was_boss and not bool(Run.camp.get("done", false)):

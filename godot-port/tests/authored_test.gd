@@ -40,7 +40,7 @@ func _initialize() -> void:
 	var html_camp := {"name":"Essai HTML", "start":"n0",
 		"roster":[{"name":"Zed","cls":"soldat","special":false}, {"name":"Nyx","cls":"assassin"}],
 		"nodes":[{"id":"n0","kind":"text","text":"Narrateur: La campagne commence."}],
-		"missions":[authored]}
+		"missions":[authored], "missionIntros":["Aldric: Premiere cible en vue."], "missionOutros":["Vesna: Zone securisee."]}
 	Run.apply_campaign(html_camp, Run.campaign_sig(html_camp))
 	var conv_ok: bool = String(Run.camp.title) == "Essai HTML" and (Run.camp.roster as Array).size() == 2 and (Run.camp.missions as Array).size() == 1
 	var narr: Dictionary = Run.camp.get("narr", {})
@@ -49,8 +49,10 @@ func _initialize() -> void:
 	# vérifie l'attache de carte authored sur la 1re mission
 	Run.set_mission(0, {"name":"R","diff":1,"forge":false,"boss":false})
 	var map_attached: bool = Run.mission.has("map")
-	print("Pont 1 — titre/roster/missions=%s  carte attachée à la mission 0=%s  sig=%s" % [conv_ok, map_attached, Run.camp.get("defSig","")])
-	if not (conv_ok and map_attached): ok = false
+	var intro_ok: bool = String(Run.mission.get("intro", "")).contains("Aldric:")
+	var outro_ok: bool = String(Run.mission.get("outro", "")).contains("Vesna:")
+	print("Pont 1 — titre/roster/missions=%s  carte=%s  TON intro=%s  TON outro=%s" % [conv_ok, map_attached, intro_ok, outro_ok])
+	if not (conv_ok and map_attached and intro_ok and outro_ok): ok = false
 
 	print("\n%s" % ("OK — ponts HTML→Godot (campagne + carte) fonctionnels" if ok else "!! échec ponts"))
 	quit()
