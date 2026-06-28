@@ -22,6 +22,9 @@ function mdToHtml(md){
   while(i<lines.length){
     let line = lines[i];
     if(/^\s*$/.test(line)){ i++; continue; }
+    // fenced code block ``` ... ```  → <pre><code> brut (pas d'interprétation)
+    if(/^\s*```/.test(line)){ const buf=[]; i++; while(i<lines.length && !/^\s*```/.test(lines[i])){ buf.push(lines[i]); i++; } i++;
+      out.push('<pre><code>'+buf.map(esc).join('\n')+'</code></pre>'); continue; }
     // table
     if(/^\s*\|/.test(line) && i+1<lines.length && /^\s*\|?[\s:|-]+\|?\s*$/.test(lines[i+1]) && lines[i+1].includes('-')){
       const head = cells(line); i+=2; const rows=[];
@@ -55,6 +58,8 @@ const CSS = `
   tr:nth-child(even) td{background:#faf7fd}
   blockquote{margin:12px 0;padding:8px 14px;border-left:4px solid #8a6db5;background:#f5f0fa;border-radius:0 4px 4px 0}
   code{background:#efeaf4;padding:1px 5px;border-radius:3px;font-family:Menlo,Consolas,monospace;font-size:11px}
+  pre{background:#f4f1f8;border:1px solid #ddd2ea;border-radius:5px;padding:10px 12px;overflow-x:auto}
+  pre code{background:none;padding:0;font-size:10.5px;line-height:1.4;white-space:pre}
   ul,ol{margin:8px 0;padding-left:24px}
   li{margin:3px 0}
   hr{border:none;border-top:1px solid #d8cce6;margin:20px 0}
