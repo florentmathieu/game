@@ -40,6 +40,7 @@ var protect_n := 0
 var exit_set := {}
 var turn_num := 1
 var over := false
+var fast := false           # mode simulation : saute les temporisations d'animation
 var mis := {}                # Run.mission (vide = combat autonome aléatoire)
 var n_enemies := 5
 var potions := 2             # stock partagé de soins (lu/écrit sur Run en campagne)
@@ -901,7 +902,8 @@ func _enemy_turn() -> void:
 		var e = units[i]
 		if e.team != "enemy" or e.hp <= 0: continue
 		if not enemy_active(e):
-			patrol_step(e); detect_enemies(); _refresh(); await get_tree().create_timer(0.04).timeout
+			patrol_step(e); detect_enemies(); _refresh()
+			if not fast: await get_tree().create_timer(0.04).timeout
 			continue
 		# cibles vues par cet ennemi
 		var tgts := []
@@ -911,7 +913,8 @@ func _enemy_turn() -> void:
 			var used := enemy_use_abil(e)
 			if not used: used = enemy_shield_act(e, tgts)
 			if used:
-				detect_enemies(); _refresh(); await get_tree().create_timer(0.3).timeout
+				detect_enemies(); _refresh()
+				if not fast: await get_tree().create_timer(0.3).timeout
 				if e.ap <= 0: continue
 		if tgts.is_empty():
 			var foe := _nearest_player(e)
@@ -925,14 +928,15 @@ func _enemy_turn() -> void:
 					e.facing = atan2(mesh.cells[best].cy - mesh.cells[e.cell].cy, mesh.cells[best].cx - mesh.cells[e.cell].cx)
 					e.ap -= ap_for_move(e, d[best]); e.freeAvail = false
 					e.cell = best; _place(e); react_to(e); detect_enemies()
-			await get_tree().create_timer(0.12).timeout
+			if not fast: await get_tree().create_timer(0.12).timeout
 			continue
 		var guard := 0
 		while e.ap > 0 and guard < 4:
 			guard += 1
 			var bt := _best_target(e)
 			if bt >= 0:
-				_do_attack(i, bt); await get_tree().create_timer(0.25).timeout
+				_do_attack(i, bt)
+				if not fast: await get_tree().create_timer(0.25).timeout
 				break
 			# déplacement par scoring (offense - menace - distance + relief - agglutinement)
 			var d := mesh.reach(e.cell, budget(e), _occupied(i))
@@ -955,7 +959,8 @@ func _enemy_turn() -> void:
 			if best == e.cell: break
 			e.ap -= ap_for_move(e, d[best]); e.freeAvail = false
 			e.facing = atan2(mesh.cells[best].cy - mesh.cells[e.cell].cy, mesh.cells[best].cx - mesh.cells[e.cell].cx)
-			e.cell = best; _place(e); react_to(e); detect_enemies(); await get_tree().create_timer(0.18).timeout
+			e.cell = best; _place(e); react_to(e); detect_enemies()
+				if not fast: await get_tree().create_timer(0.18).timeout
 
 func _end(msg: String, win: bool) -> void:
 	over = true; armed = ""; reachable = {}; hud.text = "■ " + msg

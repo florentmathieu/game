@@ -59,37 +59,36 @@ func _run_mission(B) -> Dictionary:
 	return {"win":win, "turns":turns}
 
 # CAMPAGNE CONTINUE : même roster, usure/XP/morts portés de mission en mission (resolve_mission).
-func _initialize() -> void:
-	var Run = get_root().get_node_or_null("Run")
-	Run.new_campaign(); Run.camp.seed = 20260628
-	var wins := 0; var n := 10; var lost_soldiers: Array = []
+func _campaign(Run, seed_value: int, n: int) -> Dictionary:
+	Run.new_campaign(); Run.camp.seed = seed_value
+	var wins := 0; var lost: Array = []
 	for i in n:
-		if Run.ready_members().size() < 2:
-			print("Escouade hors de combat — campagne interrompue."); break
+		if Run.ready_members().size() < 2: break
 		var diff: int = 1 + i / 3
 		Run.set_mission(0, {"name":"Sim%d" % i, "diff":diff, "forge":(i == 5), "boss":false})
 		var B = load("res://scenes/Battle.tscn").instantiate()
+		B.fast = true
 		get_root().add_child(B); await process_frame
-		var ne := 0
-		for u in B.units: if u.team == "enemy": ne += 1
 		var r: Dictionary = await _run_mission(B)
 		var report: Dictionary = B.build_report()
 		Run.camp.potions = int(B.potions)
 		var deaths: Array = Run.resolve_mission(r.win, report)
-		Run.auto_promote()   # tranche les promotions (branche A) pour ne pas bloquer
+		Run.auto_promote()
 		B.free()
 		if r.win: wins += 1
-		for d in deaths: lost_soldiers.append(d)
-		var ready: int = Run.ready_members().size()
-		print("M%d  diff=%d ennemis=%d %s  tours=%2d | escouade prête=%d/%d%s" % [
-			i, diff, ne, ("VICT" if r.win else "DEF "), r.turns, ready, Run.camp.roster.size(),
-			("  morts: " + ", ".join(deaths) if not deaths.is_empty() else "")])
-	# bilan campagne : grades atteints + usure finale
-	print("\n=== Bilan campagne (missionN=%d) ===" % Run.camp.missionN)
-	for m in Run.camp.roster:
-		var g: String = ["Recrue","Aguerri","Vétéran","Élite","Champion"][_grade(int(m.xp))]
-		print("  %-7s %-9s xp=%2d fat=%3d str=%3d %s" % [m.name, g, int(m.xp), int(m.fatigue), int(m.stress), ("MORT" if bool(m.dead) else "")])
-	print("\nVictoires : %d/%d  |  pertes définitives : %d (%s)" % [wins, n, lost_soldiers.size(), ", ".join(lost_soldiers) if lost_soldiers.size() else "aucune"])
+		for d in deaths: lost.append(d)
+	return {"wins":wins, "n":n, "lost":lost}
+
+func _initialize() -> void:
+	var Run = get_root().get_node_or_null("Run")
+	var seeds := [20260628, 1337, 90210]
+	var total_w := 0; var total_n := 0; var total_lost := 0
+	for s in seeds:
+		var c: Dictionary = await _campaign(Run, s, 6)
+		total_w += int(c.wins); total_n += int(c.n); total_lost += (c.lost as Array).size()
+		print("campagne seed=%-9d : %d/%d victoires, %d mort(s)" % [s, c.wins, c.n, (c.lost as Array).size()])
+	print("\n=== AGRÉGAT (IA naïve) : %d/%d victoires (%.0f%%), %d pertes définitives ===" % [
+		total_w, total_n, 100.0 * total_w / total_n, total_lost])
 	quit()
 
 func _grade(xp: int) -> int:
