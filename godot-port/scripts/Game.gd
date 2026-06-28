@@ -3,6 +3,7 @@ extends Node3D
 # Boucle : afficher le territoire → région choisie → mission → issue → progression → territoire.
 
 const Geo := preload("res://rules/Geo.gd")
+const Narrative := preload("res://rules/Narrative.gd")
 const GeoscapeScene := preload("res://scenes/Geoscape.tscn")
 const BattleScene := preload("res://scenes/Battle.tscn")
 
@@ -33,12 +34,71 @@ func _cur_geo() -> Geo:
 
 func _show_geoscape() -> void:
 	if bool(Run.camp.get("done", false)): return _victory_screen()
-	_maybe_raid()
-	_check_boss_unlock()
+	var raid_msg := _maybe_raid()
+	var boss_revealed := _check_boss_unlock()
 	geoscape = GeoscapeScene.instantiate()
 	add_child(geoscape)
 	geoscape.region_selected.connect(_on_region)
 	_update_banner()
+	if raid_msg != "": banner.text = raid_msg
+	# narration : arrivée dans un acte (une fois), puis révélation du boss
+	var act: int = int(Run.camp.act)
+	var queue: Array = []
+	if not (Run.camp.get("seenActs", []) as Array).has(act):
+		Run.camp.seenActs.append(act); queue.append(Narrative.ACTS[act].arrive)
+	if boss_revealed: queue.append(Narrative.ACTS[act].boss)
+	if not queue.is_empty(): _play_text(queue, func(): pass)
+
+# ---------- lecteur de texte paginé ----------
+var _txt_layer: CanvasLayer = null
+var _txt_pages: Array = []
+var _txt_idx := 0
+var _txt_cb: Callable = func(): pass
+func _play_text(texts, cb: Callable) -> void:
+	var all: Array = texts if texts is Array else [texts]
+	_txt_pages = []
+	for t in all: _txt_pages.append_array(Narrative.pages(str(t)))
+	_txt_idx = 0; _txt_cb = cb
+	_txt_layer = CanvasLayer.new(); _txt_layer.layer = 30; add_child(_txt_layer)
+	_render_text_page()
+
+func _render_text_page() -> void:
+	for c in _txt_layer.get_children(): c.queue_free()
+	var panel := Control.new(); panel.set_anchors_preset(Control.PRESET_FULL_RECT); _txt_layer.add_child(panel)
+	var dim := ColorRect.new(); dim.color = Color(0.03, 0.03, 0.05, 0.94); dim.set_anchors_preset(Control.PRESET_FULL_RECT); panel.add_child(dim)
+	var rt := RichTextLabel.new(); rt.bbcode_enabled = true; rt.fit_content = true
+	rt.position = Vector2(120, 200); rt.custom_minimum_size = Vector2(1040, 360)
+	rt.add_theme_font_size_override("normal_font_size", 19); panel.add_child(rt)
+	rt.text = _page_bbcode(_txt_pages[_txt_idx])
+	var hint := Label.new(); hint.text = "[clic / Espace] suite  (%d / %d)" % [_txt_idx + 1, _txt_pages.size()]
+	hint.position = Vector2(120, 580); hint.add_theme_color_override("font_color", Color(0.6, 0.6, 0.65)); panel.add_child(hint)
+	var btn := Button.new(); btn.text = "Suite"; btn.position = Vector2(120, 610); btn.pressed.connect(_text_next); panel.add_child(btn)
+
+# « Nom: réplique » → nom en or ; sinon ligne simple
+func _page_bbcode(page: String) -> String:
+	var out: Array = []
+	for raw in page.split("\n"):
+		var line := raw.strip_edges()
+		if line.is_empty(): continue
+		var ci := line.find(": ")
+		if ci > 0 and ci <= 18 and not line.substr(0, ci).contains("  "):
+			out.append("[color=#e0b341][b]%s[/b][/color] %s" % [line.substr(0, ci), line.substr(ci + 2)])
+		else:
+			out.append(line)
+	return "\n\n".join(out)
+
+func _text_next() -> void:
+	_txt_idx += 1
+	if _txt_idx >= _txt_pages.size():
+		_clear(_txt_layer); _txt_layer = null
+		var cb := _txt_cb; _txt_cb = func(): pass; cb.call()
+	else:
+		_render_text_page()
+
+func _unhandled_input(e: InputEvent) -> void:
+	if _txt_layer != null and ((e is InputEventMouseButton and e.pressed and e.button_index == MOUSE_BUTTON_LEFT) \
+		or (e is InputEventKey and e.pressed and e.keycode == KEY_SPACE)):
+		_text_next(); get_viewport().set_input_as_handled()
 
 func _update_banner() -> void:
 	var act: int = int(Run.camp.act)
@@ -123,10 +183,14 @@ func _confirm_deploy() -> void:
 # --- issue de mission → progression → retour au territoire ---
 func _on_mission_end(win: bool) -> void:
 	var report: Dictionary = battle.build_report() if battle != null else {}
+	var was_forge: bool = win and bool(Run.mission.get("forge", false))
 	var deaths: Array = Run.resolve_mission(win, report)
 	_clear(battle); battle = null
 	if win: _advance_if_boss()
 	_show_geoscape()
+	if was_forge:
+		var fb: Dictionary = Run.camp.forgeBonus
+		banner.text = Narrative.fmt(Narrative.MESSAGES.forge, {"thp": int(fb.hp), "tdmg": int(fb.dmg)})
 	if not deaths.is_empty():
 		banner.text = "+ " + ", ".join(deaths) + (" sont tombé·e·s." if deaths.size() > 1 else " est tombé·e.")
 	if not (Run.camp.get("pendingPromos", []) as Array).is_empty():
@@ -165,7 +229,8 @@ func _perk_desc(perk: Dictionary) -> String:
 	return ", ".join(parts) if not parts.is_empty() else "bonus"
 
 # le boss (région verrouillée) s'ouvre quand le front a nettoyé assez de régions
-func _check_boss_unlock() -> void:
+# renvoie true la première fois qu'il est révélé (déclenche la narration boss)
+func _check_boss_unlock() -> bool:
 	var g := _cur_geo()
 	var states: Dictionary = Run.camp.geoStates
 	var cleared := 0; var total := 0; var boss := -1
@@ -175,6 +240,9 @@ func _check_boss_unlock() -> void:
 		elif String(states.get(cell, "available")) == "cleared": cleared += 1
 	if boss >= 0 and String(states.get(boss, "")) == "locked" and cleared >= int(ceil((total - 1) * 0.6)):
 		states[boss] = "available"
+		var seen: Array = Run.camp.get("seenBoss", [])
+		if not seen.has(int(Run.camp.act)): seen.append(int(Run.camp.act)); Run.camp.seenBoss = seen; return true
+	return false
 
 # boss vaincu → acte suivant (ou fin de campagne après l'acte III)
 func _advance_if_boss() -> void:
@@ -190,18 +258,20 @@ func _advance_if_boss() -> void:
 		Run.camp.geoStates = {}        # nouveau territoire pour le nouvel acte
 		Run.camp.lastAttack = -99
 
-# événement rare : une région nettoyée est réattaquée (à reprendre) — avec temporisation
-func _maybe_raid() -> void:
-	if int(Run.camp.missionN) - int(Run.camp.get("lastAttack", -99)) < 3: return
-	if randf() > 0.14: return
+# événement rare : une région nettoyée est réattaquée (à reprendre) — renvoie le message ou ""
+func _maybe_raid() -> String:
+	if int(Run.camp.missionN) - int(Run.camp.get("lastAttack", -99)) < 3: return ""
+	if randf() > 0.14: return ""
 	var g := _cur_geo()
 	var states: Dictionary = Run.camp.geoStates
 	var pool := []
 	for cell in g.info:
 		if String(states.get(cell, "")) == "cleared" and not bool(g.info[cell].boss): pool.append(cell)
-	if pool.is_empty(): return
-	states[pool[randi() % pool.size()]] = "attacked"
+	if pool.is_empty(): return ""
+	var hit: int = pool[randi() % pool.size()]
+	states[hit] = "attacked"
 	Run.camp.lastAttack = int(Run.camp.missionN)
+	return Narrative.fmt(Narrative.MESSAGES.attack, {"region": g.info[hit].name})
 
 func _victory_screen() -> void:
 	_clear(geoscape); geoscape = null

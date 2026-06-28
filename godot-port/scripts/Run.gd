@@ -37,7 +37,8 @@ func new_campaign() -> void:
 	camp = {"geoStates":{}, "missionN":0, "winCount":0, "act":1,
 		"seed":(randi() & 0x7fffffff) | 1, "want":ACT_MISSIONS[1],
 		"forgeCount":0, "forgeBonus":{"hp":0, "dmg":0}, "lastAttack":-99, "done":false,
-		"roster":roster, "carry":{}, "deploySel":[], "pendingPromos":[]}
+		"roster":roster, "carry":{}, "deploySel":[], "pendingPromos":[],
+		"seenActs":[], "seenBoss":[], "potions":2}
 	mission = {}
 	auto_select()
 
