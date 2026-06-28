@@ -156,7 +156,8 @@ func _text_next() -> void:
 	if _txt_idx >= _txt_pages.size():
 		_dbg("texte fini → cb")
 		_clear(_txt_layer); _txt_layer = null
-		var cb := _txt_cb; _txt_cb = func(): pass; cb.call()
+		var cb := _txt_cb; _txt_cb = func(): pass
+		cb.call_deferred()   # hors du contexte du signal/bouton (sinon la suite casse en web)
 	else:
 		_render_text_page()
 
@@ -211,8 +212,11 @@ func _show_squad_select() -> void:
 	for m in Run.camp.roster:
 		box.add_child(_member_row(m))
 	var btns := HBoxContainer.new(); btns.add_theme_constant_override("separation", 12); box.add_child(btns)
-	var go := Button.new(); go.text = "Deployer"; go.pressed.connect(func(): _sel_confirm.call()); btns.add_child(go)
-	var back := Button.new(); back.text = "Retour"; back.pressed.connect(func(): _sel_cancel.call()); btns.add_child(back)
+	var go := Button.new(); go.text = "Deployer"; go.pressed.connect(_fire_sel_confirm); btns.add_child(go)
+	var back := Button.new(); back.text = "Retour"; back.pressed.connect(_fire_sel_cancel); btns.add_child(back)
+
+func _fire_sel_confirm() -> void: _sel_confirm.call_deferred()
+func _fire_sel_cancel() -> void: _sel_cancel.call_deferred()
 
 func _member_row(m: Dictionary) -> Control:
 	var row := HBoxContainer.new(); row.add_theme_constant_override("separation", 10)
@@ -224,7 +228,7 @@ func _member_row(m: Dictionary) -> Control:
 	b.text = "%s %s — %s (%s)" % [tag, m.name, Data.classes()[m.cls].name, grade]
 	b.disabled = not ready
 	if selected: b.modulate = Color(0.6, 1.0, 0.6)
-	b.pressed.connect(func(): Run.toggle_select(m.name); _refresh_select())
+	b.pressed.connect(_toggle_member.bind(String(m.name)))
 	row.add_child(b)
 	if not bool(m.dead):
 		var dh: Dictionary = Run.mem_deploy_hp(m)
@@ -236,6 +240,9 @@ func _member_row(m: Dictionary) -> Control:
 	else:
 		var dead := Label.new(); dead.text = "tombé·e au combat"; dead.add_theme_color_override("font_color", Color(0.6, 0.3, 0.3)); row.add_child(dead)
 	return row
+
+func _toggle_member(nom: String) -> void:
+	Run.toggle_select(nom); _refresh_select()
 
 func _refresh_select() -> void:
 	_clear(_sel_layer); _sel_layer = null
@@ -264,6 +271,10 @@ var _cur_node := {}
 func _as_list(v) -> Array:
 	return v if v is Array else String(v).split(",")
 
+func _resume_node(id: String) -> void:
+	_dbg("resume → %s" % id)
+	_run_node(id)
+
 func _run_node(id: String) -> void:
 	var n: Dictionary = Run.node_by_id(id)
 	if n.is_empty(): _dbg("node '%s' VIDE -> fin" % id); return _campaign_end("Campagne terminée.")
@@ -280,7 +291,7 @@ func _run_node(id: String) -> void:
 			var nxt := String(n.get("next", ""))
 			_dbg("texte: len=%d next=%s" % [txt.length(), nxt])
 			if txt.strip_edges() == "": _run_node(nxt)
-			else: _play_text([txt], func(): _run_node(nxt))
+			else: _play_text([txt], _resume_node.bind(nxt))   # .bind() : fiable en export web (vs lambda capturée)
 		"choice":
 			Run.save_game(); _show_choice(n)
 		"mission":
@@ -306,8 +317,11 @@ func _show_choice(n: Dictionary) -> void:
 		var oid := String(opt)
 		var b := Button.new(); b.custom_minimum_size = Vector2(460, 0)
 		b.text = _node_label(Run.node_by_id(oid))
-		b.pressed.connect(func(): _clear(lay); _run_node(oid))
+		b.pressed.connect(_choose_option.bind(lay, oid))
 		box.add_child(b)
+
+func _choose_option(lay: CanvasLayer, oid: String) -> void:
+	_clear(lay); _run_node.call_deferred(oid)
 
 func _run_mission_node(n: Dictionary) -> void:
 	_cur_node = n
@@ -320,8 +334,11 @@ func _run_mission_node(n: Dictionary) -> void:
 	_sel_title = "Déploiement — " + String(n.get("mission", "Mission"))
 	_sel_confirm = _confirm_node
 	var self_id := String(n.get("id", ""))
-	_sel_cancel = func(): _clear(_sel_layer); _sel_layer = null; _run_node(self_id)
+	_sel_cancel = _cancel_node.bind(self_id)
 	_show_squad_select()
+
+func _cancel_node(id: String) -> void:
+	_clear(_sel_layer); _sel_layer = null; _run_node.call_deferred(id)
 
 func _confirm_node() -> void:
 	if Run.camp.deploySel.is_empty(): return
@@ -349,13 +366,14 @@ func _on_graph_mission_end(win: bool) -> void:
 	var outro := String(Run.mission.get("outro", ""))
 	var self_id := String(n.get("id", ""))
 	var nxt := String(n.get("win", "")) if win else String(n.get("lose", ""))
-	var go := func():
-		if nxt == "":
-			if win: _campaign_end("Campagne terminée — victoire !")
-			else: _run_node(self_id)   # défaite sans branche → on rejoue le nœud
-		else: _run_node(nxt)
-	if outro.strip_edges() != "": _play_text([outro], go)
-	else: go.call()
+	if outro.strip_edges() != "": _play_text([outro], _after_mission.bind(win, self_id, nxt))
+	else: _after_mission(win, self_id, nxt)
+
+func _after_mission(win: bool, self_id: String, nxt: String) -> void:
+	if nxt == "":
+		if win: _campaign_end("Campagne terminée — victoire !")
+		else: _run_node(self_id)   # défaite sans branche → on rejoue le nœud
+	else: _run_node(nxt)
 
 func _campaign_end(msg: String) -> void:
 	Run.camp.done = true; Run.save_game()
@@ -397,8 +415,11 @@ func _maybe_offer_bonus() -> void:
 	var btns := HBoxContainer.new(); btns.add_theme_constant_override("separation", 12); box.add_child(btns)
 	var yes := Button.new(); yes.text = "Tenter la mission bonus"; btns.add_child(yes)
 	var no := Button.new(); no.text = "Rentrer au camp"; btns.add_child(no)
-	yes.pressed.connect(func(): _clear(lay); _launch_bonus())
-	no.pressed.connect(func(): _clear(lay))
+	yes.pressed.connect(_bonus_yes.bind(lay))
+	no.pressed.connect(_clear.bind(lay))
+
+func _bonus_yes(lay: CanvasLayer) -> void:
+	_clear(lay); _launch_bonus.call_deferred()
 
 func _launch_bonus() -> void:
 	Run.set_bonus_mission()
@@ -441,8 +462,11 @@ func _show_promotions() -> void:
 		var perk: Dictionary = pair[slot]
 		var b := Button.new(); b.custom_minimum_size = Vector2(420, 0)
 		b.text = "%s — %s" % [perk.name, _perk_desc(perk)]
-		b.pressed.connect(func(): Run.choose_promo(p.name, slot); _show_promotions())
+		b.pressed.connect(_pick_promo.bind(String(p.name), slot))
 		box.add_child(b)
+
+func _pick_promo(nom: String, slot: String) -> void:
+	Run.choose_promo(nom, slot); _show_promotions()
 
 func _perk_desc(perk: Dictionary) -> String:
 	if perk.has("abil"): return "capacité : " + str(perk.abil)

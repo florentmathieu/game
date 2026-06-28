@@ -1129,7 +1129,10 @@ func _end(msg: String, win: bool) -> void:
 	over = true; armed = ""; reachable = {}; hud.text = "■ " + msg
 	hud.text += "\n— retour au territoire dans un instant —"
 	var t := get_tree().create_timer(2.4)
-	t.timeout.connect(func(): mission_ended.emit(win))
+	t.timeout.connect(_emit_end.bind(win))
+
+func _emit_end(win: bool) -> void:
+	mission_ended.emit(win)
 
 func _check_end() -> void:
 	if over: return
