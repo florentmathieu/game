@@ -129,6 +129,40 @@ func _on_mission_end(win: bool) -> void:
 	_show_geoscape()
 	if not deaths.is_empty():
 		banner.text = "+ " + ", ".join(deaths) + (" sont tombé·e·s." if deaths.size() > 1 else " est tombé·e.")
+	if not (Run.camp.get("pendingPromos", []) as Array).is_empty():
+		_show_promotions()
+
+# ---------- promotions A/B (choix de perk à chaque montée de grade) ----------
+var _promo_layer: CanvasLayer = null
+func _show_promotions() -> void:
+	if _promo_layer != null: _clear(_promo_layer)
+	var promos: Array = Run.camp.pendingPromos
+	if promos.is_empty(): _promo_layer = null; return
+	_promo_layer = CanvasLayer.new(); _promo_layer.layer = 25; add_child(_promo_layer)
+	var panel := Control.new(); panel.set_anchors_preset(Control.PRESET_FULL_RECT); _promo_layer.add_child(panel)
+	var dim := ColorRect.new(); dim.color = Color(0.05, 0.04, 0.07, 1.0); dim.set_anchors_preset(Control.PRESET_FULL_RECT); panel.add_child(dim)
+	var box := VBoxContainer.new(); box.position = Vector2(60, 60); box.add_theme_constant_override("separation", 10); panel.add_child(box)
+	var p: Dictionary = promos[0]
+	var m: Dictionary = Run.member(p.name)
+	var grade: String = Data.GRADES[int(p.grade)]
+	var t := Label.new(); t.text = "Promotion — %s passe %s" % [p.name, grade]
+	t.add_theme_font_size_override("font_size", 24); t.add_theme_color_override("font_color", Color(1, 0.88, 0.5)); box.add_child(t)
+	var sub := Label.new(); sub.text = "Choisis une aptitude (%d promotion(s) en attente) :" % promos.size()
+	sub.add_theme_color_override("font_color", Color(0.7, 0.7, 0.75)); box.add_child(sub)
+	var pair: Dictionary = Run.promo_pair(m.cls, int(p.grade))
+	for slot in ["A", "B"]:
+		var perk: Dictionary = pair[slot]
+		var b := Button.new(); b.custom_minimum_size = Vector2(420, 0)
+		b.text = "%s — %s" % [perk.name, _perk_desc(perk)]
+		b.pressed.connect(func(): Run.choose_promo(p.name, slot); _show_promotions())
+		box.add_child(b)
+
+func _perk_desc(perk: Dictionary) -> String:
+	if perk.has("abil"): return "capacité : " + str(perk.abil)
+	var mod: Dictionary = perk.get("mod", {})
+	var parts := []
+	for k in mod: parts.append("+%d %s" % [int(mod[k]), k])
+	return ", ".join(parts) if not parts.is_empty() else "bonus"
 
 # le boss (région verrouillée) s'ouvre quand le front a nettoyé assez de régions
 func _check_boss_unlock() -> void:

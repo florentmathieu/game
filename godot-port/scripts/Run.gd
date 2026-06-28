@@ -33,11 +33,11 @@ func new_campaign() -> void:
 	var roster: Array = []
 	for m in STARTER:
 		roster.append({"name":m.name, "cls":m.cls, "xp":0, "stress":0, "fatigue":0,
-			"special":m.special, "dead":false})
+			"special":m.special, "dead":false, "perks":[]})
 	camp = {"geoStates":{}, "missionN":0, "winCount":0, "act":1,
 		"seed":(randi() & 0x7fffffff) | 1, "want":ACT_MISSIONS[1],
 		"forgeCount":0, "forgeBonus":{"hp":0, "dmg":0}, "lastAttack":-99, "done":false,
-		"roster":roster, "carry":{}, "deploySel":[]}
+		"roster":roster, "carry":{}, "deploySel":[], "pendingPromos":[]}
 	mission = {}
 	auto_select()
 
@@ -50,13 +50,31 @@ func member(name: String) -> Dictionary:
 func mem_ready(m: Dictionary) -> bool:
 	return not m.is_empty() and not bool(m.dead) and int(m.fatigue) < WEARY and int(m.stress) < WEARY
 
-# perks débloqués automatiquement selon le grade (branche A, progression par XP)
+# perks effectivement choisis (A/B) au fil des promotions
 func member_perks(m: Dictionary) -> Array:
-	var ids: Array = []
-	var grade: int = Data.grade_from_xp(int(m.get("xp", 0)))
-	var tree: Array = Data.perks().get(m.cls, [])
-	for i in min(grade, tree.size()): ids.append(tree[i].A.id)
-	return ids
+	return m.get("perks", [])
+
+# paire A/B débloquée à un grade donné (grade 1 → première paire de l'arbre)
+func promo_pair(cls: String, grade: int) -> Dictionary:
+	var tree: Array = Data.perks().get(cls, [])
+	if grade - 1 < 0 or grade - 1 >= tree.size(): return {}
+	return tree[grade - 1]
+
+# applique le choix de promotion (slot "A" ou "B") au premier en attente pour ce membre
+func choose_promo(name: String, slot: String) -> void:
+	var promos: Array = camp.get("pendingPromos", [])
+	for i in promos.size():
+		if promos[i].name == name:
+			var m := member(name)
+			var pair := promo_pair(m.cls, int(promos[i].grade))
+			if not pair.is_empty(): m.perks.append(pair[slot].id)
+			promos.remove_at(i)
+			save_game()
+			return
+
+func auto_promote() -> void:   # tests / sans UI : choisit la branche A
+	while not (camp.get("pendingPromos", []) as Array).is_empty():
+		choose_promo(camp.pendingPromos[0].name, "A")
 
 func mem_max_hp(m: Dictionary) -> int:
 	var h: int = int(Data.classes().get(m.cls, {}).get("hp", 10))
@@ -162,8 +180,15 @@ func apply_attrition(win: bool, report: Dictionary) -> Array:
 	return deaths
 
 func award_xp(report: Dictionary) -> void:
+	var promos: Array = camp.get("pendingPromos", [])
 	for m in camp.get("roster", []):
-		if report.has(m.name): m.xp = int(m.xp) + 3 + int(report[m.name].get("kills", 0))
+		if not report.has(m.name): continue
+		var old_g: int = Data.grade_from_xp(int(m.xp))
+		m.xp = int(m.xp) + 3 + int(report[m.name].get("kills", 0))
+		var new_g: int = Data.grade_from_xp(int(m.xp))
+		for g in range(old_g + 1, new_g + 1):
+			if not promo_pair(m.cls, g).is_empty(): promos.append({"name":m.name, "grade":g})
+	camp.pendingPromos = promos
 
 # retrait scénarisé du statut spécial (« son rôle est fait ») → devient mortel
 func apply_mortal(names: Array) -> Array:

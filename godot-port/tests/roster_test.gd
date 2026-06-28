@@ -44,6 +44,18 @@ func _initialize() -> void:
 	print("Aldric XP %d -> %d (gagné, 2 kills → +5)" % [xp_before, xp_after])
 	if xp_after - xp_before != 5: ok = false
 
+	# --- promotion : montée au grade 1 → choix A/B (B « Tenace » = +4 PV pour le soldat) ---
+	var promos: Array = Run.camp.pendingPromos
+	var has_aldric := false
+	for pr in promos: if pr.name == "Aldric": has_aldric = true
+	print("promotions en attente=%d, Aldric promu=%s" % [promos.size(), has_aldric])
+	if not has_aldric: ok = false
+	var hp_before: int = Run.mem_max_hp(Run.member("Aldric"))
+	Run.choose_promo("Aldric", "B")
+	var hp_after2: int = Run.mem_max_hp(Run.member("Aldric"))
+	print("Aldric PV max %d -> %d après perk B" % [hp_before, hp_after2])
+	if hp_after2 - hp_before != 4: ok = false
+
 	# --- mort répétée : avec DEATH_PCT, finit par tuer un K.O. en défaite ---
 	var died := false
 	for it in 40:
