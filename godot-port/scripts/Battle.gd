@@ -274,12 +274,37 @@ func _make_unit(team: String, cls: String, cell: int, mem := {}) -> void:
 	var bk := BoxMesh.new(); bk.size = Vector3(0.5, 0.18, 0.18); beak.mesh = bk
 	beak.material_override = mat; beak.position = Vector3(0.62, 0, 0); node.add_child(beak)
 	u.node = node; u.mat = mat
-	units.append(u); _place(u)
+	units.append(u); u.node.position = world(u.cell) + Vector3(0, 0.85, 0); u.node.rotation.y = -float(u.facing)
 
+# placement : glisse vers la case (animation de déplacement) sauf en simulation
 func _place(u) -> void:
 	if u.get("node") == null: return
-	u.node.position = world(u.cell) + Vector3(0, 0.85, 0)
 	u.node.rotation.y = -float(u.facing)
+	var tgt := world(u.cell) + Vector3(0, 0.85, 0)
+	if fast:
+		u.node.position = tgt; return
+	var tw := create_tween()
+	tw.tween_property(u.node, "position", tgt, 0.22).set_trans(Tween.TRANS_SINE)
+
+# FX d'attaque : traceur lumineux (tir) ou brève fente (mêlée)
+func _attack_fx(att, tgt, ranged: bool) -> void:
+	if fast or att.get("node") == null or tgt.get("node") == null: return
+	var a := world(att.cell) + Vector3(0, 0.9, 0)
+	var b := world(tgt.cell) + Vector3(0, 0.9, 0)
+	if ranged:
+		var p := MeshInstance3D.new()
+		var sm := SphereMesh.new(); sm.radius = 0.13; sm.height = 0.26; p.mesh = sm
+		var m := StandardMaterial3D.new(); m.albedo_color = Color(1, 0.9, 0.5)
+		m.emission_enabled = true; m.emission = Color(1, 0.8, 0.35); m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		p.material_override = m; p.position = a; add_child(p)
+		var tw := create_tween()
+		tw.tween_property(p, "position", b, 0.16)
+		tw.tween_callback(p.queue_free)
+	else:
+		var orig: Vector3 = att.node.position
+		var tw := create_tween()
+		tw.tween_property(att.node, "position", orig.lerp(b, 0.45), 0.09)
+		tw.tween_property(att.node, "position", orig, 0.13)
 
 func _occupied(except_idx := -1) -> Dictionary:
 	var o := {}
@@ -821,13 +846,14 @@ func _do_attack(ai: int, ti: int) -> void:
 	if att.ap <= 0 or not _can_attack(att, tgt): return
 	var res := Combat.do_attack(mesh, units, att, tgt, att.wtype)
 	var hit_tgt = res.target
+	_attack_fx(att, hit_tgt, att.wtype == "ranged")   # traceur (tir) / fente (mêlée)
 	if hit_tgt.team == "enemy" and hit_tgt.hp > 0: wake_enemy(hit_tgt)   # le bruit réveille le pod visé
 	if res.dmg > 0: _flash(hit_tgt, str(res.dmg), Color(1, 0.5, 0.4)); _hit_react(hit_tgt)
 	else: _flash(hit_tgt, res.txt, Color(0.85, 0.85, 0.9))
 	if res.killed: _shake(4)
 	for u in units:
 		if u.hp <= 0 and is_instance_valid(u.node): u.node.visible = false
-	_place(att)
+	if att.get("node") != null: att.node.rotation.y = -float(att.facing)   # l'attaquant ne change que d'orientation (la fente gère la position)
 	_compute_reach(); _refresh(); _check_end()
 
 # réaction visuelle au coup : flash blanc bref de la sphère
