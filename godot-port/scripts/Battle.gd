@@ -331,20 +331,77 @@ func _spawn_units() -> void:
 				_make_unit("player", spec.cls, id, spec.get("mem", {})); used[id] = true
 				if not fb.is_empty(): units[-1].dmgBonus += int(fb.get("dmg", 0))   # dégâts de forge (PV déjà dans maxHp)
 				break
-	# escouade ennemie : nombre selon difficulté, répartie en pods, la plus loin = boss
-	var pool := ["garde", "archer", "emage", "shieldbearer", "brute", "archer", "garde", "brute"]
-	var far := pass_cells.duplicate(); far.reverse()
-	var pod := 0; var placed := 0
-	for k in min(n_enemies, pool.size()):
-		var cls: String = pool[k]
-		for id in far:
-			if used.has(id): continue
-			var ok := true
-			for u in used: if mesh.hops(u, id) < 4: ok = false; break
-			if ok:
-				_make_unit("enemy", cls, id); used[id] = true
-				units[-1].asleep = true; units[-1].pod = pod; pod += 1; placed += 1
-				break
+	_spawn_enemy_pods(pass_cells, used)
+
+# Répartition ennemie en PODS (port de genMission) : ancres par échantillonnage « point le plus
+# éloigné » + biais d'intérieur (les pods s'étalent au lieu de se masser au bord opposé), puis
+# le nombre d'ennemis est réparti en groupes autour de chaque ancre (rayon 2).
+func _spawn_enemy_pods(pass_cells: Array, used: Dictionary) -> void:
+	var anchor_cell: int = units[0].cell if not units.is_empty() else pass_cells[0]
+	var intf := func(id: int) -> int:
+		var c := 0
+		for n in mesh.cells[id].nb: if mesh.passable(n): c += 1
+		return c
+	# profondeur (hops depuis le déploiement) des cases libres
+	var depth := {}
+	for id in pass_cells:
+		if not used.has(id): depth[id] = mesh.hops(anchor_cell, id)
+	var maxd := 0
+	for id in depth: maxd = max(maxd, int(depth[id]))
+	var pod_min: int = max(3, int(maxd * 0.45))
+	# candidats d'ancre : profonds ET hors vue directe du déploiement (sinon repli progressif)
+	var cand := []
+	for id in depth:
+		if int(depth[id]) >= pod_min and not mesh.los(anchor_cell, id): cand.append(id)
+	if cand.size() < 1:
+		for id in depth: if int(depth[id]) >= min(pod_min, 3): cand.append(id)
+	if cand.is_empty():
+		for id in depth: if id != anchor_cell: cand.append(id)
+	if cand.is_empty(): return
+	var pod_count: int = clampi(int(round(n_enemies / 2.0)), 1, 4)
+	# 1re ancre : profonde mais pas collée au bord ; suivantes : loin des précédentes + intérieur
+	var anchors := []
+	var first: int = cand[0]; var fbs := -1.0e9
+	for id in cand:
+		var sc: float = float(depth[id]) * 0.4 + float(intf.call(id)) * 1.6
+		if sc > fbs: fbs = sc; first = id
+	anchors.append(first)
+	while anchors.size() < pod_count and anchors.size() < cand.size():
+		var best := -1; var bs := -1.0e9
+		for id in cand:
+			if anchors.has(id): continue
+			var spread: int = 1 << 30
+			for a in anchors: spread = min(spread, mesh.hops(a, id))
+			var sc: float = float(spread) * 3.0 + float(intf.call(id)) * 1.2 + float(depth[id]) * 0.15
+			if sc > bs: bs = sc; best = id
+		if best < 0: break
+		var sp: int = 1 << 30
+		for a in anchors: sp = min(sp, mesh.hops(a, best))
+		if sp < 2: break               # évite l'agglutinement des pods
+		anchors.append(best)
+	# répartition déterministe du nombre d'ennemis sur les pods
+	var pn: int = max(1, anchors.size())
+	var sizes := []
+	for i in pn: sizes.append(int(n_enemies / pn) + (1 if i < n_enemies % pn else 0))
+	var epool := ["shieldbearer", "archer", "garde", "emage", "brute", "archer", "garde", "brute"]
+	var ei := 0
+	for pi in anchors.size():
+		var anc: int = anchors[pi]
+		var ball := {}; var q := [anc]; ball[anc] = 0    # pool autour de l'ancre (rayon 2)
+		while q.size():
+			var id: int = q.pop_front()
+			if int(ball[id]) >= 2: continue
+			for n in mesh.cells[id].nb:
+				if mesh.passable(n) and not ball.has(n): ball[n] = int(ball[id]) + 1; q.append(n)
+		var spots := []
+		for id in ball: if not used.has(id): spots.append(id)
+		spots.sort_custom(func(a, b): return int(ball[a]) < int(ball[b]))
+		for s in int(sizes[pi]):
+			if spots.is_empty(): break
+			var cell: int = spots.pop_front()
+			if used.has(cell): continue
+			_make_unit("enemy", epool[ei % epool.size()], cell); used[cell] = true
+			units[-1].asleep = true; units[-1].pod = pi; units[-1].home = cell; ei += 1
 
 # ---------- cooldowns / statuts ----------
 func on_cd(u, id: String) -> bool: return u.cd.has(id) and u.cd[id] > 0
@@ -692,11 +749,16 @@ func patrol_step(e) -> void:
 		for n in mesh.cells[id].nb:
 			if mesh.passable(n) and not ball.has(n): ball[n] = ball[id] + 1; q.append(n)
 	var occ := _occupied(units.find(e))
-	var zone := []
-	for id in ball:
-		if pod_owns(e, id) and (id == e.cell or not occ.has(id)): zone.append(id)
-	if zone.is_empty(): return
-	var goal: int = zone[Hazard.rint(zone.size())]
+	# garde le même but tant qu'il est valide (dans la laisse ET la zone du pod) — sinon en (re)choisit un
+	var goal: int = int(e.get("patrolGoal", -1))
+	var valid: bool = goal >= 0 and goal != e.cell and ball.has(goal) and pod_owns(e, goal) and not occ.has(goal)
+	if not valid:
+		var zone := []
+		for id in ball:
+			if pod_owns(e, id) and (id == e.cell or not occ.has(id)): zone.append(id)
+		goal = zone[Hazard.rint(zone.size())] if not zone.is_empty() else e.cell
+		e["patrolGoal"] = goal
+	if goal == e.cell: return
 	var best := -1; var bd: int = mesh.hops(e.cell, goal)
 	for n in mesh.cells[e.cell].nb:
 		if not mesh.passable(n) or occ.has(n) or not ball.has(n) or not pod_owns(e, n): continue
