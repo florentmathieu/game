@@ -184,6 +184,7 @@ func _tile_color(c) -> Color:
 	return [Color(0.34,0.30,0.24), Color(0.46,0.39,0.28), Color(0.58,0.48,0.33), Color(0.72,0.58,0.38)][min(e,3)]
 
 func _build_tiles() -> void:
+	if fast: return
 	var st := SurfaceTool.new(); st.begin(Mesh.PRIMITIVE_TRIANGLES)
 	for c in mesh.cells:
 		var col := _tile_color(c)
@@ -218,6 +219,7 @@ func _rebuild_terrain() -> void:   # après une brèche (terrain modifié)
 
 # ---------- murets ----------
 func _build_walls() -> void:
+	if fast: return
 	for key in mesh.walls:
 		var seg = mesh.wall_seg.get(key)
 		if seg == null: continue
@@ -259,6 +261,8 @@ func _make_unit(team: String, cls: String, cell: int, mem := {}) -> void:
 		apply_perk_mods(u, ids)
 		if not mem.is_empty():
 			u.max = int(mem.get("maxHp", u.max)); u.hp = int(mem.get("deployHp", u.max))
+	if fast:                       # simulation : pas de noeuds 3D
+		u.node = null; u.mat = null; units.append(u); return
 	var node := Node3D.new(); add_child(node)
 	var ball := MeshInstance3D.new()
 	var sm := SphereMesh.new(); sm.radius = 0.6; sm.height = 1.2; ball.mesh = sm
@@ -273,6 +277,7 @@ func _make_unit(team: String, cls: String, cell: int, mem := {}) -> void:
 	units.append(u); _place(u)
 
 func _place(u) -> void:
+	if u.get("node") == null: return
 	u.node.position = world(u.cell) + Vector3(0, 0.85, 0)
 	u.node.rotation.y = -float(u.facing)
 
@@ -449,6 +454,7 @@ func enemy_shield_act(e, tgts: Array) -> bool:
 	return false
 
 func _fx_burst(cell: int, col: Color, scale: float) -> void:
+	if fast: return
 	var s := MeshInstance3D.new()
 	var sm := SphereMesh.new(); sm.radius = 0.5; sm.height = 1.0; s.mesh = sm
 	var mt := StandardMaterial3D.new(); mt.albedo_color = col; mt.emission_enabled = true; mt.emission = col
@@ -713,6 +719,7 @@ func _update_cam() -> void:
 
 # secousse de caméra sur impact (grenade, brèche, gros coup)
 func _shake(power: float) -> void:
+	if fast: return
 	if cam == null: return
 	var tw := create_tween()
 	for i in 4:
@@ -768,6 +775,7 @@ func _hit_react(u) -> void:
 	var tw := create_tween(); tw.tween_property(u.mat, "emission", _team_color(u.team) * 0.32, 0.28)
 
 func _flash(u, txt: String, col: Color) -> void:
+	if fast: return
 	var l := Label3D.new(); l.text = txt; l.modulate = col; l.font_size = 64
 	l.billboard = BaseMaterial3D.BILLBOARD_ENABLED; l.no_depth_test = true
 	l.position = world(u.cell) + Vector3(0, 2.2, 0); add_child(l)
@@ -960,7 +968,7 @@ func _enemy_turn() -> void:
 			e.ap -= ap_for_move(e, d[best]); e.freeAvail = false
 			e.facing = atan2(mesh.cells[best].cy - mesh.cells[e.cell].cy, mesh.cells[best].cx - mesh.cells[e.cell].cx)
 			e.cell = best; _place(e); react_to(e); detect_enemies()
-				if not fast: await get_tree().create_timer(0.18).timeout
+			if not fast: await get_tree().create_timer(0.18).timeout
 
 func _end(msg: String, win: bool) -> void:
 	over = true; armed = ""; reachable = {}; hud.text = "■ " + msg
@@ -1007,6 +1015,7 @@ func _update_fog() -> void:
 		u.node.visible = (u.team != "enemy") or seen_cells.has(u.cell)
 
 func _rebuild_abil_bar() -> void:
+	if fast: return
 	if abil_bar == null: return
 	for c in abil_bar.get_children(): c.queue_free()
 	if sel < 0 or turn != "player": return
@@ -1080,6 +1089,7 @@ func _draw_move_overlay(u) -> void:
 	var lmi := MeshInstance3D.new(); lmi.mesh = line.commit(); lmi.material_override = lm; add_child(lmi); _markers.append(lmi)
 
 func _update_markers() -> void:
+	if fast: return
 	for m in _markers: m.queue_free()
 	_markers.clear()
 	for cell in exit_set.keys():   # zone d'extraction
