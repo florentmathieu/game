@@ -8,6 +8,11 @@ const Rng = preload("res://rules/Rng.gd")
 var cells: Array = []        # {id, poly:Array[Vector2], cx, cy, nb:Array[int], terr:String, elev:int}
 var W: float = 0.0
 var H: float = 0.0
+var walls := {}              # murets : clé d'arête -> true
+var wall_seg := {}           # clé d'arête -> [Vector2, Vector2] (segment partagé)
+
+static func wkey(a: int, b: int) -> String: return "%d-%d" % [min(a, b), max(a, b)]
+func wall_between(a: int, b: int) -> bool: return walls.has(wkey(a, b))
 
 # ---- géométrie ----
 static func poly_centroid(p: Array) -> Vector2:
@@ -117,14 +122,16 @@ func generate(seed_value: int, w: float, h: float, g: float, dist_pct: float = 2
 
 func _build_adj() -> void:
 	var map := {}
+	var seg_of := {}
 	for c in cells: c.nb = []
 	for c in cells:
 		var p: Array = c.poly
 		for k in p.size():
 			var a: Vector2 = p[k]; var b: Vector2 = p[(k + 1) % p.size()]
 			var key := "%d,%d" % [round((a.x + b.x) / 5.0), round((a.y + b.y) / 5.0)]
-			if not map.has(key): map[key] = []
+			if not map.has(key): map[key] = []; seg_of[key] = [a, b]
 			map[key].append(c.id)
+	wall_seg = {}
 	for key in map:
 		var arr: Array = map[key]
 		for a in arr.size():
@@ -132,6 +139,7 @@ func _build_adj() -> void:
 				var x: int = arr[a]; var y: int = arr[b]
 				if x != y and not cells[x].nb.has(y):
 					cells[x].nb.append(y); cells[y].nb.append(x)
+					wall_seg[wkey(x, y)] = seg_of[key]
 
 # ---- relief + couvert (proche de genMission) ----
 func decorate(seed_value: int, cover: float = 0.30) -> void:
@@ -149,6 +157,13 @@ func decorate(seed_value: int, cover: float = 0.30) -> void:
 		var r := rng.next()
 		if r < cover * 0.35: c.terr = "wall"
 		elif r < cover: c.terr = "rough"
+	# murets sur quelques arêtes (couvert partiel directionnel) — pas entre deux rochers
+	walls = {}
+	for key in wall_seg:
+		var ab: PackedStringArray = key.split("-")
+		var x: int = int(ab[0]); var y: int = int(ab[1])
+		if cells[x].terr == "wall" or cells[y].terr == "wall": continue
+		if rng.next() < 0.15: walls[key] = true
 
 # ---- déplacement / vision ----
 func passable(id: int) -> bool:
