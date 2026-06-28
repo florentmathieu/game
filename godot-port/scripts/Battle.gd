@@ -212,7 +212,7 @@ func _make_unit(team: String, cls: String, cell: int) -> void:
 		"mob":int(d.mob), "facing":(PI if team == "enemy" else 0.0), "w":w, "wtype":wtype,
 		"shieldBlock":int(d.get("shieldBlock", 0)), "parry":int(d.get("parry", 0)), "stealth":d.get("stealth", false),
 		"civ":d.get("civ", false), "aimBonus":0, "dmgBonus":0, "rangeBonus":0, "reacted":false, "bracing":false, "wallStance":false,
-		"asleep":false, "pod":-1, "home":cell,
+		"asleep":false, "pod":-1, "home":cell, "freeAvail":true, "freeMpBonus":0,
 		"abil":(d.get("abil", []) as Array).duplicate(), "cd":{}, "slowed":false, "stunned":false, "spellsCast":0}
 	if wtype == "ranged" and w.ranged.has("clip"): u.clip = int(w.ranged.clip); u.ammo = int(w.ranged.clip)
 	if team == "player":   # (démo) on accorde l'arbre A complet → capacités joueur visibles ; en campagne, perks choisis par grade
@@ -399,6 +399,7 @@ func apply_perk_mods(u, ids: Array) -> void:
 		if m.has("aim"): u.aimBonus += m.aim
 		if m.has("dmg"): u.dmgBonus += m.dmg
 		if m.has("range"): u.rangeBonus += m.range
+		if m.has("freeMp"): u.freeMpBonus += m.freeMp
 
 # ---------- capacités : registre (pour la barre) + execs restants ----------
 const ABIL := {
@@ -579,10 +580,17 @@ func _unit_at(cell: int) -> int:
 		if units[i].hp > 0 and units[i].cell == cell: return i
 	return -1
 
+# mouvement : déplacement gratuit (freeAvail) + PA × mobilité (modèle d'index.html)
+func _free_mp(u) -> int: return Data.FREE_MP + int(u.get("freeMpBonus", 0))
+func budget(u) -> int: return (_free_mp(u) if u.get("freeAvail", true) else 0) + u.ap * u.mob
+func ap_for_move(u, cost: int) -> int:
+	var free: int = _free_mp(u) if u.get("freeAvail", true) else 0
+	return max(0, int(ceil(float(cost - free) / u.mob)))
+
 func _compute_reach() -> void:
 	reachable = {}
 	if sel >= 0 and units[sel].ap > 0:
-		var r := mesh.reach(units[sel].cell, units[sel].mob, _occupied(sel))
+		var r := mesh.reach(units[sel].cell, budget(units[sel]), _occupied(sel))
 		for cell in r:
 			if seen_cells.has(cell): reachable[cell] = r[cell]   # pas de déplacement dans le brouillard
 
@@ -685,7 +693,8 @@ func _click(screen: Vector2) -> void:
 			if _can_attack(u, units[ui]): _do_attack(sel, ui)
 			return
 		if reachable.has(cell) and u.ap > 0:
-			u.ap -= 1; u.facing = atan2(mesh.cells[cell].cy - mesh.cells[u.cell].cy, mesh.cells[cell].cx - mesh.cells[u.cell].cx)
+			u.ap -= ap_for_move(u, reachable[cell]); u.freeAvail = false
+			u.facing = atan2(mesh.cells[cell].cy - mesh.cells[u.cell].cy, mesh.cells[cell].cx - mesh.cells[u.cell].cx)
 			u.cell = cell; _place(u); react_to(u); detect_enemies(); _compute_reach(); _refresh()
 
 # ---------- tours ----------
@@ -694,7 +703,7 @@ func _begin_turn(team: String) -> void:
 		if u.team != team or u.hp <= 0: continue
 		u.ap = AP_MAX - (1 if u.slowed else 0); u.slowed = false
 		if u.stunned: u.ap = 0; u.stunned = false
-		u.reacted = false; u.bracing = false; u["overwatch"] = false
+		u.reacted = false; u.bracing = false; u["overwatch"] = false; u.freeAvail = true
 		if team == "player": u["hidden"] = false; u["taunt"] = false; u.wallStance = false
 	tick_cd(team)
 	if team == "player":   # nouveau round joueur : compteur de tours + dissipation de la fumée
@@ -749,13 +758,14 @@ func _enemy_turn() -> void:
 		if tgts.is_empty():
 			var foe := _nearest_player(e)
 			if foe >= 0:
-				var d := mesh.reach(e.cell, e.mob, _occupied(i))
+				var d := mesh.reach(e.cell, budget(e), _occupied(i))
 				var best: int = e.cell; var bd: int = mesh.hops(e.cell, units[foe].cell)
 				for c in d:
 					var h: int = mesh.hops(c, units[foe].cell)
 					if h < bd: bd = h; best = c
 				if best != e.cell:
 					e.facing = atan2(mesh.cells[best].cy - mesh.cells[e.cell].cy, mesh.cells[best].cx - mesh.cells[e.cell].cx)
+					e.ap -= ap_for_move(e, d[best]); e.freeAvail = false
 					e.cell = best; _place(e); react_to(e); detect_enemies()
 			await get_tree().create_timer(0.12).timeout
 			continue
@@ -767,7 +777,7 @@ func _enemy_turn() -> void:
 				_do_attack(i, bt); await get_tree().create_timer(0.25).timeout
 				break
 			# déplacement par scoring (offense - menace - distance + relief - agglutinement)
-			var d := mesh.reach(e.cell, e.mob, _occupied(i))
+			var d := mesh.reach(e.cell, budget(e), _occupied(i))
 			var cands := [e.cell]; for c in d: cands.append(c)
 			var best: int = e.cell; var bs := -1e18
 			var ranged_dry: bool = e.wtype == "ranged" and e.has("ammo") and e.ammo <= 0
@@ -785,7 +795,8 @@ func _enemy_turn() -> void:
 				var sc: float = off - 0.7 * thr - 1.5 * near + 0.5 * int(mesh.cells[cell].elev) - clump
 				if sc > bs: bs = sc; best = cell
 			if best == e.cell: break
-			e.ap -= 1; e.facing = atan2(mesh.cells[best].cy - mesh.cells[e.cell].cy, mesh.cells[best].cx - mesh.cells[e.cell].cx)
+			e.ap -= ap_for_move(e, d[best]); e.freeAvail = false
+			e.facing = atan2(mesh.cells[best].cy - mesh.cells[e.cell].cy, mesh.cells[best].cx - mesh.cells[e.cell].cx)
 			e.cell = best; _place(e); react_to(e); detect_enemies(); await get_tree().create_timer(0.18).timeout
 
 func _end(msg: String) -> void:
@@ -863,6 +874,47 @@ func _refresh() -> void:
 	if over: hud.text = hud.text; return   # message de fin déjà posé
 	hud.text = _obj_label() + "\n" + s
 
+func _tier_col(t: int) -> Color:
+	return [Color(0.40, 0.72, 1.0), Color(0.35, 0.95, 0.80), Color(1.0, 0.78, 0.32)][min(t, 2)]
+
+# remplissage translucide par palier + CONTOURS (bord externe + frontières de paliers) — façon XCOM
+func _draw_move_overlay(u) -> void:
+	var fill := SurfaceTool.new(); fill.begin(Mesh.PRIMITIVE_TRIANGLES)
+	var line := SurfaceTool.new(); line.begin(Mesh.PRIMITIVE_TRIANGLES)
+	var tier := {}
+	for cell in reachable: tier[cell] = ap_for_move(u, reachable[cell])
+	for cell in reachable:
+		var t: int = tier[cell]
+		var col := _tier_col(t); col.a = 0.22
+		var top: float = _cell_top(cell) + 0.05
+		var c = mesh.cells[cell]; var ctr := Vector3(c.cx * S, top, c.cy * S); var p: Array = c.poly
+		for k in p.size():   # remplissage (éventail)
+			var a: Vector2 = p[k]; var b: Vector2 = p[(k + 1) % p.size()]
+			for v in [ctr, Vector3(b.x * S, top, b.y * S), Vector3(a.x * S, top, a.y * S)]:
+				fill.set_color(col); fill.add_vertex(v)
+		# contours : arêtes vers une case hors-portée (bord externe) ou vers un palier supérieur
+		for nb in c.nb:
+			var draw := false; var lc := _tier_col(t)
+			if not reachable.has(nb): draw = true
+			elif tier[nb] > t: draw = true; lc = _tier_col(tier[nb])
+			if not draw: continue
+			var seg = mesh.wall_seg.get(mesh.wkey(cell, nb))
+			if seg == null: continue
+			var p0 := Vector3(seg[0].x * S, top + 0.02, seg[0].y * S)
+			var p1 := Vector3(seg[1].x * S, top + 0.02, seg[1].y * S)
+			var dir := (p1 - p0); dir = dir.normalized() if dir.length() > 0.001 else Vector3(1, 0, 0)
+			var perp := Vector3(-dir.z, 0, dir.x) * 0.09
+			lc.a = 1.0
+			for v in [p0 - perp, p1 + perp, p1 - perp, p0 - perp, p0 + perp, p1 + perp]:
+				line.set_color(lc); line.add_vertex(v)
+	var fm := StandardMaterial3D.new(); fm.vertex_color_use_as_albedo = true
+	fm.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA; fm.cull_mode = BaseMaterial3D.CULL_DISABLED
+	fm.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	var fmi := MeshInstance3D.new(); fmi.mesh = fill.commit(); fmi.material_override = fm; add_child(fmi); _markers.append(fmi)
+	var lm := StandardMaterial3D.new(); lm.vertex_color_use_as_albedo = true; lm.cull_mode = BaseMaterial3D.CULL_DISABLED
+	lm.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED; lm.emission_enabled = true; lm.emission = Color(1, 1, 1); lm.emission_energy_multiplier = 0.4
+	var lmi := MeshInstance3D.new(); lmi.mesh = line.commit(); lmi.material_override = lm; add_child(lmi); _markers.append(lmi)
+
 func _update_markers() -> void:
 	for m in _markers: m.queue_free()
 	_markers.clear()
@@ -873,12 +925,7 @@ func _update_markers() -> void:
 		mt.emission_enabled = true; mt.emission = Color(0.3, 1.0, 0.4)
 		ex.material_override = mt; ex.position = world(cell) + Vector3(0, 0.05, 0)
 		add_child(ex); _markers.append(ex)
-	for cell in reachable.keys():
-		var disc := MeshInstance3D.new()
-		var cm := CylinderMesh.new(); cm.top_radius = 0.45; cm.bottom_radius = 0.45; cm.height = 0.08; disc.mesh = cm
-		var mt := StandardMaterial3D.new(); mt.albedo_color = Color(0.6, 0.85, 1.0, 0.5); mt.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-		disc.material_override = mt; disc.position = world(cell) + Vector3(0, 0.06, 0)
-		add_child(disc); _markers.append(disc)
+	if sel >= 0 and not reachable.is_empty(): _draw_move_overlay(units[sel])
 	if sel >= 0 and units[sel].hp > 0:
 		var ring := MeshInstance3D.new()
 		var tm := TorusMesh.new(); tm.inner_radius = 0.7; tm.outer_radius = 0.95; ring.mesh = tm
