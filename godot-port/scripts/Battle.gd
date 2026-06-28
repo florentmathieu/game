@@ -227,7 +227,7 @@ func _build_walls() -> void:
 		var bar := MeshInstance3D.new()
 		var bm := BoxMesh.new(); bm.size = Vector3(len, 0.5, 0.12)
 		bar.mesh = bm
-		var mt := StandardMaterial3D.new(); mt.albedo_color = Color(0.62, 0.5, 0.28); mt.roughness = 0.9
+		var mt := StandardMaterial3D.new(); mt.albedo_color = Color(0.55, 0.55, 0.6); mt.roughness = 0.9   # pierre grise (≠ contour jaune)
 		bar.material_override = mt
 		bar.position = Vector3(midp.x, top, midp.y)
 		bar.rotation.y = -atan2(p1.y - p0.y, p1.x - p0.x)
