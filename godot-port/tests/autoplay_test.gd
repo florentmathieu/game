@@ -81,7 +81,7 @@ func _campaign(Run, seed_value: int, n: int) -> Dictionary:
 
 func _initialize() -> void:
 	var Run = get_root().get_node_or_null("Run")
-	var seeds := [20260628, 1337, 90210]
+	var seeds := [20260628, 1337, 90210, 555]
 	var total_w := 0; var total_n := 0; var total_lost := 0
 	for s in seeds:
 		var c: Dictionary = await _campaign(Run, s, 6)
