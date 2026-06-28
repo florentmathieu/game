@@ -168,7 +168,8 @@
     <div class="row"><label>pod <input id="upod" type="text" placeholder="–" style="width:36px"></label>
       <label><input id="uasleep" type="checkbox">💤 endormi</label><label><input id="uhostage" type="checkbox">🟣 otage</label></div>
     <div class="row"><button id="tplace" data-tool="unit">Poser l'unité</button><button id="terase" data-tool="erase">Gomme</button>
-      <button id="tpod" data-tool="pod">🛡 Pod</button><button id="tsleep" data-tool="sleep">💤 Sommeil</button></div>
+      <button id="tpod" data-tool="pod">🛡 Pod</button><button id="tsleep" data-tool="sleep">💤 Sommeil</button>
+      <button id="tdeploy" data-tool="deploy" title="Zone de déploiement : l'escouade du roster apparaît sur ces cases (quel que soit l'effectif). Clique pour ajouter/retirer une case.">🟦 Déploiement</button></div>
     <div class="hint">Avec « Poser l'unité » : clic sur une case vide pour poser, <b>clic sur une unité</b> pour la pivoter (45°), <b>glisser</b> pour la déplacer, <b>double-clic</b> pour renommer, <b>clic droit</b> pour supprimer.<br>« 🛡 Pod » : clique un ennemi pour cycler son pod (aucun → 0 → 1 → … → 4 → aucun). « 💤 Sommeil » : clique un ennemi pour l'endormir/réveiller.</div>
     <h2>Dépôt (GitHub)</h2>
     <div class="row"><input id="mname" type="text" placeholder="nom de la mission" style="flex:1"></div>
@@ -860,6 +861,7 @@
         if(editTool==="pod")u.pod=(u.pod===undefined)?0:(u.pod>=4?undefined:u.pod+1);
         else { u._asleep0=!u._asleep0; u.asleep=u._asleep0; } refresh(); } return; }
     if(editTool==="tzone"||editTool==="tzone-erase"){ const c=cellAtXY(X,Y); if(c){ c.zone=(editTool==="tzone")?((document.getElementById("tzname").value||"A").trim()||"A"):undefined; refresh(); } return; }   // peint / efface une zone de déclenchement
+    if(editTool==="deploy"){ const c=cellAtXY(X,Y); if(c){ c.deploy=!c.deploy; refresh(); } return; }   // bascule une case de la zone de déploiement de l'escouade
     if(editTool==="gomme-t"){ const c=cellAtXY(X,Y); if(!c){return;}   // gomme : retire d'abord un muret tout proche, sinon remet le sol normal
       let bestK=null,bd=14; for(const n of c.nb){ const key=wkey(c.id,n); if(!walls.has(key))continue; const s=wallSeg.get(key); if(!s)continue; const dd=distToSeg(X,Y,s[0],s[1]); if(dd<bd){bd=dd;bestK=key;} }
       if(bestK)walls.delete(bestK); else if(c.terr!=="plain")c.terr="plain"; refresh(); return; }
@@ -956,7 +958,8 @@
         const seg=3+Math.floor(L*4); for(let s=0;s<seg;s++){ x+=(r()-0.5)*W*0.22; y+=(r()-0.5)*H*0.22; ctx.lineTo(x,y);} ctx.stroke(); }
       ctx.restore(); }
     if(mode==="play")for(const c of cells)if(c.bonusLoot&&visible.has(c.id)){ ctx.save(); poly(c); ctx.fillStyle="rgba(255,212,121,.18)"; ctx.fill(); ctx.font="18px sans-serif"; ctx.textAlign="center"; ctx.textBaseline="middle"; ctx.fillText("💰",c.cx,c.cy); ctx.restore(); }   // case-butin de l'objectif bonus
-    if(mode==="edit"){ ctx.textAlign="center"; ctx.textBaseline="middle"; ctx.font="bold 11px system-ui";   // zones de déclenchement : visibles seulement dans l'éditeur
+    if(mode==="edit"){ for(const c of cells)if(c.deploy){ poly(c); ctx.fillStyle="rgba(90,200,150,.28)"; ctx.fill(); ctx.strokeStyle="rgba(120,240,180,.7)"; ctx.lineWidth=2; ctx.stroke(); }   // zone de déploiement de l'escouade
+      ctx.textAlign="center"; ctx.textBaseline="middle"; ctx.font="bold 11px system-ui";   // zones de déclenchement : visibles seulement dans l'éditeur
       for(const c of cells)if(c.zone){ poly(c); ctx.fillStyle="rgba(96,165,250,.22)"; ctx.fill(); ctx.fillStyle="#dcebff"; ctx.fillText(c.zone,c.cx,c.cy); }
       ctx.textAlign="start"; ctx.textBaseline="alphabetic"; }
     // portée de déplacement : 3 contours imbriqués — bleu=gratuit (0 PA), orange=1 PA, rouge=2 PA
@@ -1020,7 +1023,7 @@
   const distEl=document.getElementById("dist"),dens=document.getElementById("dens"),uteam=document.getElementById("uteam"),ucls=document.getElementById("ucls"),upod=document.getElementById("upod"),uasleep=document.getElementById("uasleep"),uhostage=document.getElementById("uhostage"),uname=document.getElementById("uname");
   Object.keys(CLASSES).filter(k=>k!=="sergent").forEach(k=>{const o=document.createElement("option");o.value=k;o.textContent=CLASSES[k].name;ucls.appendChild(o);});
   function btnRow(host,items){ host.innerHTML=""; items.forEach(([label,tool])=>{const b=document.createElement("button");b.textContent=label;b.dataset.tool=tool;b.className=editTool===tool?"on":"";b.onclick=()=>{editTool=tool;syncTools();refresh();};host.appendChild(b);}); }
-  function syncTools(){ document.querySelectorAll("#zones button,#terr button,#relief button,#tplace,#terase,#tpod,#tsleep,#tzpaint,#tzerase").forEach(b=>b.classList.toggle("on",b.dataset.tool===editTool)); }
+  function syncTools(){ document.querySelectorAll("#zones button,#terr button,#relief button,#tplace,#terase,#tpod,#tsleep,#tdeploy,#tzpaint,#tzerase").forEach(b=>b.classList.toggle("on",b.dataset.tool===editTool)); }
   btnRow(document.getElementById("zones"),[["⬛","zone:square"],["⬡","zone:hex"],["⬠","zone:pentagon"],["🔀","zone:mix"]]);
   btnRow(document.getElementById("terr"),[["🟩 Sol","terr:plain"],["⛰ Accidenté","terr:rough"],["🪨 Rocher","terr:wall"],["🧱 Muret","muret"],["🧹 Gomme","gomme-t"]]);
   btnRow(document.getElementById("relief"),[["⬆ élever","elev+"],["⬇ abaisser","elev-"]]);
@@ -1035,6 +1038,7 @@
   document.getElementById("terase").onclick=()=>{editTool="erase";syncTools();};
   document.getElementById("tpod").onclick=()=>{editTool="pod";syncTools();};
   document.getElementById("tsleep").onclick=()=>{editTool="sleep";syncTools();};
+  { const td=document.getElementById("tdeploy"); if(td)td.onclick=()=>{editTool="deploy";syncTools();}; }
   document.getElementById("tzpaint").onclick=()=>{editTool="tzone";syncTools();};
   document.getElementById("tzerase").onclick=()=>{editTool="tzone-erase";syncTools();};
 
@@ -1176,6 +1180,7 @@
   function exportObj(){ return { name:((mname&&mname.value)||"").trim()||"mission-maillage", form:{infl,dist:+distEl.value,dens:+dens.value,seed},
     cells:cells.map(c=>{const o={poly:c.poly.map(p=>[Math.round(p[0]),Math.round(p[1])]),terr:c.terr,elev:c.elev};if(c.zone)o.zone=c.zone;return o;}),
     walls:[...walls],
+    deployZone:cells.filter(c=>c.deploy).map(c=>c.id),   // zone de déploiement de l'escouade (cases où le roster apparaît)
     units:units.map(u=>{const o={team:u.team,cls:u.cls,cell:u.cell};if(u.name!==CLASSES[u.cls].name)o.name=u.name;if(u.pod!==undefined)o.pod=u.pod;if(u.asleep)o.asleep=true;if(u.hostage)o.hostage=true;if(u.hvt)o.hvt=true;if(u.team==="neutral"&&u.civ===false)o.guard=true;if(u.facing!=null)o.facing=u.facing;return o;}),
     triggers:triggers,
     protect:(document.getElementById("m-protect")&&document.getElementById("m-protect").value!=="")?+document.getElementById("m-protect").value:undefined,
@@ -1194,6 +1199,7 @@
   function applyMissionObj(m){ resetView(); curMission=m;
     if(!m||!Array.isArray(m.cells))throw new Error("format invalide");
     cells=m.cells.map((c,i)=>{const ct=polyCentroid(c.poly);return {id:i,poly:c.poly,cx:ct[0],cy:ct[1],nb:[],terr:c.terr||"plain",elev:c.elev||0,zone:c.zone};});
+    { const dz=new Set(Array.isArray(m.deployZone)?m.deployZone:[]); cells.forEach(c=>{ if(dz.has(c.id))c.deploy=true; }); }   // zone de déploiement de l'escouade
     buildAdj();
     walls=new Set((Array.isArray(m.walls)?m.walls:[]).filter(k=>wallSeg.has(k)));
     units=(m.units||[]).map(u=>U(u.team,u.cls,u.cell,{name:u.name,pod:u.pod,asleep:u.asleep,hostage:u.hostage,hvt:u.hvt,guard:u.guard,facing:u.facing})).filter(u=>cells[u.cell]);
@@ -1302,14 +1308,24 @@
   // éditeur de roster (escouade de campagne) — persos déployés dans les missions
   const PLAYER_CLASSES=Object.keys(CLASSES).filter(k=>!CLASSES[k].civ&&!CLASSES[k].enemyOnly&&k!=="sergent");
   function renderRosterEditor(){ const el=document.getElementById("rosterlist"); if(!el)return;
-    el.innerHTML=campRoster.length?campRoster.map((m,i)=>`<div class="row" data-ri="${i}" style="flex-wrap:wrap">
-      <input data-rf="name" type="text" value="${esc(m.name||"")}" placeholder="nom" style="flex:1;min-width:90px">
-      <select data-rf="cls">${PLAYER_CLASSES.map(c=>`<option value="${c}"${m.cls===c?" selected":""}>${CLASSES[c].name}</option>`).join("")}</select>
-      <label title="Indispensable : K.O. au lieu de mort tant que coché" style="display:inline-flex;align-items:center;gap:2px"><input data-rf="special" type="checkbox"${m.special!==false?" checked":""}>★</label>
-      <input data-rf="mortalAfter" type="text" value="${esc(m.mortalAfter||"")}" placeholder="mortel après… (ex: 3 ou Bastion)" title="Perd le statut ★ après N victoires (nombre) ou après une région nettoyée (nom)" style="width:150px">
-      <button data-rdel="${i}" title="Retirer">✕</button></div>`).join(""):`<div class="hint">(roster vide — les missions joueront leurs unités placées)</div>`;
+    el.innerHTML=campRoster.length?campRoster.map((m,i)=>{
+      const tiers=PERKS[m.cls]||[]; const perks=Array.isArray(m.perks)?m.perks:[];
+      const perkSel=tiers.map((g,gi)=>{ const cur=perks.find(id=>id===g.A.id||id===g.B.id)||"";
+        return `<select data-rperk="${gi}" title="Aptitude de grade ${gi+1}"><option value="">— grade ${gi+1} —</option><option value="${g.A.id}"${cur===g.A.id?" selected":""}>${esc(g.A.name)}</option><option value="${g.B.id}"${cur===g.B.id?" selected":""}>${esc(g.B.name)}</option></select>`; }).join("");
+      return `<div data-ri="${i}" style="border:1px solid #2c2f3a;border-radius:8px;padding:6px 8px;margin:4px 0">
+        <div class="row" style="flex-wrap:wrap">
+          <input data-rf="name" type="text" value="${esc(m.name||"")}" placeholder="nom" style="flex:1;min-width:90px">
+          <select data-rf="cls">${PLAYER_CLASSES.map(c=>`<option value="${c}"${m.cls===c?" selected":""}>${CLASSES[c].name}</option>`).join("")}</select>
+          <label title="Indispensable : K.O. au lieu de mort tant que coché" style="display:inline-flex;align-items:center;gap:2px"><input data-rf="special" type="checkbox"${m.special!==false?" checked":""}>★</label>
+          <input data-rf="mortalAfter" type="text" value="${esc(m.mortalAfter||"")}" placeholder="mortel après… (ex: 3 ou Bastion)" title="Perd le statut ★ après N victoires (nombre) ou après une région nettoyée (nom)" style="width:150px">
+          <button data-rdel="${i}" title="Retirer">✕</button>
+        </div>
+        ${tiers.length?`<div class="row" style="flex-wrap:wrap;gap:4px;margin-top:4px;font-size:.82rem;color:#9a8a74;align-items:center">⭐ aguerri (aptitudes de départ) : ${perkSel}</div>`:""}
+      </div>`; }).join(""):`<div class="hint">(roster vide — les missions joueront leurs unités placées)</div>`;
     el.querySelectorAll("[data-ri]").forEach(row=>{ const i=+row.getAttribute("data-ri");
-      row.querySelectorAll("[data-rf]").forEach(inp=>{ const set=()=>{ campRoster[i][inp.dataset.rf]=(inp.type==="checkbox"?inp.checked:inp.value); saveCampDraft(); }; (inp.tagName==="SELECT"||inp.type==="checkbox")?inp.onchange=set:inp.oninput=set; }); });
+      row.querySelectorAll("[data-rf]").forEach(inp=>{ const set=()=>{ campRoster[i][inp.dataset.rf]=(inp.type==="checkbox"?inp.checked:inp.value); if(inp.dataset.rf==="cls"){campRoster[i].perks=[];renderRosterEditor();} saveCampDraft(); }; (inp.tagName==="SELECT"||inp.type==="checkbox")?inp.onchange=set:inp.oninput=set; });
+      const collect=()=>{ const ids=[]; row.querySelectorAll("[data-rperk]").forEach(s=>{ if(s.value)ids.push(s.value); }); campRoster[i].perks=ids; saveCampDraft(); };
+      row.querySelectorAll("[data-rperk]").forEach(s=>s.onchange=collect); });
     el.querySelectorAll("[data-rdel]").forEach(b=>b.onclick=()=>{ campRoster.splice(+b.getAttribute("data-rdel"),1); saveCampDraft(); renderRosterEditor(); }); }
   { const ra=document.getElementById("roster-add"); if(ra)ra.onclick=()=>{ campRoster.push({name:"",cls:PLAYER_CLASSES[0]}); saveCampDraft(); renderRosterEditor(); }; }
   // détail du nœud sélectionné (à droite du graphe)
@@ -1596,7 +1612,12 @@
   // Phase A — en campagne, on remplace les unités joueur pré-placées de la mission par le ROSTER persistant
   // (les emplacements de la mission servent de slots de déploiement ; PV restaurés ensuite par applyCarry).
   function deployRoster(){ if(!campRun||!campRun.roster||!campRun.roster.length)return;
-    const slots=units.filter(u=>u.team==="player").sort((a,b)=>(cells[a.cell].cy-cells[b.cell].cy)||(cells[a.cell].cx-cells[b.cell].cx));
+    // zone de déploiement définie dans l'éditeur ? on s'en sert (s'adapte à n'importe quel effectif).
+    // sinon, on retombe sur les unités joueur placées dans la carte (compat. anciennes missions).
+    const dzCells=cells.filter(c=>c.deploy&&passable(c.id)&&!units.some(u=>u.team!=="player"&&u.hp>0&&u.cell===c.id));
+    let slots;
+    if(dzCells.length){ slots=dzCells.sort((a,b)=>(a.cy-b.cy)||(a.cx-b.cx)).map(c=>({cell:c.id,facing:0})); }
+    else slots=units.filter(u=>u.team==="player").sort((a,b)=>(cells[a.cell].cy-cells[b.cell].cy)||(cells[a.cell].cx-cells[b.cell].cx));
     if(!slots.length)return; const others=units.filter(u=>u.team!=="player"); const placed=[];
     const ready=campRun.roster.filter(memReady);   // seuls les prêts (ni morts, ni épuisés/à bout) sont déployables
     let chosen=ready;   // sélection joueur si fournie (écran d'escouade), sinon les premiers prêts (auto / sim)
