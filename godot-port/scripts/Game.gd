@@ -15,25 +15,11 @@ var banner: Label
 var _ci: CanvasLayer
 
 var _started := false
-var _dbg_label: Label = null
-var _dbg_lines: Array = []
-func _dbg(msg: String) -> void:
-	print("[DIAG] ", msg)
-	_dbg_lines.append(msg)
-	if _dbg_lines.size() > 16: _dbg_lines.pop_front()
-	if _dbg_label != null: _dbg_label.text = "\n".join(_dbg_lines)
-
 func _ready() -> void:
 	randomize()
 	_ci = CanvasLayer.new(); _ci.layer = 50; add_child(_ci)
-	_dbg_label = Label.new(); _dbg_label.position = Vector2(8, 8)
-	_dbg_label.add_theme_font_size_override("font_size", 13)
-	_dbg_label.add_theme_color_override("font_color", Color(0.5, 1.0, 0.5))
-	_dbg_label.add_theme_color_override("font_outline_color", Color(0, 0, 0))
-	_dbg_label.add_theme_constant_override("outline_size", 4); _ci.add_child(_dbg_label)
 	banner = Label.new(); banner.position = Vector2(14, 720 - 34)
 	banner.add_theme_color_override("font_color", Color(0.85, 0.8, 0.7)); _ci.add_child(banner)
-	_dbg("ready  web=%s" % OS.has_feature("web"))
 	Run.load_game()        # progression existante (peut être remplacée si la campagne éditeur a changé)
 	if OS.has_feature("web"):
 		_fetch_campaign()  # campagne publiée par l'éditeur HTML (toujours prioritaire)
@@ -50,8 +36,7 @@ func _fetch_campaign() -> void:
 	var base = JavaScriptBridge.eval("window.location.href.replace(/[#?].*$/,'').replace(/[^/]*$/,'')", true)
 	if typeof(base) == TYPE_STRING and String(base).begins_with("http"): url = String(base) + "campaign.json"
 	url += "?_=" + str(Time.get_ticks_msec())
-	_dbg("fetch " + url.substr(0, 60))
-	if http.request(url) != OK: _dbg("request() KO"); _begin(); return
+	if http.request(url) != OK: _begin(); return
 	get_tree().create_timer(8.0).timeout.connect(_begin)
 
 func _on_campaign_fetched(_result, code, _headers, body: PackedByteArray) -> void:
@@ -62,7 +47,6 @@ func _on_campaign_fetched(_result, code, _headers, body: PackedByteArray) -> voi
 			# le port charge TOUJOURS la dernière campagne publiée par l'éditeur, reconvertie à neuf
 			# (une sauvegarde issue d'un ancien build pouvait rester incompatible et bloquer l'affichage)
 			Run.apply_campaign(data, Run.campaign_sig(data)); applied = true
-	_dbg("fetched result=%s code=%s octets=%d applied=%s" % [_result, code, body.size(), applied])
 	_begin()
 
 func _begin() -> void:
@@ -70,7 +54,6 @@ func _begin() -> void:
 	_started = true
 	if Run.camp.is_empty():
 		if not Run.load_campaign_file("res://campaigns/marche.json"): Run.new_campaign()
-	_dbg("begin graph=%s nodeId=%s roster=%d" % [Run.has_graph(), Run.camp.get("nodeId", "?"), (Run.camp.get("roster", []) as Array).size()])
 	if Run.has_graph():
 		_run_node(String(Run.camp.get("nodeId", Run.camp.get("graphStart", ""))))   # campagne à graphe (éditeur)
 	else:
@@ -116,17 +99,13 @@ var _txt_idx := 0
 var _txt_cb: Callable = func(): pass
 func _play_text(texts, cb: Callable) -> void:
 	var all: Array = texts if texts is Array else [texts]
-	_dbg("play_text: %d bloc(s), 1er=%d car" % [all.size(), String(all[0]).length() if all.size() > 0 else -1])
 	_txt_pages = []
 	for t in all: _txt_pages.append_array(Narrative.pages(str(t)))
-	_dbg("play_text: %d page(s)" % _txt_pages.size())
 	_txt_idx = 0; _txt_cb = cb
 	_txt_layer = CanvasLayer.new(); _txt_layer.layer = 30; add_child(_txt_layer)
 	_render_text_page()
-	_dbg("play_text: page rendue")
 
 func _render_text_page() -> void:
-	_dbg("→ page %d/%d" % [_txt_idx + 1, _txt_pages.size()])
 	for c in _txt_layer.get_children(): c.queue_free()
 	var panel := Control.new(); panel.set_anchors_preset(Control.PRESET_FULL_RECT); _txt_layer.add_child(panel)
 	var dim := ColorRect.new(); dim.color = Color(0.03, 0.03, 0.05, 0.94); dim.set_anchors_preset(Control.PRESET_FULL_RECT); panel.add_child(dim)
@@ -154,7 +133,6 @@ func _page_bbcode(page: String) -> String:
 func _text_next() -> void:
 	_txt_idx += 1
 	if _txt_idx >= _txt_pages.size():
-		_dbg("texte fini → cb")
 		_clear(_txt_layer); _txt_layer = null
 		var cb := _txt_cb; _txt_cb = func(): pass
 		cb.call_deferred()   # hors du contexte du signal/bouton (sinon la suite casse en web)
@@ -196,7 +174,6 @@ func _bar(frac: float, col: Color) -> Control:
 	bg.add_child(fg); return bg
 
 func _show_squad_select() -> void:
-	_dbg("écran déploiement: %s" % _sel_title)
 	_sel_layer = CanvasLayer.new(); _sel_layer.layer = 20; add_child(_sel_layer)
 	var panel := Control.new(); panel.set_anchors_preset(Control.PRESET_FULL_RECT); _sel_layer.add_child(panel)
 	var dim := ColorRect.new(); dim.color = Color(0.04, 0.04, 0.06, 1.0); dim.set_anchors_preset(Control.PRESET_FULL_RECT)
@@ -272,13 +249,11 @@ func _as_list(v) -> Array:
 	return v if v is Array else String(v).split(",")
 
 func _resume_node(id: String) -> void:
-	_dbg("resume → %s" % id)
 	_run_node(id)
 
 func _run_node(id: String) -> void:
 	var n: Dictionary = Run.node_by_id(id)
-	if n.is_empty(): _dbg("node '%s' VIDE -> fin" % id); return _campaign_end("Campagne terminée.")
-	_dbg("node '%s' type=%s" % [id, n.get("type", "text")])
+	if n.is_empty(): return _campaign_end("Campagne terminée.")
 	Run.camp.nodeId = id
 	if n.has("mortal"): Run.apply_mortal(_as_list(n.mortal))     # « son rôle est fait »
 	if n.has("recruit"): Run.apply_recruit(n.recruit)            # renforts
@@ -286,10 +261,8 @@ func _run_node(id: String) -> void:
 	match t:
 		"text":
 			Run.save_game()
-			_dbg("texte: save ok")
 			var txt := String(n.get("text", ""))
 			var nxt := String(n.get("next", ""))
-			_dbg("texte: len=%d next=%s" % [txt.length(), nxt])
 			if txt.strip_edges() == "": _run_node(nxt)
 			else: _play_text([txt], _resume_node.bind(nxt))   # .bind() : fiable en export web (vs lambda capturée)
 		"choice":
@@ -330,7 +303,6 @@ func _run_mission_node(n: Dictionary) -> void:
 		"objective":"eliminate", "name":String(n.get("mission", "Mission")), "forge":false, "boss":false,
 		"intro":String(n.get("intro", "")), "outro":String(n.get("outro", ""))}
 	if typeof(mp) == TYPE_DICTIONARY and not mp.is_empty(): Run.mission["map"] = mp
-	_dbg("mission '%s' map=%s cells=%d" % [n.get("mission", "?"), Run.mission.has("map"), (mp.get("cells", []) as Array).size() if typeof(mp) == TYPE_DICTIONARY else -1])
 	_sel_title = "Déploiement — " + String(n.get("mission", "Mission"))
 	_sel_confirm = _confirm_node
 	var self_id := String(n.get("id", ""))
@@ -348,13 +320,8 @@ func _confirm_node() -> void:
 	else: _launch_graph_battle()
 
 func _launch_graph_battle() -> void:
-	_dbg("launch battle…")
 	battle = BattleScene.instantiate(); add_child(battle)
 	battle.mission_ended.connect(_on_graph_mission_end)
-	await get_tree().process_frame
-	var m = battle.get("mesh")
-	if m != null: _dbg("battle mesh W=%s H=%s cells=%s units=%s" % [m.W, m.H, (m.cells as Array).size(), (battle.units as Array).size()])
-	else: _dbg("battle mesh = NULL")
 
 func _on_graph_mission_end(win: bool) -> void:
 	var report: Dictionary = battle.build_report() if battle != null else {}

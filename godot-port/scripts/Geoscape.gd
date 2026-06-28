@@ -142,7 +142,9 @@ func _refresh() -> void:
 			elif geo.info[cell].forge: sub = "FORGE " + "*".repeat(geo.info[cell].diff)
 			else: sub = "*".repeat(geo.info[cell].diff)
 		var lab := Label3D.new(); lab.text = nm + ("\n" + sub if sub != "" else "")
-		lab.font_size = 28; lab.outline_size = 6; lab.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+		lab.font_size = 64; lab.outline_size = 10; lab.pixel_size = 0.022
+		lab.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+		lab.no_depth_test = true; lab.render_priority = 2
 		lab.modulate = Color(1,1,1) if acc.has(cell) or cell == geo.camp or states.get(cell,"")=="cleared" else Color(0.6,0.6,0.65)
 		if cell == hover and acc.has(cell): lab.modulate = Color(1, 0.9, 0.4)
 		lab.position = pos; add_child(lab); _labels.append(lab)

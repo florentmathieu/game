@@ -19,6 +19,7 @@ var mesh: VMesh
 var units: Array = []
 var sel := -1
 var reachable := {}
+var hover_cell := -1
 var turn := "player"
 var seen_cells := {}         # cases vues par le joueur (brouillard)
 var evisible := {}           # cases vues par les ennemis éveillés
@@ -31,8 +32,17 @@ var _yaw := 0.6
 var _dist := 50.0
 var _dragging := false
 var _markers: Array = []
+var _wall_nodes: Array = []
 var armed := ""
-var abil_bar: HBoxContainer
+# --- HUD reproduit du HTML : roster (haut g.), actions (bas g.), journal repliable (bas dr.), message ---
+var roster_box: VBoxContainer
+var acts_box: VBoxContainer
+var msg_label: Label
+var log_box: VBoxContainer
+var journal: VBoxContainer
+var journal_collapsed := false
+var _log_lines: Array = []
+var _msg := ""
 var objective := "eliminate"
 var survive_turns := 6
 var extract_count := 1
@@ -84,6 +94,7 @@ func _ready() -> void:
 	for i in units.size():
 		if units[i].team == "player": sel = i; break
 	_compute_reach()
+	_jlog("▶ " + _obj_label())
 	_refresh()
 
 # ---------- objectifs / archétypes ----------
@@ -169,15 +180,87 @@ func _setup_world() -> void:
 	sun.rotation = Vector3(deg_to_rad(-55), deg_to_rad(35), 0)
 	sun.light_energy = 1.7; sun.shadow_enabled = true
 	add_child(sun)
-	hud = Label.new(); hud.position = Vector2(14, 10)
-	hud.add_theme_color_override("font_color", Color(1, 0.88, 0.5))
-	var ci := CanvasLayer.new(); ci.add_child(hud)
-	abil_bar = HBoxContainer.new()
-	abil_bar.anchor_left = 0.5; abil_bar.anchor_right = 0.5; abil_bar.anchor_top = 1.0; abil_bar.anchor_bottom = 1.0
-	abil_bar.offset_left = -300; abil_bar.offset_right = 300; abil_bar.offset_top = -56; abil_bar.offset_bottom = -10
-	abil_bar.alignment = BoxContainer.ALIGNMENT_CENTER; abil_bar.add_theme_constant_override("separation", 8)
-	ci.add_child(abil_bar)
-	add_child(ci)
+	_build_hud()
+
+# ---------- HUD (reproduction fidèle du HTML) ----------
+const COL_PANEL := Color(0.047, 0.035, 0.024, 0.86)
+const COL_BORDER := Color(0.353, 0.27, 0.188)
+const COL_NAME := Color(0.749, 0.902, 1.0)
+const COL_SUB := Color(0.604, 0.541, 0.455)
+const COL_ST := Color(0.624, 0.827, 0.925)
+const COL_GOLD := Color(0.792, 0.635, 0.29)
+const COL_SELBG := Color(0.18, 0.141, 0.063, 0.92)
+
+func _stylebox(bg: Color, border: Color, radius: int) -> StyleBoxFlat:
+	var sb := StyleBoxFlat.new(); sb.bg_color = bg
+	sb.border_color = border; sb.set_border_width_all(1); sb.set_corner_radius_all(radius)
+	sb.content_margin_left = 9; sb.content_margin_right = 9; sb.content_margin_top = 5; sb.content_margin_bottom = 5
+	return sb
+
+# police avec repli emoji (Noto Color Emoji) pour que les icônes d'action/statut s'affichent
+func _emoji_theme() -> Theme:
+	var th := Theme.new()
+	var emoji = load("res://assets/NotoColorEmoji.ttf")
+	if emoji != null:
+		var fv := FontVariation.new(); fv.base_font = ThemeDB.fallback_font
+		fv.fallbacks = [emoji]; th.default_font = fv
+	return th
+
+func _build_hud() -> void:
+	if fast: return
+	var ci := CanvasLayer.new(); add_child(ci)
+	var th := _emoji_theme()
+	# objectif / tour : petite ligne discrète en haut au centre
+	hud = Label.new(); hud.add_theme_color_override("font_color", COL_GOLD)
+	hud.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	hud.anchor_left = 0.0; hud.anchor_right = 1.0; hud.offset_top = 8; hud.offset_bottom = 30
+	hud.theme = th; ci.add_child(hud)
+	# roster : cartes des persos, haut-gauche
+	roster_box = VBoxContainer.new(); roster_box.add_theme_constant_override("separation", 5)
+	roster_box.theme = th; roster_box.position = Vector2(12, 40); ci.add_child(roster_box)
+	# bas-gauche : message au-dessus des boutons d'action (comme #hud-bl)
+	var bl := VBoxContainer.new(); bl.add_theme_constant_override("separation", 6); bl.theme = th
+	bl.anchor_top = 1.0; bl.anchor_bottom = 1.0; bl.grow_vertical = Control.GROW_DIRECTION_BEGIN
+	bl.offset_left = 12; bl.offset_bottom = -12; ci.add_child(bl)
+	msg_label = Label.new(); msg_label.add_theme_color_override("font_color", Color(0.9, 0.86, 0.74))
+	var msb := _stylebox(COL_PANEL, COL_BORDER, 8); msg_label.add_theme_stylebox_override("normal", msb)
+	bl.add_child(msg_label)
+	acts_box = VBoxContainer.new(); acts_box.add_theme_constant_override("separation", 6); bl.add_child(acts_box)
+	# journal repliable, bas-droite (#journal)
+	var jp := PanelContainer.new()
+	jp.add_theme_stylebox_override("panel", _stylebox(Color(0.047, 0.035, 0.024, 0.9), COL_BORDER, 8))
+	jp.anchor_left = 1.0; jp.anchor_right = 1.0; jp.anchor_top = 1.0; jp.anchor_bottom = 1.0
+	jp.grow_horizontal = Control.GROW_DIRECTION_BEGIN; jp.grow_vertical = Control.GROW_DIRECTION_BEGIN
+	jp.offset_right = -12; jp.offset_bottom = -12; jp.custom_minimum_size = Vector2(300, 0)
+	jp.theme = th; ci.add_child(jp)
+	journal = VBoxContainer.new(); jp.add_child(journal)
+	var jhd := Button.new(); jhd.text = "📜 Journal  ▾"; jhd.flat = true
+	jhd.add_theme_color_override("font_color", COL_GOLD); jhd.alignment = HORIZONTAL_ALIGNMENT_LEFT
+	jhd.pressed.connect(_toggle_journal); journal.add_child(jhd)
+	log_box = VBoxContainer.new(); log_box.add_theme_constant_override("separation", 1); journal.add_child(log_box)
+	journal.set_meta("hd", jhd)
+
+func _toggle_journal() -> void:
+	journal_collapsed = not journal_collapsed
+	log_box.visible = not journal_collapsed
+	var hd = journal.get_meta("hd")
+	if hd: hd.text = "📜 Journal  " + ("▸" if journal_collapsed else "▾")
+
+func _set_msg(t: String) -> void:
+	_msg = t
+	if msg_label: msg_label.text = t; msg_label.visible = t != ""
+
+func _jlog(t: String) -> void:
+	_log_lines.append(t)
+	if _log_lines.size() > 40: _log_lines.pop_front()
+	if log_box == null: return
+	for c in log_box.get_children(): c.queue_free()
+	var start: int = max(0, _log_lines.size() - 12)
+	for i in range(start, _log_lines.size()):
+		var l := Label.new(); l.text = _log_lines[i]
+		l.add_theme_font_size_override("font_size", 12); l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		l.custom_minimum_size = Vector2(284, 0); l.add_theme_color_override("font_color", Color(0.82, 0.76, 0.66))
+		log_box.add_child(l)
 
 # ---------- génération ----------
 func _gen_battle(seed_value: int) -> void:
@@ -267,6 +350,7 @@ func _rebuild_terrain() -> void:   # après une brèche (terrain modifié)
 # ---------- murets ----------
 func _build_walls() -> void:
 	if fast: return
+	_wall_nodes.clear()
 	for key in mesh.walls:
 		var seg = mesh.wall_seg.get(key)
 		if seg == null: continue
@@ -284,6 +368,7 @@ func _build_walls() -> void:
 		bar.position = Vector3(midp.x, top, midp.y)
 		bar.rotation.y = -atan2(p1.y - p0.y, p1.x - p0.x)
 		_terrain_root.add_child(bar)
+		_wall_nodes.append({"node": bar, "a": x, "b": y})   # pour le brouillard : muret masqué si ses 2 cases sont hors vue
 
 # ---------- unités ----------
 func _team_color(team: String) -> Color:
@@ -909,7 +994,10 @@ func _do_attack(ai: int, ti: int) -> void:
 	if hit_tgt.team == "enemy" and hit_tgt.hp > 0: wake_enemy(hit_tgt)   # le bruit réveille le pod visé
 	if res.dmg > 0: _flash(hit_tgt, str(res.dmg), Color(1, 0.5, 0.4)); _hit_react(hit_tgt)
 	else: _flash(hit_tgt, res.txt, Color(0.85, 0.85, 0.9))
-	if res.killed: _shake(4)
+	var who: String = str(att.get("name", CL[att.cls].name)); var vic: String = str(hit_tgt.get("name", CL[hit_tgt.cls].name))
+	if res.dmg > 0: _jlog("⚔ %s touche %s (−%d)" % [who, vic, res.dmg])
+	else: _jlog("✦ %s — %s sur %s" % [who, str(res.txt), vic])
+	if res.killed: _shake(4); _jlog("✝ %s tombe." % vic)
 	for u in units:
 		if u.hp <= 0 and is_instance_valid(u.node): u.node.visible = false
 	if att.get("node") != null: att.node.rotation.y = -float(att.facing)   # l'attaquant ne change que d'orientation (la fente gère la position)
@@ -950,6 +1038,11 @@ func _process(delta: float) -> void:
 	if Input.is_key_pressed(KEY_Q) or Input.is_key_pressed(KEY_LEFT): d -= 1.0
 	if Input.is_key_pressed(KEY_E) or Input.is_key_pressed(KEY_RIGHT): d += 1.0
 	if d != 0.0: _yaw += d * 1.8 * delta; _update_cam()
+	# survol : suit la case sous le curseur pour l'aperçu de chemin + paliers progressifs
+	if not fast and sel >= 0 and turn == "player" and not over:
+		var hc := _pick_cell(get_viewport().get_mouse_position())
+		if hc != hover_cell:
+			hover_cell = hc; _update_markers()
 
 func _pick_cell(screen: Vector2) -> int:
 	if not cam: return -1
@@ -1036,11 +1129,11 @@ func _begin_turn(team: String) -> void:
 
 func _end_turn() -> void:
 	if turn != "player" or over: return
-	turn = "enemy"; sel = -1; reachable = {}; _refresh()
+	turn = "enemy"; sel = -1; reachable = {}; hover_cell = -1; _set_msg(""); _jlog("— Tour ennemi —"); _refresh()
 	_begin_turn("enemy")
 	await _enemy_turn()
 	_begin_turn("player")
-	turn = "player"; _check_end(); _refresh()
+	turn = "player"; _jlog("— Tour joueur %d —" % turn_num); _check_end(); _refresh()
 
 func _nearest_player(e) -> int:
 	var best := -1; var bd := 1 << 30
@@ -1126,8 +1219,9 @@ func _enemy_turn() -> void:
 			if not fast: await get_tree().create_timer(0.18).timeout
 
 func _end(msg: String, win: bool) -> void:
-	over = true; armed = ""; reachable = {}; hud.text = "■ " + msg
-	hud.text += "\n— retour au territoire dans un instant —"
+	over = true; armed = ""; reachable = {}
+	if hud != null: hud.text = "■ " + msg + "\n— retour au territoire dans un instant —"
+	_jlog("■ " + msg)
 	var t := get_tree().create_timer(2.4)
 	t.timeout.connect(_emit_end.bind(win))
 
@@ -1171,77 +1265,228 @@ func _update_fog() -> void:
 		if u.hp <= 0: u.node.visible = false; continue
 		# brouillard : un ennemi n'est visible que si une de ses cases est vue
 		u.node.visible = (u.team != "enemy") or seen_cells.has(u.cell)
+	for w in _wall_nodes:   # muret visible si l'une de ses deux cases est dans le champ de vision
+		if is_instance_valid(w.node): w.node.visible = seen_cells.has(w.a) or seen_cells.has(w.b)
+	_build_fog()
 
-func _rebuild_abil_bar() -> void:
+# brouillard de guerre : voile sombre sur les cases hors champ de vision des joueurs (LdV + portée 7)
+var _fog_nodes: Array = []
+var _fog_sig := ""
+func _build_fog() -> void:
 	if fast: return
-	if abil_bar == null: return
-	for c in abil_bar.get_children(): c.queue_free()
-	if sel < 0 or turn != "player": return
-	var u = units[sel]
-	var lbl := {"smoke":"Fumée","breach":"Brèche","shadowstrike":"Ombre","rally":"Rallie","vanish":"Estompe","taunt":"Provoc","holdline":"Ligne","wall":"Mur","blast":"Déflag","heal":"Soin","frost":"Givre","shove":"Repouss","charge":"Charge","cracker":"Grenade","potion":"Potion"}
-	var ids: Array = (u.abil as Array).duplicate()
-	if int(u.get("crackers", 0)) > 0: ids.append("cracker")   # grenade : arme, pas un perk
-	if potions > 0: ids.append("potion")                       # soin : stock partagé
-	for id in ids:
-		if not ABIL.has(id): continue   # protect = passif
-		var b := Button.new()
-		var cd: int = (u.cd[id] if u.cd.has(id) else 0)
-		var extra := ""
-		if id == "cracker": extra = " x%d" % int(u.crackers)
-		elif id == "potion": extra = " x%d" % potions
-		elif cd > 0: extra = " (%d)" % cd
-		b.text = str(lbl.get(id, id)) + extra
-		b.disabled = cd > 0 or u.ap <= 0
-		if armed == id: b.modulate = Color(1, 0.9, 0.4)
-		b.pressed.connect(_use_ability.bind(id))
-		abil_bar.add_child(b)
+	var keys := seen_cells.keys(); keys.sort()
+	var sig := str(keys)
+	if sig == _fog_sig and not _fog_nodes.is_empty(): return   # rien n'a changé
+	_fog_sig = sig
+	for n in _fog_nodes: n.queue_free()
+	_fog_nodes.clear()
+	var st := SurfaceTool.new(); st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	var col := Color(0.02, 0.02, 0.035, 0.66)
+	var any := false
+	for c in mesh.cells:
+		if seen_cells.has(c.id): continue
+		any = true
+		var top: float = c.elev * STEP + 0.04
+		var ctr := Vector3(c.cx * S, top, c.cy * S); var p: Array = c.poly
+		for k in p.size():
+			var a: Vector2 = p[k]; var b: Vector2 = p[(k + 1) % p.size()]
+			st.set_color(col); st.add_vertex(ctr)
+			st.set_color(col); st.add_vertex(Vector3(b.x * S, top, b.y * S))
+			st.set_color(col); st.add_vertex(Vector3(a.x * S, top, a.y * S))
+	if not any: return
+	var mat := StandardMaterial3D.new()
+	mat.vertex_color_use_as_albedo = true; mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED; mat.cull_mode = BaseMaterial3D.CULL_DISABLED
+	var mi := MeshInstance3D.new(); mi.mesh = st.commit(); mi.material_override = mat
+	add_child(mi); _fog_nodes.append(mi)
+
+# ----- roster (cartes des persos, haut-gauche) — reproduit renderRoster() -----
+func _render_roster() -> void:
+	if roster_box == null: return
+	for c in roster_box.get_children(): c.queue_free()
+	for i in units.size():
+		var u = units[i]
+		if u.team != "player": continue
+		var card := PanelContainer.new(); card.custom_minimum_size = Vector2(168, 0)
+		var seld: bool = (i == sel); var dead: bool = u.hp <= 0; var spent: bool = (u.ap <= 0 and turn == "player")
+		var bg := COL_SELBG if seld else COL_PANEL
+		var bd := COL_GOLD if seld else COL_BORDER
+		card.add_theme_stylebox_override("panel", _stylebox(bg, bd, 8))
+		if dead: card.modulate = Color(1, 1, 1, 0.45)
+		elif spent: card.modulate = Color(1, 1, 1, 0.7)
+		card.gui_input.connect(_card_input.bind(i))
+		var v := VBoxContainer.new(); v.add_theme_constant_override("separation", 2)
+		v.mouse_filter = Control.MOUSE_FILTER_IGNORE; card.add_child(v)
+		var nm := RichTextLabel.new(); nm.bbcode_enabled = true; nm.fit_content = true
+		nm.scroll_active = false; nm.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		var stars := ""
+		if int(u.get("grade", 0)) > 0: stars = " [color=#e0b341]%s[/color]" % "★".repeat(int(u.grade))
+		nm.text = "[color=#bfe6ff][b]%s[/b][/color] [color=#9a8a74]%s%s[/color]" % [u.name, CL[u.cls].name, stars]
+		v.add_child(nm)
+		var bar := ColorRect.new(); bar.color = Color(0.227, 0.192, 0.157); bar.custom_minimum_size = Vector2(150, 5)
+		bar.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		var fill := ColorRect.new(); fill.color = Color(0.435, 0.816, 0.435)
+		fill.anchor_bottom = 1.0; fill.offset_right = 150.0 * clampf(float(max(0, u.hp)) / float(u.max), 0, 1)
+		fill.mouse_filter = Control.MOUSE_FILTER_IGNORE; bar.add_child(fill); v.add_child(bar)
+		var st := Label.new(); st.add_theme_font_size_override("font_size", 12); st.add_theme_color_override("font_color", COL_ST)
+		st.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		var icons := ""
+		if u.get("overwatch", false): icons += (" · 👁🏹" if u.get("owMode", "") == "ranged" else " · 👁")
+		if u.get("bracing", false): icons += " · 🛡"
+		if u.get("stunned", false): icons += " · ✦"
+		if u.get("slowed", false): icons += " · ❄"
+		if int(u.get("crackers", 0)) > 0: icons += " · 💣%d" % int(u.crackers)
+		st.text = "PV %d/%d · PA %s%s" % [max(0, u.hp), u.max, (str(u.ap) + "/" + str(AP_MAX) if u.hp > 0 else "–"), icons]
+		v.add_child(st)
+		roster_box.add_child(card)
+
+func _card_input(e: InputEvent, i: int) -> void:
+	if e is InputEventMouseButton and e.pressed and e.button_index == MOUSE_BUTTON_LEFT:
+		_select_unit(i)
+
+func _select_unit(i: int) -> void:
+	if i < 0 or i >= units.size(): return
+	if units[i].hp > 0 and turn == "player" and not over:
+		sel = i; armed = ""; hover_cell = -1; _compute_reach(); _refresh()
+
+# ----- barre d'action (bas-gauche) — reproduit renderActs() -----
+var _act_n := 0
+func _act_btn(icon: String, on: bool, cb: Callable) -> void:
+	_act_n += 1
+	var b := Button.new(); b.custom_minimum_size = Vector2(64, 64); b.text = icon
+	b.add_theme_font_size_override("font_size", 26)
+	var bg := Color(0.18, 0.29, 0.125) if on else Color(0.047, 0.035, 0.024, 0.9)
+	var bd := COL_GOLD if on else COL_BORDER
+	b.add_theme_stylebox_override("normal", _stylebox(bg, bd, 9))
+	b.add_theme_stylebox_override("hover", _stylebox(bg.lightened(0.05), bd, 9))
+	b.add_theme_stylebox_override("pressed", _stylebox(bg, COL_GOLD, 9))
+	var num := Label.new(); num.text = str(_act_n); num.add_theme_font_size_override("font_size", 11)
+	num.position = Vector2(6, 3); num.add_theme_color_override("font_color", Color(0.65, 0.65, 0.65))
+	num.mouse_filter = Control.MOUSE_FILTER_IGNORE; b.add_child(num)
+	b.pressed.connect(cb); acts_box.add_child(b)
+
+func _act_btn_cd(icon: String, cd: int) -> void:
+	var b := Button.new(); b.custom_minimum_size = Vector2(64, 64); b.text = icon; b.disabled = true
+	b.add_theme_font_size_override("font_size", 26); b.modulate = Color(1, 1, 1, 0.6)
+	b.add_theme_stylebox_override("disabled", _stylebox(Color(0.047, 0.035, 0.024, 0.9), Color(0.227, 0.173, 0.11), 9))
+	var n := Label.new(); n.text = str(cd); n.add_theme_font_size_override("font_size", 15)
+	n.position = Vector2(44, 3); n.add_theme_color_override("font_color", Color(0.498, 0.69, 0.847))
+	n.mouse_filter = Control.MOUSE_FILTER_IGNORE; b.add_child(n)
+	acts_box.add_child(b)
+
+func _render_acts() -> void:
+	if acts_box == null: return
+	for c in acts_box.get_children(): c.queue_free()
+	if sel < 0 or turn != "player" or over: return
+	var u = units[sel]; _act_n = 0
+	var can_shoot: bool = u.w.has("ranged") and (not u.has("clip") or u.ammo > 0)
+	if can_shoot: _act_btn("🏹", u.wtype == "ranged" and u.w.has("melee"), _act_aim.bind("ranged"))
+	if u.w.has("melee"): _act_btn(("🗡" if u.get("flank") else "⚔️"), u.wtype == "melee" and can_shoot, _act_aim.bind("melee"))
+	if u.ap > 0 and can_shoot: _act_btn("👁🏹", u.get("overwatch", false) and u.get("owMode", "") == "ranged", _act_overwatch.bind("ranged"))
+	if u.ap > 0 and u.w.has("melee"): _act_btn("👁", u.get("overwatch", false) and u.get("owMode", "") == "melee", _act_overwatch.bind("melee"))
+	if u.w.has("cracker") and int(u.get("crackers", 0)) > 0 and u.ap > 0: _act_btn("💣", armed == "cracker", _use_ability.bind("cracker"))
+	if potions > 0 and u.ap > 0: _act_btn("🧪", armed == "potion", _use_ability.bind("potion"))
+	if u.has("clip") and u.ammo < u.clip and u.ap > 0: _act_btn("🔄", false, _act_reload)
+	if int(u.get("shieldBlock", 0)) > 0 and u.ap > 0 and not u.get("bracing", false): _act_btn("🛡", false, _act_brace)
+	for aid in u.abil:
+		if not ABIL.has(aid): continue
+		if aid == "vanish" and u.get("vanishUsed", false): continue
+		var cd: int = (u.cd[aid] if u.cd.has(aid) else 0)
+		if cd > 0: _act_btn_cd(ABIL[aid].icon, cd)
+		elif u.ap > 0: _act_btn(ABIL[aid].icon, armed == aid, _use_ability.bind(aid))
+	_act_btn("🙅", false, _end_turn)
+
+func _act_aim(mode: String) -> void:
+	if sel < 0: return
+	units[sel].wtype = mode; armed = ""
+	_set_msg("Clique une cible ennemie à portée." if mode == "ranged" else "Clique un ennemi adjacent.")
+	_refresh()
+
+func _act_overwatch(mode: String) -> void:
+	if sel < 0: return
+	var u = units[sel]; if u.ap <= 0: return
+	u.overwatch = true; u.owMode = mode; u.reacted = false; u.ap = 0
+	_set_msg("Vigilance — tir de réaction si un ennemi bouge à portée."); armed = ""
+	_compute_reach(); _refresh()
+
+func _act_reload() -> void:
+	if sel < 0: return
+	var u = units[sel]; if u.ap <= 0 or not u.has("clip"): return
+	u.ap -= 1; u.ammo = u.clip; _set_msg("Rechargé."); _refresh()
+
+func _act_brace() -> void:
+	if sel < 0: return
+	var u = units[sel]; if u.ap <= 0: return
+	u.ap -= 1; u.bracing = true; u.freeAvail = false; _set_msg("En garde — défense renforcée ce tour."); _refresh()
 
 func _refresh() -> void:
+	if fast: return
 	_update_fog()
 	_update_markers()
-	_rebuild_abil_bar()
+	_render_roster()
+	_render_acts()
 	var live_e := 0
 	for u in units: if u.team == "enemy" and u.hp > 0: live_e += 1
-	var s := "Tour : %s   |   ennemis : %d   |   [clic] sél./déplacement/tir  [clic-droit]/[Q/E]/[←→] pivoter  [molette] zoom  [Espace] fin de tour" % [("joueur" if turn == "player" else "ennemi"), live_e]
-	if sel >= 0:
-		var u = units[sel]
-		var atk := ""
-		# aperçu de touche sur l'ennemi le plus proche à portée
-		for j in units.size():
-			if units[j].team == "enemy" and units[j].hp > 0 and _can_attack(u, units[j]):
-				atk = "   tir possible : %d%%" % Combat.chance(mesh, units, u, units[j], u.wtype); break
-		s = "%s — PV %d/%d  PA %d/%d  (%s)%s\n%s" % [CL[u.cls].name, u.hp, u.max, u.ap, AP_MAX, ("tir " + str(u.w.ranged.range) if u.wtype == "ranged" else "mêlée"), atk, s]
-	if over: hud.text = hud.text; return   # message de fin déjà posé
-	hud.text = _obj_label() + "\n" + s
+	if over: return   # message de fin déjà posé
+	if hud != null:
+		hud.text = "%s   ·   tour : %s   ·   ennemis : %d" % [_obj_label(), ("joueur" if turn == "player" else "ennemi"), live_e]
 
 # paliers de déplacement : bleu (gratuit) / jaune (1 PA) / rouge (2 PA)
 func _tier_col(t: int) -> Color:
 	return [Color(0.30, 0.60, 1.0), Color(1.0, 0.85, 0.2), Color(0.95, 0.28, 0.24)][min(t, 2)]
 
-# CONTOURS uniquement (bord externe + frontières de paliers) — pas de teinte des tuiles
+# palier d'une case : 0 = gratuit (0 PA), 2 = consomme tout le PA restant, 1 = entre
+func _tier_of(u, cell: int) -> int:
+	var a := ap_for_move(u, reachable[cell])
+	return 0 if a <= 0 else (2 if a >= u.ap else 1)
+
+# une case appartient au palier t si atteignable<=t, OU occupée/infranchissable mais entourée (évite les trous)
+func _in_reg(cid: int, t: int, tier: Dictionary, occ: Dictionary) -> bool:
+	if tier.has(cid) and tier[cid] <= t: return true
+	if occ.has(cid) or not mesh.passable(cid):
+		for m in mesh.cells[cid].nb:
+			if tier.has(m) and tier[m] <= t: return true
+	return false
+
+# ruban plat le long d'un segment (XZ), couleur unie — pour contours, chemin et liserés
+func _ribbon(line: SurfaceTool, a: Vector3, b: Vector3, w: float, col: Color) -> void:
+	var dir := (b - a); dir = dir.normalized() if dir.length() > 0.001 else Vector3(1, 0, 0)
+	var perp := Vector3(-dir.z, 0, dir.x) * w
+	for v in [a - perp, b + perp, b - perp, a - perp, a + perp, b + perp]:
+		line.set_color(col); line.add_vertex(v)
+
+# CONTOURS de déplacement (paliers imbriqués révélés jusqu'à la case survolée) + aperçu de chemin mauve
 func _draw_move_overlay(u) -> void:
 	var line := SurfaceTool.new(); line.begin(Mesh.PRIMITIVE_TRIANGLES)
 	var tier := {}
-	for cell in reachable: tier[cell] = ap_for_move(u, reachable[cell])
-	for cell in reachable:
-		var t: int = tier[cell]
-		var top: float = _cell_top(cell) + 0.06
-		var c = mesh.cells[cell]
-		# une arête est tracée si elle borde une case hors-portée OU un palier supérieur (couleur du palier le plus coûteux)
-		for nb in c.nb:
-			var draw := false; var lc := _tier_col(t)
-			if not reachable.has(nb): draw = true
-			elif tier[nb] > t: draw = true; lc = _tier_col(tier[nb])
-			if not draw: continue
-			var seg = mesh.wall_seg.get(mesh.wkey(cell, nb))
+	for cell in reachable: tier[cell] = _tier_of(u, cell)
+	var occ := _occupied()
+	var hoverT := 2
+	if hover_cell >= 0 and reachable.has(hover_cell): hoverT = tier[hover_cell]   # ne révèle que jusqu'au survol
+	for t in range(0, hoverT + 1):
+		var lc := _tier_col(t); lc.a = 1.0
+		for c in mesh.cells:
+			if not _in_reg(c.id, t, tier, occ): continue
+			var top: float = _cell_top(c.id) + 0.06
+			for nb in c.nb:
+				if _in_reg(nb, t, tier, occ): continue   # arête intérieure → pas de tracé
+				var seg = mesh.wall_seg.get(mesh.wkey(c.id, nb))
+				if seg == null: continue
+				_ribbon(line, Vector3(seg[0].x * S, top, seg[0].y * S), Vector3(seg[1].x * S, top, seg[1].y * S), 0.10, lc)
+	# aperçu du chemin (mauve) vers la case survolée + liseré mauve de la case
+	if hover_cell >= 0 and reachable.has(hover_cell) and hover_cell != u.cell:
+		var mauve := Color(0.78, 0.49, 1.0)
+		var path: Array = mesh.path_to(u.cell, hover_cell, occ)
+		for i in range(1, path.size()):
+			var ca = mesh.cells[path[i - 1]]; var cb = mesh.cells[path[i]]
+			var pa := Vector3(ca.cx * S, _cell_top(path[i - 1]) + 0.10, ca.cy * S)
+			var pb := Vector3(cb.cx * S, _cell_top(path[i]) + 0.10, cb.cy * S)
+			_ribbon(line, pa, pb, 0.13, mauve)
+		var hc = mesh.cells[hover_cell]; var htop: float = _cell_top(hover_cell) + 0.09
+		for nb in hc.nb:
+			var seg = mesh.wall_seg.get(mesh.wkey(hover_cell, nb))
 			if seg == null: continue
-			var p0 := Vector3(seg[0].x * S, top, seg[0].y * S)
-			var p1 := Vector3(seg[1].x * S, top, seg[1].y * S)
-			var dir := (p1 - p0); dir = dir.normalized() if dir.length() > 0.001 else Vector3(1, 0, 0)
-			var perp := Vector3(-dir.z, 0, dir.x) * 0.10
-			lc.a = 1.0
-			for v in [p0 - perp, p1 + perp, p1 - perp, p0 - perp, p0 + perp, p1 + perp]:
-				line.set_color(lc); line.add_vertex(v)
+			_ribbon(line, Vector3(seg[0].x * S, htop, seg[0].y * S), Vector3(seg[1].x * S, htop, seg[1].y * S), 0.11, mauve)
 	var lm := StandardMaterial3D.new(); lm.vertex_color_use_as_albedo = true; lm.cull_mode = BaseMaterial3D.CULL_DISABLED
 	lm.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED; lm.emission_enabled = true; lm.emission = Color(1, 1, 1); lm.emission_energy_multiplier = 0.5
 	var lmi := MeshInstance3D.new(); lmi.mesh = line.commit(); lmi.material_override = lm; add_child(lmi); _markers.append(lmi)

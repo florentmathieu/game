@@ -262,6 +262,30 @@ func reach(start: int, budget: int, occupied: Dictionary) -> Dictionary:
 	dist.erase(start)
 	return dist
 
+# chemin le moins coûteux start→goal (cases incluses), [] si inatteignable — pour l'aperçu mauve au survol
+func path_to(start: int, goal: int, occupied: Dictionary) -> Array:
+	if start == goal: return [start]
+	var dist := {start: 0}; var prev := {}; var pq := [[0, start]]
+	while pq.size():
+		var bi := 0
+		for k in range(1, pq.size()):
+			if pq[k][0] < pq[bi][0]: bi = k
+		var top: Array = pq.pop_at(bi)
+		var d: int = top[0]; var id: int = top[1]
+		if d > dist[id]: continue
+		for n in cells[id].nb:
+			if n != goal and occupied.has(n): continue   # la case d'arrivée peut être l'objectif
+			var c := enter_cost(id, n)
+			if c == -1: continue
+			var nd := d + c
+			if not dist.has(n) or nd < dist[n]:
+				dist[n] = nd; prev[n] = id; pq.append([nd, n])
+	if not prev.has(goal): return []
+	var path := [goal]; var cur: int = goal
+	while cur != start:
+		cur = prev[cur]; path.push_front(cur)
+	return path
+
 func los(a: int, b: int) -> bool:
 	var A: Vector2 = Vector2(cells[a].cx, cells[a].cy)
 	var B: Vector2 = Vector2(cells[b].cx, cells[b].cy)
