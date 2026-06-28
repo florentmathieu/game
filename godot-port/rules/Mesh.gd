@@ -10,6 +10,7 @@ var W: float = 0.0
 var H: float = 0.0
 var walls := {}              # murets : clé d'arête -> true
 var wall_seg := {}           # clé d'arête -> [Vector2, Vector2] (segment partagé)
+var smoke := {}              # cases enfumées (bloquent la LdV) : id -> tours restants
 
 static func wkey(a: int, b: int) -> String: return "%d-%d" % [min(a, b), max(a, b)]
 func wall_between(a: int, b: int) -> bool: return walls.has(wkey(a, b))
@@ -211,5 +212,5 @@ func los(a: int, b: int) -> bool:
 		var px: float = A.x + (B.x - A.x) * t
 		var py: float = A.y + (B.y - A.y) * t
 		var id: int = cell_at(px, py)
-		if id >= 0 and id != a and id != b and cells[id].terr == "wall": return false
+		if id >= 0 and id != a and id != b and (cells[id].terr == "wall" or smoke.has(id)): return false
 	return true

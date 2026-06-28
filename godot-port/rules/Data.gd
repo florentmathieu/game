@@ -48,3 +48,48 @@ const HEAL_RANGE := 6
 const HEAL_AMT := 6
 const FROST_RANGE := 7
 const CHARGE_RANGE := 7
+
+const GRADES := ["Recrue", "Aguerri", "Vétéran", "Élite", "Champion"]
+const XP_THRESH := [0, 3, 7, 12, 17]
+static func grade_from_xp(xp: int) -> int:
+	var g := 0
+	for i in XP_THRESH.size(): if xp >= XP_THRESH[i]: g = i
+	return g
+
+# perks : par classe, une paire A/B par grade. abil = capacité ; mod = bonus chiffrés.
+static func perks() -> Dictionary:
+	return {
+		"soldat": [
+			{"A":{"id":"se1a","name":"Cri de ralliement","abil":"rally"}, "B":{"id":"se1b","name":"Tenace","mod":{"hp":4}}},
+			{"A":{"id":"se2a","name":"Provocation","abil":"taunt"}, "B":{"id":"se2b","name":"Meneur","mod":{"dmg":1}}},
+			{"A":{"id":"se3a","name":"Tenir la ligne","abil":"holdline"}, "B":{"id":"se3b","name":"Garde d'acier","mod":{"shieldBlock":15}}},
+			{"A":{"id":"se4a","name":"Allonge","mod":{"freeMp":1}}, "B":{"id":"se4b","name":"Vétéran","mod":{"dmg":2}}}],
+		"sapeur": [
+			{"A":{"id":"sa1a","name":"Fumigène","abil":"smoke"}, "B":{"id":"sa1b","name":"Œil de lynx","mod":{"aim":10}}},
+			{"A":{"id":"sa2a","name":"Charge creuse","abil":"breach"}, "B":{"id":"sa2b","name":"Endurci","mod":{"hp":3}}},
+			{"A":{"id":"sa3a","name":"Artificier","mod":{"scatter":1}}, "B":{"id":"sa3b","name":"Charge lourde","mod":{"dmg":2}}}],
+		"assassin": [
+			{"A":{"id":"as1a","name":"Frappe de l'ombre","abil":"shadowstrike"}, "B":{"id":"as1b","name":"Lame vive","mod":{"dmg":2}}},
+			{"A":{"id":"as2a","name":"Estompe","abil":"vanish"}, "B":{"id":"as2b","name":"Précision","mod":{"aim":10}}},
+			{"A":{"id":"as3a","name":"Tueur","mod":{"dmg":2}}, "B":{"id":"as3b","name":"Insaisissable","mod":{"parry":20}}},
+			{"A":{"id":"as4a","name":"Allonge","mod":{"freeMp":1}}, "B":{"id":"as4b","name":"Coupe-jarret","mod":{"dmg":2}}}],
+		"garde": [
+			{"A":{"id":"ga1a","name":"Bouclier protecteur","abil":"protect"}, "B":{"id":"ga1b","name":"Robuste","mod":{"hp":4}}},
+			{"A":{"id":"ga2a","name":"Mur mobile","abil":"wall"}, "B":{"id":"ga2b","name":"Repousser","abil":"shove"}},
+			{"A":{"id":"ga3a","name":"Foulée","mod":{"mob":1}}, "B":{"id":"ga3b","name":"Bastion","mod":{"hp":5}}},
+			{"A":{"id":"ga4a","name":"Charge longue","abil":"charge"}, "B":{"id":"ga4b","name":"Rempart","mod":{"shieldBlock":15}}}],
+		"brute": [
+			{"A":{"id":"br1a","name":"Colosse","mod":{"hp":5}}, "B":{"id":"br1b","name":"Bourrin","mod":{"dmg":2}}},
+			{"A":{"id":"br2a","name":"Fracasse","mod":{"dmg":3}}, "B":{"id":"br2b","name":"Foulée","mod":{"mob":1}}},
+			{"A":{"id":"br3a","name":"Cuir épais","mod":{"hp":6}}, "B":{"id":"br3b","name":"Carnage","mod":{"dmg":3}}},
+			{"A":{"id":"br4a","name":"Allonge","mod":{"freeMp":1}}, "B":{"id":"br4b","name":"Titan","mod":{"hp":8}}}],
+		"mage": [
+			{"A":{"id":"mg1a","name":"Déflagration","abil":"blast"}, "B":{"id":"mg1b","name":"Trait perçant","mod":{"dmg":2}}},
+			{"A":{"id":"mg2a","name":"Vague de soin","abil":"heal"}, "B":{"id":"mg2b","name":"Longue portée","mod":{"range":2}}},
+			{"A":{"id":"mg3a","name":"Givre","abil":"frost"}, "B":{"id":"mg3b","name":"Vitalité","mod":{"hp":5}}}],
+	}
+static func perk_by_id(cls: String, id: String):
+	for g in perks().get(cls, []):
+		if g.A.id == id: return g.A
+		if g.B.id == id: return g.B
+	return null

@@ -27,6 +27,8 @@ var _yaw := 0.6
 var _dist := 50.0
 var _dragging := false
 var _markers: Array = []
+var armed := ""
+var abil_bar: HBoxContainer
 
 func _ready() -> void:
 	randomize()
@@ -38,6 +40,9 @@ func _ready() -> void:
 	_spawn_units()
 	_setup_camera()
 	compute_vis(); detect_enemies()
+	for i in units.size():
+		if units[i].team == "player": sel = i; break
+	_compute_reach()
 	_refresh()
 
 # ---------- monde / lumière ----------
@@ -55,7 +60,13 @@ func _setup_world() -> void:
 	add_child(sun)
 	hud = Label.new(); hud.position = Vector2(14, 10)
 	hud.add_theme_color_override("font_color", Color(1, 0.88, 0.5))
-	var ci := CanvasLayer.new(); ci.add_child(hud); add_child(ci)
+	var ci := CanvasLayer.new(); ci.add_child(hud)
+	abil_bar = HBoxContainer.new()
+	abil_bar.anchor_left = 0.5; abil_bar.anchor_right = 0.5; abil_bar.anchor_top = 1.0; abil_bar.anchor_bottom = 1.0
+	abil_bar.offset_left = -300; abil_bar.offset_right = 300; abil_bar.offset_top = -56; abil_bar.offset_bottom = -10
+	abil_bar.alignment = BoxContainer.ALIGNMENT_CENTER; abil_bar.add_theme_constant_override("separation", 8)
+	ci.add_child(abil_bar)
+	add_child(ci)
 
 # ---------- génération ----------
 func _gen_battle(seed_value: int) -> void:
@@ -138,6 +149,10 @@ func _make_unit(team: String, cls: String, cell: int) -> void:
 		"asleep":false, "pod":-1, "home":cell,
 		"abil":(d.get("abil", []) as Array).duplicate(), "cd":{}, "slowed":false, "stunned":false, "spellsCast":0}
 	if wtype == "ranged" and w.ranged.has("clip"): u.clip = int(w.ranged.clip); u.ammo = int(w.ranged.clip)
+	if team == "player":   # (démo) on accorde l'arbre A complet → capacités joueur visibles ; en campagne, perks choisis par grade
+		var ids := []
+		for g in Data.perks().get(cls, []): ids.append(g.A.id)
+		apply_perk_mods(u, ids)
 	var node := Node3D.new(); add_child(node)
 	var ball := MeshInstance3D.new()
 	var sm := SphereMesh.new(); sm.radius = 0.6; sm.height = 1.2; ball.mesh = sm
@@ -167,7 +182,7 @@ func _spawn_units() -> void:
 		if mesh.passable(c.id): pass_cells.append(c.id)
 	pass_cells.sort_custom(func(a, b): return (mesh.cells[a].cx + mesh.cells[a].cy) < (mesh.cells[b].cx + mesh.cells[b].cy))
 	var used := {}
-	for cls in ["soldat", "archer", "garde", "brute"]:
+	for cls in ["soldat", "assassin", "garde", "mage"]:
 		for id in pass_cells:
 			if used.has(id): continue
 			var ok := true
@@ -300,6 +315,101 @@ func _fx_burst(cell: int, col: Color, scale: float) -> void:
 	tw.tween_property(s, "scale", Vector3.ONE * (2.0 + scale), 0.45)
 	tw.parallel().tween_property(mt, "albedo_color:a", 0.0, 0.45)
 	tw.tween_callback(s.queue_free)
+
+# ---------- perks ----------
+func apply_perk_mods(u, ids: Array) -> void:
+	for id in ids:
+		var p = Data.perk_by_id(u.cls, id)
+		if p == null: continue
+		if p.has("abil"):
+			if not u.abil.has(p.abil): u.abil.append(p.abil)
+			if p.abil == "protect": u["protect"] = true
+			continue
+		var m: Dictionary = p.get("mod", {})
+		if m.has("hp"): u.max += m.hp; u.hp += m.hp
+		if m.has("shieldBlock"): u.shieldBlock += m.shieldBlock
+		if m.has("parry"): u.parry += m.parry
+		if m.has("mob"): u.mob += m.mob
+		if m.has("aim"): u.aimBonus += m.aim
+		if m.has("dmg"): u.dmgBonus += m.dmg
+		if m.has("range"): u.rangeBonus += m.range
+
+# ---------- capacités : registre (pour la barre) + execs restants ----------
+const ABIL := {
+	"smoke":{"icon":"🌫","target":"cell"}, "breach":{"icon":"💥","target":"cell"},
+	"shadowstrike":{"icon":"🌑","target":"enemy"}, "rally":{"icon":"📣","target":"ally"},
+	"vanish":{"icon":"💨","target":"self"}, "taunt":{"icon":"💢","target":"self"},
+	"holdline":{"icon":"🛡","target":"self"}, "wall":{"icon":"🧱","target":"self"},
+	"blast":{"icon":"🔥","target":"cell"}, "heal":{"icon":"✨","target":"ally"},
+	"frost":{"icon":"❄","target":"enemy"}, "shove":{"icon":"🛡➡","target":"enemy"}, "charge":{"icon":"🛡⚡","target":"enemy"}}
+const SMOKE_TURNS := 2
+const SMOKE_RANGE := 6
+const SMOKE_RADIUS := 1
+
+func exec_smoke(u, cell: int) -> bool:
+	if on_cd(u, "smoke") or mesh.hops(u.cell, cell) > SMOKE_RANGE or not mesh.los(u.cell, cell): return false
+	for c in mesh.cells:
+		if mesh.hops(cell, c.id) <= SMOKE_RADIUS: mesh.smoke[c.id] = SMOKE_TURNS
+	_fx_burst(cell, Color(0.8, 0.82, 0.85), 1.4); set_cd(u, "smoke"); u.ap -= 1
+	return true
+
+func exec_rally(u, a) -> bool:
+	if on_cd(u, "rally") or a == u or a.team != u.team or a.hp <= 0 or not Combat.adjacent(mesh, u.cell, a.cell): return false
+	a.ap = min(AP_MAX, a.ap + 1); _flash(a, "+1 PA", Color(0.9, 0.9, 0.5)); set_cd(u, "rally"); u.ap -= 1
+	return true
+
+func exec_vanish(u) -> bool:
+	if u.get("vanishUsed", false): return false
+	u["hidden"] = true; u["vanishUsed"] = true; _flash(u, "estompe", Color(0.7, 0.8, 0.9)); u.ap -= 1
+	return true
+
+func exec_taunt(u) -> bool:
+	if on_cd(u, "taunt"): return false
+	u["taunt"] = true; _flash(u, "provoque", Color(1, 0.7, 0.5)); set_cd(u, "taunt"); u.ap -= 1
+	return true
+
+func exec_wall(u) -> bool:
+	if on_cd(u, "wall"): return false
+	u.wallStance = true; _flash(u, "mur mobile", Color(0.8, 0.7, 0.5)); set_cd(u, "wall"); u.ap -= 1
+	return true
+
+func exec_holdline(u) -> bool:
+	if on_cd(u, "holdline"): return false
+	var n := 0
+	for a in units:
+		if a.team == u.team and a != u and a.hp > 0 and Combat.adjacent(mesh, u.cell, a.cell) and a.ap > 0:
+			a["overwatch"] = true; a["owMode"] = a.wtype; a.reacted = false; n += 1
+	_flash(u, "tenez la ligne", Color(0.7, 0.85, 1.0)); set_cd(u, "holdline"); u.ap -= 1
+	return true
+
+func exec_shadowstrike(u, tgt) -> bool:
+	if on_cd(u, "shadowstrike") or mesh.hops(u.cell, tgt.cell) > 4: return false
+	var best := -1; var bs := -1
+	for n in mesh.cells[tgt.cell].nb:
+		if n != u.cell and (_unit_at(n) >= 0 or not mesh.passable(n)): continue
+		if n != u.cell and mesh.hops(u.cell, n) > u.mob: continue
+		var f := Combat.flank_of(mesh, {"cell":n}, tgt)
+		var s: int = {"back":3, "side":2, "front":1}[f]
+		if s > bs: bs = s; best = n
+	if best < 0: return false
+	set_cd(u, "shadowstrike"); if best != u.cell: u.cell = best; _place(u)
+	u.dmgBonus += 2
+	var res := Combat.do_attack(mesh, units, u, tgt, "melee")
+	u.dmgBonus -= 2; u.ap = 0
+	if res.dmg > 0: _flash(res.target, str(res.dmg), Color(1, 0.5, 0.4))
+	for o in units: if o.hp <= 0 and is_instance_valid(o.node): o.node.visible = false
+	return true
+
+# overwatch : un guetteur hostile tire sur l'unité qui bouge (1 fois)
+func react_to(mover) -> void:
+	for o in units:
+		if o.hp > 0 and o.team != mover.team and o.get("overwatch", false) and not o.get("reacted", false):
+			var mode: String = o.get("owMode", o.wtype)
+			if Combat.in_range(mesh, o, mover, mode):
+				o.reacted = true
+				var res := Combat.do_attack(mesh, units, o, mover, mode, true)
+				if res.dmg > 0: _flash(res.target, str(res.dmg), Color(1, 0.7, 0.3))
+				if mover.hp <= 0: return
 
 # ---------- vision / brouillard ----------
 func compute_vis() -> void:
@@ -455,10 +565,51 @@ func _pick_cell(screen: Vector2) -> int:
 	if hit == null: return -1
 	return mesh.cell_at(hit.x / S, hit.z / S)
 
+# ---------- capacités joueur : barre + ciblage ----------
+func _use_ability(id: String) -> void:
+	if sel < 0 or turn != "player": return
+	var u = units[sel]
+	if u.ap <= 0 or on_cd(u, id): return
+	var t: String = ABIL[id].target
+	if t == "self":
+		var ok := false
+		match id:
+			"vanish": ok = exec_vanish(u)
+			"taunt": ok = exec_taunt(u)
+			"wall": ok = exec_wall(u)
+			"holdline": ok = exec_holdline(u)
+		armed = ""; _compute_reach(); _refresh()
+	else:
+		armed = id; _refresh()
+
+func _resolve_armed(cell: int) -> void:
+	var u = units[sel]; var id := armed; armed = ""
+	var t: String = ABIL[id].target
+	var ui := _unit_at(cell)
+	var ok := false
+	if t == "cell":
+		match id:
+			"smoke": ok = exec_smoke(u, cell)
+			"blast": ok = exec_blast(u, cell)
+	elif t == "enemy" and ui >= 0 and units[ui].team == "enemy":
+		match id:
+			"frost": ok = exec_frost(u, units[ui])
+			"shove": ok = exec_shove(u, units[ui])
+			"charge": ok = exec_charge(u, units[ui])
+			"shadowstrike": ok = exec_shadowstrike(u, units[ui])
+	elif t == "ally" and ui >= 0 and units[ui].team == "player":
+		match id:
+			"heal": ok = exec_heal(u, units[ui])
+			"rally": ok = exec_rally(u, units[ui])
+	for o in units: if o.hp <= 0 and is_instance_valid(o.node): o.node.visible = false
+	_compute_reach(); _refresh(); _check_end()
+
 func _click(screen: Vector2) -> void:
 	if turn != "player": return
 	var cell := _pick_cell(screen)
 	if cell < 0: return
+	if armed != "":
+		_resolve_armed(cell); return
 	var ui := _unit_at(cell)
 	if ui >= 0 and units[ui].team == "player":
 		sel = ui; _compute_reach(); _refresh(); return
@@ -469,7 +620,7 @@ func _click(screen: Vector2) -> void:
 			return
 		if reachable.has(cell) and u.ap > 0:
 			u.ap -= 1; u.facing = atan2(mesh.cells[cell].cy - mesh.cells[u.cell].cy, mesh.cells[cell].cx - mesh.cells[u.cell].cx)
-			u.cell = cell; _place(u); detect_enemies(); _compute_reach(); _refresh()
+			u.cell = cell; _place(u); react_to(u); detect_enemies(); _compute_reach(); _refresh()
 
 # ---------- tours ----------
 func _begin_turn(team: String) -> void:
@@ -477,8 +628,13 @@ func _begin_turn(team: String) -> void:
 		if u.team != team or u.hp <= 0: continue
 		u.ap = AP_MAX - (1 if u.slowed else 0); u.slowed = false
 		if u.stunned: u.ap = 0; u.stunned = false
-		u.reacted = false; u.bracing = false
+		u.reacted = false; u.bracing = false; u["overwatch"] = false
+		if team == "player": u["hidden"] = false; u["taunt"] = false; u.wallStance = false
 	tick_cd(team)
+	if team == "player":   # la fumée se dissipe à chaque tour
+		for k in mesh.smoke.keys():
+			mesh.smoke[k] -= 1
+			if mesh.smoke[k] <= 0: mesh.smoke.erase(k)
 
 func _end_turn() -> void:
 	if turn != "player": return
@@ -501,7 +657,7 @@ func _best_target(e) -> int:
 	for j in units.size():
 		var p = units[j]
 		if p.team != "enemy" and p.hp > 0 and _can_attack(e, p):
-			var k: float = Combat.shot_from(mesh, units, e, e.cell, p, e.wtype) * 1000.0 - p.hp
+			var k: float = Combat.shot_from(mesh, units, e, e.cell, p, e.wtype) * 1000.0 - p.hp + (100000.0 if p.get("taunt", false) else 0.0)
 			if k > bk: bk = k; best = j
 	return best
 
@@ -533,7 +689,7 @@ func _enemy_turn() -> void:
 					if h < bd: bd = h; best = c
 				if best != e.cell:
 					e.facing = atan2(mesh.cells[best].cy - mesh.cells[e.cell].cy, mesh.cells[best].cx - mesh.cells[e.cell].cx)
-					e.cell = best; _place(e); detect_enemies()
+					e.cell = best; _place(e); react_to(e); detect_enemies()
 			await get_tree().create_timer(0.12).timeout
 			continue
 		var guard := 0
@@ -563,7 +719,7 @@ func _enemy_turn() -> void:
 				if sc > bs: bs = sc; best = cell
 			if best == e.cell: break
 			e.ap -= 1; e.facing = atan2(mesh.cells[best].cy - mesh.cells[e.cell].cy, mesh.cells[best].cx - mesh.cells[e.cell].cx)
-			e.cell = best; _place(e); detect_enemies(); await get_tree().create_timer(0.18).timeout
+			e.cell = best; _place(e); react_to(e); detect_enemies(); await get_tree().create_timer(0.18).timeout
 
 func _check_end() -> void:
 	var pa := units.any(func(u): return u.team == "player" and u.hp > 0)
@@ -580,9 +736,26 @@ func _update_fog() -> void:
 		# brouillard : un ennemi n'est visible que si une de ses cases est vue
 		u.node.visible = (u.team != "enemy") or seen_cells.has(u.cell)
 
+func _rebuild_abil_bar() -> void:
+	if abil_bar == null: return
+	for c in abil_bar.get_children(): c.queue_free()
+	if sel < 0 or turn != "player": return
+	var u = units[sel]
+	var lbl := {"smoke":"Fumée","breach":"Brèche","shadowstrike":"Ombre","rally":"Rallie","vanish":"Estompe","taunt":"Provoc","holdline":"Ligne","wall":"Mur","blast":"Déflag","heal":"Soin","frost":"Givre","shove":"Repouss","charge":"Charge"}
+	for id in u.abil:
+		if not ABIL.has(id): continue   # protect = passif
+		var b := Button.new()
+		var cd: int = (u.cd[id] if u.cd.has(id) else 0)
+		b.text = str(lbl.get(id, id)) + (" (%d)" % cd if cd > 0 else "")
+		b.disabled = cd > 0 or u.ap <= 0
+		if armed == id: b.modulate = Color(1, 0.9, 0.4)
+		b.pressed.connect(_use_ability.bind(id))
+		abil_bar.add_child(b)
+
 func _refresh() -> void:
 	_update_fog()
 	_update_markers()
+	_rebuild_abil_bar()
 	var live_e := 0
 	for u in units: if u.team == "enemy" and u.hp > 0: live_e += 1
 	var s := "Tour : %s   |   ennemis : %d   |   [clic] sél./déplacement/tir  [clic-droit] pivoter  [molette] zoom  [Espace] fin de tour" % [("joueur" if turn == "player" else "ennemi"), live_e]
