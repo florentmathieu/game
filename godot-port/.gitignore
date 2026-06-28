@@ -1,3 +1,6 @@
 # Cache d'import Godot (régénéré à l'ouverture)
 .godot/
 # Binaire moteur / templates (téléchargés, non versionnés)
+
+# build de travail (la copie déployée est dans docs/godot/)
+export/
