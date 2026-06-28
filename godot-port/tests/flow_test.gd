@@ -13,7 +13,9 @@ func _initialize() -> void:
 		var acc = game.geoscape.geo.accessible(game.geoscape.states)
 		var cell: int = acc.keys()[0]
 		print("région choisie=%d (%s)" % [cell, game.geoscape.geo.info[cell].name])
-		game._on_region(cell)
+		game._on_region(cell)          # ouvre l'écran de sélection d'escouade
+		await process_frame
+		game._confirm_deploy()         # valide l'escouade auto-sélectionnée → lance le combat
 		await process_frame
 		await process_frame
 		if game.battle == null: print("!! battle non instancié"); ok = false
@@ -29,7 +31,8 @@ func _initialize() -> void:
 			await process_frame
 			if game.battle != null: print("!! battle non libéré"); ok = false
 			if game.geoscape == null: print("!! retour geoscape échoué"); ok = false
-			if String(Run.camp.geoStates.get(cell, "")) != "cleared": print("!! région non nettoyée"); ok = false
+			var st := String(Run.camp.geoStates.get(cell, ""))   # cleared, ou re-attaquée par un raid (14 %)
+			if st != "cleared" and st != "attacked": print("!! région non résolue (%s)" % st); ok = false
 			print("retour territoire OK, missionN=%d" % Run.camp.missionN)
 	print("\n%s" % ("OK — câblage des scènes fonctionnel" if ok else "!! échec câblage"))
 	quit()

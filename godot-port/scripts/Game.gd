@@ -15,7 +15,8 @@ var _ci: CanvasLayer
 
 func _ready() -> void:
 	randomize()
-	if Run.camp.is_empty(): Run.new_campaign()
+	if Run.camp.is_empty():
+		if not Run.load_game(): Run.new_campaign()
 	_ci = CanvasLayer.new(); add_child(_ci)
 	banner = Label.new(); banner.position = Vector2(14, 720 - 34)
 	banner.add_theme_color_override("font_color", Color(0.85, 0.8, 0.7)); _ci.add_child(banner)
@@ -44,10 +45,76 @@ func _update_banner() -> void:
 	banner.text = "%s   |   missions %d   |   victoires %d   |   forges %d" % [
 		ACT_NAME.get(act, "Acte %d" % act), int(Run.camp.missionN), int(Run.camp.winCount), int(Run.camp.get("forgeCount", 0))]
 
-# --- choix d'une région → préparer et lancer la mission ---
+const Data := preload("res://rules/Data.gd")
+var _sel_layer: CanvasLayer = null
+var _pending := -1
+
+# --- choix d'une région → écran de sélection d'escouade ---
 func _on_region(cell: int) -> void:
-	var ginfo: Dictionary = geoscape.geo.info[cell]
-	Run.set_mission(cell, ginfo)
+	_pending = cell
+	_show_squad_select(geoscape.geo.info[cell])
+
+func _bar(frac: float, col: Color) -> Control:
+	var bg := ColorRect.new(); bg.color = Color(0.17, 0.18, 0.23); bg.custom_minimum_size = Vector2(60, 8)
+	var fg := ColorRect.new(); fg.color = col; fg.set_anchors_preset(Control.PRESET_TOP_LEFT)
+	fg.size = Vector2(60.0 * clampf(frac, 0, 1), 8); fg.position = Vector2.ZERO
+	bg.add_child(fg); return bg
+
+func _show_squad_select(ginfo: Dictionary) -> void:
+	_sel_layer = CanvasLayer.new(); _sel_layer.layer = 20; add_child(_sel_layer)
+	var panel := Control.new(); panel.set_anchors_preset(Control.PRESET_FULL_RECT); _sel_layer.add_child(panel)
+	var dim := ColorRect.new(); dim.color = Color(0.04, 0.04, 0.06, 1.0); dim.set_anchors_preset(Control.PRESET_FULL_RECT)
+	panel.add_child(dim)
+	var box := VBoxContainer.new(); box.position = Vector2(60, 50); box.add_theme_constant_override("separation", 6)
+	panel.add_child(box)
+	var title := Label.new()
+	title.text = "Déploiement — %s  (%s, %d ennemis)" % [ginfo.name, ("BOSS" if ginfo.boss else "diff %d" % ginfo.diff), Run.mission_preview_enemies(ginfo)]
+	title.add_theme_font_size_override("font_size", 22); title.add_theme_color_override("font_color", Color(1, 0.88, 0.5))
+	box.add_child(title)
+	var hint := Label.new(); hint.text = "Choisis jusqu'a %d soldats (clic pour selectionner). fat = fatigue, str = stress, PV au depart." % Run.SQUAD_MAX
+	hint.add_theme_color_override("font_color", Color(0.7, 0.7, 0.75)); box.add_child(hint)
+	for m in Run.camp.roster:
+		box.add_child(_member_row(m))
+	var btns := HBoxContainer.new(); btns.add_theme_constant_override("separation", 12); box.add_child(btns)
+	var go := Button.new(); go.text = "Deployer"; go.pressed.connect(_confirm_deploy); btns.add_child(go)
+	var back := Button.new(); back.text = "Retour"; back.pressed.connect(_cancel_deploy); btns.add_child(back)
+
+func _member_row(m: Dictionary) -> Control:
+	var row := HBoxContainer.new(); row.add_theme_constant_override("separation", 10)
+	var ready: bool = Run.mem_ready(m)
+	var selected: bool = Run.camp.deploySel.has(m.name)
+	var grade: String = Data.GRADES[Data.grade_from_xp(int(m.get("xp", 0)))]
+	var tag := "[+]" if bool(m.dead) else ("[!]" if not ready else ("[*]" if bool(m.special) else "[ ]"))
+	var b := Button.new(); b.custom_minimum_size = Vector2(280, 0)
+	b.text = "%s %s — %s (%s)" % [tag, m.name, Data.classes()[m.cls].name, grade]
+	b.disabled = not ready
+	if selected: b.modulate = Color(0.6, 1.0, 0.6)
+	b.pressed.connect(func(): Run.toggle_select(m.name); _refresh_select())
+	row.add_child(b)
+	if not bool(m.dead):
+		var dh: Dictionary = Run.mem_deploy_hp(m)
+		var hpl := Label.new(); hpl.text = "PV %d/%d" % [dh.hp, dh.max]; hpl.custom_minimum_size = Vector2(78, 0)
+		hpl.add_theme_color_override("font_color", Color(0.45, 0.82, 0.45) if dh.full else Color(0.85, 0.64, 0.25))
+		row.add_child(hpl)
+		var fl := Label.new(); fl.text = "fat"; row.add_child(fl); row.add_child(_bar(int(m.fatigue) / 100.0, Color(0.37, 0.66, 0.85)))
+		var sl := Label.new(); sl.text = "str"; row.add_child(sl); row.add_child(_bar(int(m.stress) / 100.0, Color(0.85, 0.64, 0.25)))
+	else:
+		var dead := Label.new(); dead.text = "tombé·e au combat"; dead.add_theme_color_override("font_color", Color(0.6, 0.3, 0.3)); row.add_child(dead)
+	return row
+
+func _refresh_select() -> void:
+	var ginfo: Dictionary = geoscape.geo.info[_pending]
+	_clear(_sel_layer); _sel_layer = null
+	_show_squad_select(ginfo)
+
+func _cancel_deploy() -> void:
+	_clear(_sel_layer); _sel_layer = null; _pending = -1
+
+func _confirm_deploy() -> void:
+	if Run.camp.deploySel.is_empty(): return
+	var cell := _pending; _pending = -1
+	_clear(_sel_layer); _sel_layer = null
+	Run.set_mission(cell, geoscape.geo.info[cell])
 	_clear(geoscape); geoscape = null
 	battle = BattleScene.instantiate()
 	add_child(battle)
@@ -55,10 +122,13 @@ func _on_region(cell: int) -> void:
 
 # --- issue de mission → progression → retour au territoire ---
 func _on_mission_end(win: bool) -> void:
-	Run.resolve_mission(win)
+	var report: Dictionary = battle.build_report() if battle != null else {}
+	var deaths: Array = Run.resolve_mission(win, report)
 	_clear(battle); battle = null
 	if win: _advance_if_boss()
 	_show_geoscape()
+	if not deaths.is_empty():
+		banner.text = "+ " + ", ".join(deaths) + (" sont tombé·e·s." if deaths.size() > 1 else " est tombé·e.")
 
 # le boss (région verrouillée) s'ouvre quand le front a nettoyé assez de régions
 func _check_boss_unlock() -> void:

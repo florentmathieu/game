@@ -36,6 +36,25 @@ func _setup_world() -> void:
 	var sun := DirectionalLight3D.new(); sun.rotation = Vector3(deg_to_rad(-62), deg_to_rad(30), 0); sun.light_energy = 1.3; add_child(sun)
 	hud = Label.new(); hud.position = Vector2(14, 10); hud.add_theme_color_override("font_color", Color(1, 0.88, 0.5))
 	var ci := CanvasLayer.new(); ci.add_child(hud); add_child(ci)
+	_build_roster_panel(ci)
+
+# panneau roster (gauche) : un membre par ligne, usure et état lisibles d'un coup d'œil
+func _build_roster_panel(ci: CanvasLayer) -> void:
+	var box := VBoxContainer.new(); box.position = Vector2(14, 44); box.add_theme_constant_override("separation", 2)
+	var h := Label.new(); h.text = "— Escouade —"; h.add_theme_color_override("font_color", Color(0.88, 0.7, 0.4)); box.add_child(h)
+	for m in Run.camp.get("roster", []):
+		var ready: bool = Run.mem_ready(m)
+		var tag := "[+]" if bool(m.dead) else ("[!]" if not ready else ("[*]" if bool(m.special) else "[ ]"))
+		var l := Label.new()
+		if bool(m.dead):
+			l.text = "%s %s — tombe-e" % [tag, m.name]
+			l.add_theme_color_override("font_color", Color(0.5, 0.45, 0.45))
+		else:
+			var dh: Dictionary = Run.mem_deploy_hp(m)
+			l.text = "%s %s  PV %d/%d  fat %d  str %d" % [tag, m.name, dh.hp, dh.max, int(m.fatigue), int(m.stress)]
+			l.add_theme_color_override("font_color", Color(0.85, 0.83, 0.78) if ready else Color(0.75, 0.55, 0.4))
+		box.add_child(l)
+	ci.add_child(box)
 
 func _diff_col(d: int) -> Color:
 	return [Color(0.18,0.49,0.31), Color(0.37,0.54,0.21), Color(0.54,0.49,0.18), Color(0.61,0.35,0.15), Color(0.61,0.23,0.16)][clampi(d - 1, 0, 4)]
@@ -106,7 +125,7 @@ func _refresh() -> void:
 	for c in geo.mesh.cells:
 		var cell: int = c.id; var pos := Vector3(c.cx*S, Hh+0.1, c.cy*S)
 		var nm := ""; var sub := ""
-		if cell == geo.camp: nm = "⌂ Camp"
+		if cell == geo.camp: nm = "Camp"
 		elif geo.info.has(cell):
 			var st: String = states.get(cell, "available")
 			nm = geo.info[cell].name

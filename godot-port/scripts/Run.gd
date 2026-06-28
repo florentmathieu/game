@@ -1,30 +1,113 @@
 extends Node
-# État de campagne partagé (singleton autoload) + paramètres de la prochaine mission.
-var camp := {}        # geoStates, missionN, winCount, act, seed, want, forgeDone
+# État de campagne partagé (singleton autoload) : géoscape, roster, usure, sauvegarde.
+# Port des systèmes campRun d'index.html (carry / attrition / xp / forge / raids).
+const Data := preload("res://rules/Data.gd")
+
+var camp := {}        # geoStates, missionN, winCount, act, seed, want, forge*, roster, carry, deploySel
 var mission := {}     # seed, diff, act, objective, cell, name, forge, boss, enemies
 
-const ACT_MISSIONS := {1:10, 2:20, 3:20}   # régions visées par acte (= want)
+const ACT_MISSIONS := {1:10, 2:20, 3:20}
+const SQUAD_MAX := 4
+
+# réglages d'usure (port des constantes d'équilibrage)
+const FATIGUE_MISSION := 30
+const STRESS_DMG := 3
+const STRESS_KO_ALLY := 15
+const STRESS_SELF_KO := 25
+const REST_FRAC := 0.5
+const WEARY := 100
+const DEATH_PCT := 50
+const SPELL_FATIGUE := 6
+
+# escouade de départ : Aldric est le héros narratif (★ spécial = ne meurt pas définitivement)
+const STARTER := [
+	{"name":"Aldric", "cls":"soldat",   "special":true},
+	{"name":"Vesna",  "cls":"assassin", "special":false},
+	{"name":"Brom",   "cls":"garde",    "special":false},
+	{"name":"Lys",    "cls":"mage",     "special":false},
+	{"name":"Cael",   "cls":"archer",   "special":false},
+	{"name":"Doran",  "cls":"brute",    "special":false},
+]
 
 func new_campaign() -> void:
+	var roster: Array = []
+	for m in STARTER:
+		roster.append({"name":m.name, "cls":m.cls, "xp":0, "stress":0, "fatigue":0,
+			"special":m.special, "dead":false})
 	camp = {"geoStates":{}, "missionN":0, "winCount":0, "act":1,
 		"seed":(randi() & 0x7fffffff) | 1, "want":ACT_MISSIONS[1],
-		"forgeCount":0, "forgeBonus":{"hp":0, "dmg":0}, "lastAttack":-99, "done":false}
+		"forgeCount":0, "forgeBonus":{"hp":0, "dmg":0}, "lastAttack":-99, "done":false,
+		"roster":roster, "carry":{}, "deploySel":[]}
 	mission = {}
+	auto_select()
 
-# nombre d'ennemis selon la difficulté (+1 par forge libérée → missions plus denses)
+# ---------- roster : grades, perks, PV ----------
+func member(name: String) -> Dictionary:
+	for m in camp.get("roster", []):
+		if m.name == name: return m
+	return {}
+
+func mem_ready(m: Dictionary) -> bool:
+	return not m.is_empty() and not bool(m.dead) and int(m.fatigue) < WEARY and int(m.stress) < WEARY
+
+# perks débloqués automatiquement selon le grade (branche A, progression par XP)
+func member_perks(m: Dictionary) -> Array:
+	var ids: Array = []
+	var grade: int = Data.grade_from_xp(int(m.get("xp", 0)))
+	var tree: Array = Data.perks().get(m.cls, [])
+	for i in min(grade, tree.size()): ids.append(tree[i].A.id)
+	return ids
+
+func mem_max_hp(m: Dictionary) -> int:
+	var h: int = int(Data.classes().get(m.cls, {}).get("hp", 10))
+	for id in member_perks(m):
+		var p = Data.perk_by_id(m.cls, id)
+		if p != null and p.has("mod") and p.mod.has("hp"): h += int(p.mod.hp)
+	h += int(camp.get("forgeBonus", {}).get("hp", 0))
+	return h
+
+# PV au déploiement : reposé → plein ; vient de combattre → soin partiel (50 % du manque)
+func mem_deploy_hp(m: Dictionary) -> Dictionary:
+	var mx: int = mem_max_hp(m)
+	var carry = camp.get("carry", {}).get(m.name, null)
+	var hp: int = mx if carry == null else min(mx, int(carry) + int(ceil((mx - int(carry)) * 0.5)))
+	return {"hp":hp, "max":mx, "full":hp >= mx}
+
+# ---------- sélection d'escouade ----------
+func ready_members() -> Array:
+	var r: Array = []
+	for m in camp.get("roster", []):
+		if mem_ready(m): r.append(m.name)
+	return r
+
+func auto_select() -> void:
+	var sel: Array = []
+	for nm in ready_members():
+		if sel.size() >= SQUAD_MAX: break
+		sel.append(nm)
+	camp.deploySel = sel
+
+func toggle_select(name: String) -> void:
+	var sel: Array = camp.get("deploySel", [])
+	if sel.has(name): sel.erase(name)
+	elif sel.size() < SQUAD_MAX and mem_ready(member(name)): sel.append(name)
+	camp.deploySel = sel
+
+# ---------- mission ----------
 func enemy_count(diff: int, boss: bool) -> int:
 	var n := clampi(2 + diff, 3, 7)
 	if boss: n += 1
 	n += int(camp.get("forgeCount", 0))
 	return clampi(n, 3, 9)
 
-# objectif imposé par la nature de la région (le boss se tue ; sinon varié)
+func mission_preview_enemies(ginfo: Dictionary) -> int:
+	return enemy_count(int(ginfo.diff), bool(ginfo.boss))
+
 func objective_for(boss: bool) -> String:
 	if boss: return "assassinate"
 	var kinds := ["eliminate", "assassinate", "rescue", "defend", "survive", "extract"]
 	return kinds[randi() % kinds.size()]
 
-# construit mission depuis une région du geoscape (info = Geo.info[cell])
 func set_mission(cell: int, ginfo: Dictionary) -> void:
 	var diff: int = ginfo.diff
 	var boss: bool = ginfo.boss
@@ -34,8 +117,11 @@ func set_mission(cell: int, ginfo: Dictionary) -> void:
 		"cell": cell, "name": ginfo.name, "forge": ginfo.forge, "boss": boss,
 		"enemies": enemy_count(diff, boss) }
 
-# résout l'issue d'une mission : met à jour états, compteurs, forge permanente
-func resolve_mission(win: bool) -> void:
+# ---------- issue de mission : carry, usure, XP, progression ----------
+# report : { name -> {hp, max, dmgTaken, kills, spellsCast, ko} }
+func resolve_mission(win: bool, report: Dictionary = {}) -> Array:
+	var deaths := apply_attrition(win, report)
+	if win: award_xp(report)
 	var cell: int = mission.cell
 	camp.geoStates[cell] = "cleared" if win else "lost"
 	camp.missionN = int(camp.missionN) + 1
@@ -44,4 +130,61 @@ func resolve_mission(win: bool) -> void:
 		if mission.get("forge", false):
 			camp.forgeCount = int(camp.forgeCount) + 1
 			var n: int = camp.forgeCount
-			camp.forgeBonus = {"hp": 3 * n, "dmg": n}   # amélioration permanente d'escouade
+			camp.forgeBonus = {"hp": 3 * n, "dmg": n}
+	auto_select()
+	save_game()
+	return deaths
+
+func apply_attrition(win: bool, report: Dictionary) -> Array:
+	var deaths: Array = []
+	var deployed: Array = camp.get("deploySel", [])
+	var ko_count := 0
+	for nm in deployed:
+		if report.has(nm) and bool(report[nm].get("ko", false)): ko_count += 1
+	for m in camp.get("roster", []):
+		if bool(m.dead): continue
+		if deployed.has(m.name) and report.has(m.name):
+			var r: Dictionary = report[m.name]
+			m.fatigue = min(100, int(m.fatigue) + FATIGUE_MISSION + int(r.get("spellsCast", 0)) * SPELL_FATIGUE)
+			var self_ko: bool = bool(r.get("ko", false))
+			m.stress = min(100, int(m.stress) + int(r.get("dmgTaken", 0)) * STRESS_DMG
+				+ (STRESS_SELF_KO if self_ko else 0)
+				+ max(0, ko_count - (1 if self_ko else 0)) * STRESS_KO_ALLY)
+			camp.carry[m.name] = max(0, int(r.get("hp", 0)))
+			# mort définitive : K.O. ET mission perdue ET non-spécial ET au jet
+			if self_ko and not bool(m.special) and not win and randf() * 100.0 < DEATH_PCT:
+				m.dead = true; deaths.append(m.name)
+		else:
+			# repos au camp : récup partielle de l'usure + soin complet (carry effacé)
+			m.fatigue = max(0, int(m.fatigue) - int(ceil(int(m.fatigue) * REST_FRAC)))
+			m.stress = max(0, int(m.stress) - int(ceil(int(m.stress) * REST_FRAC)))
+			camp.carry.erase(m.name)
+	return deaths
+
+func award_xp(report: Dictionary) -> void:
+	for m in camp.get("roster", []):
+		if report.has(m.name): m.xp = int(m.xp) + 3 + int(report[m.name].get("kills", 0))
+
+# retrait scénarisé du statut spécial (« son rôle est fait ») → devient mortel
+func apply_mortal(names: Array) -> Array:
+	var hit: Array = []
+	for nm in names:
+		var m := member(nm)
+		if not m.is_empty() and bool(m.special): m.special = false; hit.append(nm)
+	return hit
+
+# ---------- sauvegarde ----------
+const SAVE_PATH := "user://save.json"
+func save_game() -> void:
+	var f := FileAccess.open(SAVE_PATH, FileAccess.WRITE)
+	if f == null: return
+	f.store_string(JSON.stringify(camp)); f.close()
+
+func load_game() -> bool:
+	if not FileAccess.file_exists(SAVE_PATH): return false
+	var f := FileAccess.open(SAVE_PATH, FileAccess.READ)
+	if f == null: return false
+	var data = JSON.parse_string(f.get_as_text()); f.close()
+	if typeof(data) != TYPE_DICTIONARY or not data.has("roster"): return false
+	camp = data
+	return true

@@ -101,7 +101,10 @@ static func do_attack(mesh, units: Array, att, tgt, m: String, reaction := false
 		if att.team == "enemy": dmg = max(1, dmg - 1)
 		tgt.hp -= dmg
 		res.dmg = dmg
-		if tgt.hp <= 0: tgt.hp = 0; res.killed = true
+		if tgt.team == "player": tgt.dmgTaken = int(tgt.get("dmgTaken", 0)) + dmg
+		if tgt.hp <= 0:
+			tgt.hp = 0; res.killed = true
+			if att.team == "player": att.kills = int(att.get("kills", 0)) + 1
 		res.txt = "touché %d" % dmg
 	return res
 

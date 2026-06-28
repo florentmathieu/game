@@ -227,20 +227,25 @@ func _build_walls() -> void:
 func _team_color(team: String) -> Color:
 	return Data.PLAYER_COL if team == "player" else (Data.ENEMY_COL if team == "enemy" else Data.NEUTRAL_COL)
 
-func _make_unit(team: String, cls: String, cell: int) -> void:
+func _make_unit(team: String, cls: String, cell: int, mem := {}) -> void:
 	var d = CL[cls]; var w = d.w
 	var wtype := "ranged" if w.has("ranged") else "melee"
-	var u := {"team":team, "cls":cls, "cell":cell, "hp":int(d.hp), "max":int(d.hp), "ap":AP_MAX,
+	var nm: String = mem.get("name", CL[cls].name) if not mem.is_empty() else CL[cls].name
+	var u := {"team":team, "cls":cls, "cell":cell, "name":nm, "hp":int(d.hp), "max":int(d.hp), "ap":AP_MAX,
 		"mob":int(d.mob), "facing":(PI if team == "enemy" else 0.0), "w":w, "wtype":wtype,
 		"shieldBlock":int(d.get("shieldBlock", 0)), "parry":int(d.get("parry", 0)), "stealth":d.get("stealth", false),
 		"civ":d.get("civ", false), "aimBonus":0, "dmgBonus":0, "rangeBonus":0, "reacted":false, "bracing":false, "wallStance":false,
 		"asleep":false, "pod":-1, "home":cell, "freeAvail":true, "freeMpBonus":0,
-		"abil":(d.get("abil", []) as Array).duplicate(), "cd":{}, "slowed":false, "stunned":false, "spellsCast":0}
+		"abil":(d.get("abil", []) as Array).duplicate(), "cd":{}, "slowed":false, "stunned":false,
+		"spellsCast":0, "dmgTaken":0, "kills":0}
 	if wtype == "ranged" and w.ranged.has("clip"): u.clip = int(w.ranged.clip); u.ammo = int(w.ranged.clip)
-	if team == "player":   # (démo) on accorde l'arbre A complet → capacités joueur visibles ; en campagne, perks choisis par grade
-		var ids := []
-		for g in Data.perks().get(cls, []): ids.append(g.A.id)
+	if team == "player":
+		var ids: Array = mem.get("perks", []) if not mem.is_empty() else []
+		if ids.is_empty() and mem.is_empty():   # combat autonome : arbre A complet (démo)
+			for g in Data.perks().get(cls, []): ids.append(g.A.id)
 		apply_perk_mods(u, ids)
+		if not mem.is_empty():
+			u.max = int(mem.get("maxHp", u.max)); u.hp = int(mem.get("deployHp", u.max))
 	var node := Node3D.new(); add_child(node)
 	var ball := MeshInstance3D.new()
 	var sm := SphereMesh.new(); sm.radius = 0.6; sm.height = 1.2; ball.mesh = sm
@@ -264,27 +269,50 @@ func _occupied(except_idx := -1) -> Dictionary:
 		if i != except_idx and units[i].hp > 0: o[units[i].cell] = true
 	return o
 
+# escouade à déployer : roster sélectionné (campagne) sinon 4 classes par défaut (autonome)
+func _deploy_squad() -> Array:
+	var r = get_node_or_null("/root/Run")
+	if r != null and not r.camp.is_empty() and (r.camp.get("roster", []) as Array).size() > 0:
+		var sel: Array = r.camp.get("deploySel", [])
+		if sel.is_empty(): sel = r.ready_members()
+		var out: Array = []
+		for nm in sel:
+			var m: Dictionary = r.member(nm)
+			if m.is_empty() or bool(m.get("dead", false)): continue
+			var dh: Dictionary = r.mem_deploy_hp(m)
+			out.append({"cls":m.cls, "mem":{"name":m.name, "perks":r.member_perks(m), "maxHp":int(dh.max), "deployHp":int(dh.hp)}})
+		if not out.is_empty(): return out
+	return [{"cls":"soldat"}, {"cls":"assassin"}, {"cls":"garde"}, {"cls":"mage"}]
+
+# rapport de fin (par nom) : PV, usure, kills, sorts, K.O. — consommé par Run.resolve_mission
+func build_report() -> Dictionary:
+	var rep := {}
+	for u in units:
+		if u.team == "player":
+			rep[u.name] = {"hp":int(u.hp), "max":int(u.max), "dmgTaken":int(u.get("dmgTaken", 0)),
+				"kills":int(u.get("kills", 0)), "spellsCast":int(u.get("spellsCast", 0)), "ko":u.hp <= 0}
+	return rep
+
 func _spawn_units() -> void:
 	var pass_cells := []
 	for c in mesh.cells:
 		if mesh.passable(c.id): pass_cells.append(c.id)
 	pass_cells.sort_custom(func(a, b): return (mesh.cells[a].cx + mesh.cells[a].cy) < (mesh.cells[b].cx + mesh.cells[b].cy))
 	var used := {}
-	for cls in ["soldat", "assassin", "garde", "mage"]:
+	# déploiement de l'escouade : roster sélectionné (campagne) ou 4 classes par défaut (autonome)
+	var squad: Array = _deploy_squad()
+	var r = get_node_or_null("/root/Run")
+	var fb: Dictionary = {}
+	if r != null and r.camp.has("forgeBonus"): fb = r.camp.forgeBonus
+	for spec in squad:
 		for id in pass_cells:
 			if used.has(id): continue
 			var ok := true
 			for k in used: if mesh.hops(k, id) < 2: ok = false; break
-			if ok: _make_unit("player", cls, id); used[id] = true; break
-	# bonus de forge appliqué à l'escouade (PV/dégâts), cf. campRun.forgeBonus du JS
-	var fb: Dictionary = mis.get("forgeBonus", {})
-	if fb.is_empty():
-		var r = get_node_or_null("/root/Run")
-		if r != null and r.camp.has("forgeBonus"): fb = r.camp.forgeBonus
-	if not fb.is_empty():
-		for u in units:
-			if u.team == "player":
-				u.max += int(fb.get("hp", 0)); u.hp += int(fb.get("hp", 0)); u.dmgBonus += int(fb.get("dmg", 0))
+			if ok:
+				_make_unit("player", spec.cls, id, spec.get("mem", {})); used[id] = true
+				if not fb.is_empty(): units[-1].dmgBonus += int(fb.get("dmg", 0))   # dégâts de forge (PV déjà dans maxHp)
+				break
 	# escouade ennemie : nombre selon difficulté, répartie en pods, la plus loin = boss
 	var pool := ["garde", "archer", "emage", "shieldbearer", "brute", "archer", "garde", "brute"]
 	var far := pass_cells.duplicate(); far.reverse()
@@ -322,6 +350,8 @@ func exec_blast(u, center: int) -> bool:
 		if mesh.hops(center, e.cell) <= Data.BLAST_RADIUS:
 			var dmg := Data.BLAST_MIN + randi() % (Data.BLAST_MAX - Data.BLAST_MIN + 1)
 			e.hp = max(0, e.hp - dmg); _flash(e, str(dmg), Color(1, 0.6, 0.2))
+			if e.team == "player": e.dmgTaken = int(e.get("dmgTaken", 0)) + dmg
+			if e.hp <= 0 and u.team == "player": u.kills = int(u.get("kills", 0)) + 1
 			if e.hp > 0 and e.team == "enemy": wake_enemy(e)
 	_fx_burst(center, Color(1, 0.55, 0.15), 1.6)
 	u.spellsCast += 1; set_cd(u, "blast"); u.ap = 0
