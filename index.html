@@ -1186,7 +1186,7 @@
     cells:cells.map(c=>{const o={poly:c.poly.map(p=>[Math.round(p[0]),Math.round(p[1])]),terr:c.terr,elev:c.elev};if(c.zone)o.zone=c.zone;return o;}),
     walls:[...walls],
     deployZone:cells.filter(c=>c.deploy).map(c=>c.id),   // zone de déploiement de l'escouade (cases où le roster apparaît)
-    units:units.map(u=>{const o={team:u.team,cls:u.cls,cell:u.cell};if(u.name!==CLASSES[u.cls].name)o.name=u.name;if(u.pod!==undefined)o.pod=u.pod;if(u.asleep)o.asleep=true;if(u.hostage)o.hostage=true;if(u.hvt)o.hvt=true;if(u.team==="neutral"&&u.civ===false)o.guard=true;if(u.facing!=null)o.facing=u.facing;return o;}),
+    units:units.filter(u=>!u.test).map(u=>{const o={team:u.team,cls:u.cls,cell:u.cell};if(u.name!==CLASSES[u.cls].name)o.name=u.name;if(u.pod!==undefined)o.pod=u.pod;if(u.asleep)o.asleep=true;if(u.hostage)o.hostage=true;if(u.hvt)o.hvt=true;if(u.team==="neutral"&&u.civ===false)o.guard=true;if(u.facing!=null)o.facing=u.facing;return o;}),
     triggers:triggers,
     protect:(document.getElementById("m-protect")&&document.getElementById("m-protect").value!=="")?+document.getElementById("m-protect").value:undefined,
     objective:(curMission&&curMission.objective&&curMission.objective!=="eliminate")?curMission.objective:undefined,   // archétype + paramètres d'objectif
@@ -1719,9 +1719,14 @@
   document.getElementById("end").onclick=()=>{if(!over&&turn==="player"&&mode==="play")endTurn();};
   { const jh=document.getElementById("journal-hd"); if(jh)jh.onclick=()=>document.getElementById("journal").classList.toggle("collapsed"); }
   document.getElementById("overbtn").onclick=()=>{ if(mode==="play")startGame(); };
+  // escouade de test : posée sur la zone de déploiement le temps d'un essai, retirée en sortant (jamais sauvegardée)
+  function spawnTestSquad(){ const dz=cells.filter(c=>c.deploy&&passable(c.id)&&!uAt(c.id)).sort((a,b)=>(a.cy-b.cy)||(a.cx-b.cx));
+    const kinds=["soldat","sapeur","assassin","garde"]; for(let i=0;i<dz.length&&i<4;i++){ const u=U("player",kinds[i%kinds.length],dz[i].id,{name:"Test "+(i+1)}); u.test=true; units.push(u); } }
   document.getElementById("mode").onclick=()=>{ const btn=document.getElementById("mode");
-    if(document.body.classList.contains("testing")){ document.body.classList.remove("testing"); campRun=null; sel=null; setView("mission"); btn.textContent="▶ Tester la mission"; refresh(); }
-    else { document.body.classList.add("testing"); setView("play"); btn.textContent="✎ Éditer la mission"; startGame(); } };
+    if(document.body.classList.contains("testing")){ document.body.classList.remove("testing"); campRun=null; sel=null; units=units.filter(u=>!u.test); setView("mission"); btn.textContent="▶ Tester la mission"; refresh(); }
+    else { document.body.classList.add("testing"); setView("play");
+      if(cells.some(c=>c.deploy)&&!units.some(u=>u.team==="player"))spawnTestSquad();   // zone de déploiement sans unités placées : escouade de test auto
+      btn.textContent="✎ Éditer la mission"; startGame(); } };
 
   // ===== polish : bannière de tour, fiche au survol, raccourcis clavier =====
   function banner(text,cls){ const el=document.getElementById("banner"); el.textContent=text; el.style.background=cls==="enemy"?"#5a2a2a":"#2a4a5a"; el.classList.remove("show"); void el.offsetWidth; el.classList.add("show"); }
