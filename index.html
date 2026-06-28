@@ -1856,6 +1856,26 @@
   // ===== geoscape PROCÉDURAL : un territoire neuf à chaque campagne (variété) =====
   const GEO_W=820, GEO_H=620;   // toile de base ; le zoom/pan gère l'affichage
   // missions réelles par acte et par difficulté (ennemis déjà calibrés dans les fichiers)
+  // ===== TEXTES éditables du geoscape (macro + narratif par acte) — surchargés par texts/geoscape.json =====
+  const GEO_TXT_DEFAULTS={
+    messages:{
+      attack:"⚠ {region} est attaquée ! Reprends-la avant qu'elle ne tombe — sans elle, la route se coupe.",
+      forge:"🔨 Forge libérée — toute l'escouade gagne +3 PV et +1 dégât (cumulé : +{thp} PV / +{tdmg} dégâts). En réponse, l'ennemi resserre ses rangs.",
+      prime:"⏳ Prime express empochée : {reward}.",
+      choose:"choisis une région — {n} sur le front", noFront:"aucune région accessible",
+      secured:"région sécurisée — choisis la suite", lost:"région perdue — la situation a changé",
+      actEndWin:"Région sécurisée. L'acte s'achève.", actEndLoss:"Région perdue. L'acte s'achève.",
+      clickLocked:"région coupée du camp — libère d'abord un chemin", clickCleared:"région déjà nettoyée", clickNA:"région indisponible" },
+    acts:{
+      1:{ arrive:"La Marche de Velhaur s'étend devant vous.\n_\n[... ce qu'on vous a dit que vous veniez faire ...]", forge:"Une vieille forge dort sous la région.\n_\n[... la remettre en marche armerait mieux l'escouade ...]", boss:"Le Bastion verrouille la Marche.\n_\n[... le prendre ouvre la suite ...]" },
+      2:{ arrive:"La Faille s'ouvre sous le territoire.\n_\n[... la corruption, et ceux qui l'ont choisie ...]", forge:"Une forge engloutie peut encore servir.\n_\n[... à quel prix ...]", boss:"Le Verrou de la Faille barre la route du Cœur.\n_\n[... il faut le briser ...]" },
+      3:{ arrive:"Le dernier territoire — là où la Faille bat le plus fort.\n_\n[... presque au Cœur ...]", forge:"La forge du gouffre, ultime atelier.\n_\n[... un dernier renfort ...]", boss:"Le Cœur de la Faille bat devant vous.\n_\n[... l'étouffer sous l'otataral ...]" } } };
+  let GTX=JSON.parse(JSON.stringify(GEO_TXT_DEFAULTS)), _geoTxtLoaded=false;
+  const tfmt=(s,vars)=>(s||"").replace(/\{(\w+)\}/g,(m,k)=>(vars&&vars[k]!=null)?vars[k]:m);
+  function gtx(pathStr,vars){ const get=o=>{ for(const p of pathStr.split("."))o=o&&o[p]; return o; }; let v=get(GTX); if(v==null)v=get(GEO_TXT_DEFAULTS); return tfmt(typeof v==="string"?v:"",vars); }
+  async function ensureGeoTxt(){ if(_geoTxtLoaded)return; _geoTxtLoaded=true;
+    try{ const t=await fetchText("texts/geoscape.json",ghCfg()); if(t){ const o=JSON.parse(t);
+      GTX={ messages:Object.assign({},GEO_TXT_DEFAULTS.messages,o.messages||{}), acts:Object.assign({},GEO_TXT_DEFAULTS.acts,o.acts||{}) }; } }catch(e){} }
   const FAILLE_BY_DIFF={1:["terr-faille-ravins-de-cendre.json","terr-faille-pont-rompu.json"],2:["terr-faille-marais-bleme.json","terr-faille-sente-grise.json"],3:["terr-faille-verriere-brisee.json","terr-faille-tour-engloutie.json","terr-faille-dedale-noye.json"],4:["terr-faille-crevasse.json"],5:["terr-faille-coeur.json"]};
   const ACT_MISSIONS={
     1:{1:["terr-crete-venteuse.json","terr-carriere-noyee.json"],2:["terr-tourbiere.json","terr-gue-de-l-aval.json","terr-bois-brule.json"],3:["terr-hameau-muet.json"],4:["terr-vieux-moulin.json"],5:["terr-bastion.json"]},
@@ -1897,6 +1917,10 @@
       else { cell.name=names[rank%names.length]; cell.state="available"; cell.content={kind:"mission",ref:pickRef(d)}; }
       cell.diff=d; });
     out.events.push({when:{kind:"wins",value:Math.max(3,Math.round(maxR*0.5))},reveal:BOSS_NAME[act],text:""});   // le boss se révèle à mi-parcours
+    // textes narratifs par acte (éditables dans texts/geoscape.json) : arrivée, avant la forge, avant le boss
+    const aArr=gtx("acts."+act+".arrive"); if(aArr)out.events.push({when:{kind:"arrive"},text:aArr});
+    const aForge=gtx("acts."+act+".forge"); if(aForge)out.events.push({when:{kind:"before",value:FORGE_NAME[act]},text:aForge});
+    const aBoss=gtx("acts."+act+".boss"); if(aBoss)out.events.push({when:{kind:"before",value:BOSS_NAME[act]},text:aBoss});
     return out; }
   // ennemis « ajustés » après l'ouverture d'une forge : +1 ennemi par forge libérée (compense le gain de stats)
   function addForgeEnemies(){ if(!campRun)return; const n=campRun.forge||0; if(n<=0)return;
@@ -1906,7 +1930,7 @@
       for(const e of enemies){ for(const nb of cells[e.cell].nb){ if(passable(nb)&&!occ0.has(nb)){spot=nb;break;} } if(spot!=null)break; }
       if(spot==null){ const f=cells.find(c=>passable(c.id)&&!occ0.has(c.id)); spot=f?f.id:null; }
       if(spot==null)break; units.push(U("enemy",ecls[k%ecls.length],spot,{pod:podMax,asleep:true})); occ0.add(spot); } }
-  async function enterGeoPlay(node){ let m;
+  async function enterGeoPlay(node){ let m; await ensureGeoTxt();   // textes éditables chargés avant la génération
     if(node.proc){ if(campRun.geoSeed==null)campRun.geoSeed=((Date.now()^Math.floor(Math.random()*0x7fffffff))>>>0)||1;   // graine par campagne → territoire neuf à chaque partie
       m=genGeoMap({act:node.proc.act||1,regions:node.proc.regions||10,seed:(campRun.geoSeed^hashStr(node.id))>>>0}); }
     else { const t=await fetchText("geoscapes-mesh/"+node.map,ghCfg());
@@ -1917,7 +1941,7 @@
     document.body.classList.add("geomap"); over=false; resetView(); geoBuildCells(); hoverCell=null; primeInit(); geoBanner(); draw(); runGeoEvents("arrive",()=>saveCampRun()); }   // primes des régions dures + événements de 1ʳᵉ arrivée, puis point de reprise
   function geoBanner(t){ const el=document.getElementById("geobanner"); if(!el||!geoPlay)return;
     const avail=geoAccessibleSet().size;   // régions accessibles (sur le front, reliées au camp)
-    const sub=t!=null?esc(t):(avail?("choisis une région — "+avail+" sur le front"):"aucune région accessible");
+    const sub=t!=null?esc(t):(avail?gtx("messages.choose",{n:avail}):gtx("messages.noFront"));
     el.innerHTML=`<b>${esc(geoPlay.map.name||"Territoire")}</b> — ${sub}`; renderGeoRoster(); }
   // panneau « camp » : état du roster (grade, fatigue, stress, statut spécial, mort)
   function renderGeoRoster(){ const el=document.getElementById("georoster"); if(!el||!campRun||!campRun.roster)return;
@@ -1955,7 +1979,7 @@
       const pr=campRun&&campRun.primes&&campRun.primes[c.gname]; if(pr&&(es==="available"||es==="lost")){ ctx.font="bold 10px system-ui"; ctx.fillStyle="#ffd479"; ctx.fillText("⏳+"+(pr.xp||0)+"xp",c.cx,c.cy+33); } }   // prime express qui fond (seulement sur le front)
     if(geoCampId!=null&&cells[geoCampId]){ poly(cells[geoCampId]); ctx.lineWidth=3; ctx.strokeStyle="#e0b341"; ctx.stroke(); } }
   function geoPlayClick(X,Y){ const c=cellAtXY(X,Y); if(!c)return; const es=geoEffState(c,geoAccessibleSet());
-    if(es!=="available"&&es!=="lost"&&es!=="attacked"){ geoBanner(es==="locked"?"région coupée du camp — libère d'abord un chemin":(es==="cleared"?"région déjà nettoyée":"région indisponible")); return; }
+    if(es!=="available"&&es!=="lost"&&es!=="attacked"){ geoBanner(es==="locked"?gtx("messages.clickLocked"):(es==="cleared"?gtx("messages.clickCleared"):gtx("messages.clickNA"))); return; }
     if(c.gkind!=="mission"||!c.gref){ geoBanner("rien à faire ici pour l'instant"); return; }
     geoLaunchMission(c.id,c.gref); }
   // écran de sélection d'escouade avant de partir : choisir jusqu'à N soldats PRÊTS (ni épuisés ni morts)
@@ -2012,15 +2036,15 @@
     const map=geoPlay.map, cand=[]; map.cells.forEach((c,i)=>{ if(st[i]==="cleared"&&!c.boss)cand.push(i); });
     if(!cand.length)return null; const pick=cand[Math.floor(Math.random()*cand.length)];
     st[pick]="attacked"; campRun.lastAttackN=campRun.missionN||0;
-    return "⚠ "+((map.cells[pick].name)||"Une région")+" est attaquée ! Reprends-la avant qu'elle ne tombe — sans elle, la route se coupe."; }
+    return gtx("messages.attack",{region:(map.cells[pick].name)||"Une région"}); }
   function geoMissionEnd(resultTxt){ const win=resultTxt.indexOf("Victoire")===0; const ret=campRun.geoReturn; const st=campRun.geoStates[ret.nodeId]; saveCarry(); if(win)awardXp(); const deaths=applyAttrition(win); let bonusMsg=null,primeMsg=null,forgeMsg=null,atkMsg=null;
     const frontBefore=primeFront();   // front d'avant la mission : les régions ouvertes par cette victoire ne fondront pas ce tour-ci
     const fcell=geoPlay.map.cells[ret.cellId]; const rn=fcell&&fcell.name;
     if(win){ st[ret.cellId]="cleared"; campRun.potions=(inv.potion||0)+((curMission&&curMission.loot)||0); bonusMsg=grantBonus(win); campRun.winCount=(campRun.winCount||0)+1;
-      if(rn&&campRun.primes&&campRun.primes[rn]){ const s=applyReward(campRun.primes[rn]); delete campRun.primes[rn]; if(s)primeMsg="⏳ Prime express empochée : "+s+"."; }   // prime de la région prise (avant qu'elle fonde)
+      if(rn&&campRun.primes&&campRun.primes[rn]){ const s=applyReward(campRun.primes[rn]); delete campRun.primes[rn]; if(s)primeMsg=gtx("messages.prime",{reward:s}); }   // prime de la région prise (avant qu'elle fonde)
       if(fcell&&fcell.forge){ campRun.forgeDone=campRun.forgeDone||[]; const fk=ret.nodeId+":"+ret.cellId;   // forge libérée : bonus de stats permanent, une seule fois
         if(campRun.forgeDone.indexOf(fk)<0){ campRun.forgeDone.push(fk); campRun.forge=(campRun.forge||0)+1; campRun.forgeBonus={hp:3*campRun.forge,dmg:campRun.forge};
-          forgeMsg="🔨 Forge libérée — toute l'escouade gagne +3 PV et +1 dégât (cumulé : +"+(3*campRun.forge)+" PV / +"+campRun.forge+" dégâts). En réponse, l'ennemi resserre ses rangs."; } }
+          forgeMsg=gtx("messages.forge",{thp:3*campRun.forge,tdmg:campRun.forge}); } }
       geoPlay.map.cells.forEach((c,i)=>{ if((c.unlockedBy||[]).includes(ret.cellId)&&st[i]==="locked")st[i]="available"; }); }
     else st[ret.cellId]="lost";
     primeDecay(frontBefore);   // une mission a été jouée : les primes déjà sur le front fondent d'un cran
@@ -2037,10 +2061,10 @@
     if(lostSpecial.length)events.push("★ "+lostSpecial.join(", ")+" — leur rôle est accompli : iels ne sont plus à l'abri du destin.");
     const showEvents=after=>{ if(!events.length){after();return;} announce(events.shift(),()=>showEvents(after)); };
     const toCamp=()=>{ document.body.classList.add("geomap"); resetView(); geoBuildCells(); hoverCell=null; primeInit();
-      geoBanner(win?"région sécurisée — choisis la suite":"région perdue — la situation a changé"); draw();
+      geoBanner(win?gtx("messages.secured"):gtx("messages.lost")); draw();
       runGeoEvents("after",{region:rn,missionN:campRun.missionN},()=>runGeoEvents("debrief",()=>{ geoBuildCells(); draw(); geoBanner(); saveCampRun(); })); };   // texte d'après-mission, puis « région prise / N victoires », redessine, point de reprise
     const resolveDebrief=()=>{ if(geoEndReached(node,st)){ const nx=node.next; geoPlay=null; document.body.classList.remove("geomap");
-        announce((win?"Région sécurisée.":"Région perdue.")+" L'acte s'achève.",()=>{ if(nx)runNode(nx); else endCampaignRun("Acte terminé."); }); return; }
+        announce(gtx(win?"messages.actEndWin":"messages.actEndLoss"),()=>{ if(nx)runNode(nx); else endCampaignRun("Acte terminé."); }); return; }
       toCamp(); };
     const finish=()=>{ showEvents(()=> maybeOfferExtra(win,resolveDebrief) ); };   // pertes/★/bonus, puis offre éventuelle d'une mission bonus, puis retour au camp
     showPromotions(finish); }   // promotions A/B, puis pertes / retraits de ★, puis retour au camp

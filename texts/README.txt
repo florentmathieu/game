@@ -27,6 +27,18 @@ CONVENTION DE NOMMAGE
   Le préfixe numérique = ordre de lecture suggéré (par difficulté), pas
   un ordre imposé : le geoscape reste concurrent.
 
+GEOSCAPE (carte stratégique) — textes éditables
+  geoscape.json ......... TOUS les textes de la carte stratégique, au même
+                          endroit : messages système (région attaquée, forge
+                          libérée, prime, bannières, fin d'acte) ET narration
+                          par acte (arrivée / avant la forge / avant le boss).
+                          Le geoscape étant PROCÉDURAL (régions tirées au
+                          hasard à chaque campagne), la narration y est par
+                          ACTE, pas par région nommée. Rechargé à chaque
+                          entrée sur la carte → édite et relance.
+
 NOTE
-  Les anciens fichiers du prototype anglais (Opening.txt, Mission1-*,
-  Interlude*) sont conservés comme référence de ton/format.
+  Les fichiers acte1/ et acte2/ par mission nommée ci-dessus servent pour des
+  geoscapes FAITS-MAIN (éditeur). Le mode campagne procédural utilise
+  geoscape.json. Les anciens fichiers du prototype anglais (Opening.txt,
+  Mission1-*, Interlude*) restent comme référence de ton/format.
