@@ -1037,25 +1037,20 @@ func _refresh() -> void:
 	if over: hud.text = hud.text; return   # message de fin déjà posé
 	hud.text = _obj_label() + "\n" + s
 
+# paliers de déplacement : bleu (gratuit) / jaune (1 PA) / rouge (2 PA)
 func _tier_col(t: int) -> Color:
-	return [Color(0.40, 0.72, 1.0), Color(0.35, 0.95, 0.80), Color(1.0, 0.78, 0.32)][min(t, 2)]
+	return [Color(0.30, 0.60, 1.0), Color(1.0, 0.85, 0.2), Color(0.95, 0.28, 0.24)][min(t, 2)]
 
-# remplissage translucide par palier + CONTOURS (bord externe + frontières de paliers) — façon XCOM
+# CONTOURS uniquement (bord externe + frontières de paliers) — pas de teinte des tuiles
 func _draw_move_overlay(u) -> void:
-	var fill := SurfaceTool.new(); fill.begin(Mesh.PRIMITIVE_TRIANGLES)
 	var line := SurfaceTool.new(); line.begin(Mesh.PRIMITIVE_TRIANGLES)
 	var tier := {}
 	for cell in reachable: tier[cell] = ap_for_move(u, reachable[cell])
 	for cell in reachable:
 		var t: int = tier[cell]
-		var col := _tier_col(t); col.a = 0.22
-		var top: float = _cell_top(cell) + 0.05
-		var c = mesh.cells[cell]; var ctr := Vector3(c.cx * S, top, c.cy * S); var p: Array = c.poly
-		for k in p.size():   # remplissage (éventail)
-			var a: Vector2 = p[k]; var b: Vector2 = p[(k + 1) % p.size()]
-			for v in [ctr, Vector3(b.x * S, top, b.y * S), Vector3(a.x * S, top, a.y * S)]:
-				fill.set_color(col); fill.add_vertex(v)
-		# contours : arêtes vers une case hors-portée (bord externe) ou vers un palier supérieur
+		var top: float = _cell_top(cell) + 0.06
+		var c = mesh.cells[cell]
+		# une arête est tracée si elle borde une case hors-portée OU un palier supérieur (couleur du palier le plus coûteux)
 		for nb in c.nb:
 			var draw := false; var lc := _tier_col(t)
 			if not reachable.has(nb): draw = true
@@ -1063,19 +1058,15 @@ func _draw_move_overlay(u) -> void:
 			if not draw: continue
 			var seg = mesh.wall_seg.get(mesh.wkey(cell, nb))
 			if seg == null: continue
-			var p0 := Vector3(seg[0].x * S, top + 0.02, seg[0].y * S)
-			var p1 := Vector3(seg[1].x * S, top + 0.02, seg[1].y * S)
+			var p0 := Vector3(seg[0].x * S, top, seg[0].y * S)
+			var p1 := Vector3(seg[1].x * S, top, seg[1].y * S)
 			var dir := (p1 - p0); dir = dir.normalized() if dir.length() > 0.001 else Vector3(1, 0, 0)
-			var perp := Vector3(-dir.z, 0, dir.x) * 0.09
+			var perp := Vector3(-dir.z, 0, dir.x) * 0.10
 			lc.a = 1.0
 			for v in [p0 - perp, p1 + perp, p1 - perp, p0 - perp, p0 + perp, p1 + perp]:
 				line.set_color(lc); line.add_vertex(v)
-	var fm := StandardMaterial3D.new(); fm.vertex_color_use_as_albedo = true
-	fm.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA; fm.cull_mode = BaseMaterial3D.CULL_DISABLED
-	fm.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	var fmi := MeshInstance3D.new(); fmi.mesh = fill.commit(); fmi.material_override = fm; add_child(fmi); _markers.append(fmi)
 	var lm := StandardMaterial3D.new(); lm.vertex_color_use_as_albedo = true; lm.cull_mode = BaseMaterial3D.CULL_DISABLED
-	lm.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED; lm.emission_enabled = true; lm.emission = Color(1, 1, 1); lm.emission_energy_multiplier = 0.4
+	lm.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED; lm.emission_enabled = true; lm.emission = Color(1, 1, 1); lm.emission_energy_multiplier = 0.5
 	var lmi := MeshInstance3D.new(); lmi.mesh = line.commit(); lmi.material_override = lm; add_child(lmi); _markers.append(lmi)
 
 func _update_markers() -> void:
