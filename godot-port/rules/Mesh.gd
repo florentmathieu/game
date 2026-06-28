@@ -166,6 +166,47 @@ func decorate(seed_value: int, cover: float = 0.30) -> void:
 		if cells[x].terr == "wall" or cells[y].terr == "wall": continue
 		if rng.next() < 0.15: walls[key] = true
 
+# ---- distorsion progressive (port de distortTerrain/sharedEdge) ----
+# Déplace chaque sommet par un bruit DÉTERMINISTE de sa position : deux cellules qui
+# partagent un sommet le déplacent à l'identique → arêtes jointes, adjacence conservée.
+# La topologie (qui est voisin de qui) est FIGÉE avant la déformation : seule la géométrie change.
+func distort(level: float) -> void:
+	if level <= 0.0 or cells.is_empty(): return
+	var A := level * 9.0
+	var keep: Array = []
+	for c in cells: keep.append((c.nb as Array).duplicate())
+	for c in cells:
+		var np: Array = []
+		for pt in c.poly:
+			var x: float = pt.x; var y: float = pt.y
+			var sx := sin(x * 0.045 + y * 0.021) + sin(x * 0.017 - y * 0.039)
+			var sy := cos(x * 0.031 - y * 0.05) + cos(x * 0.023 + y * 0.041)
+			np.append(Vector2(x + sx * A * 0.5, y + sy * A * 0.5))
+		c.poly = np
+	for c in cells:
+		var ct := poly_centroid(c.poly); c.cx = ct.x; c.cy = ct.y
+	for i in cells.size(): cells[i].nb = (keep[i] as Array).duplicate()   # adjacence préservée à l'identique
+	# arêtes-murets reconstruites depuis les polygones tordus, restreintes aux vraies paires de voisins
+	wall_seg = {}
+	for c in cells:
+		for j in c.nb:
+			if j <= c.id: continue
+			var seg := _shared_edge(c, cells[j])
+			if seg.size() == 2: wall_seg[wkey(c.id, j)] = seg
+
+# arête de A dont le milieu est le plus proche d'une arête de B (robuste sur maillage tordu)
+func _shared_edge(a, b) -> Array:
+	var best: Array = []; var bd := 1e30
+	var pa: Array = a.poly; var pb: Array = b.poly
+	for i in pa.size():
+		var a0: Vector2 = pa[i]; var a1: Vector2 = pa[(i + 1) % pa.size()]
+		var am := (a0 + a1) * 0.5
+		for j in pb.size():
+			var b0: Vector2 = pb[j]; var b1: Vector2 = pb[(j + 1) % pb.size()]
+			var d := am.distance_to((b0 + b1) * 0.5)
+			if d < bd: bd = d; best = [a0, a1]
+	return best
+
 # ---- déplacement / vision ----
 func passable(id: int) -> bool:
 	return id >= 0 and id < cells.size() and cells[id].terr != "wall"

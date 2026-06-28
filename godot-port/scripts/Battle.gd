@@ -46,6 +46,12 @@ func _run_mission() -> Dictionary:
 	if r != null and not r.mission.is_empty(): return r.mission
 	return {}
 
+# corruptLevel() : la distorsion croît avec le nombre de missions (cumulatif, plafonné à 1)
+func _corrupt_level() -> float:
+	var r = get_node_or_null("/root/Run")
+	if r == null or r.camp.is_empty(): return 0.0
+	return min(1.0, int(r.camp.get("missionN", 0)) * 0.06)
+
 func _ready() -> void:
 	randomize()
 	CL = Data.classes()
@@ -54,6 +60,7 @@ func _ready() -> void:
 	if mis.has("enemies"): n_enemies = int(mis.enemies)
 	_setup_world()
 	_gen_battle(seed_value)
+	mesh.distort(_corrupt_level())   # distorsion progressive : le terrain se tord à mesure qu'on avance
 	_build_tiles()
 	_build_walls()
 	_spawn_units()

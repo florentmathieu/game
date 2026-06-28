@@ -23,6 +23,7 @@ func _ready() -> void:
 	var act: int = Run.camp.act
 	geo = Geo.new()
 	geo.generate(int(Run.camp.seed) ^ (act * 97), act, int(Run.camp.want))
+	geo.mesh.distort((act - 1) * 0.12)   # le territoire se tord d'acte en acte (la Faille s'étend)
 	states = Run.camp.geoStates
 	if states.is_empty():
 		for cell in geo.info: states[cell] = ("locked" if geo.info[cell].boss else "available")
