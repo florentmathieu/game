@@ -1285,7 +1285,15 @@
   const idOpts=(sel,allowNull)=>(allowNull?`<option value="">—</option>`:"")+campNodes.map(n=>`<option value="${n.id}" ${n.id===sel?"selected":""}>${nodeLabel(n)}</option>`).join("");
   const missOpts=sel=>repoMissionList.length?repoMissionList.map(m=>`<option value="${m.file}" ${m.file===sel?"selected":""}>${m.name}</option>`).join(""):`<option value="">(aucune)</option>`;
   const txtOpts=(sel,none)=>`<option value="">${none||"— aucun —"}</option>`+repoTexts.map(t=>`<option value="${t.file}" ${t.file===sel?"selected":""}>${esc(t.name)}</option>`).join("");
-  async function fetchTexts(){ const t=await fetchText("texts/list.json",ghCfg()); let list=[]; if(t){try{const p=JSON.parse(t);if(Array.isArray(p))list=p.map(x=>typeof x==="string"?{file:x,name:x.split("/").pop().replace(/\.txt$/,"")}:x);}catch(e){}} repoTexts=list; if(document.body.classList.contains("view-campaign"))renderNodes(); }
+  async function fetchTexts(){ const cfg=ghCfg(); let list=[];
+    // AUTO : liste le dossier texts/ depuis l'arbre git du dépôt (n'importe quel .txt ajouté apparaît, sans manifeste)
+    if(cfg&&cfg.token&&cfg.repo&&cfg.branch){ try{
+      const r=await fetch(`https://api.github.com/repos/${cfg.repo}/git/trees/${encodeURIComponent(cfg.branch)}?recursive=1&_=${Date.now()}`,{headers:{Authorization:"Bearer "+cfg.token,Accept:"application/vnd.github+json"},cache:"no-store"});
+      if(r.ok){ const j=await r.json(); if(Array.isArray(j.tree)) list=j.tree.filter(e=>e.type==="blob"&&e.path.startsWith("texts/")&&e.path.endsWith(".txt")&&!/(^|\/)(README|AVANCEMENT)\.txt$/.test(e.path)).map(e=>({file:e.path,name:e.path.slice(6,-4)})).sort((a,b)=>a.name.localeCompare(b.name)); }
+    }catch(e){} }
+    // repli : manifeste texts/list.json (si pas de token, ou arbre indisponible)
+    if(!list.length){ const t=await fetchText("texts/list.json",ghCfg()); if(t){try{const p=JSON.parse(t);if(Array.isArray(p))list=p.map(x=>typeof x==="string"?{file:x,name:x.split("/").pop().replace(/\.txt$/,"")}:x);}catch(e){}} }
+    repoTexts=list; if(document.body.classList.contains("view-campaign"))renderNodes(); }
   // texte affiché à l'exécution : priorité au fichier .txt choisi, sinon le texte saisi en ligne
   async function resolveText(inline,file){ if(file){ const t=await fetchText(file,ghCfg()); if(t!=null)return t; } return inline||""; }
   function renderNodes(){ dedupeNodes(); const cs=document.getElementById("cstart"); if(cs)cs.innerHTML=idOpts(campStart,false);
