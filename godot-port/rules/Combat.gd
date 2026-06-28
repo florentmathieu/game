@@ -104,3 +104,25 @@ static func do_attack(mesh, units: Array, att, tgt, m: String, reaction := false
 		if tgt.hp <= 0: tgt.hp = 0; res.killed = true
 		res.txt = "touché %d" % dmg
 	return res
+
+const ENEMY_VIS := 7
+const SLEEP_VIS := 4
+
+# espérance de tir depuis une case quelconque (0 si hors portée / sans vue) — pour l'IA
+static func shot_from(mesh, units: Array, att, from_cell: int, tgt, m: String) -> int:
+	var w = att.w.get(m)
+	if w == null: return 0
+	if w.type == "ranged":
+		if mesh.hops(from_cell, tgt.cell) > (int(w.range) + int(att.get("rangeBonus", 0))) or not mesh.los(from_cell, tgt.cell): return 0
+	elif mesh.hops(from_cell, tgt.cell) > 1:
+		return 0
+	var ghost := {"cell":from_cell, "w":att.w, "team":att.team, "aimBonus":att.get("aimBonus", 0), "rangeBonus":att.get("rangeBonus", 0)}
+	return chance(mesh, units, ghost, tgt, m)
+
+# un ennemi voit-il un joueur ? portée selon éveil + LdV + cône (furtif = cône avant ; normal = hors angle mort arrière)
+static func enemy_sees_p(mesh, e, p) -> bool:
+	if p.get("hidden", false): return false
+	var vis := SLEEP_VIS if e.get("asleep", false) else ENEMY_VIS
+	if mesh.hops(e.cell, p.cell) > vis or not mesh.los(e.cell, p.cell): return false
+	var fl := flank_of(mesh, p, e)
+	return (fl == "front") if p.get("stealth", false) else (fl != "back")

@@ -16,6 +16,10 @@ var units: Array = []
 var sel := -1
 var reachable := {}
 var turn := "player"
+var seen_cells := {}         # cases vues par le joueur (brouillard)
+var evisible := {}           # cases vues par les ennemis éveillés
+var pod_alerted := {}        # pods déjà réveillés
+var _pod_centers = null
 var pivot: Node3D
 var cam: Camera3D
 var hud: Label
@@ -33,6 +37,7 @@ func _ready() -> void:
 	_build_walls()
 	_spawn_units()
 	_setup_camera()
+	compute_vis(); detect_enemies()
 	_refresh()
 
 # ---------- monde / lumière ----------
@@ -129,7 +134,8 @@ func _make_unit(team: String, cls: String, cell: int) -> void:
 	var u := {"team":team, "cls":cls, "cell":cell, "hp":int(d.hp), "max":int(d.hp), "ap":AP_MAX,
 		"mob":int(d.mob), "facing":(PI if team == "enemy" else 0.0), "w":w, "wtype":wtype,
 		"shieldBlock":int(d.get("shieldBlock", 0)), "parry":int(d.get("parry", 0)), "stealth":d.get("stealth", false),
-		"civ":d.get("civ", false), "aimBonus":0, "dmgBonus":0, "rangeBonus":0, "reacted":false, "bracing":false, "wallStance":false}
+		"civ":d.get("civ", false), "aimBonus":0, "dmgBonus":0, "rangeBonus":0, "reacted":false, "bracing":false, "wallStance":false,
+		"asleep":false, "pod":-1, "home":cell}
 	if wtype == "ranged" and w.ranged.has("clip"): u.clip = int(w.ranged.clip); u.ammo = int(w.ranged.clip)
 	var node := Node3D.new(); add_child(node)
 	var ball := MeshInstance3D.new()
@@ -167,12 +173,101 @@ func _spawn_units() -> void:
 			for k in used: if mesh.hops(k, id) < 2: ok = false; break
 			if ok: _make_unit("player", cls, id); used[id] = true; break
 	var far := pass_cells.duplicate(); far.reverse()
+	var pod := 0
 	for cls in ["garde", "archer", "shieldbearer", "brute"]:
 		for id in far:
 			if used.has(id): continue
 			var ok := true
 			for k in used: if mesh.hops(k, id) < 4: ok = false; break
-			if ok: _make_unit("enemy", cls, id); used[id] = true; break
+			if ok:
+				_make_unit("enemy", cls, id); used[id] = true
+				units[-1].asleep = true; units[-1].pod = pod; pod += 1
+				break
+
+# ---------- vision / brouillard ----------
+func compute_vis() -> void:
+	seen_cells = {}
+	for u in units:
+		if u.team == "player" and u.hp > 0:
+			for c in mesh.cells:
+				if mesh.hops(u.cell, c.id) <= 7 and mesh.los(u.cell, c.id): seen_cells[c.id] = true
+
+func compute_evis() -> void:
+	evisible = {}
+	for u in units:
+		if u.team == "enemy" and u.hp > 0 and not u.asleep:
+			for c in mesh.cells:
+				if mesh.hops(u.cell, c.id) <= Combat.ENEMY_VIS and mesh.los(u.cell, c.id): evisible[c.id] = true
+
+func enemy_active(e) -> bool: return not e.asleep
+
+# ---------- pods : réveil + patrouille (zones de Voronoï disjointes) ----------
+func wake_pod(pid: int) -> void:
+	if pod_alerted.has(pid): return
+	pod_alerted[pid] = true
+	for u in units:
+		if u.team == "enemy" and u.pod == pid: u.asleep = false
+	_pod_centers = null
+
+func wake_enemy(e) -> void:
+	if e.team != "enemy": return
+	if e.pod >= 0: wake_pod(e.pod)
+	elif e.asleep: e.asleep = false
+
+func detect_enemies() -> void:
+	for e in units:
+		if e.team == "enemy" and e.hp > 0 and e.asleep:
+			for p in units:
+				if p.team == "player" and p.hp > 0 and Combat.enemy_sees_p(mesh, e, p): wake_enemy(e); break
+
+func pod_centers() -> Dictionary:
+	if _pod_centers != null: return _pod_centers
+	var acc := {}
+	for u in units:
+		if u.team == "enemy" and u.hp > 0 and u.pod >= 0:
+			if not acc.has(u.pod): acc[u.pod] = []
+			acc[u.pod].append(int(u.get("home", u.cell)))
+	_pod_centers = {}
+	for k in acc:
+		var cs: Array = acc[k]; var best: int = cs[0]; var bs := 1 << 30
+		for c in cs:
+			var s := 0
+			for d in cs: s += mesh.hops(c, d)
+			if s < bs: bs = s; best = c
+		_pod_centers[k] = best
+	return _pod_centers
+
+func pod_owns(e, cell: int) -> bool:
+	if e.pod < 0: return true
+	var ctr := pod_centers(); if not ctr.has(e.pod): return true
+	var myd: int = mesh.hops(cell, ctr[e.pod])
+	for k in ctr:
+		if k != e.pod and mesh.hops(cell, ctr[k]) < myd: return false
+	return true
+
+func patrol_step(e) -> void:
+	var leash := 3
+	var ball := {}
+	var q := [e.home]; ball[e.home] = 0
+	while q.size():
+		var id: int = q.pop_front()
+		if ball[id] >= leash: continue
+		for n in mesh.cells[id].nb:
+			if mesh.passable(n) and not ball.has(n): ball[n] = ball[id] + 1; q.append(n)
+	var occ := _occupied(units.find(e))
+	var zone := []
+	for id in ball:
+		if pod_owns(e, id) and (id == e.cell or not occ.has(id)): zone.append(id)
+	if zone.is_empty(): return
+	var goal: int = zone[randi() % zone.size()]
+	var best := -1; var bd: int = mesh.hops(e.cell, goal)
+	for n in mesh.cells[e.cell].nb:
+		if not mesh.passable(n) or occ.has(n) or not ball.has(n) or not pod_owns(e, n): continue
+		var dd: int = mesh.hops(n, goal)
+		if dd < bd: bd = dd; best = n
+	if best >= 0:
+		e.facing = atan2(mesh.cells[best].cy - mesh.cells[e.cell].cy, mesh.cells[best].cx - mesh.cells[e.cell].cx)
+		e.cell = best; _place(e)
 
 # ---------- caméra ----------
 func _setup_camera() -> void:
@@ -193,7 +288,10 @@ func _unit_at(cell: int) -> int:
 
 func _compute_reach() -> void:
 	reachable = {}
-	if sel >= 0 and units[sel].ap > 0: reachable = mesh.reach(units[sel].cell, units[sel].mob, _occupied(sel))
+	if sel >= 0 and units[sel].ap > 0:
+		var r := mesh.reach(units[sel].cell, units[sel].mob, _occupied(sel))
+		for cell in r:
+			if seen_cells.has(cell): reachable[cell] = r[cell]   # pas de déplacement dans le brouillard
 
 func _can_attack(att, tgt) -> bool:
 	if att.wtype == "ranged" and att.has("ammo") and att.ammo <= 0: return false
@@ -204,6 +302,7 @@ func _do_attack(ai: int, ti: int) -> void:
 	if att.ap <= 0 or not _can_attack(att, tgt): return
 	var res := Combat.do_attack(mesh, units, att, tgt, att.wtype)
 	var hit_tgt = res.target
+	if hit_tgt.team == "enemy" and hit_tgt.hp > 0: wake_enemy(hit_tgt)   # le bruit réveille le pod visé
 	if res.dmg > 0: _flash(hit_tgt, str(res.dmg), Color(1, 0.5, 0.4))
 	else: _flash(hit_tgt, res.txt, Color(0.85, 0.85, 0.9))
 	for u in units:
@@ -253,7 +352,7 @@ func _click(screen: Vector2) -> void:
 			return
 		if reachable.has(cell) and u.ap > 0:
 			u.ap -= 1; u.facing = atan2(mesh.cells[cell].cy - mesh.cells[u.cell].cy, mesh.cells[cell].cx - mesh.cells[u.cell].cx)
-			u.cell = cell; _place(u); _compute_reach(); _refresh()
+			u.cell = cell; _place(u); detect_enemies(); _compute_reach(); _refresh()
 
 # ---------- tours ----------
 func _end_turn() -> void:
@@ -264,29 +363,76 @@ func _end_turn() -> void:
 		if u.hp > 0: u.ap = AP_MAX; u.reacted = false; u.bracing = false
 	turn = "player"; _refresh()
 
+func _nearest_player(e) -> int:
+	var best := -1; var bd := 1 << 30
+	for j in units.size():
+		if units[j].team == "player" and units[j].hp > 0:
+			var h: int = mesh.hops(e.cell, units[j].cell)
+			if h < bd: bd = h; best = j
+	return best
+
+func _best_target(e) -> int:
+	var best := -1; var bk := -1e18
+	for j in units.size():
+		var p = units[j]
+		if p.team != "enemy" and p.hp > 0 and _can_attack(e, p):
+			var k: float = Combat.shot_from(mesh, units, e, e.cell, p, e.wtype) * 1000.0 - p.hp
+			if k > bk: bk = k; best = j
+	return best
+
 func _enemy_turn() -> void:
+	compute_evis()
 	for i in units.size():
 		var e = units[i]
 		if e.team != "enemy" or e.hp <= 0: continue
-		var tgt := -1; var td := 1 << 30
+		if not enemy_active(e):
+			patrol_step(e); detect_enemies(); _refresh(); await get_tree().create_timer(0.04).timeout
+			continue
+		# cibles vues par cet ennemi
+		var tgts := []
 		for j in units.size():
-			if units[j].team == "player" and units[j].hp > 0:
-				var h: int = mesh.hops(e.cell, units[j].cell)
-				if h < td: td = h; tgt = j
-		if tgt < 0: break
-		while e.ap > 0:
-			if _can_attack(e, units[tgt]):
-				_do_attack(i, tgt); await get_tree().create_timer(0.25).timeout
-				if units[tgt].hp <= 0: break
-			else:
+			if units[j].team == "player" and units[j].hp > 0 and Combat.enemy_sees_p(mesh, e, units[j]): tgts.append(j)
+		if tgts.is_empty():
+			var foe := _nearest_player(e)
+			if foe >= 0:
 				var d := mesh.reach(e.cell, e.mob, _occupied(i))
-				var best: int = e.cell; var bd: int = mesh.hops(e.cell, units[tgt].cell)
+				var best: int = e.cell; var bd: int = mesh.hops(e.cell, units[foe].cell)
 				for c in d:
-					var h: int = mesh.hops(c, units[tgt].cell)
+					var h: int = mesh.hops(c, units[foe].cell)
 					if h < bd: bd = h; best = c
-				if best == e.cell: break
-				e.ap -= 1; e.facing = atan2(mesh.cells[best].cy - mesh.cells[e.cell].cy, mesh.cells[best].cx - mesh.cells[e.cell].cx)
-				e.cell = best; _place(e); await get_tree().create_timer(0.2).timeout
+				if best != e.cell:
+					e.facing = atan2(mesh.cells[best].cy - mesh.cells[e.cell].cy, mesh.cells[best].cx - mesh.cells[e.cell].cx)
+					e.cell = best; _place(e); detect_enemies()
+			await get_tree().create_timer(0.12).timeout
+			continue
+		var guard := 0
+		while e.ap > 0 and guard < 4:
+			guard += 1
+			var bt := _best_target(e)
+			if bt >= 0:
+				_do_attack(i, bt); await get_tree().create_timer(0.25).timeout
+				break
+			# déplacement par scoring (offense - menace - distance + relief - agglutinement)
+			var d := mesh.reach(e.cell, e.mob, _occupied(i))
+			var cands := [e.cell]; for c in d: cands.append(c)
+			var best: int = e.cell; var bs := -1e18
+			var ranged_dry: bool = e.wtype == "ranged" and e.has("ammo") and e.ammo <= 0
+			for cell in cands:
+				var off := 0; var thr := 0; var near := 1 << 30
+				for tj in tgts:
+					var p = units[tj]
+					if not ranged_dry: off = max(off, Combat.shot_from(mesh, units, e, cell, p, e.wtype))
+					near = min(near, mesh.hops(cell, p.cell))
+					var ghost := {"cell":cell, "team":"enemy"}
+					thr = max(thr, Combat.shot_from(mesh, units, p, p.cell, ghost, p.wtype))
+				var clump := 0
+				for o in units:
+					if o != e and o.team == "enemy" and o.hp > 0 and mesh.hops(cell, o.cell) <= 1: clump += 6
+				var sc: float = off - 0.7 * thr - 1.5 * near + 0.5 * int(mesh.cells[cell].elev) - clump
+				if sc > bs: bs = sc; best = cell
+			if best == e.cell: break
+			e.ap -= 1; e.facing = atan2(mesh.cells[best].cy - mesh.cells[e.cell].cy, mesh.cells[best].cx - mesh.cells[e.cell].cx)
+			e.cell = best; _place(e); detect_enemies(); await get_tree().create_timer(0.18).timeout
 
 func _check_end() -> void:
 	var pa := units.any(func(u): return u.team == "player" and u.hp > 0)
@@ -295,7 +441,16 @@ func _check_end() -> void:
 	elif not pa: hud.text = "DÉFAITE"
 
 # ---------- HUD / surbrillance ----------
+func _update_fog() -> void:
+	compute_vis()
+	for u in units:
+		if not is_instance_valid(u.node): continue
+		if u.hp <= 0: u.node.visible = false; continue
+		# brouillard : un ennemi n'est visible que si une de ses cases est vue
+		u.node.visible = (u.team != "enemy") or seen_cells.has(u.cell)
+
 func _refresh() -> void:
+	_update_fog()
 	_update_markers()
 	var live_e := 0
 	for u in units: if u.team == "enemy" and u.hp > 0: live_e += 1
