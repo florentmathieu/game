@@ -1350,7 +1350,7 @@
     if(n.type==="choice"){ const od=el.querySelector("#cdopts"); (n.options||[]).forEach((opt,oi)=>{ const r=document.createElement("div"); r.className="opt-row"; r.innerHTML=`→ <select data-optsel="${oi}" style="flex:1">${idOpts(opt,false)}</select><button data-optdel="${oi}">✕</button>`; od.appendChild(r); }); }
     el.querySelectorAll("input[data-f],select[data-f]").forEach(inp=>{const set=()=>{const f=inp.dataset.f;n[f]=(inp.value===""&&(f==="next"||f==="win"||f==="lose"))?null:inp.value;saveCampDraft();drawGraph();};inp.tagName==="SELECT"?inp.onchange=set:inp.oninput=set;});
     el.querySelectorAll("[data-gf]").forEach(inp=>{ const f=inp.dataset.gf; const set=()=>{ n.endWhen=n.endWhen||{kind:"all",name:""};
-      if(f==="map")n.map=inp.value; else if(f==="endkind"){ n.endWhen.kind=inp.value; const kr=el.querySelector("#cd-keyrow"); if(kr)kr.style.display=(inp.value==="key")?"":"none"; } else if(f==="endname")n.endWhen.name=inp.value;
+      if(f==="map"){ n.map=inp.value; if(inp.value)delete n.proc; } else if(f==="endkind"){ n.endWhen.kind=inp.value; const kr=el.querySelector("#cd-keyrow"); if(kr)kr.style.display=(inp.value==="key")?"":"none"; } else if(f==="endname")n.endWhen.name=inp.value;   // un territoire authored choisi → on retire la génération procédurale (sinon elle prend le dessus)
       saveCampDraft(); drawGraph(); }; inp.tagName==="SELECT"?inp.onchange=set:inp.oninput=set; });
     el.querySelector("[data-del]").onclick=()=>{campNodes=campNodes.filter(x=>x.id!==n.id);if(campStart===n.id)campStart=campNodes[0]?campNodes[0].id:"";campSel=campNodes[0]?campNodes[0].id:null;renderNodes();};
     el.querySelector("[data-setstart]").onclick=()=>{campStart=n.id;renderNodes();};
@@ -2008,7 +2008,7 @@
       if(spot==null){ const f=cells.find(c=>passable(c.id)&&!occ0.has(c.id)); spot=f?f.id:null; }
       if(spot==null)break; units.push(U("enemy",ecls[k%ecls.length],spot,{pod:podMax,asleep:true})); occ0.add(spot); } }
   async function enterGeoPlay(node){ let m; await ensureGeoTxt();   // textes éditables chargés avant la génération
-    if(node.proc){ if(campRun.geoSeed==null)campRun.geoSeed=((Date.now()^Math.floor(Math.random()*0x7fffffff))>>>0)||1;   // graine par campagne → territoire neuf à chaque partie
+    if(node.proc&&!node.map){ if(campRun.geoSeed==null)campRun.geoSeed=((Date.now()^Math.floor(Math.random()*0x7fffffff))>>>0)||1;   // territoire procédural UNIQUEMENT si aucun territoire authored choisi (sinon on perd ses régions + événements)
       m=genGeoMap({act:node.proc.act||1,regions:node.proc.regions||10,seed:(campRun.geoSeed^hashStr(node.id))>>>0}); }
     else { const t=await fetchText("geoscapes-mesh/"+node.map,ghCfg());
       if(!t){ showCampText("Territoire introuvable : "+node.map,()=>{ if(node.next)runNode(node.next); else endCampaignRun("Fin."); }); return; }
