@@ -756,14 +756,23 @@
   // patrouille d'un pod dormant (pas encore alerté) : le membre éveillé erre dans une ZONE D'ACTION
   // (boule de rayon LEASH autour de son point d'apparition), en ne traversant que des cellules passables.
   function bfsBall(start,maxD){ const d={};d[start]=0;const q=[start];while(q.length){const id=q.shift();if(d[id]>=maxD)continue;for(const n of cells[id].nb){if(!passable(n))continue;if(d[n]===undefined){d[n]=d[id]+1;q.push(n);}}}return d; }
+  // ZONES DE PATROUILLE DISJOINTES : chaque pod possède les cases dont SON centre est le plus proche
+  // (partition de Voronoï entre pods) → deux pods ne patrouillent jamais les mêmes cases, quoi qu'il arrive.
+  let _podCenters=null;   // invalidé au startGame
+  function podCenters(){ if(_podCenters)return _podCenters; const acc={};
+    for(const u of units){ if(u.team!=="enemy"||u.hp<=0||u.pod==null)continue; (acc[u.pod]=acc[u.pod]||[]).push(u.home!==undefined?u.home:u.cell); }
+    _podCenters={}; for(const k in acc){ const cs=acc[k]; let best=cs[0],bs=1e9; for(const c of cs){ let s=0; for(const d of cs)s+=hops(c,d); if(s<bs){bs=s;best=c;} } _podCenters[k]=best; } return _podCenters; }
+  function podOwns(e,cell){ if(e.pod==null)return true; const ctr=podCenters(),my=ctr[e.pod]; if(my==null)return true;
+    const myd=hops(cell,my); for(const k in ctr){ if(+k===e.pod)continue; if(hops(cell,ctr[k])<myd)return false; } return true; }
   function patrolStep(e){ if(e.asleep)return;                       // un dormeur reste immobile
     if(e.home===undefined)e.home=e.cell;
     const LEASH=3, ball=bfsBall(e.home,LEASH), occu=occ();
-    if(e.patrolGoal===undefined||e.patrolGoal===e.cell||ball[e.patrolGoal]===undefined){   // (re)choisir une destination dans la zone
-      const zone=Object.keys(ball).map(Number).filter(c=>c===e.cell||!occu.has(c));
+    const inZone=id=> ball[id]!==undefined && podOwns(e,id);        // dans la laisse ET dans la zone (disjointe) du pod
+    if(e.patrolGoal===undefined||e.patrolGoal===e.cell||!inZone(e.patrolGoal)){   // (re)choisir une destination dans la zone
+      const zone=Object.keys(ball).map(Number).filter(c=>inZone(c)&&(c===e.cell||!occu.has(c)));
       e.patrolGoal=zone.length?zone[Math.floor(Math.random()*zone.length)]:e.cell; }
     let best=null,bd=hops(e.cell,e.patrolGoal);                     // un pas vers le but : voisin passable libre, dans la zone, qui rapproche
-    for(const n of cells[e.cell].nb){ if(!passable(n)||occu.has(n)||ball[n]===undefined)continue; const dd=hops(n,e.patrolGoal); if(dd<bd){bd=dd;best=n;} }
+    for(const n of cells[e.cell].nb){ if(!passable(n)||occu.has(n)||!inZone(n))continue; const dd=hops(n,e.patrolGoal); if(dd<bd){bd=dd;best=n;} }
     if(best!=null){ faceTowards(e,best); e.cell=best; } }
   function searchAct(e,done){ const goals=[]; for(const [p,mem] of lastSeen)if(p.hp>0)goals.push([p,predictGoal(mem)]);
     if(!goals.length){ done(); return; }
@@ -1087,8 +1096,21 @@
     const podMinDist=P.podMinDist!=null?P.podMinDist:Math.max(3,Math.floor(maxD*0.45));   // distance MIN déploiement→pod
     let far=reachIds.filter(id=>!slots.includes(id)&&dist[id]>=podMinDist&&!los(anchor.id,id));
     if(far.length<podCount)far=reachIds.filter(id=>!slots.includes(id)&&dist[id]>=Math.min(podMinDist,3));
-    far.sort((a,b)=>dist[b]-dist[a]);
-    const podAnchors=[]; for(const id of far){ if(podAnchors.length>=podCount)break; if(podAnchors.every(a=>hops(a,id)>=podSpacing))podAnchors.push(id); }
+    if(!far.length)far=reachIds.filter(id=>!slots.includes(id)&&id!==anchor.id);
+    // RÉPARTITION : échantillonnage « point le plus éloigné » (dispersion) + biais d'INTÉRIEUR
+    // (une case de bord a peu de voisins libres) → les pods s'étalent sur la carte au lieu de
+    // se masser sur le bord opposé au déploiement.
+    const interior=id=>cells[id].nb.filter(n=>passable(n)).length;   // + de voisins libres = plus au cœur de la carte
+    const podAnchors=[];
+    if(far.length){
+      podAnchors.push(far.reduce((a,b)=>((dist[b]*0.4+interior(b)*1.6)>(dist[a]*0.4+interior(a)*1.6))?b:a));   // 1er pod : profond MAIS pas collé au bord
+      while(podAnchors.length<podCount&&podAnchors.length<far.length){ let best=null,bs=-1e9;
+        for(const id of far){ if(podAnchors.includes(id))continue;
+          const spread=Math.min(...podAnchors.map(a=>hops(a,id)));   // loin des pods déjà posés
+          const sc=spread*3 + interior(id)*1.2 + dist[id]*0.15;       // dispersion d'abord, puis intérieur, un peu de profondeur
+          if(sc>bs){bs=sc;best=id;} }
+        if(best==null||Math.min(...podAnchors.map(a=>hops(a,best)))<2)break;   // évite l'agglutinement
+        podAnchors.push(best); } }
     if(!podAnchors.length&&far.length)podAnchors.push(far[0]);
     const ecls=P.enemyClasses||(typeof chosenEnemyClasses==="function"&&chosenEnemyClasses())||["garde","archer","brute"], occSet=new Set(units.map(u=>u.cell));
     // NOMBRE D'ENNEMIS CIBLE = vrai curseur de difficulté (le sim montre que le total écrase le nb de pods).
@@ -1641,7 +1663,7 @@
     const e=document.createElement("button");e.id="act-end";e.innerHTML=`<span class="bn">0</span><span class="bi">🙅</span>`;e.title="Fin de tour";e.onclick=()=>{if(!over&&turn==="player")endTurn();};el.appendChild(e);}
   function startGame(){ resetView(); { const t=document.getElementById("title"); if(t)t.style.display="none"; }   // une partie démarre : on retire l'écran-titre
     if(!units.some(u=>u.team==="player")||!units.some(u=>u.team==="enemy")){ setMsg("Place au moins 1 allié et 1 ennemi (mode Éditer)."); }
-    for(const u of units){u.hp=u.max;u.ap=AP_MAX;u.freeAvail=true;u.overwatch=false;u.reacted=false;u.bracing=false;u.taunt=false;u.hidden=false;u.wallStance=false;u.vanishUsed=false;u.slowed=false;u.stunned=false;u.spellsCast=0;u.cd={};u.dmgTaken=0;u.asleep=!!u._asleep0;if(u.clip!==undefined)u.ammo=u.clip;if(u.crackers!==undefined)u.crackers=(u.crackers0!==undefined?u.crackers0:CLASSES[u.cls].crackers);} smoke=new Map();ability=null; turn="player";over=false;sel=null;amode=null;aimTarget=null;throwing=false;usingItem=false;inv={potion:campRun?(campRun.potions||0):0};
+    for(const u of units){u.hp=u.max;u.ap=AP_MAX;u.freeAvail=true;u.overwatch=false;u.reacted=false;u.bracing=false;u.taunt=false;u.hidden=false;u.wallStance=false;u.vanishUsed=false;u.slowed=false;u.stunned=false;u.spellsCast=0;u.cd={};u.dmgTaken=0;u.asleep=!!u._asleep0;if(u.clip!==undefined)u.ammo=u.clip;if(u.crackers!==undefined)u.crackers=(u.crackers0!==undefined?u.crackers0:CLASSES[u.cls].crackers);} smoke=new Map();ability=null; _podCenters=null; turn="player";over=false;sel=null;amode=null;aimTarget=null;throwing=false;usingItem=false;inv={potion:campRun?(campRun.potions||0):0};
     fired=new Set(); podAlerted=new Set(); neutralSeen=new Set(); lastSeen=new Map(); turnNum=1; turnActions=0; lastOutcome=null; speechQ=[]; speaking=false; if(speechT){clearTimeout(speechT);speechT=null;} document.getElementById("combatline").style.display="none";
     document.getElementById("over").classList.remove("show");document.getElementById("log").innerHTML="";setMsg("");setupBonus();refresh();
     banner("Tour du joueur","player"); emit("start",{}); emit("turn",{turn:1}); }

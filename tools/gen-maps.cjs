@@ -51,10 +51,11 @@ function connectivityOK(){
 }
 function centroidsOK(){ return M.cells.every(c=>isFinite(c.cx)&&isFinite(c.cy)&&c.poly.length>=3); }
 
+// taille du plateau selon l'étoile : plus c'est dur, plus la carte est grande (place pour plus d'ennemis + meilleure répartition)
+function sizeFor(star){ const s=Math.max(1,Math.min(5,star||1)); const cols=10+s; return { cols, rows:Math.max(7,Math.round(cols*0.72)) }; }
 // ===== régénère une map en préservant son contenu =====
-function regen(oldObj, p, seed0, enemyClasses){
-  const cols=(oldObj.form&&oldObj.form.infl&&oldObj.form.infl[0]&&oldObj.form.infl[0].length)||13;
-  const rows=(oldObj.form&&oldObj.form.infl&&oldObj.form.infl.length)||10;
+function regen(oldObj, p, seed0, enemyClasses, star){
+  const sz=sizeFor(star); const cols=sz.cols, rows=sz.rows;
   const ou=oldObj.units||[];
   const players=ou.filter(u=>u.team==="player").length||4;
   const enemies=ou.filter(u=>u.team==="enemy").length||5;
@@ -93,7 +94,7 @@ const report=[]; const listSet=new Map();
 function note(o){ report.push(o); }
 
 // — Prologue (mission-1.json) : tout début, p=0 —
-try{ const old=readJSON("missions-mesh/mission-1.json"); const r=regen(old,0,7001,["garde","archer"]);
+try{ const old=readJSON("missions-mesh/mission-1.json"); const r=regen(old,0,7001,["garde","archer"],1);
   fs.writeFileSync("missions-mesh/mission-1.json", JSON.stringify(r.obj)); listSet.set("mission-1.json","Mission 1");
   note({act:0,star:1,name:"Prologue",file:"mission-1.json",p:0,dist:distPct(0),...metaInfo(r)});
 }catch(e){ note({err:"mission-1: "+e.message}); }
@@ -101,7 +102,7 @@ try{ const old=readJSON("missions-mesh/mission-1.json"); const r=regen(old,0,700
 // — Acte 1 : régénère en place (mêmes fichiers, refs geoscape inchangées) —
 const a1=readJSON("geoscapes-mesh/acte1.json");
 a1.cells.forEach((c,i)=>{ if(!(c.content&&c.content.kind==="mission"))return; const ref=c.content.ref, star=c.diff||1, p=progress(1,star);
-  try{ const old=readJSON(path.join("missions-mesh",ref)); const r=regen(old,p,9001+i*131,ENEMY_A1(star));
+  try{ const old=readJSON(path.join("missions-mesh",ref)); const r=regen(old,p,9001+i*131,ENEMY_A1(star),star);
     fs.writeFileSync(path.join("missions-mesh",ref), JSON.stringify(r.obj)); listSet.set(ref,c.name);
     note({act:1,star,name:c.name,file:ref,p:+p.toFixed(3),dist:distPct(p),...metaInfo(r)});
   }catch(e){ note({err:"A1 "+c.name+": "+e.message}); }
@@ -112,7 +113,7 @@ const a2=readJSON("geoscapes-mesh/acte2.json");
 a2.cells.forEach((c,i)=>{ if(!(c.content&&c.content.kind==="mission"))return; const star=c.diff||1, p=progress(2,star);
   const oldref=c.content.ref; const isCoeur=(c.name||"").toLowerCase().includes("ur de la faille");
   const newref= isCoeur ? "terr-faille-coeur.json" : "terr-faille-"+slug(c.name)+".json";
-  try{ const old=readJSON(path.join("missions-mesh",oldref)); const r=regen(old,p,21001+i*149,ENEMY_A2(star));
+  try{ const old=readJSON(path.join("missions-mesh",oldref)); const r=regen(old,p,21001+i*149,ENEMY_A2(star),star);
     fs.writeFileSync(path.join("missions-mesh",newref), JSON.stringify(r.obj));
     c.content.ref=newref; listSet.set(newref,c.name);
     note({act:2,star,name:c.name,file:newref,p:+p.toFixed(3),dist:distPct(p),...metaInfo(r)});
