@@ -26,12 +26,17 @@ func _ready() -> void:
 	else:
 		_begin()
 
-# récupère campaign.json (publié à côté du build par l'éditeur) ; filet de sécurité si pas de réponse
+# récupère campaign.json (publié à côté du build par l'éditeur) ; URL ABSOLUE (l'URL relative
+# ne se résout pas en web) + anti-cache ; filet de sécurité si pas de réponse.
 func _fetch_campaign() -> void:
 	var http := HTTPRequest.new(); add_child(http)
 	http.request_completed.connect(_on_campaign_fetched)
-	if http.request("campaign.json") != OK: _begin(); return
-	get_tree().create_timer(5.0).timeout.connect(_begin)
+	var url := "campaign.json"
+	var base = JavaScriptBridge.eval("window.location.href.replace(/[#?].*$/,'').replace(/[^/]*$/,'')", true)
+	if typeof(base) == TYPE_STRING and String(base).begins_with("http"): url = String(base) + "campaign.json"
+	url += "?_=" + str(Time.get_ticks_msec())
+	if http.request(url) != OK: _begin(); return
+	get_tree().create_timer(6.0).timeout.connect(_begin)
 
 func _on_campaign_fetched(_result, code, _headers, body: PackedByteArray) -> void:
 	if code == 200:
