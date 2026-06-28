@@ -27,6 +27,7 @@ const STARTER := [
 	{"name":"Lys",    "cls":"mage",     "special":false},
 	{"name":"Cael",   "cls":"archer",   "special":false},
 	{"name":"Doran",  "cls":"brute",    "special":false},
+	{"name":"Mira",   "cls":"sapeur",   "special":false},
 ]
 
 func new_campaign() -> void:

@@ -183,6 +183,7 @@ func _confirm_deploy() -> void:
 # --- issue de mission → progression → retour au territoire ---
 func _on_mission_end(win: bool) -> void:
 	var report: Dictionary = battle.build_report() if battle != null else {}
+	if battle != null: Run.camp.potions = int(battle.potions)   # stock de soins restant
 	var was_forge: bool = win and bool(Run.mission.get("forge", false))
 	var deaths: Array = Run.resolve_mission(win, report)
 	_clear(battle); battle = null

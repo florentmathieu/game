@@ -40,6 +40,8 @@ var turn_num := 1
 var over := false
 var mis := {}                # Run.mission (vide = combat autonome aléatoire)
 var n_enemies := 5
+var potions := 2             # stock partagé de soins (lu/écrit sur Run en campagne)
+var _terrain_root: Node3D    # tuiles + murets (reconstruits après une brèche)
 
 func _run_mission() -> Dictionary:
 	var r = get_node_or_null("/root/Run")
@@ -58,9 +60,12 @@ func _ready() -> void:
 	mis = _run_mission()
 	var seed_value: int = (int(mis.seed) if mis.has("seed") else int(Time.get_unix_time_from_system())) & 0x7fffffff
 	if mis.has("enemies"): n_enemies = int(mis.enemies)
+	var _r = get_node_or_null("/root/Run")
+	if _r != null and not _r.camp.is_empty(): potions = int(_r.camp.get("potions", 2))
 	_setup_world()
 	_gen_battle(seed_value)
 	mesh.distort(_corrupt_level())   # distorsion progressive : le terrain se tord à mesure qu'on avance
+	_terrain_root = Node3D.new(); add_child(_terrain_root)
 	_build_tiles()
 	_build_walls()
 	_spawn_units()
@@ -201,7 +206,11 @@ func _build_tiles() -> void:
 	mat.vertex_color_use_as_albedo = true; mat.roughness = 0.95
 	mat.cull_mode = BaseMaterial3D.CULL_DISABLED
 	st.set_material(mat)
-	var mi := MeshInstance3D.new(); mi.mesh = st.commit(); add_child(mi)
+	var mi := MeshInstance3D.new(); mi.mesh = st.commit(); _terrain_root.add_child(mi)
+
+func _rebuild_terrain() -> void:   # après une brèche (terrain modifié)
+	for c in _terrain_root.get_children(): c.queue_free()
+	_build_tiles(); _build_walls()
 
 # ---------- murets ----------
 func _build_walls() -> void:
@@ -221,7 +230,7 @@ func _build_walls() -> void:
 		bar.material_override = mt
 		bar.position = Vector3(midp.x, top, midp.y)
 		bar.rotation.y = -atan2(p1.y - p0.y, p1.x - p0.x)
-		add_child(bar)
+		_terrain_root.add_child(bar)
 
 # ---------- unités ----------
 func _team_color(team: String) -> Color:
@@ -237,7 +246,7 @@ func _make_unit(team: String, cls: String, cell: int, mem := {}) -> void:
 		"civ":d.get("civ", false), "aimBonus":0, "dmgBonus":0, "rangeBonus":0, "reacted":false, "bracing":false, "wallStance":false,
 		"asleep":false, "pod":-1, "home":cell, "freeAvail":true, "freeMpBonus":0,
 		"abil":(d.get("abil", []) as Array).duplicate(), "cd":{}, "slowed":false, "stunned":false,
-		"spellsCast":0, "dmgTaken":0, "kills":0}
+		"spellsCast":0, "dmgTaken":0, "kills":0, "crackers":int(d.get("crackers", 0)), "scatterBonus":0}
 	if wtype == "ranged" and w.ranged.has("clip"): u.clip = int(w.ranged.clip); u.ammo = int(w.ranged.clip)
 	if team == "player":
 		var ids: Array = mem.get("perks", []) if not mem.is_empty() else []
@@ -464,6 +473,8 @@ func apply_perk_mods(u, ids: Array) -> void:
 		if m.has("dmg"): u.dmgBonus += m.dmg
 		if m.has("range"): u.rangeBonus += m.range
 		if m.has("freeMp"): u.freeMpBonus += m.freeMp
+		if m.has("scatter"): u.scatterBonus += m.scatter
+		if m.has("crackers"): u.crackers += m.crackers
 
 # ---------- capacités : registre (pour la barre) + execs restants ----------
 const ABIL := {
@@ -472,10 +483,68 @@ const ABIL := {
 	"vanish":{"icon":"💨","target":"self"}, "taunt":{"icon":"💢","target":"self"},
 	"holdline":{"icon":"🛡","target":"self"}, "wall":{"icon":"🧱","target":"self"},
 	"blast":{"icon":"🔥","target":"cell"}, "heal":{"icon":"✨","target":"ally"},
-	"frost":{"icon":"❄","target":"enemy"}, "shove":{"icon":"🛡➡","target":"enemy"}, "charge":{"icon":"🛡⚡","target":"enemy"}}
+	"frost":{"icon":"❄","target":"enemy"}, "shove":{"icon":"🛡➡","target":"enemy"}, "charge":{"icon":"🛡⚡","target":"enemy"},
+	"cracker":{"icon":"💣","target":"cell"}, "potion":{"icon":"➕","target":"ally"}}
+const POTION_AMT := 6
+
+func exec_potion(u, a) -> bool:
+	if potions <= 0 or a.team != "player" or a.hp <= 0 or a.hp >= a.max: return false
+	if a != u and not Combat.adjacent(mesh, u.cell, a.cell): return false
+	var before: int = a.hp; a.hp = min(a.max, a.hp + POTION_AMT)
+	potions -= 1; u.ap -= 1
+	_flash(a, "+%d" % (a.hp - before), Color(0.5, 1.0, 0.6))
+	return true
+
 const SMOKE_TURNS := 2
 const SMOKE_RANGE := 6
 const SMOKE_RADIUS := 1
+const BREACH_RANGE := 6
+
+# ---------- sapeur : grenade (cracker, aire + dispersion) + brèche (ouvre un passage) ----------
+func exec_cracker(u, target: int) -> bool:
+	var cr = u.w.get("cracker")
+	if cr == null or int(u.get("crackers", 0)) <= 0: return false
+	if mesh.hops(u.cell, target) > int(cr.range) or not mesh.los(u.cell, target): return false
+	u.crackers = int(u.crackers) - 1; u.ap = 0; u.freeAvail = false
+	var scat: int = max(0, int(cr.scatter) - int(u.get("scatterBonus", 0)))
+	var cand: Array = []
+	for c in mesh.cells:
+		if mesh.passable(c.id) and mesh.hops(target, c.id) <= scat: cand.append(c.id)
+	var imp: int = cand[randi() % cand.size()] if not cand.is_empty() else target
+	for o in units:
+		if o.hp <= 0: continue
+		if mesh.hops(imp, o.cell) <= int(cr.radius):
+			var dmg := int(cr.dmg_min) + randi() % (int(cr.dmg_max) - int(cr.dmg_min) + 1)
+			o.hp = max(0, o.hp - dmg)
+			if o.team == "player": o.dmgTaken = int(o.get("dmgTaken", 0)) + dmg
+			if o.hp <= 0 and u.team == "player" and o.team == "enemy": u.kills = int(u.get("kills", 0)) + 1
+			_flash(o, str(dmg), Color(1, 0.55, 0.2))
+			if o.hp > 0 and o.team == "enemy": wake_enemy(o)
+	_fx_burst(imp, Color(1, 0.5, 0.15), 2.2); _shake(7)
+	for o in units:
+		if o.hp <= 0 and is_instance_valid(o.node): o.node.visible = false
+	return true
+
+func exec_breach(u, id: int) -> bool:
+	if on_cd(u, "breach") or not mesh.los(u.cell, id): return false
+	var d: int = mesh.hops(u.cell, id)   # une case-rocher n'est pas « atteignable » : on mesure via un voisin praticable
+	if not mesh.passable(id):
+		d = 1 << 30
+		for n in mesh.cells[id].nb:
+			if mesh.passable(n): d = min(d, mesh.hops(u.cell, n) + 1)
+	if d > BREACH_RANGE: return false
+	var done := false
+	if mesh.cells[id].terr == "wall": mesh.cells[id].terr = "plain"; done = true
+	for n in mesh.cells[id].nb:
+		var k := mesh.wkey(id, n)
+		if mesh.walls.has(k): mesh.walls.erase(k); done = true
+	if not done: return false
+	u.ap = 0; u.freeAvail = false; set_cd(u, "breach")
+	_fx_burst(id, Color(0.9, 0.7, 0.3), 1.6); _shake(5)
+	for e in units:
+		if e.team == "enemy" and e.hp > 0 and mesh.hops(id, e.cell) <= 3: wake_enemy(e)
+	_rebuild_terrain()
+	return true
 
 func exec_smoke(u, cell: int) -> bool:
 	if on_cd(u, "smoke") or mesh.hops(u.cell, cell) > SMOKE_RANGE or not mesh.los(u.cell, cell): return false
@@ -638,6 +707,16 @@ func _update_cam() -> void:
 	cam.position = Vector3(sin(_yaw) * cos(pitch) * _dist, sin(pitch) * _dist, cos(_yaw) * cos(pitch) * _dist)
 	cam.look_at(pivot.global_position, Vector3.UP)
 
+# secousse de caméra sur impact (grenade, brèche, gros coup)
+func _shake(power: float) -> void:
+	if cam == null: return
+	var tw := create_tween()
+	for i in 4:
+		tw.tween_property(cam, "h_offset", (randf() * 2.0 - 1.0) * power * 0.02, 0.04)
+		tw.parallel().tween_property(cam, "v_offset", (randf() * 2.0 - 1.0) * power * 0.02, 0.04)
+	tw.tween_property(cam, "h_offset", 0.0, 0.05)
+	tw.parallel().tween_property(cam, "v_offset", 0.0, 0.05)
+
 # ---------- sélection / combat ----------
 func _unit_at(cell: int) -> int:
 	for i in units.size():
@@ -670,6 +749,7 @@ func _do_attack(ai: int, ti: int) -> void:
 	if hit_tgt.team == "enemy" and hit_tgt.hp > 0: wake_enemy(hit_tgt)   # le bruit réveille le pod visé
 	if res.dmg > 0: _flash(hit_tgt, str(res.dmg), Color(1, 0.5, 0.4))
 	else: _flash(hit_tgt, res.txt, Color(0.85, 0.85, 0.9))
+	if res.killed: _shake(4)
 	for u in units:
 		if u.hp <= 0 and is_instance_valid(u.node): u.node.visible = false
 	_place(att)
@@ -729,6 +809,8 @@ func _resolve_armed(cell: int) -> void:
 		match id:
 			"smoke": ok = exec_smoke(u, cell)
 			"blast": ok = exec_blast(u, cell)
+			"breach": ok = exec_breach(u, cell)
+			"cracker": ok = exec_cracker(u, cell)
 	elif t == "enemy" and ui >= 0 and units[ui].team == "enemy":
 		match id:
 			"frost": ok = exec_frost(u, units[ui])
@@ -738,6 +820,7 @@ func _resolve_armed(cell: int) -> void:
 	elif t == "ally" and ui >= 0 and units[ui].team == "player":
 		match id:
 			"heal": ok = exec_heal(u, units[ui])
+			"potion": ok = exec_potion(u, units[ui])
 			"rally": ok = exec_rally(u, units[ui])
 	for o in units: if o.hp <= 0 and is_instance_valid(o.node): o.node.visible = false
 	_compute_reach(); _refresh(); _check_end()
@@ -912,12 +995,19 @@ func _rebuild_abil_bar() -> void:
 	for c in abil_bar.get_children(): c.queue_free()
 	if sel < 0 or turn != "player": return
 	var u = units[sel]
-	var lbl := {"smoke":"Fumée","breach":"Brèche","shadowstrike":"Ombre","rally":"Rallie","vanish":"Estompe","taunt":"Provoc","holdline":"Ligne","wall":"Mur","blast":"Déflag","heal":"Soin","frost":"Givre","shove":"Repouss","charge":"Charge"}
-	for id in u.abil:
+	var lbl := {"smoke":"Fumée","breach":"Brèche","shadowstrike":"Ombre","rally":"Rallie","vanish":"Estompe","taunt":"Provoc","holdline":"Ligne","wall":"Mur","blast":"Déflag","heal":"Soin","frost":"Givre","shove":"Repouss","charge":"Charge","cracker":"Grenade","potion":"Potion"}
+	var ids: Array = (u.abil as Array).duplicate()
+	if int(u.get("crackers", 0)) > 0: ids.append("cracker")   # grenade : arme, pas un perk
+	if potions > 0: ids.append("potion")                       # soin : stock partagé
+	for id in ids:
 		if not ABIL.has(id): continue   # protect = passif
 		var b := Button.new()
 		var cd: int = (u.cd[id] if u.cd.has(id) else 0)
-		b.text = str(lbl.get(id, id)) + (" (%d)" % cd if cd > 0 else "")
+		var extra := ""
+		if id == "cracker": extra = " x%d" % int(u.crackers)
+		elif id == "potion": extra = " x%d" % potions
+		elif cd > 0: extra = " (%d)" % cd
+		b.text = str(lbl.get(id, id)) + extra
 		b.disabled = cd > 0 or u.ap <= 0
 		if armed == id: b.modulate = Color(1, 0.9, 0.4)
 		b.pressed.connect(_use_ability.bind(id))

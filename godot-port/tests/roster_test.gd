@@ -5,7 +5,7 @@ func _initialize() -> void:
 	Run.new_campaign()
 	var ok := true
 	print("roster=%d  deploySel=%s  prêts=%d" % [Run.camp.roster.size(), Run.camp.deploySel, Run.ready_members().size()])
-	if Run.camp.roster.size() != 6 or Run.camp.deploySel.size() != 4: ok = false
+	if Run.camp.roster.size() != 7 or Run.camp.deploySel.size() != 4: ok = false
 
 	# PV max d'un soldat (10 de base, pas de perk au grade 0)
 	var aldric: Dictionary = Run.member("Aldric")
