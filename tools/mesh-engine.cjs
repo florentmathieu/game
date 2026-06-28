@@ -44,6 +44,7 @@ function loadMesh(htmlPath){
     execBlast, execHeal, execFrost, onCd, setCd, tickCd, enemyUseAbil,
     corruptLevel, distortTerrain, polyCentroid,
     get infl(){return infl}, setInfl(v){ infl=v; ROWS=infl.length; COLS=(infl[0]&&infl[0].length)||COLS; W=COLS*MC; H=ROWS*MC; },
+    get wallSeg(){return wallSeg},
     setDist(p){ distEl.value=String(p); }, setDens(g){ dens.value=String(g); },
     get MC(){return MC},
   };
