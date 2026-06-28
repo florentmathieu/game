@@ -29,6 +29,13 @@ var _dragging := false
 var _markers: Array = []
 var armed := ""
 var abil_bar: HBoxContainer
+var objective := "eliminate"
+var survive_turns := 6
+var extract_count := 1
+var protect_n := 0
+var exit_set := {}
+var turn_num := 1
+var over := false
 
 func _ready() -> void:
 	randomize()
@@ -38,12 +45,71 @@ func _ready() -> void:
 	_build_tiles()
 	_build_walls()
 	_spawn_units()
+	setup_objective()
 	_setup_camera()
 	compute_vis(); detect_enemies()
 	for i in units.size():
 		if units[i].team == "player": sel = i; break
 	_compute_reach()
 	_refresh()
+
+# ---------- objectifs / archétypes ----------
+func _deepest_from_players() -> int:
+	var pcells := []
+	for u in units: if u.team == "player": pcells.append(u.cell)
+	var best := -1; var bd := -1
+	for c in mesh.cells:
+		if not mesh.passable(c.id): continue
+		var dmin := 1 << 30
+		for pc in pcells: dmin = min(dmin, mesh.hops(pc, c.id))
+		if dmin > bd and dmin < (1 << 30): bd = dmin; best = c.id
+	return best
+
+func _make_neutral(cls: String, cell: int, hostage: bool) -> void:
+	_make_unit("neutral", cls, cell)
+	var u = units[-1]
+	if hostage: u["hostage"] = true
+	else: u.civ = false   # VIP à défendre (compté)
+
+func setup_objective() -> void:
+	var kinds := ["eliminate", "assassinate", "rescue", "defend", "survive", "extract"]
+	objective = kinds[randi() % kinds.size()]
+	match objective:
+		"assassinate":
+			var deep := -1; var bd := -1
+			for u in units:
+				if u.team == "enemy":
+					var h: int = mesh.hops(units[0].cell, u.cell)
+					if h > bd: bd = h; deep = units.find(u)
+			if deep >= 0: units[deep]["hvt"] = true
+		"rescue":
+			var spot := _deepest_from_players()
+			if spot >= 0 and _unit_at(spot) < 0: _make_neutral("homme", spot, true)
+		"defend":
+			survive_turns = 6
+			var near := -1
+			for c in mesh.cells:
+				if mesh.passable(c.id) and _unit_at(c.id) < 0 and mesh.hops(units[0].cell, c.id) <= 2: near = c.id; break
+			if near >= 0: _make_neutral("femme", near, false)
+		"survive": survive_turns = 6
+		"extract":
+			var deep := _deepest_from_players()
+			exit_set = {}
+			if deep >= 0:
+				exit_set[deep] = true
+				for n in mesh.cells[deep].nb: if mesh.passable(n): exit_set[n] = true
+			var np := 0
+			for u in units: if u.team == "player": np += 1
+			extract_count = max(1, np - 1)
+
+func _obj_label() -> String:
+	match objective:
+		"assassinate": return "Objectif : éliminer la cible (✦)"
+		"rescue": return "Objectif : libérer l'otage (neutraliser les geôliers)"
+		"defend": return "Objectif : protéger le VIP %d tours" % survive_turns
+		"survive": return "Objectif : tenir %d tours" % survive_turns
+		"extract": return "Objectif : %d unités sur la zone d'extraction" % extract_count
+		_: return "Objectif : éliminer tous les ennemis"
 
 # ---------- monde / lumière ----------
 func _setup_world() -> void:
@@ -605,7 +671,7 @@ func _resolve_armed(cell: int) -> void:
 	_compute_reach(); _refresh(); _check_end()
 
 func _click(screen: Vector2) -> void:
-	if turn != "player": return
+	if turn != "player" or over: return
 	var cell := _pick_cell(screen)
 	if cell < 0: return
 	if armed != "":
@@ -631,18 +697,19 @@ func _begin_turn(team: String) -> void:
 		u.reacted = false; u.bracing = false; u["overwatch"] = false
 		if team == "player": u["hidden"] = false; u["taunt"] = false; u.wallStance = false
 	tick_cd(team)
-	if team == "player":   # la fumée se dissipe à chaque tour
+	if team == "player":   # nouveau round joueur : compteur de tours + dissipation de la fumée
+		turn_num += 1
 		for k in mesh.smoke.keys():
 			mesh.smoke[k] -= 1
 			if mesh.smoke[k] <= 0: mesh.smoke.erase(k)
 
 func _end_turn() -> void:
-	if turn != "player": return
+	if turn != "player" or over: return
 	turn = "enemy"; sel = -1; reachable = {}; _refresh()
 	_begin_turn("enemy")
 	await _enemy_turn()
 	_begin_turn("player")
-	turn = "player"; _refresh()
+	turn = "player"; _check_end(); _refresh()
 
 func _nearest_player(e) -> int:
 	var best := -1; var bd := 1 << 30
@@ -721,11 +788,37 @@ func _enemy_turn() -> void:
 			e.ap -= 1; e.facing = atan2(mesh.cells[best].cy - mesh.cells[e.cell].cy, mesh.cells[best].cx - mesh.cells[e.cell].cx)
 			e.cell = best; _place(e); react_to(e); detect_enemies(); await get_tree().create_timer(0.18).timeout
 
+func _end(msg: String) -> void:
+	over = true; armed = ""; reachable = {}; hud.text = "■ " + msg
+
 func _check_end() -> void:
-	var pa := units.any(func(u): return u.team == "player" and u.hp > 0)
-	var ea := units.any(func(u): return u.team == "enemy" and u.hp > 0)
-	if not ea: hud.text = "VICTOIRE"
-	elif not pa: hud.text = "DÉFAITE"
+	if over: return
+	# défaites communes
+	for u in units:
+		if u.team == "neutral" and u.get("hostage", false) and u.hp <= 0: return _end("Défaite — l'otage est tombé.")
+	var guard := []
+	for u in units: if u.team == "neutral" and not u.get("hostage", false) and not u.civ: guard.append(u)
+	if guard.size() > 0:
+		var aliveg := 0
+		for u in guard: if u.hp > 0: aliveg += 1
+		var need: int = protect_n if protect_n > 0 else guard.size()
+		if aliveg < need: return _end("Défaite — le VIP est tombé.")
+	if not units.any(func(u): return u.team == "player" and u.hp > 0): return _end("Défaite.")
+	var no_enemies := not units.any(func(u): return u.team == "enemy" and u.hp > 0)
+	match objective:
+		"assassinate":
+			if not units.any(func(u): return u.team == "enemy" and u.get("hvt", false) and u.hp > 0): _end("Victoire — cible éliminée !")
+		"survive", "defend":
+			if turn_num > survive_turns: _end("Victoire — position tenue !")
+			elif no_enemies: _end("Victoire !")
+		"extract":
+			var on_exit := 0
+			for u in units: if u.team == "player" and u.hp > 0 and exit_set.has(u.cell): on_exit += 1
+			if on_exit >= extract_count: _end("Victoire — extraction réussie !")
+		"rescue":
+			if no_enemies: _end("Victoire — otage libéré !")
+		_:
+			if no_enemies: _end("Victoire !")
 
 # ---------- HUD / surbrillance ----------
 func _update_fog() -> void:
@@ -767,11 +860,19 @@ func _refresh() -> void:
 			if units[j].team == "enemy" and units[j].hp > 0 and _can_attack(u, units[j]):
 				atk = "   tir possible : %d%%" % Combat.chance(mesh, units, u, units[j], u.wtype); break
 		s = "%s — PV %d/%d  PA %d/%d  (%s)%s\n%s" % [CL[u.cls].name, u.hp, u.max, u.ap, AP_MAX, ("tir " + str(u.w.ranged.range) if u.wtype == "ranged" else "mêlée"), atk, s]
-	hud.text = s
+	if over: hud.text = hud.text; return   # message de fin déjà posé
+	hud.text = _obj_label() + "\n" + s
 
 func _update_markers() -> void:
 	for m in _markers: m.queue_free()
 	_markers.clear()
+	for cell in exit_set.keys():   # zone d'extraction
+		var ex := MeshInstance3D.new()
+		var cm := CylinderMesh.new(); cm.top_radius = 0.55; cm.bottom_radius = 0.55; cm.height = 0.06; ex.mesh = cm
+		var mt := StandardMaterial3D.new(); mt.albedo_color = Color(0.4, 1.0, 0.5, 0.45); mt.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+		mt.emission_enabled = true; mt.emission = Color(0.3, 1.0, 0.4)
+		ex.material_override = mt; ex.position = world(cell) + Vector3(0, 0.05, 0)
+		add_child(ex); _markers.append(ex)
 	for cell in reachable.keys():
 		var disc := MeshInstance3D.new()
 		var cm := CylinderMesh.new(); cm.top_radius = 0.45; cm.bottom_radius = 0.45; cm.height = 0.08; disc.mesh = cm
