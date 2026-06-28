@@ -185,6 +185,7 @@ func _on_mission_end(win: bool) -> void:
 	var report: Dictionary = battle.build_report() if battle != null else {}
 	if battle != null: Run.camp.potions = int(battle.potions)   # stock de soins restant
 	var was_forge: bool = win and bool(Run.mission.get("forge", false))
+	var was_boss: bool = bool(Run.mission.get("boss", false))
 	var deaths: Array = Run.resolve_mission(win, report)
 	_clear(battle); battle = null
 	if win: _advance_if_boss()
@@ -192,6 +193,43 @@ func _on_mission_end(win: bool) -> void:
 	if was_forge:
 		var fb: Dictionary = Run.camp.forgeBonus
 		banner.text = Narrative.fmt(Narrative.MESSAGES.forge, {"thp": int(fb.hp), "tdmg": int(fb.dmg)})
+	if not deaths.is_empty():
+		banner.text = "+ " + ", ".join(deaths) + (" sont tombé·e·s." if deaths.size() > 1 else " est tombé·e.")
+	if not (Run.camp.get("pendingPromos", []) as Array).is_empty():
+		_show_promotions()
+	elif win and not was_boss and not bool(Run.camp.get("done", false)):
+		_maybe_offer_bonus()
+
+# ---------- mission bonus enchaînée ----------
+func _maybe_offer_bonus() -> void:
+	if Run.ready_members().is_empty() or randf() >= 0.35: return
+	var lay := CanvasLayer.new(); lay.layer = 22; add_child(lay)
+	var panel := Control.new(); panel.set_anchors_preset(Control.PRESET_FULL_RECT); lay.add_child(panel)
+	var dim := ColorRect.new(); dim.color = Color(0.04, 0.04, 0.06, 0.92); dim.set_anchors_preset(Control.PRESET_FULL_RECT); panel.add_child(dim)
+	var box := VBoxContainer.new(); box.position = Vector2(80, 180); box.add_theme_constant_override("separation", 14); panel.add_child(box)
+	var t := Label.new(); t.add_theme_font_size_override("font_size", 21); t.add_theme_color_override("font_color", Color(1, 0.88, 0.5))
+	t.text = "Une occasion se presente : une cible de plus, a decouvert.\nL'escouade est deja eprouvee — pousser plus loin ?\nReussir rapporte un soin ; echouer peut couter des soldats."
+	box.add_child(t)
+	var btns := HBoxContainer.new(); btns.add_theme_constant_override("separation", 12); box.add_child(btns)
+	var yes := Button.new(); yes.text = "Tenter la mission bonus"; btns.add_child(yes)
+	var no := Button.new(); no.text = "Rentrer au camp"; btns.add_child(no)
+	yes.pressed.connect(func(): _clear(lay); _launch_bonus())
+	no.pressed.connect(func(): _clear(lay))
+
+func _launch_bonus() -> void:
+	Run.set_bonus_mission()
+	_clear(geoscape); geoscape = null
+	battle = BattleScene.instantiate(); add_child(battle)
+	battle.mission_ended.connect(_on_bonus_end)
+
+func _on_bonus_end(win: bool) -> void:
+	var report: Dictionary = battle.build_report() if battle != null else {}
+	if battle != null: Run.camp.potions = int(battle.potions)
+	var deaths: Array = Run.resolve_bonus(win, report)
+	_clear(battle); battle = null
+	_show_geoscape()
+	if win: banner.text = "Mission bonus reussie — +1 soin."
+	else: banner.text = "Mission bonus echouee — repli."
 	if not deaths.is_empty():
 		banner.text = "+ " + ", ".join(deaths) + (" sont tombé·e·s." if deaths.size() > 1 else " est tombé·e.")
 	if not (Run.camp.get("pendingPromos", []) as Array).is_empty():

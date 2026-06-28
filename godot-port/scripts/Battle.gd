@@ -265,7 +265,7 @@ func _make_unit(team: String, cls: String, cell: int, mem := {}) -> void:
 	var beak := MeshInstance3D.new()
 	var bk := BoxMesh.new(); bk.size = Vector3(0.5, 0.18, 0.18); beak.mesh = bk
 	beak.material_override = mat; beak.position = Vector3(0.62, 0, 0); node.add_child(beak)
-	u.node = node
+	u.node = node; u.mat = mat
 	units.append(u); _place(u)
 
 func _place(u) -> void:
@@ -288,7 +288,7 @@ func _deploy_squad() -> Array:
 		for nm in sel:
 			var m: Dictionary = r.member(nm)
 			if m.is_empty() or bool(m.get("dead", false)): continue
-			var dh: Dictionary = r.mem_deploy_hp(m)
+			var dh: Dictionary = r.mem_deploy_hp(m, bool(mis.get("bonus", false)))
 			out.append({"cls":m.cls, "mem":{"name":m.name, "perks":r.member_perks(m), "maxHp":int(dh.max), "deployHp":int(dh.hp)}})
 		if not out.is_empty(): return out
 	return [{"cls":"soldat"}, {"cls":"assassin"}, {"cls":"garde"}, {"cls":"mage"}]
@@ -358,7 +358,7 @@ func exec_blast(u, center: int) -> bool:
 	for e in _hostiles_of(u):
 		if mesh.hops(center, e.cell) <= Data.BLAST_RADIUS:
 			var dmg := Data.BLAST_MIN + randi() % (Data.BLAST_MAX - Data.BLAST_MIN + 1)
-			e.hp = max(0, e.hp - dmg); _flash(e, str(dmg), Color(1, 0.6, 0.2))
+			e.hp = max(0, e.hp - dmg); _flash(e, str(dmg), Color(1, 0.6, 0.2)); _hit_react(e)
 			if e.team == "player": e.dmgTaken = int(e.get("dmgTaken", 0)) + dmg
 			if e.hp <= 0 and u.team == "player": u.kills = int(u.get("kills", 0)) + 1
 			if e.hp > 0 and e.team == "enemy": wake_enemy(e)
@@ -518,7 +518,7 @@ func exec_cracker(u, target: int) -> bool:
 			o.hp = max(0, o.hp - dmg)
 			if o.team == "player": o.dmgTaken = int(o.get("dmgTaken", 0)) + dmg
 			if o.hp <= 0 and u.team == "player" and o.team == "enemy": u.kills = int(u.get("kills", 0)) + 1
-			_flash(o, str(dmg), Color(1, 0.55, 0.2))
+			_flash(o, str(dmg), Color(1, 0.55, 0.2)); _hit_react(o)
 			if o.hp > 0 and o.team == "enemy": wake_enemy(o)
 	_fx_burst(imp, Color(1, 0.5, 0.15), 2.2); _shake(7)
 	for o in units:
@@ -747,13 +747,19 @@ func _do_attack(ai: int, ti: int) -> void:
 	var res := Combat.do_attack(mesh, units, att, tgt, att.wtype)
 	var hit_tgt = res.target
 	if hit_tgt.team == "enemy" and hit_tgt.hp > 0: wake_enemy(hit_tgt)   # le bruit réveille le pod visé
-	if res.dmg > 0: _flash(hit_tgt, str(res.dmg), Color(1, 0.5, 0.4))
+	if res.dmg > 0: _flash(hit_tgt, str(res.dmg), Color(1, 0.5, 0.4)); _hit_react(hit_tgt)
 	else: _flash(hit_tgt, res.txt, Color(0.85, 0.85, 0.9))
 	if res.killed: _shake(4)
 	for u in units:
 		if u.hp <= 0 and is_instance_valid(u.node): u.node.visible = false
 	_place(att)
 	_compute_reach(); _refresh(); _check_end()
+
+# réaction visuelle au coup : flash blanc bref de la sphère
+func _hit_react(u) -> void:
+	if not u.has("mat") or u.mat == null: return
+	u.mat.emission = Color(1, 1, 1)
+	var tw := create_tween(); tw.tween_property(u.mat, "emission", _team_color(u.team) * 0.32, 0.28)
 
 func _flash(u, txt: String, col: Color) -> void:
 	var l := Label3D.new(); l.text = txt; l.modulate = col; l.font_size = 64

@@ -87,10 +87,13 @@ func mem_max_hp(m: Dictionary) -> int:
 	return h
 
 # PV au déploiement : reposé → plein ; vient de combattre → soin partiel (50 % du manque)
-func mem_deploy_hp(m: Dictionary) -> Dictionary:
+# exact = mission bonus enchaînée : PV EXACTEMENT conservés (pas de passage au camp)
+func mem_deploy_hp(m: Dictionary, exact := false) -> Dictionary:
 	var mx: int = mem_max_hp(m)
 	var carry = camp.get("carry", {}).get(m.name, null)
-	var hp: int = mx if carry == null else min(mx, int(carry) + int(ceil((mx - int(carry)) * 0.5)))
+	var hp: int = mx
+	if carry != null:
+		hp = clampi(int(carry), 1, mx) if exact else min(mx, int(carry) + int(ceil((mx - int(carry)) * 0.5)))
 	return {"hp":hp, "max":mx, "full":hp >= mx}
 
 # ---------- sélection d'escouade ----------
@@ -136,6 +139,39 @@ func set_mission(cell: int, ginfo: Dictionary) -> void:
 		"diff": diff, "act": int(camp.act), "objective": objective_for(boss),
 		"cell": cell, "name": ginfo.name, "forge": ginfo.forge, "boss": boss,
 		"enemies": enemy_count(diff, boss) }
+
+# mission bonus enchaînée : un 2e affrontement, escouade déjà éprouvée (PV conservés exactement)
+func set_bonus_mission() -> void:
+	var diff: int = max(1, int(mission.get("diff", 1)))
+	mission = {
+		"seed": (int(camp.seed) ^ (int(camp.missionN) * 2246822519) ^ 0x5bd1) & 0x7fffffff | 1,
+		"diff": diff, "act": int(camp.act), "objective": "eliminate",
+		"cell": -1, "name": "Cible d'opportunite", "forge": false, "boss": false,
+		"enemies": clampi(2 + diff, 3, 6), "bonus": true }
+
+# issue d'une mission bonus : usure (mini, pas de repos), récompense, PAS de progression geoscape
+func resolve_bonus(win: bool, report: Dictionary = {}) -> Array:
+	var deaths: Array = []
+	var deployed: Array = camp.get("deploySel", [])
+	var ko_count := 0
+	for nm in deployed:
+		if report.has(nm) and bool(report[nm].get("ko", false)): ko_count += 1
+	for m in camp.get("roster", []):
+		if bool(m.dead) or not (deployed.has(m.name) and report.has(m.name)): continue
+		var r: Dictionary = report[m.name]
+		m.fatigue = min(100, int(m.fatigue) + FATIGUE_MISSION + int(r.get("spellsCast", 0)) * SPELL_FATIGUE)
+		var self_ko: bool = bool(r.get("ko", false))
+		m.stress = min(100, int(m.stress) + int(r.get("dmgTaken", 0)) * STRESS_DMG
+			+ (STRESS_SELF_KO if self_ko else 0)
+			+ max(0, ko_count - (1 if self_ko else 0)) * STRESS_KO_ALLY)
+		camp.carry[m.name] = max(0, int(r.get("hp", 0)))
+		if self_ko and not bool(m.special) and not win and randf() * 100.0 < DEATH_PCT:
+			m.dead = true; deaths.append(m.name)
+	if win:
+		award_xp(report)
+		camp.potions = int(camp.get("potions", 0)) + 1   # butin de la mission bonus
+	auto_select(); save_game()
+	return deaths
 
 # ---------- issue de mission : carry, usure, XP, progression ----------
 # report : { name -> {hp, max, dmgTaken, kills, spellsCast, ko} }
