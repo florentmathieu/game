@@ -1392,7 +1392,7 @@
   function applyCarry(exact){ if(!campRun)return; for(const u of units)if(u.team==="player"){ const c=campRun.carry[u.name]; if(c==null)continue;
     u.hp = exact ? Math.min(u.max,Math.max(1,c)) : Math.min(u.max, c+Math.ceil((u.max-c)*0.5)); } }   // c==null → reste full (déjà posé par startGame)
   function saveCarry(){ if(!campRun)return; for(const u of units)if(u.team==="player")campRun.carry[u.name]=Math.max(0,u.hp); }
-  function memMaxHp(m){ let h=(CLASSES[m.cls]&&CLASSES[m.cls].hp)||10; for(const id of (m.perks||[])){ const p=perkById(m.cls,id); if(p&&p.mod&&p.mod.hp)h+=p.mod.hp; } return h; }
+  function memMaxHp(m){ let h=(CLASSES[m.cls]&&CLASSES[m.cls].hp)||10; for(const id of (m.perks||[])){ const p=perkById(m.cls,id); if(p&&p.mod&&p.mod.hp)h+=p.mod.hp; } if(campRun&&campRun.forgeBonus&&campRun.forgeBonus.hp)h+=campRun.forgeBonus.hp; return h; }
   // PV projetés au déploiement (après soin partiel) — pour l'affichage de la sélection d'escouade / du camp
   function memDeployHp(m){ const max=memMaxHp(m), c=(campRun&&campRun.carry)?campRun.carry[m.name]:null;
     const hp=(c==null)?max:Math.min(max,c+Math.ceil((max-c)*0.5)); return {hp,max,full:hp>=max}; }   // full = repart à PV pleins
@@ -1496,14 +1496,16 @@
     try{ const onGeo=!!(geoPlay&&!geoPlay.inMission&&geoPlay.node);
       const s={ nodeId:campRun.nodeId, winCount:campRun.winCount||0, potions:campRun.potions||0, missionN:campRun.missionN||0,
         roster:campRun.roster, carry:campRun.carry||{}, geoStates:campRun.geoStates||{}, primes:campRun.primes||{},
-        seen:[...(campRun.seen||[])], firedEvents:[...(campRun.firedEvents||[])], geoNodeId:onGeo?geoPlay.node.id:null };
+        seen:[...(campRun.seen||[])], firedEvents:[...(campRun.firedEvents||[])], geoNodeId:onGeo?geoPlay.node.id:null,
+        geoSeed:campRun.geoSeed||null, forge:campRun.forge||0, forgeBonus:campRun.forgeBonus||null, forgeDone:campRun.forgeDone||[], lastAttackN:campRun.lastAttackN||0 };
       localStorage.setItem(RUN_PREFIX+campSlug(campRun.camp.name),JSON.stringify(s)); }catch(e){} }
   function loadCampRunSave(name){ try{ const t=localStorage.getItem(RUN_PREFIX+campSlug(name)); if(t)return JSON.parse(t); }catch(e){} return null; }
   function clearCampRunSave(name){ try{ localStorage.removeItem(RUN_PREFIX+campSlug(name)); }catch(e){} }
   function resumeCampaign(camp,save){ campRun={ camp, carry:save.carry||{}, winCount:save.winCount||0,
       roster:Array.isArray(save.roster)?save.roster:[], nodeId:save.nodeId, from:"play", missionN:save.missionN||0,
       seen:new Set(save.seen||[]), potions:save.potions||0, firedEvents:new Set(save.firedEvents||[]),
-      geoStates:save.geoStates||{}, primes:save.primes||{} };
+      geoStates:save.geoStates||{}, primes:save.primes||{},
+      geoSeed:save.geoSeed||null, forge:save.forge||0, forgeBonus:save.forgeBonus||null, forgeDone:save.forgeDone||[], lastAttackN:save.lastAttackN||0 };
     document.body.classList.remove("testing"); setView("play");
     const gn=save.geoNodeId&&camp.nodes.find(n=>n.id===save.geoNodeId);
     if(gn)enterGeoPlay(gn); else runNode(save.nodeId||camp.start); }
@@ -1556,7 +1558,9 @@
     if(campRun.deploySel&&campRun.deploySel.length){ chosen=campRun.deploySel.map(n=>ready.find(m=>m.name===n)).filter(Boolean); }
     campRun.deploySel=null;
     for(let i=0;i<slots.length&&i<chosen.length;i++){ const m=chosen[i]; if(!CLASSES[m.cls])continue;
-      const u=U("player",m.cls,slots[i].cell,{name:m.name,facing:slots[i].facing}); applyPerkMods(u,m.perks); u.grade=(m.perks||[]).length; placed.push(u); }
+      const u=U("player",m.cls,slots[i].cell,{name:m.name,facing:slots[i].facing}); applyPerkMods(u,m.perks);
+      const fb=campRun.forgeBonus; if(fb){ if(fb.hp){u.max+=fb.hp;u.hp+=fb.hp;} if(fb.dmg)u.dmgBonus=(u.dmgBonus||0)+fb.dmg; }   // bonus de forge (PV + dégâts, permanent)
+      u.grade=(m.perks||[]).length; placed.push(u); }
     units=others.concat(placed); }
   function setView(v){ document.body.classList.remove("view-mission","view-campaign","view-geoscape","view-play"); document.body.classList.add("view-"+v); mode=(v==="play")?"play":"edit";
     const cur={mission:"nav-m",campaign:"nav-c",geoscape:"nav-g",play:"nav-p"}[v]; ["nav-m","nav-c","nav-g","nav-p"].forEach(id=>{const a=document.getElementById(id);if(a)a.classList.toggle("cur",id===cur);});
@@ -1691,6 +1695,7 @@
   const DIFF_FILL={1:"#2e7d4f",2:"#5e8a36",3:"#8a7d2e",4:"#9c5a26",5:"#9c3a2a"};   // disponible : du vert (facile) au rouge (dur)
   // couleur d'une région selon un état EFFECTIF : camp à part ; prise (bleu) / ratée (rouge sombre) / verrouillée (gris) ; sinon teintée par difficulté
   function geoFillForState(c,s){ if(c.id===geoCampId)return GEO_CAMP_FILL;
+    if(s==="attacked")return "#b03a2a";   // région prise sous attaque : rouge vif
     if(s==="cleared")return GEO_FILL.cleared; if(s==="lost")return GEO_FILL.lost; if(s==="locked")return GEO_FILL.locked;
     if(c.gkind==="mission"&&c.gdiff>0)return DIFF_FILL[Math.min(5,c.gdiff)]||GEO_FILL.available; return GEO_FILL.available; }
   function geoFillFor(c){ return geoFillForState(c,c.gstate); }   // éditeur : état brut
@@ -1833,23 +1838,80 @@
   function geoBuildCells(){ const m=geoPlay.map, st=campRun.geoStates[geoPlay.node.id];
     cells=m.cells.map((c,i)=>{ const ct=polyCentroid(c.poly); return {id:i,poly:c.poly,cx:ct[0],cy:ct[1],nb:[],terr:"plain",elev:0,
       gname:c.name||"",gtype:c.type||"region",gkind:(c.content&&c.content.kind)||"empty",gref:(c.content&&c.content.ref)||null,
-      gunlock:Array.isArray(c.unlockedBy)?c.unlockedBy:[],gstate:st[i]||"locked",gdiff:c.diff||0}; });
+      gunlock:Array.isArray(c.unlockedBy)?c.unlockedBy:[],gstate:st[i]||"locked",gdiff:c.diff||0,gforge:!!c.forge,gboss:!!c.boss}; });
     buildAdj(); geoCampId=(m.camp!=null)?m.camp:null;
     if(campRun){ campRun.geoAdj=campRun.geoAdj||{}; campRun.geoAdj[geoPlay.node.id]=cells.map(c=>c.nb.slice()); } }   // adjacence figée (réutilisable même pendant une mission, où `cells` = la mission)
   // une région est ACCESSIBLE si un chemin libre la relie au camp : elle touche le camp ou une région déjà PRISE (front).
   function geoAccessibleSet(nodeId){ const acc=new Set(); if(!campRun||!geoPlay)return acc; nodeId=nodeId||geoPlay.node.id;
     const adj=campRun.geoAdj&&campRun.geoAdj[nodeId], st=campRun.geoStates&&campRun.geoStates[nodeId], map=geoPlay.map; if(!adj||!st||!map)return acc;
     const camp=(map.camp!=null)?map.camp:-1, controlled=new Set();
-    map.cells.forEach((c,i)=>{ if(i===camp||st[i]==="cleared")controlled.add(i); });   // territoire contrôlé = camp + régions prises
-    map.cells.forEach((c,i)=>{ if(!(c.content&&c.content.kind==="mission")||st[i]==="cleared"||st[i]==="locked")return;   // « locked » = verrouillée par le scénario (révélée par un événement) : reste fermée même sur le front
+    map.cells.forEach((c,i)=>{ if(i===camp||st[i]==="cleared")controlled.add(i); });   // territoire contrôlé = camp + régions prises (une région ATTAQUÉE n'est plus contrôlée → pression)
+    map.cells.forEach((c,i)=>{ if(st[i]==="attacked"){ acc.add(i); return; }   // une région attaquée est toujours défendable
+      if(!(c.content&&c.content.kind==="mission")||st[i]==="cleared"||st[i]==="locked")return;   // « locked » = verrouillée par le scénario (révélée par un événement) : reste fermée même sur le front
       if((adj[i]||[]).some(n=>controlled.has(n)))acc.add(i); });
     return acc; }
   // état EFFECTIF d'une cellule en jeu (avec le gating par chemin) : camp / cleared / available / lost / locked
-  function geoEffState(c,acc){ if(c.id===geoCampId)return "camp"; if(c.gstate==="cleared")return "cleared";
+  function geoEffState(c,acc){ if(c.id===geoCampId)return "camp"; if(c.gstate==="attacked")return "attacked"; if(c.gstate==="cleared")return "cleared";
     if(c.gkind!=="mission")return c.gstate; return acc.has(c.id)?(c.gstate==="lost"?"lost":"available"):"locked"; }
-  async function enterGeoPlay(node){ const t=await fetchText("geoscapes-mesh/"+node.map,ghCfg());
-    if(!t){ showCampText("Territoire introuvable : "+node.map,()=>{ if(node.next)runNode(node.next); else endCampaignRun("Fin."); }); return; }
-    let m; try{ m=JSON.parse(t); }catch(e){ showCampText("Territoire illisible.",()=>endCampaignRun("Fin.")); return; }
+  // ===== geoscape PROCÉDURAL : un territoire neuf à chaque campagne (variété) =====
+  const GEO_W=820, GEO_H=620;   // toile de base ; le zoom/pan gère l'affichage
+  // missions réelles par acte et par difficulté (ennemis déjà calibrés dans les fichiers)
+  const FAILLE_BY_DIFF={1:["terr-faille-ravins-de-cendre.json","terr-faille-pont-rompu.json"],2:["terr-faille-marais-bleme.json","terr-faille-sente-grise.json"],3:["terr-faille-verriere-brisee.json","terr-faille-tour-engloutie.json","terr-faille-dedale-noye.json"],4:["terr-faille-crevasse.json"],5:["terr-faille-coeur.json"]};
+  const ACT_MISSIONS={
+    1:{1:["terr-crete-venteuse.json","terr-carriere-noyee.json"],2:["terr-tourbiere.json","terr-gue-de-l-aval.json","terr-bois-brule.json"],3:["terr-hameau-muet.json"],4:["terr-vieux-moulin.json"],5:["terr-bastion.json"]},
+    2:FAILLE_BY_DIFF, 3:FAILLE_BY_DIFF };   // actes 2 & 3 puisent dans le bestiaire « Faille »
+  const GEO_NAMES={
+    1:["Bois brûlé","Gué de l'aval","Carrière noyée","Hameau muet","Tourbière","Crête venteuse","Vieux moulin","Lisière grise","Ravin","Tertre","Saulaie","Fondrière","Combe","Pâture morte","Friche","Aulnaie","Layon","Guéret","Sente creuse","Marécage"],
+    2:["Marais blême","Verrière brisée","Tour engloutie","Dédale noyé","Ravins de cendre","Pont rompu","Crevasse","Sente grise","Faille mineure","Brèche","Spire noire","Caldeira","Estran gris","Vasière","Gouffre","Récif sec","Cendrier","Étier mort","Noue","Suintement"],
+    3:["Anse calcinée","Verse noire","Antre","Vallée close","Os blanchis","Schiste","Maelström","Brisure","Galerie","Ossuaire","Bief","Crassier","Plaie","Faille mère","Abîme","Terril","Lande grise","Carrière haute","Goulet","Vortex"] };
+  const BOSS_NAME={1:"Bastion",2:"Verrou de la Faille",3:"Cœur de la Faille"}, FORGE_NAME={1:"Vieille forge",2:"Forge engloutie",3:"Forge du gouffre"};
+  const hashStr=s=>{ let h=2166136261>>>0; for(let i=0;i<(s||"").length;i++){ h^=s.charCodeAt(i); h=Math.imul(h,16777619); } return h>>>0; };
+  function geoVoronoi(seed,g){ const W=GEO_W,H=GEO_H,rnd=mk(seed),h=g*0.866,jit=a=>(rnd()*2-1)*a,dist=0.28; const seeds=[];
+    for(let j=-1;j*Math.min(g,h)<H+g;j++)for(let i=-1;i*g<W+g;i++){ let x=i*g,y=j*g,t=["square","hex","pentagon"][Math.floor(rnd()*3)],amp=dist*g*0.42;
+      if(t==="hex"){x=i*g+(j&1?g/2:0);y=j*h;}else if(t==="pentagon"){x=i*g+(j&1?g/2:0);amp+=g*0.16;} x+=jit(amp);y+=jit(amp);
+      if(x>-g&&x<W+g&&y>-g&&y<H+g){ const md2=(g*0.5)**2; let ok=true; for(const s of seeds){const dx=s[0]-x,dy=s[1]-y;if(dx*dx+dy*dy<md2){ok=false;break;}} if(ok)seeds.push([x,y]); } }
+    const box=[[0,0],[W,0],[W,H],[0,H]];
+    const clip=(poly,p,q)=>{const mx=(p[0]+q[0])/2,my=(p[1]+q[1])/2,nx=p[0]-q[0],ny=p[1]-q[1],ins=v=>(v[0]-mx)*nx+(v[1]-my)*ny>=0,out=[];
+      for(let i=0;i<poly.length;i++){const a=poly[i],b=poly[(i+1)%poly.length],ia=ins(a),ib=ins(b);if(ia)out.push(a);if(ia!==ib){const den=(b[0]-a[0])*nx+(b[1]-a[1])*ny;if(den!==0){const tt=((mx-a[0])*nx+(my-a[1])*ny)/den;out.push([a[0]+tt*(b[0]-a[0]),a[1]+tt*(b[1]-a[1])]);}}}return out;};
+    const R=g*2.8,out=[];
+    for(let i=0;i<seeds.length;i++){const p=seeds[i];let poly=box;for(let k=0;k<seeds.length;k++){if(k===i)continue;const q=seeds[k];if(Math.abs(q[0]-p[0])>R||Math.abs(q[1]-p[1])>R)continue;poly=clip(poly,p,q);if(poly.length<3)break;}
+      if(poly.length>=3){const cl=[];for(let v=0;v<poly.length;v++){const a=poly[v],b=cl[cl.length-1];if(!b||Math.hypot(a[0]-b[0],a[1]-b[1])>0.8)cl.push(a);}if(cl.length>=2&&Math.hypot(cl[0][0]-cl[cl.length-1][0],cl[0][1]-cl[cl.length-1][1])<0.8)cl.pop();
+        if(cl.length>=3){const ct=polyCentroid(cl);out.push({poly:cl.map(pp=>[Math.round(pp[0]),Math.round(pp[1])]),cx:ct[0],cy:ct[1]});}}}
+    const EPS=0.6; return out.filter(c=>!c.poly.some(pp=>pp[0]<=EPS||pp[0]>=W-EPS||pp[1]<=EPS||pp[1]>=H-EPS)); }
+  function genGeoMap(opts){ opts=opts||{}; const act=opts.act||1, want=opts.regions||10, seed=(opts.seed>>>0)||12345, target=want+1;
+    let g=Math.max(48,Math.round(Math.sqrt(GEO_W*GEO_H/target)*0.92)), cells=[];
+    for(let it=0;it<40;it++){ cells=geoVoronoi(seed,g); const n=cells.length; if(n>target+1)g=Math.round(g*1.04); else if(n<target)g=Math.round(g*0.96); else break; }
+    const cx0=GEO_W/2,cy0=GEO_H/2;
+    const order=cells.map((c,i)=>({i,d:Math.hypot(c.cx-cx0,c.cy-cy0)})).sort((a,b)=>a.d-b.d);
+    const campIdx=order[0].i, regs=order.slice(1), maxR=regs.length;
+    const rnd=mk(seed^0x9e3779b1), names=GEO_NAMES[act].slice(); for(let i=names.length-1;i>0;i--){const j=Math.floor(rnd()*(i+1));[names[i],names[j]]=[names[j],names[i]];}
+    const stars=rank=>{ if(rank===maxR-1)return 5; const t=maxR>1?rank/(maxR-1):0; return Math.max(1,Math.min(4,1+Math.floor(t*3.999))); };
+    const pickRef=d=>{ const list=ACT_MISSIONS[act][d]||ACT_MISSIONS[act][4]||["mission-1.json"]; return list[Math.floor(rnd()*list.length)]; };
+    const out={ name:(act===2?"Acte 2 — La Faille":"Acte 1 — La Marche"), camp:campIdx, act, seed,
+      cells:cells.map(c=>({poly:c.poly,name:"",type:"region",content:{kind:"empty",ref:null},state:"locked",unlockedBy:[]})), events:[] };
+    out.cells[campIdx]={poly:cells[campIdx].poly,name:(act===2?"Avant-poste":"Le Camp"),type:"camp",content:{kind:"empty",ref:null},state:"available",unlockedBy:[]};
+    const forgeRank=Math.max(1,Math.min(maxR-2,Math.round(maxR*0.62)));   // forge à ~62% de distance, hors boss
+    regs.forEach((o,rank)=>{ const cell=out.cells[o.i], isBoss=rank===maxR-1; let d=stars(rank);
+      if(isBoss){ cell.name=BOSS_NAME[act]; d=5; cell.state="locked"; cell.boss=true; cell.content={kind:"mission",ref:ACT_MISSIONS[act][5][0]}; }
+      else if(rank===forgeRank){ d=Math.min(4,Math.max(3,d)); cell.name=FORGE_NAME[act]; cell.forge=true; cell.state="available"; cell.content={kind:"mission",ref:pickRef(d)}; }
+      else { cell.name=names[rank%names.length]; cell.state="available"; cell.content={kind:"mission",ref:pickRef(d)}; }
+      cell.diff=d; });
+    out.events.push({when:{kind:"wins",value:Math.max(3,Math.round(maxR*0.5))},reveal:BOSS_NAME[act],text:""});   // le boss se révèle à mi-parcours
+    return out; }
+  // ennemis « ajustés » après l'ouverture d'une forge : +1 ennemi par forge libérée (compense le gain de stats)
+  function addForgeEnemies(){ if(!campRun)return; const n=campRun.forge||0; if(n<=0)return;
+    const enemies=units.filter(u=>u.team==="enemy"); const ecls=[...new Set(enemies.map(u=>u.cls))]; if(!ecls.length||!enemies.length)return;
+    const occ0=new Set(units.map(u=>u.cell)); const podMax=Math.max(0,...enemies.map(u=>u.pod||0));
+    for(let k=0;k<n;k++){ let spot=null;
+      for(const e of enemies){ for(const nb of cells[e.cell].nb){ if(passable(nb)&&!occ0.has(nb)){spot=nb;break;} } if(spot!=null)break; }
+      if(spot==null){ const f=cells.find(c=>passable(c.id)&&!occ0.has(c.id)); spot=f?f.id:null; }
+      if(spot==null)break; units.push(U("enemy",ecls[k%ecls.length],spot,{pod:podMax,asleep:true})); occ0.add(spot); } }
+  async function enterGeoPlay(node){ let m;
+    if(node.proc){ if(campRun.geoSeed==null)campRun.geoSeed=((Date.now()^Math.floor(Math.random()*0x7fffffff))>>>0)||1;   // graine par campagne → territoire neuf à chaque partie
+      m=genGeoMap({act:node.proc.act||1,regions:node.proc.regions||10,seed:(campRun.geoSeed^hashStr(node.id))>>>0}); }
+    else { const t=await fetchText("geoscapes-mesh/"+node.map,ghCfg());
+      if(!t){ showCampText("Territoire introuvable : "+node.map,()=>{ if(node.next)runNode(node.next); else endCampaignRun("Fin."); }); return; }
+      try{ m=JSON.parse(t); }catch(e){ showCampText("Territoire illisible.",()=>endCampaignRun("Fin.")); return; } }
     campRun.geoStates=campRun.geoStates||{}; if(!campRun.geoStates[node.id])campRun.geoStates[node.id]=m.cells.map(c=>c.state||"locked");
     geoPlay={node,map:m,inMission:false}; { const tt=document.getElementById("title"); if(tt)tt.style.display="none"; }
     document.body.classList.add("geomap"); over=false; resetView(); geoBuildCells(); hoverCell=null; primeInit(); geoBanner(); draw(); runGeoEvents("arrive",()=>saveCampRun()); }   // primes des régions dures + événements de 1ʳᵉ arrivée, puis point de reprise
@@ -1877,7 +1939,7 @@
   function drawGeoPlay(){ ctx.setTransform(1,0,0,1,0,0); ctx.clearRect(0,0,cv.width,cv.height); ctx.setTransform(zoom,0,0,zoom,panX,panY);
     const acc=geoAccessibleSet();
     for(const c of cells){ const es=geoEffState(c,acc); poly(c); ctx.fillStyle=geoFillForState(c,es); ctx.fill(); ctx.lineWidth=1.5; ctx.strokeStyle="rgba(10,12,16,.5)"; ctx.stroke(); }
-    for(const c of cells){ const es=geoEffState(c,acc); if((es==="available"||es==="lost")&&c.gkind==="mission"){ poly(c); ctx.lineWidth=3; ctx.strokeStyle=(es==="lost"?"#d89a8a":"#9fd0a8"); ctx.stroke(); } }   // front jouable (perdue = liseré rouge, rejouable)
+    for(const c of cells){ const es=geoEffState(c,acc); if((es==="available"||es==="lost"||es==="attacked")&&c.gkind==="mission"){ poly(c); ctx.lineWidth=es==="attacked"?4:3; ctx.strokeStyle=(es==="attacked"?"#ff5a44":es==="lost"?"#d89a8a":"#9fd0a8"); ctx.stroke(); } }   // front jouable (perdue = liseré rouge, attaquée = liseré rouge vif)
     // survol : chemin mauve depuis le camp (comme l'aperçu de déplacement en combat) + région survolée allumée
     if(hoverCell!=null&&cells[hoverCell]){ const path=geoPathTo(hoverCell);
       if(path&&path.length>1){ ctx.save(); ctx.lineJoin="round"; ctx.lineCap="round";
@@ -1886,14 +1948,14 @@
         for(const id of path){ const cc=cells[id]; ctx.fillStyle="#c77dff"; ctx.beginPath(); ctx.arc(cc.cx,cc.cy,4,0,TWO); ctx.fill(); } ctx.restore(); }
       const hc=cells[hoverCell]; poly(hc); ctx.save(); ctx.fillStyle="rgba(255,255,255,.13)"; ctx.fill(); ctx.lineWidth=3.5; ctx.strokeStyle="#ffe08a"; ctx.stroke(); ctx.restore(); }
     ctx.textAlign="center"; ctx.textBaseline="middle";
-    for(const c of cells){ const es=geoEffState(c,acc); const isCamp=es==="camp"; const icon=isCamp?"⛺":(es==="cleared"?"✓":(es==="lost"?"↻":(es==="available"&&c.gkind==="mission"?"⚔":(es==="locked"?"🔒":""))));
+    for(const c of cells){ const es=geoEffState(c,acc); const isCamp=es==="camp"; const icon=isCamp?"⛺":(es==="attacked"?"⚠":(es==="cleared"?"✓":(es==="lost"?"↻":(es==="available"&&c.gkind==="mission"?(c.gforge?"⚒":"⚔"):(es==="locked"?"🔒":"")))));
       if(icon){ ctx.font="bold 15px system-ui"; ctx.fillStyle="#fff"; ctx.fillText(icon,c.cx,c.cy-8); }
       const nm=c.gname||("#"+c.id); ctx.font="11px system-ui"; ctx.fillStyle=(es==="locked")?"rgba(255,255,255,.42)":"rgba(255,255,255,.92)"; ctx.fillText(nm,c.cx,c.cy+10);
       if(c.gdiff>0&&c.gkind==="mission"&&es!=="cleared"){ ctx.font="10px system-ui"; ctx.fillStyle=(es==="locked")?"rgba(224,179,65,.45)":"#e0b341"; ctx.fillText("★".repeat(c.gdiff),c.cx,c.cy+22); }   // étoiles = difficulté
       const pr=campRun&&campRun.primes&&campRun.primes[c.gname]; if(pr&&(es==="available"||es==="lost")){ ctx.font="bold 10px system-ui"; ctx.fillStyle="#ffd479"; ctx.fillText("⏳+"+(pr.xp||0)+"xp",c.cx,c.cy+33); } }   // prime express qui fond (seulement sur le front)
     if(geoCampId!=null&&cells[geoCampId]){ poly(cells[geoCampId]); ctx.lineWidth=3; ctx.strokeStyle="#e0b341"; ctx.stroke(); } }
   function geoPlayClick(X,Y){ const c=cellAtXY(X,Y); if(!c)return; const es=geoEffState(c,geoAccessibleSet());
-    if(es!=="available"&&es!=="lost"){ geoBanner(es==="locked"?"région coupée du camp — libère d'abord un chemin":(es==="cleared"?"région déjà nettoyée":"région indisponible")); return; }
+    if(es!=="available"&&es!=="lost"&&es!=="attacked"){ geoBanner(es==="locked"?"région coupée du camp — libère d'abord un chemin":(es==="cleared"?"région déjà nettoyée":"région indisponible")); return; }
     if(c.gkind!=="mission"||!c.gref){ geoBanner("rien à faire ici pour l'instant"); return; }
     geoLaunchMission(c.id,c.gref); }
   // écran de sélection d'escouade avant de partir : choisir jusqu'à N soldats PRÊTS (ni épuisés ni morts)
@@ -1921,6 +1983,7 @@
     showSquadSelect(slots, regionName, (chosen)=>{ if(!chosen){ geoBanner("départ annulé"); return; }   // Annuler = on reste au camp
       campRun.deploySel=chosen; campRun.geoReturn={nodeId:geoPlay.node.id,cellId}; campRun.missionN=(campRun.missionN||0)+1; geoPlay.inMission=true; document.body.classList.remove("geomap");
       try{ applyMissionObj(m); }catch(e){ geoBanner("mission illisible"); geoPlay.inMission=false; document.body.classList.add("geomap"); return; }
+      addForgeEnemies();   // ennemis ajustés après les forges libérées
       distortTerrain(corruptLevel());   // le terrain se tord davantage à mesure qu'on avance
       deployRoster(); startGame(); if(!(curMission&&curMission.fullheal))applyCarry(); refresh();
       runGeoEvents("before",{region:regionName,missionN:campRun.missionN}); }); }   // texte d'avant-mission (plein écran ou surimpression sur le champ de bataille)
@@ -1941,20 +2004,35 @@
   function primeDecay(onFront){ if(!campRun||!campRun.primes)return; onFront=onFront||primeFront();
     for(const k of Object.keys(campRun.primes)){ if(!onFront.has(k))continue; const p=campRun.primes[k];
       p.xp=Math.max(0,(p.xp||0)-PRIME_XP_STEP); p.morale=Math.max(0,(p.morale||0)-PRIME_MORALE_STEP); if(!p.xp&&!p.morale)delete campRun.primes[k]; } }   // épuisée (xp & moral à 0) → la prime, soin compris, disparaît
-  function geoMissionEnd(resultTxt){ const win=resultTxt.indexOf("Victoire")===0; const ret=campRun.geoReturn; const st=campRun.geoStates[ret.nodeId]; saveCarry(); if(win)awardXp(); const deaths=applyAttrition(win); let bonusMsg=null,primeMsg=null;
+  // ===== « région attaquée » : événement rare, au timing variable, qu'il faut défendre =====
+  let ATTACK_CHANCE=0.14, ATTACK_GAP=3;   // rare (~14%) et jamais deux coups de suite (réglables)
+  function maybeAttackRegion(st){ if(!campRun||!geoPlay)return null;
+    if(((campRun.missionN||0)-(campRun.lastAttackN||-99))<ATTACK_GAP)return null;   // cooldown
+    if(Math.random()>ATTACK_CHANCE)return null;                                      // rare + timing variable
+    const map=geoPlay.map, cand=[]; map.cells.forEach((c,i)=>{ if(st[i]==="cleared"&&!c.boss)cand.push(i); });
+    if(!cand.length)return null; const pick=cand[Math.floor(Math.random()*cand.length)];
+    st[pick]="attacked"; campRun.lastAttackN=campRun.missionN||0;
+    return "⚠ "+((map.cells[pick].name)||"Une région")+" est attaquée ! Reprends-la avant qu'elle ne tombe — sans elle, la route se coupe."; }
+  function geoMissionEnd(resultTxt){ const win=resultTxt.indexOf("Victoire")===0; const ret=campRun.geoReturn; const st=campRun.geoStates[ret.nodeId]; saveCarry(); if(win)awardXp(); const deaths=applyAttrition(win); let bonusMsg=null,primeMsg=null,forgeMsg=null,atkMsg=null;
     const frontBefore=primeFront();   // front d'avant la mission : les régions ouvertes par cette victoire ne fondront pas ce tour-ci
-    const rn=geoPlay.map.cells[ret.cellId]&&geoPlay.map.cells[ret.cellId].name;
+    const fcell=geoPlay.map.cells[ret.cellId]; const rn=fcell&&fcell.name;
     if(win){ st[ret.cellId]="cleared"; campRun.potions=(inv.potion||0)+((curMission&&curMission.loot)||0); bonusMsg=grantBonus(win); campRun.winCount=(campRun.winCount||0)+1;
       if(rn&&campRun.primes&&campRun.primes[rn]){ const s=applyReward(campRun.primes[rn]); delete campRun.primes[rn]; if(s)primeMsg="⏳ Prime express empochée : "+s+"."; }   // prime de la région prise (avant qu'elle fonde)
+      if(fcell&&fcell.forge){ campRun.forgeDone=campRun.forgeDone||[]; const fk=ret.nodeId+":"+ret.cellId;   // forge libérée : bonus de stats permanent, une seule fois
+        if(campRun.forgeDone.indexOf(fk)<0){ campRun.forgeDone.push(fk); campRun.forge=(campRun.forge||0)+1; campRun.forgeBonus={hp:3*campRun.forge,dmg:campRun.forge};
+          forgeMsg="🔨 Forge libérée — toute l'escouade gagne +3 PV et +1 dégât (cumulé : +"+(3*campRun.forge)+" PV / +"+campRun.forge+" dégâts). En réponse, l'ennemi resserre ses rangs."; } }
       geoPlay.map.cells.forEach((c,i)=>{ if((c.unlockedBy||[]).includes(ret.cellId)&&st[i]==="locked")st[i]="available"; }); }
     else st[ret.cellId]="lost";
     primeDecay(frontBefore);   // une mission a été jouée : les primes déjà sur le front fondent d'un cran
+    if(win)atkMsg=maybeAttackRegion(st);   // après une victoire, une région prise peut être attaquée (rare)
     const lostSpecial=checkMortalConditions();   // ★ retiré selon conditions (N victoires / région nettoyée)
     geoPlay.inMission=false; over=false; const node=geoPlay.node;
     const announce=(msg,cb)=> autoPromote?cb():showCampText(msg,cb);   // bloquant en jeu, immédiat en test (autoPromote)
-    const events=[];   // prime + récompense bonus + pertes + retraits de statut spécial, annoncés un par un
+    const events=[];   // prime + forge + bonus + attaque + pertes + retraits de statut spécial, annoncés un par un
     if(primeMsg)events.push(primeMsg);
+    if(forgeMsg)events.push(forgeMsg);
     if(bonusMsg)events.push(bonusMsg);
+    if(atkMsg)events.push(atkMsg);
     if(deaths.length)events.push("✝ "+deaths.join(", ")+(deaths.length>1?" sont tombé·e·s au combat. Iels quittent le roster.":" est tombé·e au combat. Iel quitte le roster."));
     if(lostSpecial.length)events.push("★ "+lostSpecial.join(", ")+" — leur rôle est accompli : iels ne sont plus à l'abri du destin.");
     const showEvents=after=>{ if(!events.length){after();return;} announce(events.shift(),()=>showEvents(after)); };

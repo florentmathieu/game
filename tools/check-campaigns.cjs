@@ -38,12 +38,13 @@ function runAct(tag, geoNode, geo0, prevMissionN){
   M.geoPlay={ node:{id:geoNode.id,map:geoNode.map,endWhen:geoNode.endWhen,next:geoNode.next}, map:JSON.parse(JSON.stringify(geo0)), inMission:false };
   M.geoBuildCells();
   let missions=0,wins=0,losses=0,to=0,guard=0;
-  while(guard++<30){ const acc=M.geoAccessibleSet(geoNode.id);
+  while(guard++<60){ const acc=M.geoAccessibleSet(geoNode.id);   // plafond large : un acte à 20 régions demande beaucoup de missions (+ re-défenses)
     const avail=geo0.cells.map((c,i)=>({c,i})).filter(x=>x.c.content&&x.c.content.kind==="mission"&&acc.has(x.i));
     if(!avail.length) break; avail.sort((a,b)=>(a.c.diff||9)-(b.c.diff||9)); const pick=avail[0];
     try{
       cr.missionN=(cr.missionN||0)+1;
       M.applyMissionObj(loadMission(pick.c.content.ref));
+      M.addForgeEnemies();   // ennemis ajustés après les forges libérées
       M.distortTerrain(M.corruptLevel());
       M.deployRoster(); M.mode="play"; M.startGame(); M.applyCarry();
       cr.geoReturn={nodeId:geoNode.id,cellId:pick.i}; M.geoPlay.inMission=true;
@@ -61,11 +62,13 @@ let tot={mis:0,win:0,loss:0,to:0}, perAct={};
 for(let c=0;c<CYCLES;c++){ M.clearRosterProgress(camp.name);   // nouvelle lignée
   console.log(`\n=== Campagne ${c+1} (lignée neuve) ===`);
   let mn=0;
-  for(let gi=0; gi<geoNodes.length; gi++){ const gn=geoNodes[gi], geo0=loadGeo(gn.map);
-    const o=runAct(`c${c+1}/${gn.map}`, gn, geo0, mn); mn=o.missionN;
+  for(let gi=0; gi<geoNodes.length; gi++){ const gn=geoNodes[gi];
+    const geo0= gn.proc ? M.genGeoMap({act:gn.proc.act,regions:gn.proc.regions,seed:(7919*(c+1)+gi*104729)>>>0}) : loadGeo(gn.map);   // geoscape procédural par campagne
+    const k= gn.proc ? ("acte"+gn.proc.act+" ("+gn.proc.regions+"r)") : gn.map;
+    const o=runAct(`c${c+1}/${k}`, gn, geo0, mn); mn=o.missionN;
     tot.mis+=o.missions; tot.win+=o.wins; tot.loss+=o.losses; tot.to+=o.to;
-    const k=gn.map; perAct[k]=perAct[k]||{mis:0,win:0,loss:0,to:0,ended:0}; perAct[k].mis+=o.missions; perAct[k].win+=o.wins; perAct[k].loss+=o.losses; perAct[k].to+=o.to; if(o.actEnded)perAct[k].ended++;
-    console.log(`  ${gn.map.padEnd(11)}: ${o.missions} missions  ${o.wins}W ${o.losses}L ${o.to}T${o.actEnded?"  — ACTE TERMINÉ":""}  (corruption finale ~${(Math.min(1,mn*0.06)).toFixed(2)})`);
+    perAct[k]=perAct[k]||{mis:0,win:0,loss:0,to:0,ended:0,reg:geo0.cells.filter(c=>c.content&&c.content.kind==="mission").length}; perAct[k].mis+=o.missions; perAct[k].win+=o.wins; perAct[k].loss+=o.losses; perAct[k].to+=o.to; if(o.actEnded)perAct[k].ended++;
+    console.log(`  ${k.padEnd(14)}: ${o.missions} missions  ${o.wins}W ${o.losses}L ${o.to}T${o.actEnded?"  — ACTE TERMINÉ":""}  (corruption finale ~${(Math.min(1,mn*0.06)).toFixed(2)})`);
   }
 }
 console.log(`\n==== BILAN ====`);

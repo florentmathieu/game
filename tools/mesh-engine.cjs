@@ -36,6 +36,7 @@ function loadMesh(htmlPath){
     applyCarry, saveCarry, memMaxHp, memDeployHp,
     runGeoEvents, geoRegionCleared, geoRevealRegion, applyGeoEvent, saveFiredEvents, loadFiredEvents,
     primeInit, primeDecay, geoBuildCells, geoAccessibleSet, geoPathTo, drawGeoPlay,
+    genGeoMap, addForgeEnemies, maybeAttackRegion,
     saveCampRun, loadCampRunSave, clearCampRunSave,
     get PERKS(){return PERKS}, get GRADES(){return GRADES},
     setAutoPromote(fn){ autoPromote=fn; }, saveRosterProgress, loadRosterProgress, clearRosterProgress,
