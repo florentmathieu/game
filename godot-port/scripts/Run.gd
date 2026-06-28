@@ -30,18 +30,39 @@ const STARTER := [
 	{"name":"Mira",   "cls":"sapeur",   "special":false},
 ]
 
-func new_campaign() -> void:
+# def (optionnel, campagne scénarisée) : {name, seed, roster:[{name,cls,special}], acts:{"1":n,...},
+# narrative:{"1":{arrive,forge,boss},...}, potions}
+func new_campaign(def := {}) -> void:
+	var src: Array = def.get("roster", STARTER)
 	var roster: Array = []
-	for m in STARTER:
-		roster.append({"name":m.name, "cls":m.cls, "xp":0, "stress":0, "fatigue":0,
-			"special":m.special, "dead":false, "perks":[]})
+	for m in src:
+		roster.append({"name":m.name, "cls":m.cls, "xp":int(m.get("xp", 0)), "stress":0, "fatigue":0,
+			"special":bool(m.get("special", false)), "dead":false, "perks":(m.get("perks", []) as Array).duplicate()})
+	var acts: Dictionary = def.get("acts", {})
 	camp = {"geoStates":{}, "missionN":0, "winCount":0, "act":1,
-		"seed":(randi() & 0x7fffffff) | 1, "want":ACT_MISSIONS[1],
+		"seed":(int(def.seed) if def.has("seed") else (randi() & 0x7fffffff)) | 1,
+		"want":int(acts.get("1", ACT_MISSIONS[1])),
 		"forgeCount":0, "forgeBonus":{"hp":0, "dmg":0}, "lastAttack":-99, "done":false,
 		"roster":roster, "carry":{}, "deploySel":[], "pendingPromos":[],
-		"seenActs":[], "seenBoss":[], "potions":2}
+		"seenActs":[], "seenBoss":[], "potions":int(def.get("potions", 2)),
+		"title":String(def.get("name", "")), "narr":def.get("narrative", {}), "acts":acts}
 	mission = {}
 	auto_select()
+
+# want (régions) pour l'acte courant — surchargé par une campagne scénarisée
+func want_for_act(act: int) -> int:
+	var acts: Dictionary = camp.get("acts", {})
+	return int(acts.get(str(act), ACT_MISSIONS.get(act, 20)))
+
+# charge une campagne scénarisée depuis un JSON ; renvoie true si OK
+func load_campaign_file(path: String) -> bool:
+	if not FileAccess.file_exists(path): return false
+	var f := FileAccess.open(path, FileAccess.READ)
+	if f == null: return false
+	var data = JSON.parse_string(f.get_as_text()); f.close()
+	if typeof(data) != TYPE_DICTIONARY or not data.has("roster"): return false
+	new_campaign(data); save_game()
+	return true
 
 # ---------- roster : grades, perks, PV ----------
 func member(name: String) -> Dictionary:

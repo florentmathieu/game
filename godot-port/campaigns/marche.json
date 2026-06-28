@@ -1,0 +1,32 @@
+{
+  "name": "La Marche de Velhaur",
+  "seed": 4071,
+  "potions": 2,
+  "acts": { "1": 10, "2": 20, "3": 20 },
+  "roster": [
+    { "name": "Aldric", "cls": "soldat",   "special": true },
+    { "name": "Vesna",  "cls": "assassin", "special": false },
+    { "name": "Brom",   "cls": "garde",    "special": false },
+    { "name": "Lys",    "cls": "mage",     "special": false },
+    { "name": "Cael",   "cls": "archer",   "special": false },
+    { "name": "Doran",  "cls": "brute",    "special": false },
+    { "name": "Mira",   "cls": "sapeur",   "special": false }
+  ],
+  "narrative": {
+    "1": {
+      "arrive": "Aldric: On nous a envoyes 'pacifier' la Marche.\nVesna: Pacifier. Joli mot pour ce qu'on va faire.\n_\n[... ici, ce que la couronne vous a vraiment ordonne ...]",
+      "forge": "Une vieille forge dort sous la region.\n_\n[... la rallumer armerait mieux l'escouade ...]",
+      "boss": "Le Bastion verrouille la Marche.\n_\n[... le prendre ouvre la route ...]"
+    },
+    "2": {
+      "arrive": "La Faille s'ouvre sous le territoire.\n_\n[... la corruption, et ceux qui l'ont choisie ...]",
+      "forge": "Une forge engloutie peut encore servir.\n_\n[... a quel prix ...]",
+      "boss": "Le Verrou de la Faille barre la route du Coeur.\n_\n[... il faut le briser ...]"
+    },
+    "3": {
+      "arrive": "Le dernier territoire — la ou la Faille bat le plus fort.\n_\n[... presque au Coeur ...]",
+      "forge": "La forge du gouffre, ultime atelier.\n_\n[... un dernier renfort ...]",
+      "boss": "Le Coeur de la Faille bat devant vous.\n_\n[... l'etouffer ...]"
+    }
+  }
+}

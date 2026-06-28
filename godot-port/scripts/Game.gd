@@ -17,7 +17,9 @@ var _ci: CanvasLayer
 func _ready() -> void:
 	randomize()
 	if Run.camp.is_empty():
-		if not Run.load_game(): Run.new_campaign()
+		# reprise sauvegarde > campagne scénarisée (JSON) > procédural par défaut
+		if not Run.load_game():
+			if not Run.load_campaign_file("res://campaigns/marche.json"): Run.new_campaign()
 	_ci = CanvasLayer.new(); add_child(_ci)
 	banner = Label.new(); banner.position = Vector2(14, 720 - 34)
 	banner.add_theme_color_override("font_color", Color(0.85, 0.8, 0.7)); _ci.add_child(banner)
@@ -45,9 +47,16 @@ func _show_geoscape() -> void:
 	var act: int = int(Run.camp.act)
 	var queue: Array = []
 	if not (Run.camp.get("seenActs", []) as Array).has(act):
-		Run.camp.seenActs.append(act); queue.append(Narrative.ACTS[act].arrive)
-	if boss_revealed: queue.append(Narrative.ACTS[act].boss)
+		Run.camp.seenActs.append(act); queue.append(_act_text(act, "arrive"))
+	if boss_revealed: queue.append(_act_text(act, "boss"))
 	if not queue.is_empty(): _play_text(queue, func(): pass)
+
+# texte d'acte : override de la campagne scénarisée (camp.narr) sinon défaut Narrative.gd
+func _act_text(act: int, key: String) -> String:
+	var narr: Dictionary = Run.camp.get("narr", {})
+	var a = narr.get(str(act), {})
+	if typeof(a) == TYPE_DICTIONARY and a.has(key): return String(a[key])
+	return Narrative.ACTS.get(act, {}).get(key, "...")
 
 # ---------- lecteur de texte paginé ----------
 var _txt_layer: CanvasLayer = null
@@ -102,8 +111,10 @@ func _unhandled_input(e: InputEvent) -> void:
 
 func _update_banner() -> void:
 	var act: int = int(Run.camp.act)
-	banner.text = "%s   |   missions %d   |   victoires %d   |   forges %d" % [
-		ACT_NAME.get(act, "Acte %d" % act), int(Run.camp.missionN), int(Run.camp.winCount), int(Run.camp.get("forgeCount", 0))]
+	var title: String = String(Run.camp.get("title", ""))
+	var prefix := (title + " — ") if title != "" else ""
+	banner.text = "%s%s   |   missions %d   |   victoires %d   |   forges %d" % [
+		prefix, ACT_NAME.get(act, "Acte %d" % act), int(Run.camp.missionN), int(Run.camp.winCount), int(Run.camp.get("forgeCount", 0))]
 
 const Data := preload("res://rules/Data.gd")
 var _sel_layer: CanvasLayer = null
@@ -293,7 +304,7 @@ func _advance_if_boss() -> void:
 		Run.camp.done = true
 	else:
 		Run.camp.act = act + 1
-		Run.camp.want = Run.ACT_MISSIONS.get(act + 1, 20)
+		Run.camp.want = Run.want_for_act(act + 1)   # taille d'acte (surchargée par campagne scénarisée)
 		Run.camp.geoStates = {}        # nouveau territoire pour le nouvel acte
 		Run.camp.lastAttack = -99
 
