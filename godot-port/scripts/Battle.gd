@@ -67,12 +67,17 @@ func _ready() -> void:
 	if _r != null and not _r.camp.is_empty(): potions = int(_r.camp.get("potions", 2))
 	Hazard.seed_with(seed_value ^ 0x1a2b3c4d)   # hasard de combat reproductible par mission
 	_setup_world()
-	_gen_battle(seed_value)
-	mesh.distort(_corrupt_level())   # distorsion progressive : le terrain se tord à mesure qu'on avance
+	var authored: bool = mis.has("map")
+	if authored:
+		_gen_authored(mis.map)        # carte dessinée dans l'éditeur HTML
+	else:
+		_gen_battle(seed_value)
+		mesh.distort(_corrupt_level())   # distorsion progressive : le terrain se tord à mesure qu'on avance
 	_terrain_root = Node3D.new(); add_child(_terrain_root)
 	_build_tiles()
 	_build_walls()
-	_spawn_units()
+	if authored: _spawn_authored(mis.map)
+	else: _spawn_units()
 	setup_objective()
 	_setup_camera()
 	compute_vis(); detect_enemies()
@@ -100,6 +105,15 @@ func _make_neutral(cls: String, cell: int, hostage: bool) -> void:
 	else: u.civ = false   # VIP à défendre (compté)
 
 func setup_objective() -> void:
+	if mis.has("map"):                       # carte authored : objectif + paramètres du JSON, neutres déjà placés
+		var mp: Dictionary = mis.map
+		objective = String(mp.get("objective", "eliminate"))
+		survive_turns = int(mp.get("surviveTurns", 6))
+		extract_count = int(mp.get("extractCount", 1))
+		protect_n = int(mp.get("protect", 0)) if mp.get("protect") != null else 0
+		exit_set = {}
+		for c in mp.get("exitZone", []): exit_set[int(c)] = true
+		return
 	if mis.has("objective"):
 		objective = mis.objective
 	else:
@@ -170,6 +184,39 @@ func _gen_battle(seed_value: int) -> void:
 	mesh = VMesh.new()
 	mesh.generate(seed_value, 720.0, 560.0, 50.0, 28.0)
 	mesh.decorate(seed_value ^ 0x9e37, 0.30)
+
+# carte AUTHORED (dessinée dans l'éditeur HTML) : maillage + murets reconstruits depuis le JSON
+func _gen_authored(mp: Dictionary) -> void:
+	mesh = VMesh.new()
+	mesh.load_from_data(mp.get("cells", []), mp.get("walls", []))
+
+# unités d'une carte authored : ennemis/neutres depuis le JSON, joueurs = escouade déployée
+func _spawn_authored(mp: Dictionary) -> void:
+	var player_cells := []
+	for ud in mp.get("units", []):
+		var team := String(ud.get("team", "enemy"))
+		if team == "player": player_cells.append(int(ud.get("cell", 0))); continue
+		_make_unit(team, String(ud.get("cls", "garde")), int(ud.get("cell", 0)))
+		var u = units[-1]
+		if bool(ud.get("asleep", false)): u.asleep = true
+		if bool(ud.get("hvt", false)): u["hvt"] = true
+		if bool(ud.get("hostage", false)): u["hostage"] = true
+		if bool(ud.get("guard", false)): u.civ = false
+		if ud.has("pod"): u.pod = int(ud.pod)
+		if ud.has("facing"): u.facing = float(ud.facing)
+		if u.get("node") != null: u.node.rotation.y = -float(u.facing)
+	var pass_cells := []
+	for c in mesh.cells:
+		if mesh.passable(c.id): pass_cells.append(c.id)
+	var pi := 0
+	for spec in _deploy_squad():
+		var cell := -1
+		if pi < player_cells.size(): cell = int(player_cells[pi])
+		else:
+			for id in pass_cells:
+				if _unit_at(id) < 0: cell = id; break
+		if cell < 0: continue
+		_make_unit("player", spec.cls, cell, spec.get("mem", {})); pi += 1
 
 func _cell_top(id: int) -> float: return mesh.cells[id].elev * STEP
 func world(id: int) -> Vector3:
@@ -427,6 +474,18 @@ func _spawn_enemy_pods(pass_cells: Array, used: Dictionary) -> void:
 			if used.has(cell): continue
 			_make_unit("enemy", epool[ei % epool.size()], cell); used[cell] = true
 			units[-1].asleep = true; units[-1].pod = pi; units[-1].home = cell; ei += 1
+	# garde-fou : si les pods n'ont pas placé tout l'effectif (carte ouverte, peu d'ancres),
+	# complète au pod le plus loin du déploiement parmi les cases libres profondes.
+	if ei < n_enemies:
+		var anchor0: int = units[0].cell if not units.is_empty() else pass_cells[0]
+		var rest := []
+		for c in mesh.cells:
+			if mesh.passable(c.id) and not used.has(c.id): rest.append(c.id)
+		rest.sort_custom(func(a, b): return mesh.hops(anchor0, a) > mesh.hops(anchor0, b))
+		for cell in rest:
+			if ei >= n_enemies: break
+			_make_unit("enemy", epool[ei % epool.size()], cell); used[cell] = true
+			units[-1].asleep = true; units[-1].pod = (ei % max(1, anchors.size())); units[-1].home = cell; ei += 1
 
 # ---------- cooldowns / statuts ----------
 func on_cd(u, id: String) -> bool: return u.cd.has(id) and u.cd[id] > 0

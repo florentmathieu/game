@@ -1379,7 +1379,15 @@
     try{ cstatus.textContent="Publication…"; await ghPut("campaigns-mesh/"+file,JSON.stringify(camp),"Campagne maillage : "+name,cfg);
       const cur=await ghGet("campaigns-mesh/list.json",cfg.branch,cfg);let list=[];if(cur){try{const p=JSON.parse(cur.text);if(Array.isArray(p))list=p;}catch(e){}}
       if(list.some(x=>x.file===file))list=list.map(x=>x.file===file?{file,name}:x);else list.push({file,name});
-      await ghPut("campaigns-mesh/list.json",JSON.stringify(list),"list camp : "+name,cfg); fillCampLoad(list); cstatus.textContent="✓ Campagne publiée."; }catch(e){cstatus.textContent="Échec : "+e.message;} }
+      await ghPut("campaigns-mesh/list.json",JSON.stringify(list),"list camp : "+name,cfg); fillCampLoad(list);
+      // PORT GODOT : publie aussi campaign.json (à côté du build) — roster + narratif + cartes authored inlinées.
+      // Le port Godot le récupère au démarrage et charge TOUJOURS cette campagne.
+      cstatus.textContent="Export Godot…";
+      const refs=campNodes.filter(n=>n.kind==="mission"&&n.mission).map(n=>n.mission), missions=[];
+      for(const ref of refs){ const t=await fetchText("missions-mesh/"+ref,cfg); if(t){try{missions.push(JSON.parse(t));}catch(e){}} }
+      const godotCamp={name,start:campStart,roster:campRoster,nodes:campNodes,missions};
+      await ghPut("docs/godot/campaign.json",JSON.stringify(godotCamp),"campaign.json (port Godot) : "+name,cfg);
+      cstatus.textContent="✓ Campagne publiée (+ port Godot : "+missions.length+" carte(s))."; }catch(e){cstatus.textContent="Échec : "+e.message;} }
   document.getElementById("csave").onclick=campSave;
   document.getElementById("cplay").onclick=()=>{ if(!campNodes.length){cstatus.textContent="Ajoute au moins un nœud.";return;} if(!campNode(campStart)){cstatus.textContent="Choisis un nœud de départ.";return;} startCampaign({name:cname.value,start:campStart,roster:campRoster,nodes:campNodes},"campaign"); };
   // lecteur de texte paginé : pages séparées par une ligne « _ », « Nom : … » en doré, bouton « … » pour passer.

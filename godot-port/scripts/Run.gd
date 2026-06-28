@@ -45,7 +45,8 @@ func new_campaign(def := {}) -> void:
 		"forgeCount":0, "forgeBonus":{"hp":0, "dmg":0}, "lastAttack":-99, "done":false,
 		"roster":roster, "carry":{}, "deploySel":[], "pendingPromos":[],
 		"seenActs":[], "seenBoss":[], "potions":int(def.get("potions", 2)),
-		"title":String(def.get("name", "")), "narr":def.get("narrative", {}), "acts":acts}
+		"title":String(def.get("name", "")), "narr":def.get("narrative", {}), "acts":acts,
+		"missions":def.get("missions", []), "defSig":""}
 	mission = {}
 	auto_select()
 
@@ -61,8 +62,40 @@ func load_campaign_file(path: String) -> bool:
 	if f == null: return false
 	var data = JSON.parse_string(f.get_as_text()); f.close()
 	if typeof(data) != TYPE_DICTIONARY or not data.has("roster"): return false
-	new_campaign(data); save_game()
+	apply_campaign(data, campaign_sig(data))
 	return true
+
+# signature d'une définition de campagne : change si l'auteur l'a modifiée (→ on repart à neuf)
+func campaign_sig(data: Dictionary) -> String:
+	return "%s:%d:%d" % [String(data.get("name", "")), (data.get("nodes", []) as Array).size(), (data.get("roster", []) as Array).size()]
+
+# applique une campagne (format Godot ou éditeur HTML) et mémorise sa signature
+func apply_campaign(data: Dictionary, sig: String) -> void:
+	var def: Dictionary = _convert_html_campaign(data) if data.has("nodes") else data
+	new_campaign(def)
+	camp["defSig"] = sig
+	save_game()
+
+# convertit une campagne de l'éditeur HTML (graphe) → def Godot : roster fidèle + texte d'ouverture.
+# (le graphe de missions/cartes ne se mappe pas sur le geoscape procédural — seuls roster+narratif passent.)
+func _convert_html_campaign(data: Dictionary) -> Dictionary:
+	var roster: Array = []
+	for m in data.get("roster", []):
+		roster.append({"name":String(m.get("name", "")), "cls":String(m.get("cls", "soldat")),
+			"special":(m.get("special", true) != false), "perks":(m.get("perks", []) as Array).duplicate()})
+	# texte d'ouverture = nœud de départ (ou 1er nœud porteur de texte)
+	var nodes: Array = data.get("nodes", [])
+	var start := String(data.get("start", ""))
+	var opening := ""
+	for n in nodes:
+		if String(n.get("id", "")) == start: opening = String(n.get("text", n.get("title", ""))); break
+	if opening == "":
+		for n in nodes:
+			if String(n.get("text", "")) != "": opening = String(n.get("text")); break
+	var def := {"name":String(data.get("name", "")), "roster":roster}
+	if opening != "": def["narrative"] = {"1": {"arrive": opening}}
+	if data.has("missions"): def["missions"] = data.missions   # cartes authored inlinées par l'éditeur
+	return def
 
 # ---------- roster : grades, perks, PV ----------
 func member(name: String) -> Dictionary:
@@ -160,6 +193,9 @@ func set_mission(cell: int, ginfo: Dictionary) -> void:
 		"diff": diff, "act": int(camp.act), "objective": objective_for(boss),
 		"cell": cell, "name": ginfo.name, "forge": ginfo.forge, "boss": boss,
 		"enemies": enemy_count(diff, boss) }
+	# carte authored (éditeur HTML) pour cette mission, jouée dans l'ordre des missions entreprises
+	var maps: Array = camp.get("missions", [])
+	if int(camp.missionN) < maps.size(): mission["map"] = maps[int(camp.missionN)]
 
 # mission bonus enchaînée : un 2e affrontement, escouade déjà éprouvée (PV conservés exactement)
 func set_bonus_mission() -> void:

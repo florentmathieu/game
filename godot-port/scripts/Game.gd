@@ -14,15 +14,39 @@ var battle: Node3D = null
 var banner: Label
 var _ci: CanvasLayer
 
+var _started := false
 func _ready() -> void:
 	randomize()
-	if Run.camp.is_empty():
-		# reprise sauvegarde > campagne scénarisée (JSON) > procédural par défaut
-		if not Run.load_game():
-			if not Run.load_campaign_file("res://campaigns/marche.json"): Run.new_campaign()
 	_ci = CanvasLayer.new(); add_child(_ci)
 	banner = Label.new(); banner.position = Vector2(14, 720 - 34)
 	banner.add_theme_color_override("font_color", Color(0.85, 0.8, 0.7)); _ci.add_child(banner)
+	Run.load_game()        # progression existante (peut être remplacée si la campagne éditeur a changé)
+	if OS.has_feature("web"):
+		_fetch_campaign()  # campagne publiée par l'éditeur HTML (toujours prioritaire)
+	else:
+		_begin()
+
+# récupère campaign.json (publié à côté du build par l'éditeur) ; filet de sécurité si pas de réponse
+func _fetch_campaign() -> void:
+	var http := HTTPRequest.new(); add_child(http)
+	http.request_completed.connect(_on_campaign_fetched)
+	if http.request("campaign.json") != OK: _begin(); return
+	get_tree().create_timer(5.0).timeout.connect(_begin)
+
+func _on_campaign_fetched(_result, code, _headers, body: PackedByteArray) -> void:
+	if code == 200:
+		var data = JSON.parse_string(body.get_string_from_utf8())
+		if typeof(data) == TYPE_DICTIONARY and data.has("roster"):
+			var sig: String = Run.campaign_sig(data)
+			if Run.camp.is_empty() or String(Run.camp.get("defSig", "")) != sig:
+				Run.apply_campaign(data, sig)   # campagne éditeur nouvelle/à jour → on repart d'elle
+	_begin()
+
+func _begin() -> void:
+	if _started: return
+	_started = true
+	if Run.camp.is_empty():
+		if not Run.load_campaign_file("res://campaigns/marche.json"): Run.new_campaign()
 	_show_geoscape()
 
 func _clear(node: Node) -> void:

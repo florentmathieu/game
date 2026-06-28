@@ -121,6 +121,24 @@ func generate(seed_value: int, w: float, h: float, g: float, dist_pct: float = 2
 		cells.append({"id": cells.size(), "poly": rp, "cx": ct.x, "cy": ct.y, "nb": [], "terr": "plain", "elev": 0})
 	_build_adj()
 
+# charge une carte AUTHORED (format exportObj de l'éditeur HTML) : cellules + murets.
+func load_from_data(cells_data: Array, walls_data: Array) -> void:
+	cells = []
+	var maxx := 1.0; var maxy := 1.0
+	for i in cells_data.size():
+		var c = cells_data[i]
+		var poly: Array = []
+		for p in c.poly:
+			var v := Vector2(float(p[0]), float(p[1])); poly.append(v)
+			maxx = max(maxx, v.x); maxy = max(maxy, v.y)
+		var ct := poly_centroid(poly)
+		cells.append({"id":i, "poly":poly, "cx":ct.x, "cy":ct.y, "nb":[],
+			"terr":String(c.get("terr", "plain")), "elev":int(c.get("elev", 0))})
+	W = maxx; H = maxy
+	_build_adj()
+	walls = {}
+	for k in walls_data: walls[String(k)] = true
+
 func _build_adj() -> void:
 	var map := {}
 	var seg_of := {}
