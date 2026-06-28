@@ -45,6 +45,11 @@ function makeActUnit(M){
     while(u.hp>0 && !M.over && (u.ap>0||u.freeAvail) && guard++<8){
       // Frappe de l'ombre : l'assassin bondit sur un ennemi proche (remplace l'attaque normale)
       if(u.abil&&u.abil.includes("shadowstrike")&&u.ap>0){ const foe=M.nearestOpposing&&M.nearestOpposing(u); if(foe&&M.hops(u.cell,foe.cell)<=4&&M.execShadow(u,foe))return; }
+      // Capacités bouclier : charge longue pour engager (course + impact) ; repousser un ennemi retranché au contact
+      if(u.abil&&u.ap>0){
+        if(u.abil.includes("charge")&&!M.onCd(u,"charge")){ const foe=M.nearestOpposing&&M.nearestOpposing(u); if(foe){const h=M.hops(u.cell,foe.cell); if(h>=2&&h<=7&&M.los(u.cell,foe.cell)&&M.execCharge(u,foe))return;} }
+        if(u.abil.includes("shove")&&!M.onCd(u,"shove")){ const foe=M.units.find(t=>M.hostile(u,t)&&t.hp>0&&M.adjacent(u.cell,t.cell)&&(M.cells[t.cell].elev>M.cells[u.cell].elev||M.cells[t.cell].terr==="cover")); if(foe&&M.execShove(u,foe))return; }
+      }
       // Mage (une seule décision spéciale par tour, au 1er passage) : déflagration si ≥2 ennemis groupés (termine le tour),
       // sinon soin d'un allié critique, sinon givre d'une menace ; puis on enchaîne sur un tir avec le PA restant.
       if(u.abil&&guard===1&&u.ap>0){

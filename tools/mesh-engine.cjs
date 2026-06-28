@@ -41,7 +41,7 @@ function loadMesh(htmlPath){
     setAutoPromote(fn){ autoPromote=fn; }, saveRosterProgress, loadRosterProgress, clearRosterProgress,
     get smoke(){return smoke},
     execSmoke, execBreach, execShadow, execRally, execVanish, execTaunt, execHoldline, execWall,
-    execBlast, execHeal, execFrost, onCd, setCd, tickCd, enemyUseAbil,
+    execBlast, execHeal, execFrost, execShove, execCharge, onCd, setCd, tickCd, enemyUseAbil,
     corruptLevel, distortTerrain, polyCentroid,
     get infl(){return infl}, setInfl(v){ infl=v; ROWS=infl.length; COLS=(infl[0]&&infl[0].length)||COLS; W=COLS*MC; H=ROWS*MC; },
     get wallSeg(){return wallSeg},

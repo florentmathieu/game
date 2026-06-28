@@ -288,7 +288,7 @@
     garde:{name:"Garde",hp:8,mob:6,shieldBlock:20,w:{melee:sword(65,3,4)}},
     archer:{name:"Archer",hp:6,mob:6,w:{ranged:bow(70,2,3,8)}},
     brute:{name:"Brute",hp:13,mob:8,w:{melee:sword(70,5,7)}},
-    shieldbearer:{name:"Porteur de bouclier",hp:12,mob:6,shieldBlock:45,enemyOnly:true,w:{melee:sword(60,3,5)}},   // tank ennemi : bloque ~45% des tirs de face/flanc
+    shieldbearer:{name:"Porteur de bouclier",hp:12,mob:6,shieldBlock:45,enemyOnly:true,abil:["shove","charge"],w:{melee:sword(60,3,5)}},   // tank ennemi : bloque ~45% des tirs de face/flanc ; repousse + charge au bouclier
     emage:{name:"Mage noir",hp:7,mob:7,enemyOnly:true,abil:["blast","frost"],w:{ranged:bow(70,4,6,7,3),melee:sword(45,2,3)}},   // caster ennemi : déflagration de zone + givre
     mage:{name:"Mage",hp:6,mob:7,w:{ranged:bow(72,4,6,7,3),melee:sword(45,2,3)}},   // jeteur de sorts : trait magique (portée 7, « mana » = chargeur 3) + bâton faible au corps-à-corps
     homme:{name:"Homme",hp:6,mob:6,civ:true,w:{melee:{type:"melee",aim:40,dmgMin:1,dmgMax:2,bare:true}}},
@@ -316,9 +316,9 @@
                {A:{id:"as3a",name:"Tueur",desc:"+2 dégât",mod:{dmg:2}}, B:{id:"as3b",name:"Insaisissable",desc:"+20% parade",mod:{parry:20}}},
                {A:{id:"as4a",name:"Allonge",desc:"+1 point de mouvement gratuit (sans PA)",mod:{freeMp:1}}, B:{id:"as4b",name:"Coupe-jarret",desc:"+2 dégât",mod:{dmg:2}}} ],
     garde:[ {A:{id:"ga1a",name:"Bouclier protecteur",desc:"Intercepte un coup visant un allié adjacent",abil:"protect"}, B:{id:"ga1b",name:"Robuste",desc:"+4 PV",mod:{hp:4}}},
-            {A:{id:"ga2a",name:"Mur mobile",desc:"Donne du couvert aux alliés adjacents",abil:"wall"}, B:{id:"ga2b",name:"Coup appuyé",desc:"+2 dégât",mod:{dmg:2}}},
+            {A:{id:"ga2a",name:"Mur mobile",desc:"Donne du couvert aux alliés adjacents",abil:"wall"}, B:{id:"ga2b",name:"Repousser",desc:"Repousse l'ennemi adjacent d'une case (50% étourdi)",abil:"shove"}},
             {A:{id:"ga3a",name:"Foulée",desc:"+1 mouvement",mod:{mob:1}}, B:{id:"ga3b",name:"Bastion",desc:"+5 PV",mod:{hp:5}}},
-            {A:{id:"ga4a",name:"Allonge",desc:"+1 point de mouvement gratuit (sans PA)",mod:{freeMp:1}}, B:{id:"ga4b",name:"Rempart",desc:"+15% blocage",mod:{shieldBlock:15}}} ],
+            {A:{id:"ga4a",name:"Charge longue",desc:"Course puis attaque ; impact selon la distance parcourue",abil:"charge"}, B:{id:"ga4b",name:"Rempart",desc:"+15% blocage",mod:{shieldBlock:15}}} ],
     brute:[ {A:{id:"br1a",name:"Colosse",desc:"+5 PV",mod:{hp:5}}, B:{id:"br1b",name:"Bourrin",desc:"+2 dégât",mod:{dmg:2}}},
             {A:{id:"br2a",name:"Fracasse",desc:"+3 dégât",mod:{dmg:3}}, B:{id:"br2b",name:"Foulée",desc:"+1 mouvement",mod:{mob:1}}},
             {A:{id:"br3a",name:"Cuir épais",desc:"+6 PV",mod:{hp:6}}, B:{id:"br3b",name:"Carnage",desc:"+3 dégât",mod:{dmg:3}}},
@@ -583,9 +583,11 @@
     blast:{icon:"🔥",label:"Déflagration — explosion de zone (termine le tour)",target:"cell"},
     heal:{icon:"✨",label:"Vague de soin — soigne un allié à distance (1 PA)",target:"ally"},
     frost:{icon:"❄",label:"Givre — ralentit un ennemi à distance (1 PA)",target:"enemy"},
+    shove:{icon:"🛡➡",label:"Repousser — repousse l'ennemi adjacent d'une case, 50% étourdi (termine le tour)",target:"enemy"},
+    charge:{icon:"🛡⚡",label:"Charge longue — course puis attaque, impact selon la distance (termine le tour)",target:"enemy"},
   };
   // recharge (en tours) avant de pouvoir relancer une capacité. u.cd[id] = tours restants (décrémenté au début du tour).
-  const COOLDOWN={smoke:3,breach:4,shadowstrike:2,rally:3,taunt:3,holdline:3,wall:3,blast:3,heal:2,frost:2};
+  const COOLDOWN={smoke:3,breach:4,shadowstrike:2,rally:3,taunt:3,holdline:3,wall:3,blast:3,heal:2,frost:2,shove:3,charge:4};
   let CD_MULT=1;   // multiplicateur global des recharges (panneau d'équilibrage)
   const onCd=(u,id)=>!!(u&&u.cd&&u.cd[id]>0);
   function setCd(u,id){ const c=COOLDOWN[id]; if(c){ u.cd=u.cd||{}; u.cd[id]=Math.max(1,Math.round(c*CD_MULT)); } }
@@ -623,14 +625,35 @@
   function execFrost(u,tgt){ if(onCd(u,"frost"))return false; if(!tgt||!hostile(u,tgt)||tgt.hp<=0){setMsg("Givre : choisis un ennemi visible.");return false;}
     if(hops(u.cell,tgt.cell)>FROST_RANGE||!los(u.cell,tgt.cell)){setMsg("Givre : hors de portée / sans vue.");return false;}
     tgt.slowed=true; tgt.ap=Math.max(0,(tgt.ap||0)-1); pushFrost(tgt.cell); u.spellsCast=(u.spellsCast||0)+1; setCd(u,"frost"); u.ap-=1; u.freeAvail=false; log(`▲ ${u.name} givre ${tgt.name} — ralenti`,"player"); refresh(); return true; }
+  // ===== capacités « bouclier » : repousser + charge longue =====
+  const CHARGE_RANGE=7;   // portée max (hops) de la charge
+  // case « derrière » la cible, dans le prolongement du coup (direction u -> cible)
+  function shoveDest(u,tgt){ const ang0=Math.atan2(cells[tgt.cell].cy-cells[u.cell].cy,cells[tgt.cell].cx-cells[u.cell].cx);
+    let dest=null,bd=1.0; for(const n of cells[tgt.cell].nb){ if(!passable(n)||uAt(n))continue;
+      const a=Math.atan2(cells[n].cy-cells[tgt.cell].cy,cells[n].cx-cells[tgt.cell].cx),d=Math.abs(norm(a-ang0)); if(d<bd){bd=d;dest=n;} } return dest; }
+  function execShove(u,tgt){ if(onCd(u,"shove"))return false;
+    if(!tgt||!hostile(u,tgt)||tgt.hp<=0||!adjacent(u.cell,tgt.cell)){setMsg("Repousser : choisis un ennemi adjacent.");return false;}
+    setCd(u,"shove"); const dest=shoveDest(u,tgt); if(dest!=null){ tgt.cell=dest; faceTowards(tgt,u.cell); pushBlast(dest,0); }
+    const stun=RND()*100<50; if(stun)tgt.stunned=true;
+    u.ap=0; u.freeAvail=false; screenShake(4); log(`▲ ${u.name} repousse ${tgt.name} d'un coup de bouclier${stun?" — étourdi !":""}`,"player"); checkEnd(); if(!over)refresh(); return true; }
+  function execCharge(u,tgt){ if(onCd(u,"charge"))return false;
+    if(!tgt||!hostile(u,tgt)||tgt.hp<=0){setMsg("Charge longue : choisis un ennemi visible.");return false;}
+    let best=null,bestLen=Infinity;   // meilleure case d'assaut adjacente à la cible, par un chemin libre
+    for(const n of cells[tgt.cell].nb){ if(!adjacent(n,tgt.cell))continue; if(n!==u.cell&&(uAt(n)||!passable(n)))continue;
+      const len=(n===u.cell)?0:((pathTo(u,n)||[]).length-1); if(len<=0||len>CHARGE_RANGE)continue; if(len<bestLen){bestLen=len;best=n;} }
+    if(best===null){setMsg("Charge longue : aucune voie libre vers la cible.");return false;}
+    if(bestLen<2){setMsg("Charge longue : il faut prendre de l'élan (cible trop proche).");return false;}
+    setCd(u,"charge"); const path=pathTo(u,best); if(path)for(let k=1;k<path.length;k++){u.facing=ang(u.cell,path[k]);u.cell=path[k];} else u.cell=best;
+    faceTowards(u,tgt.cell); const bonus=Math.min(6,1+bestLen); u.dmgBonus=(u.dmgBonus||0)+bonus; screenShake(5); pushBlast(u.cell,0);   // plus la course est longue, plus l'impact est fort
+    if(u.ap>0||u.freeAvail)doAttack(u,tgt,"melee"); u.dmgBonus-=bonus; u.ap=0; u.freeAvail=false; log(`▲ ${u.name} : charge longue ! (+${bonus} à l'impact)`,"player"); if(!over)refresh(); return true; }
   function armOrExec(id){ if(!sel||sel.ap<=0)return; const A=ABIL[id]; if(!A)return;
     if(onCd(sel,id)){ setMsg("Capacité en recharge — "+sel.cd[id]+" tour"+(sel.cd[id]>1?"s":"")+"."); return; }
     if(A.target==="self"){ ({vanish:execVanish,taunt:execTaunt,holdline:execHoldline,wall:execWall}[id])(sel); ability=null; renderActs(); return; }
     ability=(ability===id)?null:id; amode=null;throwing=false;usingItem=false;
-    setMsg(ability?({smoke:"Clique une case à enfumer.",breach:"Clique un rocher/muret à détruire.",shadowstrike:"Clique un ennemi à frapper.",rally:"Clique un allié adjacent.",blast:"Clique une case (explosion de zone).",heal:"Clique un allié visible à soigner.",frost:"Clique un ennemi visible à givrer."}[ability]||""):""); renderActs(); }
+    setMsg(ability?({smoke:"Clique une case à enfumer.",breach:"Clique un rocher/muret à détruire.",shadowstrike:"Clique un ennemi à frapper.",rally:"Clique un allié adjacent.",blast:"Clique une case (explosion de zone).",heal:"Clique un allié visible à soigner.",frost:"Clique un ennemi visible à givrer.",shove:"Clique un ennemi adjacent à repousser.",charge:"Clique un ennemi à charger."}[ability]||""):""); renderActs(); }
   function resolveAbilityClick(id){ const A=ABIL[ability]; if(!A||!sel)return; const tgt=uAt(id); let ok=false;
     if(A.target==="cell")ok=(ability==="smoke")?execSmoke(sel,id):(ability==="breach")?execBreach(sel,id):(ability==="blast")?execBlast(sel,id):false;
-    else if(A.target==="enemy")ok=(tgt&&hostile(sel,tgt)&&tgt.hp>0&&seen(tgt))?((ability==="frost")?execFrost(sel,tgt):execShadow(sel,tgt)):(setMsg("Choisis un ennemi visible."),false);
+    else if(A.target==="enemy")ok=(tgt&&hostile(sel,tgt)&&tgt.hp>0&&seen(tgt))?(({frost:execFrost,shadowstrike:execShadow,shove:execShove,charge:execCharge}[ability]||execShadow)(sel,tgt)):(setMsg("Choisis un ennemi visible."),false);
     else if(A.target==="ally")ok=(tgt&&tgt.team==="player")?((ability==="heal")?execHeal(sel,tgt):execRally(sel,tgt)):(setMsg("Choisis un allié."),false);
     if(ok)ability=null; renderActs(); }
   // ===== objet : potion (soi ou allié adjacent) =====
@@ -707,7 +730,7 @@
       d.className="rost"+(u===sel?" sel":"")+(u.hp<=0?" dead":((u.ap<=0&&turn==="player")?" spent":""));
       d.innerHTML=`<div><b>${u.name}</b> <span class="sub">${CLASSES[u.cls].name}${u.grade?' <span style="color:#e0b341">'+"★".repeat(u.grade)+'</span>':''}</span></div>`
         +`<div class="hpbar"><i style="width:${Math.max(0,u.hp)/u.max*100}%"></i></div>`
-        +`<div class="st">PV ${Math.max(0,u.hp)}/${u.max} · PA ${u.hp>0?u.ap+"/"+AP_MAX:"–"}${u.overwatch?(u.owMode==="ranged"?" · 👁🏹":" · 👁"):""}${u.bracing?" · 🛡garde":""}${u.crackers?" · 💣"+u.crackers:""}</div>`;
+        +`<div class="st">PV ${Math.max(0,u.hp)}/${u.max} · PA ${u.hp>0?u.ap+"/"+AP_MAX:"–"}${u.overwatch?(u.owMode==="ranged"?" · 👁🏹":" · 👁"):""}${u.bracing?" · 🛡garde":""}${u.stunned?" · ✦étourdi":""}${u.slowed?" · ❄ralenti":""}${u.crackers?" · 💣"+u.crackers:""}</div>`;
       d.onclick=()=>{ if(u.hp>0&&turn==="player"&&!over){ sel=u; amode=null;throwing=false;usingItem=false; refresh(); } };
       el.appendChild(d); }); }
   // chance de toucher qu'aurait `att` (positionné en fromCell) sur une cible en tgtCell — sert offense ET menace
@@ -759,13 +782,19 @@
       if(best&&best.cnt>=2&&execBlast(e,best.cell))return true; }
     if(e.abil.includes("frost")&&!onCd(e,"frost")){ const t=bestEnemyTarget(e); if(t&&!t.slowed&&hops(e.cell,t.cell)<=FROST_RANGE&&los(e.cell,t.cell))execFrost(e,t); }
     return false; }
-  function endTurn(){turn="enemy";turnActions=0;sel=null;amode=null;aimTarget=null;for(const u of units)if(u.team==="enemy"){u.ap=u.slowed?Math.max(0,AP_MAX-1):AP_MAX;u.slowed=false;u.freeAvail=true;u.overwatch=false;u.reacted=false;u.bracing=false;}banner("Tour de l'ennemi","enemy");refresh();const foes=units.filter(u=>u.team==="enemy"&&u.hp>0);let i=0;
-    (function step(){if(over)return;if(i>=foes.length){for(const u of units)if(u.team==="player"){u.ap=AP_MAX;u.freeAvail=true;u.overwatch=false;u.reacted=false;u.bracing=false;u.taunt=false;u.hidden=false;u.wallStance=false;}tickCd("player");for(const[k,v]of smoke){if(v-1<=0)smoke.delete(k);else smoke.set(k,v-1);}turn="player";turnNum++;turnActions=0;setMsg("");checkEnd();if(over)return;banner("Tour du joueur","player");refresh();emit("turn",{turn:turnNum});return;}
+  // porteur de bouclier ennemi : charge longue pour engager, sinon repousse un joueur retranché (couvert/hauteur)
+  function enemyShieldAct(e,tgts){ if(!e.abil||e.ap<=0||!tgts.length)return false;
+    if(e.abil.includes("charge")&&!onCd(e,"charge")){ const far=tgts.filter(p=>{const h=hops(e.cell,p.cell);return h>=2&&h<=CHARGE_RANGE&&los(e.cell,p.cell);}).sort((a,b)=>hops(e.cell,a.cell)-hops(e.cell,b.cell))[0]; if(far&&execCharge(e,far))return true; }
+    if(e.abil.includes("shove")&&!onCd(e,"shove")){ const adj=tgts.find(p=>adjacent(e.cell,p.cell)&&(cells[p.cell].elev>cells[e.cell].elev||cells[p.cell].terr==="cover")); if(adj&&execShove(e,adj))return true; }
+    return false; }
+  function endTurn(){turn="enemy";turnActions=0;sel=null;amode=null;aimTarget=null;for(const u of units)if(u.team==="enemy"){u.ap=u.slowed?Math.max(0,AP_MAX-1):AP_MAX;u.slowed=false;u.freeAvail=true;u.overwatch=false;u.reacted=false;u.bracing=false;if(u.stunned){u.ap=0;u.freeAvail=false;u.stunned=false;}}banner("Tour de l'ennemi","enemy");refresh();const foes=units.filter(u=>u.team==="enemy"&&u.hp>0);let i=0;
+    (function step(){if(over)return;if(i>=foes.length){for(const u of units)if(u.team==="player"){u.ap=AP_MAX;u.freeAvail=true;u.overwatch=false;u.reacted=false;u.bracing=false;u.taunt=false;u.hidden=false;u.wallStance=false;if(u.stunned){u.ap=0;u.freeAvail=false;u.stunned=false;}}tickCd("player");for(const[k,v]of smoke){if(v-1<=0)smoke.delete(k);else smoke.set(k,v-1);}turn="player";turnNum++;turnActions=0;setMsg("");checkEnd();if(over)return;banner("Tour du joueur","player");refresh();emit("turn",{turn:turnNum});return;}
       const e=foes[i++];if(e.hp<=0){step();return;} e.overwatch=false; if(!enemyActive(e)){ try{patrolStep(e);}catch(err){} e.ap=0; step(); return; }   // pas alerté = patrouille dans sa zone
       const next=()=>setTimeout(step,200);
       const tgts=units.filter(p=>p.hp>0&&hostile(e,p)&&enemySeesP(e,p));   // seulement ce que cet ennemi voit réellement
       if(!tgts.length){ searchAct(e,()=>{ holdWatch(e); refresh(); next(); }); return; }   // personne en vue : poursuite de la dernière position connue
       if(e.w.cracker&&e.crackers>0&&e.ap>0){ const g=bestGrenadeCell(e); if(g!=null){ resolveThrow(e,g); refresh(); setTimeout(step,460); return; } }   // grenade ennemie
+      if(e.ap>0&&enemyShieldAct(e,tgts)){ refresh(); setTimeout(step,420); return; }   // porteur de bouclier : charge / repousse (termine son tour)
       const taunters=tgts.filter(t=>t.taunt), pool=taunters.length?taunters:tgts;   // Provocation : viser en priorité le provocateur
       const primary=pool.reduce((a,b)=>hops(e.cell,b.cell)<hops(e.cell,a.cell)?b:a,pool[0]); const pcX=cells[primary.cell].cx,pcY=cells[primary.cell].cy;
       const allies=units.filter(o=>o!==e&&o.team==="enemy"&&o.hp>0);
@@ -971,6 +1000,7 @@
       ctx.lineWidth=(u===sel)?3:1.5;ctx.strokeStyle=(u===sel)?"#fff":"rgba(0,0,0,.5)";ctx.stroke();
       ctx.fillStyle="#0b1117";ctx.font="bold 16px sans-serif";ctx.textAlign="center";ctx.textBaseline="middle";ctx.fillText(u.name[0],x,y);
       if(u.asleep){ctx.fillStyle="#ffe9a8";ctx.font="bold 16px sans-serif";ctx.fillText("z",x+16,y-13);}
+      if(u.stunned){ctx.fillStyle="#ffd479";ctx.font="bold 15px sans-serif";ctx.fillText("✦",x-16,y-13);}   // étourdi : passe son prochain tour
       if(mode==="edit"&&u.team!=="player"&&u.pod!==undefined){ctx.fillStyle="#cfe8ff";ctx.font="bold 13px sans-serif";ctx.fillText("P"+u.pod,x-16,y+16);}
       const bw=30,bx=x-bw/2,by=y-25;ctx.fillStyle="rgba(0,0,0,.6)";ctx.fillRect(bx-1,by-1,bw+2,6);ctx.fillStyle="#3a3128";ctx.fillRect(bx,by,bw,4);ctx.fillStyle=u.team==="player"?"#6fd06f":"#e06f6f";ctx.fillRect(bx,by,bw*Math.max(0,u.hp)/u.max,4);
       ctx.globalAlpha=1; } catch(e){ ctx.globalAlpha=1; } }
@@ -1607,7 +1637,7 @@
     const e=document.createElement("button");e.id="act-end";e.innerHTML=`<span class="bn">0</span><span class="bi">🙅</span>`;e.title="Fin de tour";e.onclick=()=>{if(!over&&turn==="player")endTurn();};el.appendChild(e);}
   function startGame(){ resetView(); { const t=document.getElementById("title"); if(t)t.style.display="none"; }   // une partie démarre : on retire l'écran-titre
     if(!units.some(u=>u.team==="player")||!units.some(u=>u.team==="enemy")){ setMsg("Place au moins 1 allié et 1 ennemi (mode Éditer)."); }
-    for(const u of units){u.hp=u.max;u.ap=AP_MAX;u.freeAvail=true;u.overwatch=false;u.reacted=false;u.bracing=false;u.taunt=false;u.hidden=false;u.wallStance=false;u.vanishUsed=false;u.slowed=false;u.spellsCast=0;u.cd={};u.dmgTaken=0;u.asleep=!!u._asleep0;if(u.clip!==undefined)u.ammo=u.clip;if(u.crackers!==undefined)u.crackers=(u.crackers0!==undefined?u.crackers0:CLASSES[u.cls].crackers);} smoke=new Map();ability=null; turn="player";over=false;sel=null;amode=null;aimTarget=null;throwing=false;usingItem=false;inv={potion:campRun?(campRun.potions||0):0};
+    for(const u of units){u.hp=u.max;u.ap=AP_MAX;u.freeAvail=true;u.overwatch=false;u.reacted=false;u.bracing=false;u.taunt=false;u.hidden=false;u.wallStance=false;u.vanishUsed=false;u.slowed=false;u.stunned=false;u.spellsCast=0;u.cd={};u.dmgTaken=0;u.asleep=!!u._asleep0;if(u.clip!==undefined)u.ammo=u.clip;if(u.crackers!==undefined)u.crackers=(u.crackers0!==undefined?u.crackers0:CLASSES[u.cls].crackers);} smoke=new Map();ability=null; turn="player";over=false;sel=null;amode=null;aimTarget=null;throwing=false;usingItem=false;inv={potion:campRun?(campRun.potions||0):0};
     fired=new Set(); podAlerted=new Set(); neutralSeen=new Set(); lastSeen=new Map(); turnNum=1; turnActions=0; lastOutcome=null; speechQ=[]; speaking=false; if(speechT){clearTimeout(speechT);speechT=null;} document.getElementById("combatline").style.display="none";
     document.getElementById("over").classList.remove("show");document.getElementById("log").innerHTML="";setMsg("");setupBonus();refresh();
     banner("Tour du joueur","player"); emit("start",{}); emit("turn",{turn:1}); }

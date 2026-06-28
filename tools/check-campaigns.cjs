@@ -15,7 +15,7 @@ const loadGeo = map => JSON.parse(fs.readFileSync(path.join("geoscapes-mesh",map
 const geoNodes = camp.nodes.filter(n=>n.type==="geoscape");
 
 const alive=t=>M.units.some(u=>u.team===t&&u.hp>0);
-function refreshAP(team){for(const u of M.units)if(u.team===team&&u.hp>0){u.ap=M.AP_MAX;u.freeAvail=true;u.overwatch=false;u.reacted=false;u.bracing=false;} M.tickCd(team);}
+function refreshAP(team){for(const u of M.units)if(u.team===team&&u.hp>0){u.ap=M.AP_MAX;u.freeAvail=true;u.overwatch=false;u.reacted=false;u.bracing=false;if(u.stunned){u.ap=0;u.freeAvail=false;u.stunned=false;}} M.tickCd(team);}
 function simMission(maxT){ M.mode="play"; M.over=false; M.lastOutcome=null; M.turn="player"; M.turnNum=1; let turns=0,side="player";
   const live=()=>M.geoPlay&&M.geoPlay.inMission;
   while(turns<maxT && live()){ if(side==="player"){ M.turnNum=turns+1; M.checkEnd(); if(!live())break; }
