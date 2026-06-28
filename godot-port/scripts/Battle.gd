@@ -881,11 +881,16 @@ func _unhandled_input(e: InputEvent) -> void:
 		elif e.button_index == MOUSE_BUTTON_LEFT and e.pressed: _click(e.position)
 	elif e is InputEventMouseMotion and _dragging:
 		_yaw -= e.relative.x * 0.01; _update_cam()
-	elif e is InputEventKey and e.pressed:
-		match e.keycode:
-			KEY_SPACE: _end_turn()
-			KEY_Q, KEY_LEFT: _yaw -= PI / 8.0; _update_cam()    # pivoter la carte (axe vertical)
-			KEY_E, KEY_RIGHT: _yaw += PI / 8.0; _update_cam()
+	elif e is InputEventKey and e.pressed and e.keycode == KEY_SPACE:
+		_end_turn()
+
+# rotation clavier fluide : pivote tant que Q/E (ou ←/→) est tenue
+func _process(delta: float) -> void:
+	if cam == null: return
+	var d := 0.0
+	if Input.is_key_pressed(KEY_Q) or Input.is_key_pressed(KEY_LEFT): d -= 1.0
+	if Input.is_key_pressed(KEY_E) or Input.is_key_pressed(KEY_RIGHT): d += 1.0
+	if d != 0.0: _yaw += d * 1.8 * delta; _update_cam()
 
 func _pick_cell(screen: Vector2) -> int:
 	if not cam: return -1

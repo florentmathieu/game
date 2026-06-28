@@ -110,9 +110,14 @@ func _unhandled_input(e: InputEvent) -> void:
 	elif e is InputEventMouseMotion:
 		if _dragging: _yaw -= e.relative.x*0.01; _update_cam()
 		else: var h := _pick(e.position); if h != hover: hover = h; _refresh()
-	elif e is InputEventKey and e.pressed:
-		if e.keycode == KEY_Q or e.keycode == KEY_LEFT: _yaw -= PI / 8.0; _update_cam()    # pivoter le territoire
-		elif e.keycode == KEY_E or e.keycode == KEY_RIGHT: _yaw += PI / 8.0; _update_cam()
+
+# rotation clavier fluide : pivote le territoire tant que Q/E (ou ←/→) est tenue
+func _process(delta: float) -> void:
+	if cam == null: return
+	var d := 0.0
+	if Input.is_key_pressed(KEY_Q) or Input.is_key_pressed(KEY_LEFT): d -= 1.0
+	if Input.is_key_pressed(KEY_E) or Input.is_key_pressed(KEY_RIGHT): d += 1.0
+	if d != 0.0: _yaw += d * 1.8 * delta; _update_cam()
 
 func _click(screen: Vector2) -> void:
 	var cell := _pick(screen)
