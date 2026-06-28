@@ -59,9 +59,9 @@ func _on_campaign_fetched(_result, code, _headers, body: PackedByteArray) -> voi
 	if code == 200:
 		var data = JSON.parse_string(body.get_string_from_utf8())
 		if typeof(data) == TYPE_DICTIONARY and data.has("roster"):
-			var sig: String = Run.campaign_sig(data)
-			if Run.camp.is_empty() or String(Run.camp.get("defSig", "")) != sig:
-				Run.apply_campaign(data, sig); applied = true   # campagne éditeur nouvelle/à jour
+			# le port charge TOUJOURS la dernière campagne publiée par l'éditeur, reconvertie à neuf
+			# (une sauvegarde issue d'un ancien build pouvait rester incompatible et bloquer l'affichage)
+			Run.apply_campaign(data, Run.campaign_sig(data)); applied = true
 	_dbg("fetched result=%s code=%s octets=%d applied=%s" % [_result, code, body.size(), applied])
 	_begin()
 
