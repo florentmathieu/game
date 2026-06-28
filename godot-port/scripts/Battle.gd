@@ -854,7 +854,7 @@ func patrol_step(e) -> void:
 
 # ---------- caméra ----------
 func _setup_camera() -> void:
-	pivot = Node3D.new(); pivot.position = Vector3(720 * S * 0.5, 0, 560 * S * 0.5); add_child(pivot)
+	pivot = Node3D.new(); pivot.position = Vector3(mesh.W * S * 0.5, 0, mesh.H * S * 0.5); add_child(pivot)   # centre = vraie taille de carte (procédurale OU dessinée)
 	cam = Camera3D.new(); cam.fov = 46; pivot.add_child(cam); _update_cam()
 
 func _update_cam() -> void:

@@ -15,49 +15,37 @@ var banner: Label
 var _ci: CanvasLayer
 
 var _started := false
-var _diag_label: Label
 func _ready() -> void:
 	randomize()
 	_ci = CanvasLayer.new(); add_child(_ci)
 	banner = Label.new(); banner.position = Vector2(14, 720 - 34)
 	banner.add_theme_color_override("font_color", Color(0.85, 0.8, 0.7)); _ci.add_child(banner)
-	var dl := CanvasLayer.new(); dl.layer = 50; add_child(dl)   # diagnostic toujours au-dessus
-	_diag_label = Label.new(); _diag_label.position = Vector2(14, 40)
-	_diag_label.add_theme_color_override("font_color", Color(0.5, 0.95, 0.6)); dl.add_child(_diag_label)
 	Run.load_game()        # progression existante (peut être remplacée si la campagne éditeur a changé)
 	if OS.has_feature("web"):
 		_fetch_campaign()  # campagne publiée par l'éditeur HTML (toujours prioritaire)
 	else:
 		_begin()
 
-func _diag(s: String) -> void:
-	if _diag_label != null: _diag_label.text = s
-
 # récupère campaign.json (publié à côté du build par l'éditeur) ; URL ABSOLUE (l'URL relative
-# ne se résout pas en web) + anti-cache ; filet de sécurité si pas de réponse.
+# ne se résout pas en web) ; accept_gzip=false (le navigateur décompresse déjà) ; anti-cache.
 func _fetch_campaign() -> void:
 	var http := HTTPRequest.new(); add_child(http)
-	http.accept_gzip = false   # en web le navigateur décompresse déjà → éviter RESULT_BODY_DECOMPRESS_FAILED
+	http.accept_gzip = false
 	http.request_completed.connect(_on_campaign_fetched)
 	var url := "campaign.json"
 	var base = JavaScriptBridge.eval("window.location.href.replace(/[#?].*$/,'').replace(/[^/]*$/,'')", true)
 	if typeof(base) == TYPE_STRING and String(base).begins_with("http"): url = String(base) + "campaign.json"
 	url += "?_=" + str(Time.get_ticks_msec())
-	_diag("fetch: " + url)
-	if http.request(url) != OK: _diag("fetch: request() ERREUR (repli)"); _begin(); return
+	if http.request(url) != OK: _begin(); return
 	get_tree().create_timer(8.0).timeout.connect(_begin)
 
-func _on_campaign_fetched(result, code, _headers, body: PackedByteArray) -> void:
-	var applied := "non"
+func _on_campaign_fetched(_result, code, _headers, body: PackedByteArray) -> void:
 	if code == 200:
 		var data = JSON.parse_string(body.get_string_from_utf8())
 		if typeof(data) == TYPE_DICTIONARY and data.has("roster"):
 			var sig: String = Run.campaign_sig(data)
 			if Run.camp.is_empty() or String(Run.camp.get("defSig", "")) != sig:
-				Run.apply_campaign(data, sig); applied = String(data.get("name", "?"))
-			else: applied = "déjà à jour (" + String(data.get("name", "?")) + ")"
-		else: applied = "JSON invalide"
-	_diag("fetch result=%d HTTP=%d octets=%d → %s" % [result, code, body.size(), applied])
+				Run.apply_campaign(data, sig)   # campagne éditeur nouvelle/à jour → on repart d'elle
 	_begin()
 
 func _begin() -> void:
