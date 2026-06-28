@@ -881,8 +881,11 @@ func _unhandled_input(e: InputEvent) -> void:
 		elif e.button_index == MOUSE_BUTTON_LEFT and e.pressed: _click(e.position)
 	elif e is InputEventMouseMotion and _dragging:
 		_yaw -= e.relative.x * 0.01; _update_cam()
-	elif e is InputEventKey and e.pressed and e.keycode == KEY_SPACE:
-		_end_turn()
+	elif e is InputEventKey and e.pressed:
+		match e.keycode:
+			KEY_SPACE: _end_turn()
+			KEY_Q, KEY_LEFT: _yaw -= PI / 8.0; _update_cam()    # pivoter la carte (axe vertical)
+			KEY_E, KEY_RIGHT: _yaw += PI / 8.0; _update_cam()
 
 func _pick_cell(screen: Vector2) -> int:
 	if not cam: return -1
@@ -1132,7 +1135,7 @@ func _refresh() -> void:
 	_rebuild_abil_bar()
 	var live_e := 0
 	for u in units: if u.team == "enemy" and u.hp > 0: live_e += 1
-	var s := "Tour : %s   |   ennemis : %d   |   [clic] sél./déplacement/tir  [clic-droit] pivoter  [molette] zoom  [Espace] fin de tour" % [("joueur" if turn == "player" else "ennemi"), live_e]
+	var s := "Tour : %s   |   ennemis : %d   |   [clic] sél./déplacement/tir  [clic-droit]/[Q/E]/[←→] pivoter  [molette] zoom  [Espace] fin de tour" % [("joueur" if turn == "player" else "ennemi"), live_e]
 	if sel >= 0:
 		var u = units[sel]
 		var atk := ""

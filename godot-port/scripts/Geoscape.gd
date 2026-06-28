@@ -110,6 +110,9 @@ func _unhandled_input(e: InputEvent) -> void:
 	elif e is InputEventMouseMotion:
 		if _dragging: _yaw -= e.relative.x*0.01; _update_cam()
 		else: var h := _pick(e.position); if h != hover: hover = h; _refresh()
+	elif e is InputEventKey and e.pressed:
+		if e.keycode == KEY_Q or e.keycode == KEY_LEFT: _yaw -= PI / 8.0; _update_cam()    # pivoter le territoire
+		elif e.keycode == KEY_E or e.keycode == KEY_RIGHT: _yaw += PI / 8.0; _update_cam()
 
 func _click(screen: Vector2) -> void:
 	var cell := _pick(screen)
@@ -139,4 +142,4 @@ func _refresh() -> void:
 		if cell == hover and acc.has(cell): lab.modulate = Color(1, 0.9, 0.4)
 		lab.position = pos; add_child(lab); _labels.append(lab)
 	var front := acc.size()
-	hud.text = "ACTE %d — territoire (%d régions sur le front)   |   [clic] région  [clic-droit] pivoter  [molette] zoom" % [Run.camp.act, front]
+	hud.text = "ACTE %d — territoire (%d régions sur le front)   |   [clic] région  [clic-droit]/[Q/E]/[←→] pivoter  [molette] zoom" % [Run.camp.act, front]
