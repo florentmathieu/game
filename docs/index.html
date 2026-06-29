@@ -1595,9 +1595,10 @@
     geoPlay.map.cells.forEach((c,i)=>{ if((c.name||"")===name&&st[i]==="locked")st[i]="available"; }); }
   function applyGeoEvent(e){ if(e.recruit)applyRecruit(e.recruit); if(e.reveal)geoRevealRegion(e.reveal); if(e.mortal)applyMortal(e.mortal); }
   // affichage d'un texte d'événement : plein écran (showCampText) ou en surimpression bas (storybox, comme une intro de mission)
-  function showEventText(e,cb){ if(!e.text||autoPromote){ cb(); return; }
-    if(e.mode==="over"){ introBlocking=true; playText(e.text,true,()=>{ introBlocking=false; hideStory(); setMsg(""); cb(); }); }
-    else showCampText(e.text,cb); }
+  function showEventText(e,cb){ if((!e.text&&!e.file)||autoPromote){ cb(); return; }
+    resolveText(e.text,e.file).then(txt=>{ if(!txt){ cb(); return; }   // texte d'un fichier (list.json) sinon texte saisi
+      if(e.mode==="over"){ introBlocking=true; playText(txt,true,()=>{ introBlocking=false; hideStory(); setMsg(""); cb(); }); }
+      else showCampText(txt,cb); }); }
   const geoEvScope=e=>(""+((e.when&&e.when.value)==null?"":(e.when.value))).trim();   // portée d'un before/after : ""=chaque · nombre=Nᵉ · texte=région
   function geoEventMatch(e,phase,ctx){ const w=e.when||{};
     if(phase==="arrive")return w.kind==="arrive";
@@ -1824,7 +1825,8 @@
         <button data-ev-del title="supprimer">🗑</button></div>
         <div class="row"><label style="font-size:.78rem">Affichage <select data-ev-mode><option value="plein"${e.mode!=="over"?" selected":""}>plein écran</option><option value="over"${e.mode==="over"?" selected":""}>surimpression</option></select></label>
         <label style="font-size:.78rem">priorité <input data-ev-prio type="number" value="${e.priority||0}" style="width:48px"></label></div>
-        <textarea data-ev-text placeholder="texte affiché (vide = aucun ; « _ » sépare les pages)" rows="2" style="width:100%">${esc(e.text||"")}</textarea>
+        <div class="row">📄 fichier <select data-ev-file style="flex:1">${txtOpts(e.file,"— texte saisi ci-dessous —")}</select></div>
+        <textarea data-ev-text placeholder="…ou texte saisi (vide = aucun ; « _ » sépare les pages)" rows="2" style="width:100%">${esc(e.text||"")}</textarea>
         <div class="row"><input data-ev-recruit placeholder="➕ recrute (Nom:classe ; *=★)" value="${esc(e.recruit||"")}" style="flex:1">
         <input data-ev-reveal placeholder="🔓 révèle région" value="${esc(e.reveal||"")}" style="flex:1"></div></div>`; }).join("");
     el.querySelectorAll(".evrow").forEach(row=>{ const i=+row.getAttribute("data-i"), e=geoEventsDraft[i], q=s=>row.querySelector(s);
@@ -1832,6 +1834,7 @@
       const v=q("[data-ev-val]"); if(v)v.oninput=ev=>{ e.when=e.when||{}; e.when.value=ev.target.value; };
       q("[data-ev-mode]").onchange=ev=>{ e.mode=ev.target.value; };
       q("[data-ev-prio]").oninput=ev=>{ e.priority=+ev.target.value||0; };
+      { const f=q("[data-ev-file]"); if(f)f.onchange=ev=>{ e.file=ev.target.value; }; }
       q("[data-ev-text]").oninput=ev=>{ e.text=ev.target.value; };
       q("[data-ev-recruit]").oninput=ev=>{ e.recruit=ev.target.value; };
       q("[data-ev-reveal]").oninput=ev=>{ e.reveal=ev.target.value; };
@@ -1891,7 +1894,7 @@
       cells:cells.map(c=>({ poly:c.poly.map(p=>[Math.round(p[0]),Math.round(p[1])]), name:c.gname||"", type:c.gtype||"region",
         content:{kind:c.gkind||"empty", ref:c.gref||null}, state:c.gstate||"locked", unlockedBy:(c.gunlock||[]).slice(), diff:c.gdiff||0 })),
       events:(geoEventsDraft||[]).map(e=>{ const o={when:{kind:(e.when&&e.when.kind)||"arrive"}}; if(o.when.kind!=="arrive")o.when.value=e.when&&e.when.value;
-        if(e.text)o.text=e.text; if(e.recruit)o.recruit=e.recruit; if(e.reveal)o.reveal=e.reveal; if(e.mode==="over")o.mode="over"; if(e.priority)o.priority=e.priority; return o; }).filter(e=>e.text||e.recruit||e.reveal) }; }
+        if(e.file)o.file=e.file; if(e.text)o.text=e.text; if(e.recruit)o.recruit=e.recruit; if(e.reveal)o.reveal=e.reveal; if(e.mode==="over")o.mode="over"; if(e.priority)o.priority=e.priority; return o; }).filter(e=>e.text||e.file||e.recruit||e.reveal) }; }
   function geoApply(o){ resetView();
     if(o.mesh&&Array.isArray(o.mesh.infl)){ infl=o.mesh.infl; ROWS=infl.length; COLS=(infl[0]&&infl[0].length)||COLS; W=COLS*MC;H=ROWS*MC; cv.width=W;cv.height=H; }
     if(o.mesh&&o.mesh.seed!=null)seed=o.mesh.seed; if(o.mesh&&o.mesh.g)geoG=o.mesh.g;
@@ -1903,7 +1906,7 @@
       buildAdj();
     } else { genMesh(geoG); geoInitCells(); }
     geoCampId=(o.camp!=null)?o.camp:null; geoSel=null; geoStarted=true;
-    geoEventsDraft=Array.isArray(o.events)?o.events.map(e=>({when:{kind:(e.when&&e.when.kind)||"arrive",value:e.when&&e.when.value},text:e.text||"",recruit:e.recruit||"",reveal:e.reveal||"",mode:e.mode||"plein",priority:e.priority||0})):[]; geoRenderEvents();
+    geoEventsDraft=Array.isArray(o.events)?o.events.map(e=>({when:{kind:(e.when&&e.when.kind)||"arrive",value:e.when&&e.when.value},file:e.file||"",text:e.text||"",recruit:e.recruit||"",reveal:e.reveal||"",mode:e.mode||"plein",priority:e.priority||0})):[]; geoRenderEvents();
     geoRefresh(); }
 
   // dépôt GitHub (dossier geoscapes-mesh/)
