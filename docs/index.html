@@ -170,7 +170,9 @@
       <label><input id="uasleep" type="checkbox">💤 endormi</label><label><input id="uhostage" type="checkbox">🟣 otage</label></div>
     <div class="row"><button id="tplace" data-tool="unit">Poser l'unité</button><button id="terase" data-tool="erase">Gomme</button>
       <button id="tpod" data-tool="pod">🛡 Pod</button><button id="tsleep" data-tool="sleep">💤 Sommeil</button>
-      <button id="tdeploy" data-tool="deploy" title="Zone de déploiement : l'escouade du roster apparaît sur ces cases (quel que soit l'effectif). Clique pour ajouter/retirer une case.">🟦 Déploiement</button></div>
+      <button id="tdeploy" data-tool="deploy" title="Zone de déploiement : l'escouade du roster apparaît sur ces cases (quel que soit l'effectif). Clique pour ajouter/retirer une case.">🟦 Déploiement</button>
+      <button id="tpodanchor" data-tool="podanchor" title="Ancre de pod : point d'apparition d'un groupe ennemi. Le moteur peuple le pod (composition + sommeil) autour de l'ancre à chaque partie. Clique pour ajouter/retirer.">🎯 Ancre pod</button>
+      <label style="font-size:.8rem;display:inline-flex;align-items:center;gap:3px" title="Nombre d'ennemis générés autour de chaque ancre">×<input id="m-podsize" type="number" min="1" max="6" value="2" style="width:42px"></label></div>
     <div class="hint">Avec « Poser l'unité » : clic sur une case vide pour poser, <b>clic sur une unité</b> pour la pivoter (45°), <b>glisser</b> pour la déplacer, <b>double-clic</b> pour renommer, <b>clic droit</b> pour supprimer.<br>« 🛡 Pod » : clique un ennemi pour cycler son pod (aucun → 0 → 1 → … → 4 → aucun). « 💤 Sommeil » : clique un ennemi pour l'endormir/réveiller.</div>
     <h2>Dépôt (GitHub)</h2>
     <div class="row"><input id="mname" type="text" placeholder="nom de la mission" style="flex:1"></div>
@@ -867,6 +869,7 @@
         else { u._asleep0=!u._asleep0; u.asleep=u._asleep0; } refresh(); } return; }
     if(editTool==="tzone"||editTool==="tzone-erase"){ const c=cellAtXY(X,Y); if(c){ c.zone=(editTool==="tzone")?((document.getElementById("tzname").value||"A").trim()||"A"):undefined; refresh(); } return; }   // peint / efface une zone de déclenchement
     if(editTool==="deploy"){ const c=cellAtXY(X,Y); if(c){ c.deploy=!c.deploy; refresh(); } return; }   // bascule une case de la zone de déploiement de l'escouade
+    if(editTool==="podanchor"){ const c=cellAtXY(X,Y); if(c){ c.podAnchor=!c.podAnchor; refresh(); } return; }   // bascule une ancre de pod ennemi
     if(editTool==="gomme-t"){ const c=cellAtXY(X,Y); if(!c){return;}   // gomme : retire d'abord un muret tout proche, sinon remet le sol normal
       let bestK=null,bd=14; for(const n of c.nb){ const key=wkey(c.id,n); if(!walls.has(key))continue; const s=wallSeg.get(key); if(!s)continue; const dd=distToSeg(X,Y,s[0],s[1]); if(dd<bd){bd=dd;bestK=key;} }
       if(bestK)walls.delete(bestK); else if(c.terr!=="plain")c.terr="plain"; refresh(); return; }
@@ -964,6 +967,7 @@
       ctx.restore(); }
     if(mode==="play")for(const c of cells)if(c.bonusLoot&&visible.has(c.id)){ ctx.save(); poly(c); ctx.fillStyle="rgba(255,212,121,.18)"; ctx.fill(); ctx.font="18px sans-serif"; ctx.textAlign="center"; ctx.textBaseline="middle"; ctx.fillText("💰",c.cx,c.cy); ctx.restore(); }   // case-butin de l'objectif bonus
     if(mode==="edit"){ for(const c of cells)if(c.deploy){ poly(c); ctx.fillStyle="rgba(90,200,150,.28)"; ctx.fill(); ctx.strokeStyle="rgba(120,240,180,.7)"; ctx.lineWidth=2; ctx.stroke(); }   // zone de déploiement de l'escouade
+      for(const c of cells)if(c.podAnchor){ poly(c); ctx.fillStyle="rgba(216,99,95,.26)"; ctx.fill(); ctx.strokeStyle="rgba(255,120,110,.85)"; ctx.lineWidth=2; ctx.stroke(); ctx.save(); ctx.fillStyle="#ffd0c8"; ctx.font="bold 13px system-ui"; ctx.textAlign="center"; ctx.textBaseline="middle"; ctx.fillText("🎯",c.cx,c.cy); ctx.restore(); }   // ancre de pod ennemi
       ctx.textAlign="center"; ctx.textBaseline="middle"; ctx.font="bold 11px system-ui";   // zones de déclenchement : visibles seulement dans l'éditeur
       for(const c of cells)if(c.zone){ poly(c); ctx.fillStyle="rgba(96,165,250,.22)"; ctx.fill(); ctx.fillStyle="#dcebff"; ctx.fillText(c.zone,c.cx,c.cy); }
       ctx.textAlign="start"; ctx.textBaseline="alphabetic"; }
@@ -1028,7 +1032,7 @@
   const distEl=document.getElementById("dist"),dens=document.getElementById("dens"),uteam=document.getElementById("uteam"),ucls=document.getElementById("ucls"),upod=document.getElementById("upod"),uasleep=document.getElementById("uasleep"),uhostage=document.getElementById("uhostage"),uname=document.getElementById("uname");
   Object.keys(CLASSES).filter(k=>k!=="sergent").forEach(k=>{const o=document.createElement("option");o.value=k;o.textContent=CLASSES[k].name;ucls.appendChild(o);});
   function btnRow(host,items){ host.innerHTML=""; items.forEach(([label,tool])=>{const b=document.createElement("button");b.textContent=label;b.dataset.tool=tool;b.className=editTool===tool?"on":"";b.onclick=()=>{editTool=tool;syncTools();refresh();};host.appendChild(b);}); }
-  function syncTools(){ document.querySelectorAll("#zones button,#terr button,#relief button,#tplace,#terase,#tpod,#tsleep,#tdeploy,#tzpaint,#tzerase").forEach(b=>b.classList.toggle("on",b.dataset.tool===editTool)); }
+  function syncTools(){ document.querySelectorAll("#zones button,#terr button,#relief button,#tplace,#terase,#tpod,#tsleep,#tdeploy,#tpodanchor,#tzpaint,#tzerase").forEach(b=>b.classList.toggle("on",b.dataset.tool===editTool)); }
   btnRow(document.getElementById("zones"),[["⬛","zone:square"],["⬡","zone:hex"],["⬠","zone:pentagon"],["🔀","zone:mix"]]);
   btnRow(document.getElementById("terr"),[["🟩 Sol","terr:plain"],["⛰ Accidenté","terr:rough"],["🪨 Rocher","terr:wall"],["🧱 Muret","muret"],["🧹 Gomme","gomme-t"]]);
   btnRow(document.getElementById("relief"),[["⬆ élever","elev+"],["⬇ abaisser","elev-"]]);
@@ -1044,6 +1048,8 @@
   document.getElementById("tpod").onclick=()=>{editTool="pod";syncTools();};
   document.getElementById("tsleep").onclick=()=>{editTool="sleep";syncTools();};
   { const td=document.getElementById("tdeploy"); if(td)td.onclick=()=>{editTool="deploy";syncTools();}; }
+  { const ta=document.getElementById("tpodanchor"); if(ta)ta.onclick=()=>{editTool="podanchor";syncTools();}; }
+  { const ps=document.getElementById("m-podsize"); if(ps)ps.oninput=()=>saveDraft(); }
   document.getElementById("tzpaint").onclick=()=>{editTool="tzone";syncTools();};
   document.getElementById("tzerase").onclick=()=>{editTool="tzone-erase";syncTools();};
 
@@ -1186,7 +1192,9 @@
     cells:cells.map(c=>{const o={poly:c.poly.map(p=>[Math.round(p[0]),Math.round(p[1])]),terr:c.terr,elev:c.elev};if(c.zone)o.zone=c.zone;return o;}),
     walls:[...walls],
     deployZone:cells.filter(c=>c.deploy).map(c=>c.id),   // zone de déploiement de l'escouade (cases où le roster apparaît)
-    units:units.filter(u=>!u.test).map(u=>{const o={team:u.team,cls:u.cls,cell:u.cell};if(u.name!==CLASSES[u.cls].name)o.name=u.name;if(u.pod!==undefined)o.pod=u.pod;if(u.asleep)o.asleep=true;if(u.hostage)o.hostage=true;if(u.hvt)o.hvt=true;if(u.team==="neutral"&&u.civ===false)o.guard=true;if(u.facing!=null)o.facing=u.facing;return o;}),
+    podAnchors:cells.filter(c=>c.podAnchor).map(c=>c.id),   // ancres de pods ennemis (peuplés par le moteur à chaque partie)
+    podSize:(document.getElementById("m-podsize")&&+document.getElementById("m-podsize").value)||2,
+    units:units.filter(u=>!u.test&&!u.fromAnchor).map(u=>{const o={team:u.team,cls:u.cls,cell:u.cell};if(u.name!==CLASSES[u.cls].name)o.name=u.name;if(u.pod!==undefined)o.pod=u.pod;if(u.asleep)o.asleep=true;if(u.hostage)o.hostage=true;if(u.hvt)o.hvt=true;if(u.team==="neutral"&&u.civ===false)o.guard=true;if(u.facing!=null)o.facing=u.facing;return o;}),
     triggers:triggers,
     protect:(document.getElementById("m-protect")&&document.getElementById("m-protect").value!=="")?+document.getElementById("m-protect").value:undefined,
     objective:(curMission&&curMission.objective&&curMission.objective!=="eliminate")?curMission.objective:undefined,   // archétype + paramètres d'objectif
@@ -1205,6 +1213,7 @@
     if(!m||!Array.isArray(m.cells))throw new Error("format invalide");
     cells=m.cells.map((c,i)=>{const ct=polyCentroid(c.poly);return {id:i,poly:c.poly,cx:ct[0],cy:ct[1],nb:[],terr:c.terr||"plain",elev:c.elev||0,zone:c.zone};});
     { const dz=new Set(Array.isArray(m.deployZone)?m.deployZone:[]); cells.forEach(c=>{ if(dz.has(c.id))c.deploy=true; }); }   // zone de déploiement de l'escouade
+    { const pa=new Set(Array.isArray(m.podAnchors)?m.podAnchors:[]); cells.forEach(c=>{ if(pa.has(c.id))c.podAnchor=true; }); const ps=document.getElementById("m-podsize"); if(ps)ps.value=m.podSize||2; }   // ancres de pods ennemis
     buildAdj();
     walls=new Set((Array.isArray(m.walls)?m.walls:[]).filter(k=>wallSeg.has(k)));
     units=(m.units||[]).map(u=>U(u.team,u.cls,u.cell,{name:u.name,pod:u.pod,asleep:u.asleep,hostage:u.hostage,hvt:u.hvt,guard:u.guard,facing:u.facing})).filter(u=>cells[u.cell]);
@@ -1712,7 +1721,18 @@
     }
     // Fin de tour = bouton 0, toujours en dernier
     const e=document.createElement("button");e.id="act-end";e.innerHTML=`<span class="bn">0</span><span class="bi">🙅</span>`;e.title="Fin de tour";e.onclick=()=>{if(!over&&turn==="player")endTurn();};el.appendChild(e);}
+  // peuple les pods ennemis autour des ancres (à chaque lancement de partie) : composition + leader éveillé / reste endormi
+  function spawnAnchorPods(){ const anchors=cells.filter(c=>c.podAnchor).map(c=>c.id); if(!anchors.length)return;
+    const ecls=(typeof chosenEnemyClasses==="function"&&chosenEnemyClasses())||["garde","archer","brute"];
+    const per=Math.max(1,(curMission&&curMission.podSize)||2); const occSet=new Set(units.map(u=>u.cell));
+    anchors.forEach((anc,pi)=>{ if(!cells[anc])return; const ball=bfsBall(anc,2);
+      const pool=Object.keys(ball).map(Number).filter(id=>passable(id)&&!occSet.has(id)).sort((a,b)=>ball[a]-ball[b]);
+      const chosen=[]; for(const id of pool){ if(chosen.length>=per)break; if(chosen.every(c=>hops(c,id)>=2))chosen.push(id); }
+      for(const id of pool){ if(chosen.length>=per)break; if(!chosen.includes(id))chosen.push(id); }
+      chosen.sort((a,b)=>cells[b].nb.filter(x=>passable(x)).length-cells[a].nb.filter(x=>passable(x)).length);   // leader éveillé = case la plus dégagée
+      chosen.forEach((id,j)=>{ const u=U("enemy",ecls[(pi+j)%ecls.length],id,{pod:pi,asleep:j>0}); u.fromAnchor=true; units.push(u); occSet.add(id); }); }); }
   function startGame(){ resetView(); { const t=document.getElementById("title"); if(t)t.style.display="none"; }   // une partie démarre : on retire l'écran-titre
+    if(cells.some(c=>c.podAnchor)){ units=units.filter(u=>!u.fromAnchor); spawnAnchorPods(); }   // (re)génère les pods des ancres à chaque (re)lancement
     if(!units.some(u=>u.team==="player")||!units.some(u=>u.team==="enemy")){ setMsg("Place au moins 1 allié et 1 ennemi (mode Éditer)."); }
     for(const u of units){u.hp=u.max;u.ap=AP_MAX;u.freeAvail=true;u.overwatch=false;u.reacted=false;u.bracing=false;u.taunt=false;u.hidden=false;u.wallStance=false;u.vanishUsed=false;u.slowed=false;u.stunned=false;u.spellsCast=0;u.cd={};u.dmgTaken=0;u.asleep=!!u._asleep0;if(u.clip!==undefined)u.ammo=u.clip;if(u.crackers!==undefined)u.crackers=(u.crackers0!==undefined?u.crackers0:CLASSES[u.cls].crackers);} smoke=new Map();ability=null; _podCenters=null; turn="player";over=false;sel=null;amode=null;aimTarget=null;throwing=false;usingItem=false;inv={potion:campRun?(campRun.potions||0):0};
     fired=new Set(); podAlerted=new Set(); neutralSeen=new Set(); lastSeen=new Map(); turnNum=1; turnActions=0; lastOutcome=null; speechQ=[]; speaking=false; if(speechT){clearTimeout(speechT);speechT=null;} document.getElementById("combatline").style.display="none";
@@ -1725,7 +1745,7 @@
   function spawnTestSquad(){ const dz=cells.filter(c=>c.deploy&&passable(c.id)&&!uAt(c.id)).sort((a,b)=>(a.cy-b.cy)||(a.cx-b.cx));
     const kinds=["soldat","sapeur","assassin","garde"]; for(let i=0;i<dz.length&&i<4;i++){ const u=U("player",kinds[i%kinds.length],dz[i].id,{name:"Test "+(i+1)}); u.test=true; units.push(u); } }
   document.getElementById("mode").onclick=()=>{ const btn=document.getElementById("mode");
-    if(document.body.classList.contains("testing")){ document.body.classList.remove("testing"); campRun=null; sel=null; units=units.filter(u=>!u.test); setView("mission"); btn.textContent="▶ Tester la mission"; refresh(); }
+    if(document.body.classList.contains("testing")){ document.body.classList.remove("testing"); campRun=null; sel=null; units=units.filter(u=>!u.test&&!u.fromAnchor); setView("mission"); btn.textContent="▶ Tester la mission"; refresh(); }
     else { document.body.classList.add("testing"); setView("play");
       if(cells.some(c=>c.deploy)&&!units.some(u=>u.team==="player"))spawnTestSquad();   // zone de déploiement sans unités placées : escouade de test auto
       btn.textContent="✎ Éditer la mission"; startGame(); } };
