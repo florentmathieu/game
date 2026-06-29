@@ -32,7 +32,6 @@
   /* HUD en jeu (superposé à la carte, style hex) */
   #hud-tl{ position:fixed; top:12px; left:12px; z-index:6; display:flex; flex-direction:column; gap:6px; max-height:84vh; overflow:auto }
   #playnav a{ text-decoration:none; font-size:1.05rem; background:rgba(12,9,6,.85); border:1px solid #5a4530; border-radius:7px; padding:3px 7px; margin-right:4px }
-  #foecount{ background:rgba(40,16,16,.86); border:1px solid #6a3030; border-radius:8px; padding:4px 10px; color:#f0b8b0; font-size:.9rem; font-weight:bold; box-shadow:0 3px 10px rgba(0,0,0,.4) } #foecount.clear{ background:rgba(16,40,20,.86); border-color:#306a3a; color:#b8f0c0 }
   #roster{ display:flex; flex-direction:column; gap:5px }
   .rost{ background:rgba(12,9,6,.86); border:1px solid #5a4530; border-radius:8px; padding:5px 9px; min-width:150px; cursor:pointer; box-shadow:0 3px 10px rgba(0,0,0,.4) }
   .rost.sel{ border-color:#caa24a; background:rgba(46,36,16,.92) } .rost.dead{ opacity:.45 } .rost.spent{ opacity:.7 }
@@ -254,7 +253,6 @@
 <!-- HUD en jeu : superposé à la carte (style hex) -->
 <div id="hud">
   <div id="hud-tl">
-    <div id="foecount"></div>
     <div id="roster"></div>
   </div>
   <div id="hud-status"><span id="turn">Joueur</span> · PA <span id="ap">–</span> <button id="end">Fin de tour ▶</button></div>
@@ -731,10 +729,7 @@
       if(turn==="player"&&!over&&sel&&(sel.hp<=0||(sel.ap<=0&&!sel.freeAvail))){ const nxt=units.find(u=>u.team==="player"&&u.hp>0&&!(u.ap<=0&&!u.freeAvail)); if(nxt){sel=nxt;amode=null;aimTarget=null;throwing=false;usingItem=false;} }   // unité épuisée → passe à la suivante
     } else visible=new Set(cells.map(c=>c.id)); draw(); if(mode==="play"){renderActs();renderRoster();maybeAutoEnd();} else { renderCounts(); saveDraft(); } }
   // roster des soldats (haut-gauche) : nom, PV, PA ; clic = sélection
-  function renderRoster(){ const fc=document.getElementById("foecount");
-    if(fc){ const n=units.filter(u=>u.team==="enemy"&&u.hp>0&&!u.bonus).length; const seenN=units.filter(u=>u.team==="enemy"&&u.hp>0&&!u.bonus&&seen(u)).length;
-      fc.className=n===0?"clear":""; fc.textContent=n===0?"✓ secteur dégagé":("☠ ennemis restants : "+n+(seenN<n?" ("+seenN+" en vue)":"")); }   // compteur d'ennemis (inclut les endormis hors champ de vision)
-    const el=document.getElementById("roster"); if(!el)return; el.innerHTML="";
+  function renderRoster(){ const el=document.getElementById("roster"); if(!el)return; el.innerHTML="";
     units.filter(u=>u.team==="player").forEach(u=>{ const d=document.createElement("div");
       d.className="rost"+(u===sel?" sel":"")+(u.hp<=0?" dead":((u.ap<=0&&turn==="player")?" spent":""));
       d.innerHTML=`<div><b>${u.name}</b> <span class="sub">${CLASSES[u.cls].name}${u.grade?' <span style="color:#e0b341">'+"★".repeat(u.grade)+'</span>':''}</span></div>`
