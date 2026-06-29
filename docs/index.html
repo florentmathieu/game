@@ -225,6 +225,10 @@
     <div class="hint">Les persos déployés dans les missions de cette campagne (PV persistants). Les cases joueur d'une mission servent de slots de déploiement.</div>
     <div id="rosterlist"></div>
     <div class="row"><button id="roster-add">+ Membre</button></div>
+    <h2>Dialogues d'escouade</h2>
+    <div class="hint">Joués au lancement d'une mission selon les participants déployés : si TOUS les participants d'un dialogue sont là, il se déclenche (le premier non encore vu dans la liste, un seul par mission). Sinon il attend une prochaine mission où ils sont réunis.</div>
+    <div id="dialoglist"></div>
+    <div class="row"><button id="dialog-add">+ Dialogue</button></div>
     <div class="row"><button id="csave">💾 Campagne</button><select id="cloadsel" style="flex:1"></select><button id="cload">📂</button><button id="cplay">▶ Jouer</button></div>
     <div class="hint" id="cstatus"></div>
     </div>
@@ -1296,7 +1300,7 @@
   renderTrigList();
 
   // ===== campagne à nœuds (textes / missions / choix) + persistance PV =====
-  let campRun=null, campNodes=[], campStart="", nodeSeq=0, repoTexts=[], campSel=null, repoGeoscapes=[], campRoster=[];
+  let campRun=null, campNodes=[], campStart="", nodeSeq=0, repoTexts=[], campSel=null, repoGeoscapes=[], campRoster=[], campDialogs=[];
   const cname=document.getElementById("cname"),cloadsel=document.getElementById("cloadsel"),cstatus=document.getElementById("cstatus");
   const esc=s=>(s||"").replace(/"/g,"&quot;");
   const newId=()=>{ let id; do{ id="n"+(++nodeSeq); }while(campNodes.some(n=>n.id===id)); return id; };   // jamais d'id déjà utilisé (sinon collision après chargement)
@@ -1321,7 +1325,7 @@
   async function resolveText(inline,file){ if(file){ const t=await fetchText(file,ghCfg()); if(t!=null)return t; } return inline||""; }
   function renderNodes(){ dedupeNodes(); const cs=document.getElementById("cstart"); if(cs)cs.innerHTML=idOpts(campStart,false);
     if(campSel==null||!campNode(campSel))campSel=campNodes[0]?campNodes[0].id:null;
-    renderDetail(); drawGraph(); renderRosterEditor(); saveCampDraft(); }
+    renderDetail(); drawGraph(); renderRosterEditor(); renderDialogEditor(); saveCampDraft(); }
   // éditeur de roster (escouade de campagne) — persos déployés dans les missions
   const PLAYER_CLASSES=Object.keys(CLASSES).filter(k=>!CLASSES[k].civ&&!CLASSES[k].enemyOnly&&k!=="sergent");
   function renderRosterEditor(){ const el=document.getElementById("rosterlist"); if(!el)return;
@@ -1345,6 +1349,17 @@
       row.querySelectorAll("[data-rperk]").forEach(s=>s.onchange=collect); });
     el.querySelectorAll("[data-rdel]").forEach(b=>b.onclick=()=>{ campRoster.splice(+b.getAttribute("data-rdel"),1); saveCampDraft(); renderRosterEditor(); }); }
   { const ra=document.getElementById("roster-add"); if(ra)ra.onclick=()=>{ campRoster.push({name:"",cls:PLAYER_CLASSES[0]}); saveCampDraft(); renderRosterEditor(); }; }
+  function renderDialogEditor(){ const el=document.getElementById("dialoglist"); if(!el)return;
+    el.innerHTML=campDialogs.length?campDialogs.map((d,i)=>`<div data-di="${i}" style="border:1px solid #2c2f3a;border-radius:8px;padding:6px 8px;margin:4px 0">
+      <div class="row"><select data-df="when" title="Quand le dialogue se joue"><option value="before"${d.when==="before"?" selected":""}>avant la mission</option><option value="start"${(d.when||"start")==="start"?" selected":""}>au début</option><option value="after"${d.when==="after"?" selected":""}>après la mission</option></select><button data-ddel="${i}" title="Retirer">✕</button></div>
+      <div class="row"><span style="font-size:.78rem;white-space:nowrap">👥 participants</span><input data-df="who" type="text" value="${esc(d.who||"")}" placeholder="noms exacts, séparés par des virgules" style="flex:1" title="Le dialogue se déclenche quand TOUS ces persos ont participé à la mission"></div>
+      <div class="row">📄 fichier <select data-df="file" style="flex:1">${txtOpts(d.file,"— texte saisi ci-dessous —")}</select></div>
+      <textarea data-df="text" placeholder="…ou texte saisi (« _ » sépare les pages)" rows="2" style="width:100%">${esc(d.text||"")}</textarea>
+    </div>`).join(""):`<div class="hint">(aucun dialogue d'escouade)</div>`;
+    el.querySelectorAll("[data-di]").forEach(row=>{ const i=+row.getAttribute("data-di");
+      row.querySelectorAll("[data-df]").forEach(inp=>{ const set=()=>{ campDialogs[i][inp.dataset.df]=inp.value; saveCampDraft(); }; inp.tagName==="SELECT"?inp.onchange=set:inp.oninput=set; }); });
+    el.querySelectorAll("[data-ddel]").forEach(b=>b.onclick=()=>{ campDialogs.splice(+b.getAttribute("data-ddel"),1); saveCampDraft(); renderDialogEditor(); }); }
+  { const da=document.getElementById("dialog-add"); if(da)da.onclick=()=>{ campDialogs.push({who:"",file:"",text:""}); saveCampDraft(); renderDialogEditor(); }; }
   // détail du nœud sélectionné (à droite du graphe)
   function renderDetail(){ const el=document.getElementById("cdetail"); if(!el)return; const n=campNode(campSel);
     if(!n){ el.innerHTML='<div class="hint">Aucun nœud. Ajoute un Texte, une Mission ou un Choix, puis clique-le dans le graphe.</div>'; return; }
@@ -1367,11 +1382,11 @@
       saveCampDraft(); drawGraph(); }; (inp.tagName==="SELECT"||inp.type==="checkbox")?inp.onchange=set:inp.oninput=set; });
     el.querySelector("[data-del]").onclick=()=>{campNodes=campNodes.filter(x=>x.id!==n.id);if(campStart===n.id)campStart=campNodes[0]?campNodes[0].id:"";campSel=campNodes[0]?campNodes[0].id:null;renderNodes();};
     el.querySelector("[data-setstart]").onclick=()=>{campStart=n.id;renderNodes();};
-    el.querySelector("[data-testhere]").onclick=()=>{ if(!campNodes.length)return; startCampaign({name:cname.value,start:campStart,roster:campRoster,nodes:campNodes},"campaign",n.id); };
+    el.querySelector("[data-testhere]").onclick=()=>{ if(!campNodes.length)return; startCampaign({name:cname.value,start:campStart,roster:campRoster,dialogs:campDialogs,nodes:campNodes},"campaign",n.id); };
     const ao=el.querySelector("[data-addopt]"); if(ao)ao.onclick=()=>{n.options=n.options||[];n.options.push(campNodes[0]?campNodes[0].id:"");renderDetail();drawGraph();saveCampDraft();};
     el.querySelectorAll("[data-optsel]").forEach(s=>s.onchange=()=>{n.options[+s.dataset.optsel]=s.value;drawGraph();saveCampDraft();});
     el.querySelectorAll("[data-optdel]").forEach(b=>b.onclick=()=>{n.options.splice(+b.dataset.optdel,1);renderDetail();drawGraph();saveCampDraft();}); }
-  function saveCampDraft(){ try{ localStorage.setItem("mgf_camp_draft_mesh", JSON.stringify({name:cname.value,start:campStart,roster:campRoster,nodes:campNodes})); }catch(e){} }
+  function saveCampDraft(){ try{ localStorage.setItem("mgf_camp_draft_mesh", JSON.stringify({name:cname.value,start:campStart,roster:campRoster,dialogs:campDialogs,nodes:campNodes})); }catch(e){} }
   function loadCampDraft(){ try{ const d=JSON.parse(localStorage.getItem("mgf_camp_draft_mesh")||"null"); if(d&&Array.isArray(d.nodes)&&d.nodes.length) return d; }catch(e){} return null; }
   // graphe visuel de la campagne (nœuds déplaçables, liens colorés)
   const cg=document.getElementById("cgraph"),cgx=cg?cg.getContext("2d"):null; let cgDrag=null,cgOff=[0,0],cgMoved=false; const NW=92,NH=34;
@@ -1414,10 +1429,10 @@
   document.getElementById("cadd-geo").onclick=()=>{const n={id:newId(),type:"geoscape",map:(repoGeoscapes[0]?repoGeoscapes[0].file:""),endWhen:{kind:"all",name:""},next:null};campNodes.push(n);if(!campStart)campStart=n.id;campSel=n.id;renderNodes();};
   function fillCampLoad(list){ cloadsel.innerHTML=list.length?list.map(x=>`<option value="${x.file}">${x.name}</option>`).join(""):`<option value="">(aucune)</option>`; }
   async function fetchCampaigns(){ const t=await fetchText("campaigns-mesh/list.json",ghCfg()); let list=[];if(t){try{const p=JSON.parse(t);if(Array.isArray(p))list=p;}catch(e){}} fillCampLoad(list); }
-  async function campLoad(){ const f=cloadsel.value; if(!f)return; const t=await fetchText("campaigns-mesh/"+f,ghCfg()); if(!t){cstatus.textContent="Introuvable.";return;} try{const c=JSON.parse(t);cname.value=c.name||"";campNodes=c.nodes||[];campStart=c.start||(campNodes[0]&&campNodes[0].id)||"";campRoster=c.roster||[];renderNodes();cstatus.textContent="Chargée : "+f;}catch(e){cstatus.textContent="JSON invalide.";} }
+  async function campLoad(){ const f=cloadsel.value; if(!f)return; const t=await fetchText("campaigns-mesh/"+f,ghCfg()); if(!t){cstatus.textContent="Introuvable.";return;} try{const c=JSON.parse(t);cname.value=c.name||"";campNodes=c.nodes||[];campStart=c.start||(campNodes[0]&&campNodes[0].id)||"";campRoster=c.roster||[];campDialogs=c.dialogs||[];renderNodes();cstatus.textContent="Chargée : "+f;}catch(e){cstatus.textContent="JSON invalide.";} }
   document.getElementById("cload").onclick=campLoad;
   async function campSave(){ const cfg=ghCfg(),name=(cname.value||"").trim(); if(!name){cstatus.textContent="Nom de campagne requis.";return;} if(!cfg.token){cstatus.textContent="Token requis.";return;}
-    const file=(name.toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/(^-|-$)/g,"")||"camp")+".json"; const camp={name,start:campStart,roster:campRoster,nodes:campNodes};
+    const file=(name.toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/(^-|-$)/g,"")||"camp")+".json"; const camp={name,start:campStart,roster:campRoster,dialogs:campDialogs,nodes:campNodes};
     try{ cstatus.textContent="Publication…"; await ghPut("campaigns-mesh/"+file,JSON.stringify(camp),"Campagne maillage : "+name,cfg);
       const cur=await ghGet("campaigns-mesh/list.json",cfg.branch,cfg);let list=[];if(cur){try{const p=JSON.parse(cur.text);if(Array.isArray(p))list=p;}catch(e){}}
       if(list.some(x=>x.file===file))list=list.map(x=>x.file===file?{file,name}:x);else list.push({file,name});
@@ -1438,7 +1453,7 @@
       const nmiss=nodesOut.filter(n=>n.type==="mission").length;
       cstatus.textContent="✓ Campagne publiée (+ port Godot : graphe, "+nmiss+" mission·s)."; }catch(e){cstatus.textContent="Échec : "+e.message;} }
   document.getElementById("csave").onclick=campSave;
-  document.getElementById("cplay").onclick=()=>{ if(!campNodes.length){cstatus.textContent="Ajoute au moins un nœud.";return;} if(!campNode(campStart)){cstatus.textContent="Choisis un nœud de départ.";return;} startCampaign({name:cname.value,start:campStart,roster:campRoster,nodes:campNodes},"campaign"); };
+  document.getElementById("cplay").onclick=()=>{ if(!campNodes.length){cstatus.textContent="Ajoute au moins un nœud.";return;} if(!campNode(campStart)){cstatus.textContent="Choisis un nœud de départ.";return;} startCampaign({name:cname.value,start:campStart,roster:campRoster,dialogs:campDialogs,nodes:campNodes},"campaign"); };
   // lecteur de texte paginé : pages séparées par une ligne « _ », « Nom : … » en doré, bouton « … » pour passer.
   const escTxt=s=>(s||"").replace(/[&<>]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;"}[c]));
   function fmtPage(s){ return s.split("\n").map(l=>l.replace(/\s+$/,"")).filter(l=>l.length).map(l=>{ const m=l.match(/^([\wÀ-ÿ '.\-]{1,18}):\s(.*)$/); return m?`<span class="sp-who">${escTxt(m[1])}</span> ${escTxt(m[2])}`:escTxt(l); }).join("<br>"); }
@@ -1575,7 +1590,7 @@
     try{ const onGeo=!!(geoPlay&&!geoPlay.inMission&&geoPlay.node);
       const s={ nodeId:campRun.nodeId, winCount:campRun.winCount||0, potions:campRun.potions||0, missionN:campRun.missionN||0,
         roster:campRun.roster, carry:campRun.carry||{}, geoStates:campRun.geoStates||{}, primes:campRun.primes||{},
-        seen:[...(campRun.seen||[])], firedEvents:[...(campRun.firedEvents||[])], geoNodeId:onGeo?geoPlay.node.id:null,
+        seen:[...(campRun.seen||[])], firedEvents:[...(campRun.firedEvents||[])], firedDialogs:[...(campRun.firedDialogs||[])], geoNodeId:onGeo?geoPlay.node.id:null,
         geoSeed:campRun.geoSeed||null, forge:campRun.forge||0, forgeBonus:campRun.forgeBonus||null, forgeDone:campRun.forgeDone||[], lastAttackN:campRun.lastAttackN||0 };
       localStorage.setItem(RUN_PREFIX+campSlug(campRun.camp.name),JSON.stringify(s)); }catch(e){} }
   function loadCampRunSave(name){ try{ const t=localStorage.getItem(RUN_PREFIX+campSlug(name)); if(t)return JSON.parse(t); }catch(e){} return null; }
@@ -1583,6 +1598,7 @@
   function resumeCampaign(camp,save){ campRun={ camp, carry:save.carry||{}, winCount:save.winCount||0,
       roster:Array.isArray(save.roster)?save.roster:[], nodeId:save.nodeId, from:"play", missionN:save.missionN||0,
       seen:new Set(save.seen||[]), potions:save.potions||0, firedEvents:new Set(save.firedEvents||[]),
+      dialogs:(camp.dialogs||[]).slice(), firedDialogs:new Set(save.firedDialogs||[]),
       geoStates:save.geoStates||{}, primes:save.primes||{},
       geoSeed:save.geoSeed||null, forge:save.forge||0, forgeBonus:save.forgeBonus||null, forgeDone:save.forgeDone||[], lastAttackN:save.lastAttackN||0 };
     document.body.classList.remove("testing"); setView("play");
@@ -1599,6 +1615,19 @@
     resolveText(e.text,e.file).then(txt=>{ if(!txt){ cb(); return; }   // texte d'un fichier (list.json) sinon texte saisi
       if(e.mode==="over"){ introBlocking=true; playText(txt,true,()=>{ introBlocking=false; hideStory(); setMsg(""); cb(); }); }
       else showCampText(txt,cb); }); }
+  // dialogues d'escouade : 1er non encore vu, du bon moment (avant/début/après), dont TOUS les participants ont participé (un seul par moment et par mission)
+  function partyDialogFor(phase){ if(!campRun||!Array.isArray(campRun.dialogs)||autoPromote)return null;
+    const squad=new Set(units.filter(u=>u.team==="player").map(u=>u.name));   // participants déployés (présents dans la mission)
+    campRun.firedDialogs=campRun.firedDialogs||new Set();
+    for(let i=0;i<campRun.dialogs.length;i++){ const id="d"+i; if(campRun.firedDialogs.has(id))continue;
+      const d=campRun.dialogs[i]; if((d.when||"start")!==phase)continue;
+      const who=(d.who||"").split(",").map(s=>s.trim()).filter(Boolean);
+      if(!who.length||!(d.text||d.file))continue;
+      if(who.every(n=>squad.has(n)))return {d,id}; }
+    return null; }
+  function playPartyDialog(phase,cb){ cb=cb||function(){}; const m=partyDialogFor(phase); if(!m){ cb(); return; }
+    campRun.firedDialogs.add(m.id); saveCampRun();
+    resolveText(m.d.text,m.d.file).then(txt=>{ if(!txt){ cb(); return; } introBlocking=true; playText(txt,true,()=>{ introBlocking=false; hideStory(); setMsg(""); cb(); }); }); }
   const geoEvScope=e=>(""+((e.when&&e.when.value)==null?"":(e.when.value))).trim();   // portée d'un before/after : ""=chaque · nombre=Nᵉ · texte=région
   function geoEventMatch(e,phase,ctx){ const w=e.when||{};
     if(phase==="arrive")return w.kind==="arrive";
@@ -1652,7 +1681,7 @@
     if(v==="campaign"){ if(typeof drawGraph==="function")drawGraph(); }
     if(v==="geoscape"&&typeof geoEnter==="function")geoEnter(); }
   function startCampaign(camp,from,fromNode){ const ephemeral=(from!=="play");   // lancé depuis l'éditeur (test) : les événements (1ʳᵉ arrivée…) se rejouent à chaque essai et ne sont pas mémorisés
-    campRun={camp,carry:{},winCount:0,roster:(camp.roster||[]).map(m=>({name:m.name,cls:m.cls,xp:m.xp||0,perks:Array.isArray(m.perks)?m.perks.slice():[],stress:0,fatigue:0,special:m.special!==false,mortalAfter:m.mortalAfter||null,dead:false})),nodeId:null,from:from||"campaign",seen:new Set(),potions:0,ephemeral,firedEvents:new Set(ephemeral?[]:loadFiredEvents(camp.name))};
+    campRun={camp,carry:{},winCount:0,roster:(camp.roster||[]).map(m=>({name:m.name,cls:m.cls,xp:m.xp||0,perks:Array.isArray(m.perks)?m.perks.slice():[],stress:0,fatigue:0,special:m.special!==false,mortalAfter:m.mortalAfter||null,dead:false})),nodeId:null,from:from||"campaign",seen:new Set(),potions:0,ephemeral,dialogs:(camp.dialogs||[]).slice(),firedDialogs:new Set(),firedEvents:new Set(ephemeral?[]:loadFiredEvents(camp.name))};
     const saved=loadRosterProgress(camp.name); if(saved){ for(const m of campRun.roster){ const s=saved.find(x=>x.name===m.name&&x.cls===m.cls); if(s){ m.xp=s.xp||0; m.perks=Array.isArray(s.perks)?s.perks.slice():[]; m.stress=s.stress||0; m.fatigue=s.fatigue||0; m.special=s.special!==false; m.dead=!!s.dead; } }   // reprend progression + usure + morts inter-parties
       for(const s of saved){ if(s.name&&!campRun.roster.some(m=>m.name===s.name))campRun.roster.push({name:s.name,cls:s.cls,xp:s.xp||0,perks:Array.isArray(s.perks)?s.perks.slice():[],stress:s.stress||0,fatigue:s.fatigue||0,special:s.special!==false,mortalAfter:null,dead:!!s.dead}); } }   // recrues scénarisées (absentes du roster de base) conservées
     document.body.classList.remove("testing"); setView("play"); runNode(fromNode||camp.start); }
@@ -1679,11 +1708,17 @@
     distortTerrain(corruptLevel());   // distorsion progressive (les missions de nœud avant le geoscape restent intactes : missionN=0)
     const begin=()=>{ deployRoster(); startGame(); if(!(curMission&&curMission.fullheal))applyCarry(); refresh(); };   // déploie le roster, puis soin complet : on garde les PV pleins de startGame
     begin();   // la carte d'abord ; le texte d'intro est superposé en bas, par-dessus le jeu
-    const introSeen=campRun&&campRun.seen&&campRun.seen.has(n.id+":intro");
-    if(!retry&&!introSeen&&(n.intro||n.introFile)){ if(campRun&&campRun.seen)campRun.seen.add(n.id+":intro"); introBlocking=true;   // on ne peut pas jouer avant d'avoir lu toute l'intro
-      resolveText(n.intro,n.introFile).then(txt=>{ if(txt)playText(txt,true,()=>{introBlocking=false;hideStory();setMsg("");}); else {introBlocking=false;} }); } }
+    // dialogues d'escouade : « avant » → intro de mission → « début »
+    const startBanter=()=>playPartyDialog("start",()=>{});
+    const introThenStart=()=>{ const introSeen=campRun&&campRun.seen&&campRun.seen.has(n.id+":intro");
+      if(!retry&&!introSeen&&(n.intro||n.introFile)){ if(campRun&&campRun.seen)campRun.seen.add(n.id+":intro"); introBlocking=true;
+        resolveText(n.intro,n.introFile).then(txt=>{ if(txt)playText(txt,true,()=>{introBlocking=false;hideStory();setMsg("");startBanter();}); else {introBlocking=false;startBanter();} }); }
+      else startBanter(); };
+    playPartyDialog("before",introThenStart); }
   function campEnd(t){ if(campRun&&campRun.mini){ miniMissionEnd(t); return; }   // un combat « mission bonus » se termine
     if(campRun&&geoPlay&&geoPlay.inMission){ geoMissionEnd(t); return; }
+    playPartyDialog("after",()=>campEndResolve(t)); }   // dialogue d'escouade « après la mission » (participants intacts), puis suite
+  function campEndResolve(t){
     const win=t.indexOf("Victoire")===0, n=campRun.camp.nodes.find(x=>x.id===campRun.nodeId);
     if(win){ saveCarry(); awardXp(); applyAttrition(true); if(campRun){campRun.potions=(inv.potion||0)+((curMission&&curMission.loot)||0); campRun.winCount=(campRun.winCount||0)+1;} const bonusMsg=grantBonus(true);   // butin + compteur de victoires, puis récompense bonus (sur les potions déjà posées)
       const after=()=>{ const lost=checkMortalConditions(); const msgs=[]; if(bonusMsg)msgs.push(bonusMsg); if(lost.length)msgs.push("★ "+lost.join(", ")+" — leur rôle est accompli : iels ne sont plus à l'abri du destin.");
@@ -1696,7 +1731,7 @@
     geoPlay=null; document.body.classList.remove("geomap"); showCampText(msg,()=>{ campRun=null;
     if(from==="play"){ setView("play"); const t=document.getElementById("title"); if(t)t.style.display="flex"; }
     else { setView("campaign"); refresh(); } }); }
-  { const cd=loadCampDraft(); if(cd){ cname.value=cd.name||""; campNodes=cd.nodes||[]; campStart=cd.start||(campNodes[0]&&campNodes[0].id)||""; campRoster=cd.roster||[]; } }  // restaure le brouillon AVANT le 1er rendu (sinon saveCampDraft l'écrase)
+  { const cd=loadCampDraft(); if(cd){ cname.value=cd.name||""; campNodes=cd.nodes||[]; campStart=cd.start||(campNodes[0]&&campNodes[0].id)||""; campRoster=cd.roster||[];campDialogs=cd.dialogs||[]; } }  // restaure le brouillon AVANT le 1er rendu (sinon saveCampDraft l'écrase)
   renderNodes(); fetchCampaigns(); fetchTexts();
 
   // ===== jeu =====
@@ -2133,7 +2168,8 @@
       addForgeEnemies();   // ennemis ajustés après les forges libérées
       distortTerrain(corruptLevel());   // le terrain se tord davantage à mesure qu'on avance
       deployRoster(); startGame(); if(!(curMission&&curMission.fullheal))applyCarry(); refresh();
-      runGeoEvents("before",{region:regionName,missionN:campRun.missionN}); }); }   // texte d'avant-mission (plein écran ou surimpression sur le champ de bataille)
+      // dialogue d'escouade « avant » → événements de territoire « before » → dialogue d'escouade « début »
+      playPartyDialog("before",()=>runGeoEvents("before",{region:regionName,missionN:campRun.missionN},()=>playPartyDialog("start",()=>{}))); }); }
   function geoEndReached(node,st){ const ew=node.endWhen||{kind:"all"}; const cs=geoPlay.map.cells;
     if(ew.kind==="key"){ const idx=cs.findIndex(c=>(c.name||"")===(ew.name||"")); return idx>=0&&st[idx]==="cleared"; }
     return cs.every((c,i)=> !(c.type!=="camp"&&c.content&&c.content.kind==="mission") || st[i]==="cleared" || st[i]==="lost"); }
@@ -2160,7 +2196,8 @@
     if(!cand.length)return null; const pick=cand[Math.floor(Math.random()*cand.length)];
     st[pick]="attacked"; campRun.lastAttackN=campRun.missionN||0;
     return gtx("messages.attack",{region:(map.cells[pick].name)||"Une région"}); }
-  function geoMissionEnd(resultTxt){ const win=resultTxt.indexOf("Victoire")===0; const ret=campRun.geoReturn; const st=campRun.geoStates[ret.nodeId]; saveCarry(); if(win)awardXp(); const deaths=applyAttrition(win); let bonusMsg=null,primeMsg=null,forgeMsg=null,atkMsg=null;
+  function geoMissionEnd(resultTxt){ playPartyDialog("after",()=>geoMissionEndResolve(resultTxt)); }   // dialogue d'escouade « après » (participants intacts), puis débrief geoscape
+  function geoMissionEndResolve(resultTxt){ const win=resultTxt.indexOf("Victoire")===0; const ret=campRun.geoReturn; const st=campRun.geoStates[ret.nodeId]; saveCarry(); if(win)awardXp(); const deaths=applyAttrition(win); let bonusMsg=null,primeMsg=null,forgeMsg=null,atkMsg=null;
     const frontBefore=primeFront();   // front d'avant la mission : les régions ouvertes par cette victoire ne fondront pas ce tour-ci
     const fcell=geoPlay.map.cells[ret.cellId]; const rn=fcell&&fcell.name;
     if(win){ st[ret.cellId]="cleared"; campRun.potions=(inv.potion||0)+((curMission&&curMission.loot)||0); bonusMsg=grantBonus(win); campRun.winCount=(campRun.winCount||0)+1;
@@ -2198,7 +2235,7 @@
     if(draft&&draft.cells&&draft.cells.length){ try{ applyMissionObj(draft); }catch(e){ defaultBoard(); } }
     else defaultBoard();
     // restaure le brouillon de campagne dans l'éditeur
-    const cd=loadCampDraft(); if(cd){ cname.value=cd.name||""; campNodes=cd.nodes||[]; campStart=cd.start||(campNodes[0]&&campNodes[0].id)||""; campRoster=cd.roster||[]; renderNodes(); }
+    const cd=loadCampDraft(); if(cd){ cname.value=cd.name||""; campNodes=cd.nodes||[]; campStart=cd.start||(campNodes[0]&&campNodes[0].id)||""; campRoster=cd.roster||[];campDialogs=cd.dialogs||[]; renderNodes(); }
     // routage par URL : ?edit = éditeur de mission, ?campaign = éditeur de campagne, défaut = page de jeu
     const params=new URLSearchParams(location.search);
     const view=params.has("edit")?"mission":params.has("campaign")?"campaign":params.has("geoscape")?"geoscape":"play";
