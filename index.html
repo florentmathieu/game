@@ -173,6 +173,7 @@
       <button id="tdeploy" data-tool="deploy" title="Zone de déploiement : l'escouade du roster apparaît sur ces cases (quel que soit l'effectif). Clique pour ajouter/retirer une case.">🟦 Déploiement</button>
       <button id="tpodanchor" data-tool="podanchor" title="Ancre de pod : point d'apparition d'un groupe ennemi, peuplé par le moteur à chaque partie. Clics successifs : éveillé (🎯 rouge, vue 8) → endormi (💤 bleu, vue 6) → aucune.">🎯 Ancre pod</button>
       <label style="font-size:.8rem;display:inline-flex;align-items:center;gap:3px" title="Nombre d'ennemis générés autour de chaque ancre">×<input id="m-podsize" type="number" min="1" max="6" value="2" style="width:42px"></label></div>
+    <div class="row" style="flex-wrap:wrap;gap:8px;align-items:center"><span style="font-size:.82rem" title="Proportions de classes tirées pour peupler les pods des ancres (0 = exclue)">Compo pods (poids) :</span><span id="m-eweights" style="display:flex;flex-wrap:wrap;gap:8px"></span></div>
     <div class="hint">Avec « Poser l'unité » : clic sur une case vide pour poser, <b>clic sur une unité</b> pour la pivoter (45°), <b>glisser</b> pour la déplacer, <b>double-clic</b> pour renommer, <b>clic droit</b> pour supprimer.<br>« 🛡 Pod » : clique un ennemi pour cycler son pod (aucun → 0 → 1 → … → 4 → aucun). « 💤 Sommeil » : clique un ennemi pour l'endormir/réveiller.</div>
     <h2>Dépôt (GitHub)</h2>
     <div class="row"><input id="mname" type="text" placeholder="nom de la mission" style="flex:1"></div>
@@ -1043,6 +1044,12 @@
   const ENEMY_POOL=["garde","archer","brute","shieldbearer","emage"];   // classes proposées pour les ennemis générés
   { const box=document.getElementById("gen-eclasses"); if(box){ box.innerHTML=ENEMY_POOL.map(k=>`<label style="font-size:.82rem;display:inline-flex;align-items:center;gap:3px"><input type="checkbox" data-ecls="${k}"${["garde","archer","brute"].includes(k)?" checked":""}>${(CLASSES[k]&&CLASSES[k].name)||k}</label>`).join(""); } }
   function chosenEnemyClasses(){ const box=document.getElementById("gen-eclasses"); if(!box)return null; const sel=[...box.querySelectorAll("input[data-ecls]:checked")].map(c=>c.dataset.ecls).filter(k=>CLASSES[k]); return sel.length?sel:null; }
+  // poids de composition des pods d'ancres (par mission)
+  const DEF_EWEIGHTS={garde:2,archer:2,brute:1,shieldbearer:0,emage:0};
+  { const box=document.getElementById("m-eweights"); if(box){ box.innerHTML=ENEMY_POOL.map(k=>`<label style="font-size:.8rem;display:inline-flex;align-items:center;gap:2px">${(CLASSES[k]&&CLASSES[k].name)||k}<input type="number" min="0" max="9" data-ew="${k}" value="${DEF_EWEIGHTS[k]||0}" style="width:36px"></label>`).join(""); box.querySelectorAll("input[data-ew]").forEach(i=>i.oninput=()=>saveDraft()); } }
+  function missionEWeights(){ const box=document.getElementById("m-eweights"); const w={}; if(box)box.querySelectorAll("input[data-ew]").forEach(i=>{ const v=+i.value||0; if(v>0&&CLASSES[i.dataset.ew])w[i.dataset.ew]=v; }); return w; }
+  function setMissionEWeights(w){ const box=document.getElementById("m-eweights"); if(!box)return; box.querySelectorAll("input[data-ew]").forEach(i=>{ i.value=(w&&w[i.dataset.ew]!=null)?w[i.dataset.ew]:(w?0:(DEF_EWEIGHTS[i.dataset.ew]||0)); }); }
+  function weightedPick(w){ const ks=Object.keys(w).filter(k=>w[k]>0&&CLASSES[k]); if(!ks.length)return null; let tot=0; for(const k of ks)tot+=w[k]; let r=RND()*tot; for(const k of ks){ r-=w[k]; if(r<=0)return k; } return ks[ks.length-1]; }
   document.getElementById("tplace").onclick=()=>{editTool="unit";syncTools();};
   document.getElementById("terase").onclick=()=>{editTool="erase";syncTools();};
   document.getElementById("tpod").onclick=()=>{editTool="pod";syncTools();};
@@ -1194,6 +1201,7 @@
     deployZone:cells.filter(c=>c.deploy).map(c=>c.id),   // zone de déploiement de l'escouade (cases où le roster apparaît)
     podAnchors:cells.filter(c=>c.podAnchor).map(c=>({cell:c.id,sleep:c.podAnchor==="asleep"})),   // ancres de pods ennemis (éveillé/endormi) peuplés par le moteur à chaque partie
     podSize:(document.getElementById("m-podsize")&&+document.getElementById("m-podsize").value)||2,
+    enemyWeights:missionEWeights(),   // poids de classes pour peupler les pods d'ancres
     units:units.filter(u=>!u.test&&!u.fromAnchor).map(u=>{const o={team:u.team,cls:u.cls,cell:u.cell};if(u.name!==CLASSES[u.cls].name)o.name=u.name;if(u.pod!==undefined)o.pod=u.pod;if(u.asleep)o.asleep=true;if(u.hostage)o.hostage=true;if(u.hvt)o.hvt=true;if(u.team==="neutral"&&u.civ===false)o.guard=true;if(u.facing!=null)o.facing=u.facing;return o;}),
     triggers:triggers,
     protect:(document.getElementById("m-protect")&&document.getElementById("m-protect").value!=="")?+document.getElementById("m-protect").value:undefined,
@@ -1213,7 +1221,7 @@
     if(!m||!Array.isArray(m.cells))throw new Error("format invalide");
     cells=m.cells.map((c,i)=>{const ct=polyCentroid(c.poly);return {id:i,poly:c.poly,cx:ct[0],cy:ct[1],nb:[],terr:c.terr||"plain",elev:c.elev||0,zone:c.zone};});
     { const dz=new Set(Array.isArray(m.deployZone)?m.deployZone:[]); cells.forEach(c=>{ if(dz.has(c.id))c.deploy=true; }); }   // zone de déploiement de l'escouade
-    { (Array.isArray(m.podAnchors)?m.podAnchors:[]).forEach(a=>{ const id=(a&&typeof a==="object")?a.cell:a; const sleep=(a&&typeof a==="object")&&a.sleep; if(cells[id])cells[id].podAnchor=sleep?"asleep":"awake"; }); const ps=document.getElementById("m-podsize"); if(ps)ps.value=m.podSize||2; }   // ancres de pods (compat. ancien format = liste d'ids éveillés)
+    { (Array.isArray(m.podAnchors)?m.podAnchors:[]).forEach(a=>{ const id=(a&&typeof a==="object")?a.cell:a; const sleep=(a&&typeof a==="object")&&a.sleep; if(cells[id])cells[id].podAnchor=sleep?"asleep":"awake"; }); const ps=document.getElementById("m-podsize"); if(ps)ps.value=m.podSize||2; setMissionEWeights(m.enemyWeights); }   // ancres de pods (compat. ancien format = liste d'ids éveillés)
     buildAdj();
     walls=new Set((Array.isArray(m.walls)?m.walls:[]).filter(k=>wallSeg.has(k)));
     units=(m.units||[]).map(u=>U(u.team,u.cls,u.cell,{name:u.name,pod:u.pod,asleep:u.asleep,hostage:u.hostage,hvt:u.hvt,guard:u.guard,facing:u.facing})).filter(u=>cells[u.cell]);
@@ -1723,13 +1731,15 @@
     const e=document.createElement("button");e.id="act-end";e.innerHTML=`<span class="bn">0</span><span class="bi">🙅</span>`;e.title="Fin de tour";e.onclick=()=>{if(!over&&turn==="player")endTurn();};el.appendChild(e);}
   // peuple les pods ennemis autour des ancres (à chaque lancement de partie) : un groupe normal (tous éveillés)
   function spawnAnchorPods(){ const anchors=cells.filter(c=>c.podAnchor).map(c=>({cell:c.id,sleep:c.podAnchor==="asleep"})); if(!anchors.length)return;
-    const ecls=(typeof chosenEnemyClasses==="function"&&chosenEnemyClasses())||["garde","archer","brute"];
+    const W=(curMission&&curMission.enemyWeights)||null; const hasW=W&&Object.keys(W).some(k=>W[k]>0);   // poids par mission ?
+    const ecls=(typeof chosenEnemyClasses==="function"&&chosenEnemyClasses())||["garde","archer","brute"];   // sinon repli : pool coché, cyclage
+    const pick=(pi,j)=>(hasW?(weightedPick(W)||ecls[(pi+j)%ecls.length]):ecls[(pi+j)%ecls.length]);
     const per=Math.max(1,(curMission&&curMission.podSize)||2); const occSet=new Set(units.map(u=>u.cell));
     anchors.forEach((a,pi)=>{ const anc=a.cell; if(!cells[anc])return; const ball=bfsBall(anc,2);
       const pool=Object.keys(ball).map(Number).filter(id=>passable(id)&&!occSet.has(id)).sort((x,y)=>ball[x]-ball[y]);
       const chosen=[]; for(const id of pool){ if(chosen.length>=per)break; if(chosen.every(c=>hops(c,id)>=2))chosen.push(id); }
       for(const id of pool){ if(chosen.length>=per)break; if(!chosen.includes(id))chosen.push(id); }
-      chosen.forEach((id,j)=>{ const u=U("enemy",ecls[(pi+j)%ecls.length],id,{pod:pi,asleep:a.sleep}); u.fromAnchor=true; units.push(u); occSet.add(id); }); }); }
+      chosen.forEach((id,j)=>{ const u=U("enemy",pick(pi,j),id,{pod:pi,asleep:a.sleep}); u.fromAnchor=true; units.push(u); occSet.add(id); }); }); }
   function startGame(){ resetView(); { const t=document.getElementById("title"); if(t)t.style.display="none"; }   // une partie démarre : on retire l'écran-titre
     if(cells.some(c=>c.podAnchor)){ units=units.filter(u=>!u.fromAnchor); spawnAnchorPods(); }   // (re)génère les pods des ancres à chaque (re)lancement
     if(!units.some(u=>u.team==="player")||!units.some(u=>u.team==="enemy")){ setMsg("Place au moins 1 allié et 1 ennemi (mode Éditer)."); }
