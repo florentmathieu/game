@@ -1721,7 +1721,7 @@
     }
     // Fin de tour = bouton 0, toujours en dernier
     const e=document.createElement("button");e.id="act-end";e.innerHTML=`<span class="bn">0</span><span class="bi">🙅</span>`;e.title="Fin de tour";e.onclick=()=>{if(!over&&turn==="player")endTurn();};el.appendChild(e);}
-  // peuple les pods ennemis autour des ancres (à chaque lancement de partie) : composition + leader éveillé / reste endormi
+  // peuple les pods ennemis autour des ancres (à chaque lancement de partie) : un groupe normal (tous éveillés)
   function spawnAnchorPods(){ const anchors=cells.filter(c=>c.podAnchor).map(c=>c.id); if(!anchors.length)return;
     const ecls=(typeof chosenEnemyClasses==="function"&&chosenEnemyClasses())||["garde","archer","brute"];
     const per=Math.max(1,(curMission&&curMission.podSize)||2); const occSet=new Set(units.map(u=>u.cell));
@@ -1729,8 +1729,7 @@
       const pool=Object.keys(ball).map(Number).filter(id=>passable(id)&&!occSet.has(id)).sort((a,b)=>ball[a]-ball[b]);
       const chosen=[]; for(const id of pool){ if(chosen.length>=per)break; if(chosen.every(c=>hops(c,id)>=2))chosen.push(id); }
       for(const id of pool){ if(chosen.length>=per)break; if(!chosen.includes(id))chosen.push(id); }
-      chosen.sort((a,b)=>cells[b].nb.filter(x=>passable(x)).length-cells[a].nb.filter(x=>passable(x)).length);   // leader éveillé = case la plus dégagée
-      chosen.forEach((id,j)=>{ const u=U("enemy",ecls[(pi+j)%ecls.length],id,{pod:pi,asleep:j>0}); u.fromAnchor=true; units.push(u); occSet.add(id); }); }); }
+      chosen.forEach((id,j)=>{ const u=U("enemy",ecls[(pi+j)%ecls.length],id,{pod:pi}); u.fromAnchor=true; units.push(u); occSet.add(id); }); }); }
   function startGame(){ resetView(); { const t=document.getElementById("title"); if(t)t.style.display="none"; }   // une partie démarre : on retire l'écran-titre
     if(cells.some(c=>c.podAnchor)){ units=units.filter(u=>!u.fromAnchor); spawnAnchorPods(); }   // (re)génère les pods des ancres à chaque (re)lancement
     if(!units.some(u=>u.team==="player")||!units.some(u=>u.team==="enemy")){ setMsg("Place au moins 1 allié et 1 ennemi (mode Éditer)."); }
