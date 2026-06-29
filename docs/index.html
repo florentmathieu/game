@@ -1341,6 +1341,7 @@
     else if(n.type==="mission") h+=`<div class="row">mission <select data-f="mission">${missOpts(n.mission)}</select></div><div class="row">📄 intro <select data-f="introFile">${txtOpts(n.introFile)}</select></div><input data-f="intro" type="text" placeholder="…ou intro saisie" value="${esc(n.intro)}"><div class="row">📄 fin <select data-f="outroFile">${txtOpts(n.outroFile)}</select></div><input data-f="outro" type="text" placeholder="…ou fin saisie" value="${esc(n.outro)}"><div class="row">✓ vict. → <select data-f="win">${idOpts(n.win,true)}</select></div><div class="row">✕ déf. → <select data-f="lose">${idOpts(n.lose,true)}</select></div>`;
     else if(n.type==="choice") h+=`<input data-f="title" type="text" placeholder="titre du choix…" value="${esc(n.title)}"><div id="cdopts" style="margin:6px 0"></div><button data-addopt="1">+ option</button>`;
     else if(n.type==="geoscape"){ const ew=n.endWhen||{kind:"all"}; h+=`<div class="row">🌍 territoire <select data-gf="map">${geoMapOpts(n.map)}</select></div>
+      <div class="row"><label style="display:inline-flex;align-items:center;gap:4px" title="La forme/disposition est régénérée à chaque partie ; les noms, missions, difficultés, déverrouillages et événements du territoire sont conservés."><input type="checkbox" data-gf="procshape" ${n.proc?"checked":""}> forme procédurale (change à chaque partie)</label></div>
       <div class="row">fin d'acte <select data-gf="endkind"><option value="all" ${ew.kind!=="key"?"selected":""}>toutes régions résolues</option><option value="key" ${ew.kind==="key"?"selected":""}>région-clé nettoyée</option></select></div>
       <div class="row" id="cd-keyrow" style="${ew.kind==="key"?"":"display:none"}">région-clé (nom) <input data-gf="endname" type="text" value="${esc(ew.name)}" placeholder="nom exact de la région" style="flex:1"></div>
       <div class="row">suite → <select data-f="next">${idOpts(n.next,true)}</select></div>`; }
@@ -1350,8 +1351,8 @@
     if(n.type==="choice"){ const od=el.querySelector("#cdopts"); (n.options||[]).forEach((opt,oi)=>{ const r=document.createElement("div"); r.className="opt-row"; r.innerHTML=`→ <select data-optsel="${oi}" style="flex:1">${idOpts(opt,false)}</select><button data-optdel="${oi}">✕</button>`; od.appendChild(r); }); }
     el.querySelectorAll("input[data-f],select[data-f]").forEach(inp=>{const set=()=>{const f=inp.dataset.f;n[f]=(inp.value===""&&(f==="next"||f==="win"||f==="lose"))?null:inp.value;saveCampDraft();drawGraph();};inp.tagName==="SELECT"?inp.onchange=set:inp.oninput=set;});
     el.querySelectorAll("[data-gf]").forEach(inp=>{ const f=inp.dataset.gf; const set=()=>{ n.endWhen=n.endWhen||{kind:"all",name:""};
-      if(f==="map"){ n.map=inp.value; if(inp.value)delete n.proc; } else if(f==="endkind"){ n.endWhen.kind=inp.value; const kr=el.querySelector("#cd-keyrow"); if(kr)kr.style.display=(inp.value==="key")?"":"none"; } else if(f==="endname")n.endWhen.name=inp.value;   // un territoire authored choisi → on retire la génération procédurale (sinon elle prend le dessus)
-      saveCampDraft(); drawGraph(); }; inp.tagName==="SELECT"?inp.onchange=set:inp.oninput=set; });
+      if(f==="map")n.map=inp.value; else if(f==="procshape"){ if(inp.checked)n.proc=n.proc||{act:1}; else delete n.proc; } else if(f==="endkind"){ n.endWhen.kind=inp.value; const kr=el.querySelector("#cd-keyrow"); if(kr)kr.style.display=(inp.value==="key")?"":"none"; } else if(f==="endname")n.endWhen.name=inp.value;   // procshape : régénère la forme à chaque partie (noms + contenu conservés)
+      saveCampDraft(); drawGraph(); }; (inp.tagName==="SELECT"||inp.type==="checkbox")?inp.onchange=set:inp.oninput=set; });
     el.querySelector("[data-del]").onclick=()=>{campNodes=campNodes.filter(x=>x.id!==n.id);if(campStart===n.id)campStart=campNodes[0]?campNodes[0].id:"";campSel=campNodes[0]?campNodes[0].id:null;renderNodes();};
     el.querySelector("[data-setstart]").onclick=()=>{campStart=n.id;renderNodes();};
     el.querySelector("[data-testhere]").onclick=()=>{ if(!campNodes.length)return; startCampaign({name:cname.value,start:campStart,roster:campRoster,nodes:campNodes},"campaign",n.id); };
@@ -2007,12 +2008,30 @@
       for(const e of enemies){ for(const nb of cells[e.cell].nb){ if(passable(nb)&&!occ0.has(nb)){spot=nb;break;} } if(spot!=null)break; }
       if(spot==null){ const f=cells.find(c=>passable(c.id)&&!occ0.has(c.id)); spot=f?f.id:null; }
       if(spot==null)break; units.push(U("enemy",ecls[k%ecls.length],spot,{pod:podMax,asleep:true})); occ0.add(spot); } }
+  // RESHAPE : garde le contenu d'un territoire dessiné (noms, missions, difficultés, déverrouillages, événements)
+  // mais régénère la FORME (polygones + disposition) avec une graine → « procédural, mêmes noms, juste la forme change ».
+  function reshapeAuthored(authored, seed){
+    const A=(authored.cells||[]).slice(); const want=A.length||9;
+    let g=Math.max(48,Math.round(Math.sqrt(GEO_W*GEO_H/want)*0.92)), gc=[];
+    for(let it=0;it<40;it++){ gc=geoVoronoi(seed,g); const n=gc.length; if(n>want)g=Math.round(g*1.04); else if(n<want)g=Math.round(g*0.96); else break; }
+    const cx0=GEO_W/2,cy0=GEO_H/2;
+    const order=gc.map((c,i)=>({i,d:Math.hypot(c.cx-cx0,c.cy-cy0)})).sort((a,b)=>a.d-b.d).map(o=>o.i);   // nouvelles cellules triées du centre vers l'extérieur
+    let ci=A.findIndex(c=>c.type==="camp"); if(ci<0)ci=0;
+    const seq=[A[ci]].concat(A.filter((_,i)=>i!==ci));   // camp d'abord → posé au centre du nouveau maillage
+    const N=Math.min(gc.length, seq.length);
+    const cells=[]; for(let k=0;k<N;k++){ const a=seq[k]; cells.push({poly:gc[order[k]].poly, name:a.name, type:a.type||"region",
+      content:a.content||{kind:"empty",ref:null}, state:a.state||"available", unlockedBy:Array.isArray(a.unlockedBy)?a.unlockedBy:[], diff:a.diff||0, boss:!!a.boss, forge:!!a.forge}); }
+    return { name:authored.name, camp:0, cells, events:Array.isArray(authored.events)?authored.events:[] };
+  }
   async function enterGeoPlay(node){ let m; await ensureGeoTxt();   // textes éditables chargés avant la génération
-    if(node.proc&&!node.map){ if(campRun.geoSeed==null)campRun.geoSeed=((Date.now()^Math.floor(Math.random()*0x7fffffff))>>>0)||1;   // territoire procédural UNIQUEMENT si aucun territoire authored choisi (sinon on perd ses régions + événements)
-      m=genGeoMap({act:node.proc.act||1,regions:node.proc.regions||10,seed:(campRun.geoSeed^hashStr(node.id))>>>0}); }
-    else { const t=await fetchText("geoscapes-mesh/"+node.map,ghCfg());
+    const seedOf=()=>{ if(campRun.geoSeed==null)campRun.geoSeed=((Date.now()^Math.floor(Math.random()*0x7fffffff))>>>0)||1; return (campRun.geoSeed^hashStr(node.id))>>>0; };   // graine stable par campagne (forme identique sur toute la partie, variable entre parties)
+    if(node.map){ const t=await fetchText("geoscapes-mesh/"+node.map,ghCfg());
       if(!t){ showCampText("Territoire introuvable : "+node.map,()=>{ if(node.next)runNode(node.next); else endCampaignRun("Fin."); }); return; }
-      try{ m=JSON.parse(t); }catch(e){ showCampText("Territoire illisible.",()=>endCampaignRun("Fin.")); return; } }
+      let authored; try{ authored=JSON.parse(t); }catch(e){ showCampText("Territoire illisible.",()=>endCampaignRun("Fin.")); return; }
+      m=node.proc?reshapeAuthored(authored,seedOf()):authored;   // proc = forme régénérée (noms + contenu + événements conservés) ; sinon territoire dessiné tel quel
+    }
+    else if(node.proc){ m=genGeoMap({act:node.proc.act||1,regions:node.proc.regions||10,seed:seedOf()}); }   // purement procédural (sans territoire dessiné)
+    else { showCampText("Aucun territoire défini pour ce nœud.",()=>{ if(node.next)runNode(node.next); else endCampaignRun("Fin."); }); return; }
     campRun.geoStates=campRun.geoStates||{}; if(!campRun.geoStates[node.id])campRun.geoStates[node.id]=m.cells.map(c=>c.state||"locked");
     geoPlay={node,map:m,inMission:false}; { const tt=document.getElementById("title"); if(tt)tt.style.display="none"; }
     document.body.classList.add("geomap"); over=false; resetView(); geoBuildCells(); hoverCell=null; primeInit(); geoBanner(); draw(); runGeoEvents("arrive",()=>saveCampRun()); }   // primes des régions dures + événements de 1ʳᵉ arrivée, puis point de reprise
