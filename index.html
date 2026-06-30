@@ -2186,11 +2186,11 @@
   // ===== « prime express » : incitation à tenter vite les régions DURES =====
   // Une région difficile porte une prime (XP + moral) qui FOND à chaque mission jouée. On la touche en
   // plus si on la prend avant qu'elle s'épuise → dilemme : foncer sur le dur maintenant, ou jouer safe.
-  let PRIME_DIFF_MIN=3, PRIME_XP_STEP=2, PRIME_MORALE_STEP=5;   // réglables (panneau d'équilibrage)
+  let PRIME_DIFF_MIN=3, PRIME_XP_MULT=3, PRIME_XP_STEP=2, PRIME_MORALE_STEP=5;   // réglables (panneau d'équilibrage) — XP de prime = difficulté × PRIME_XP_MULT
   function primeInit(){ if(!campRun||!geoPlay||!geoPlay.map)return; campRun.primes=campRun.primes||{};
     geoPlay.map.cells.forEach((c,i)=>{ const st=campRun.geoStates[geoPlay.node.id];
       if(c.content&&c.content.kind==="mission"&&(c.diff||0)>=PRIME_DIFF_MIN&&c.name&&campRun.primes[c.name]===undefined&&st&&st[i]!=="cleared"){
-        const d=c.diff||3; campRun.primes[c.name]={xp:d*2,morale:d*5,potions:d>=5?1:0}; } }); }
+        const d=c.diff||3; campRun.primes[c.name]={xp:d*PRIME_XP_MULT,morale:d*5,potions:d>=5?1:0}; } }); }
   function primeFront(){ const onFront=new Set(); if(!campRun||!geoPlay||!geoPlay.map)return onFront; const acc=geoAccessibleSet(); geoPlay.map.cells.forEach((c,i)=>{ if(acc.has(i)&&c.name)onFront.add(c.name); }); return onFront; }
   // une prime ne fond QUE quand sa région est déjà sur le front. On lui passe le front d'AVANT la mission :
   // une région qui vient juste de s'ouvrir garde sa prime PLEINE → toujours atteignable « si on joue bien ».
@@ -2272,6 +2272,7 @@
       {k:"DEATH_PCT",label:"Risque mort (K.O.+défaite)",get:()=>DEATH_PCT,set:v=>DEATH_PCT=v,min:0,max:100,step:5,suffix:"%"} ]},
     {name:"Primes express", items:[
       {k:"PRIME_DIFF_MIN",label:"Difficulté min. (★)",get:()=>PRIME_DIFF_MIN,set:v=>PRIME_DIFF_MIN=v,min:1,max:5,step:1},
+      {k:"PRIME_XP_MULT",label:"XP de prime = ★ ×",get:()=>PRIME_XP_MULT,set:v=>PRIME_XP_MULT=v,min:1,max:8,step:1},
       {k:"PRIME_XP_STEP",label:"Décrue XP / mission",get:()=>PRIME_XP_STEP,set:v=>PRIME_XP_STEP=v,min:0,max:6,step:1},
       {k:"PRIME_MORALE_STEP",label:"Décrue moral / mission",get:()=>PRIME_MORALE_STEP,set:v=>PRIME_MORALE_STEP=v,min:0,max:15,step:1} ]},
     {name:"Ennemis par difficulté", items:[
