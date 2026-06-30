@@ -306,8 +306,8 @@
   CLASSES.sergent=CLASSES.soldat;   // compat : anciennes données « sergent » → soldat (non listé comme classe dans les éditeurs)
   // ===== progression : grades discrets + perks exclusifs A/B (moteur = XP de mission) =====
   // La montée est HORIZONTALE (un perk = un avantage qualitatif), l'XP n'est qu'une porte plafonnée.
-  const GRADES=["Recrue","Aguerri","Vétéran","Élite","Champion","Maître","Légende"];   // grade 0..6 (grade = nb de perks choisis)
-  const XP_THRESH=[0,4,9,15,23,33,45];                      // XP cumulée requise pour atteindre le grade i
+  const GRADES=["Recrue","Aguerri","Vétéran","Élite","Champion","Maître","Légende","Mythe"];   // grade 0..7 (grade = nb de perks choisis)
+  const XP_THRESH=[0,4,10,18,28,42,60,82];                  // XP cumulée requise pour atteindre le grade i (paliers de plus en plus espacés)
   const gradeFromXp=xp=>{ let g=0; for(let i=0;i<XP_THRESH.length;i++)if((xp||0)>=XP_THRESH[i])g=i; return g; };
   // catalogue : par classe, une paire A/B par grade (index 0 = 1er grade). mod = bonus appliqués au déploiement.
   // A = capacité spéciale (verbe), B = bonus chiffré. abil = id d'une capacité active (cf. ABIL).
@@ -317,25 +317,29 @@
               {A:{id:"se3a",name:"Tenir la ligne",desc:"Vigilance des alliés adjacents",abil:"holdline"}, B:{id:"se3b",name:"Garde d'acier",desc:"+15% blocage",mod:{shieldBlock:15}}},
               {A:{id:"se4a",name:"Allonge",desc:"+1 point de mouvement gratuit (sans PA)",mod:{freeMp:1}}, B:{id:"se4b",name:"Vétéran",desc:"+2 dégât",mod:{dmg:2}}},
               {A:{id:"se5a",name:"Étendard",desc:"+2 dégât",mod:{dmg:2}}, B:{id:"se5b",name:"Increvable",desc:"+6 PV",mod:{hp:6}}},
-              {A:{id:"se6a",name:"Maître d'armes",desc:"+20 visée",mod:{aim:20}}, B:{id:"se6b",name:"Bastion vivant",desc:"+20% blocage",mod:{shieldBlock:20}}} ],
+              {A:{id:"se6a",name:"Maître d'armes",desc:"+20 visée",mod:{aim:20}}, B:{id:"se6b",name:"Bastion vivant",desc:"+20% blocage",mod:{shieldBlock:20}}},
+              {A:{id:"se7a",name:"Héros de guerre",desc:"+3 dégât",mod:{dmg:3}}, B:{id:"se7b",name:"Colosse d'acier",desc:"+8 PV",mod:{hp:8}}} ],
     sapeur:[ {A:{id:"sa1a",name:"Fumigène",desc:"Voile la ligne de vue (zone, 2 tours)",abil:"smoke"}, B:{id:"sa1b",name:"Œil de lynx",desc:"+10 visée",mod:{aim:10}}},
              {A:{id:"sa2a",name:"Charge creuse",desc:"Détruit un rocher/muret (ouvre un passage)",abil:"breach"}, B:{id:"sa2b",name:"Endurci",desc:"+3 PV",mod:{hp:3}}},
              {A:{id:"sa3a",name:"Artificier",desc:"Cracker plus précis (moins de dispersion)",mod:{scatter:1}}, B:{id:"sa3b",name:"Charge lourde",desc:"+2 dégât",mod:{dmg:2}}},
              {A:{id:"sa4a",name:"Munitions",desc:"+1 cracker",mod:{crackers:1}}, B:{id:"sa4b",name:"Leste",desc:"+1 mouvement",mod:{mob:1}}},
              {A:{id:"sa5a",name:"Visée affûtée",desc:"+15 visée",mod:{aim:15}}, B:{id:"sa5b",name:"Endurance",desc:"+5 PV",mod:{hp:5}}},
-             {A:{id:"sa6a",name:"Démolisseur",desc:"+3 dégât",mod:{dmg:3}}, B:{id:"sa6b",name:"Artificier d'élite",desc:"+1 cracker",mod:{crackers:1}}} ],
+             {A:{id:"sa6a",name:"Démolisseur",desc:"+3 dégât",mod:{dmg:3}}, B:{id:"sa6b",name:"Artificier d'élite",desc:"+1 cracker",mod:{crackers:1}}},
+             {A:{id:"sa7a",name:"Pluie de feu",desc:"+1 cracker",mod:{crackers:1}}, B:{id:"sa7b",name:"Maître artificier",desc:"+2 dégât",mod:{dmg:2}}} ],
     assassin:[ {A:{id:"as1a",name:"Frappe de l'ombre",desc:"Bond au flanc/dos d'un ennemi + dégâts",abil:"shadowstrike"}, B:{id:"as1b",name:"Lame vive",desc:"+2 dégât",mod:{dmg:2}}},
                {A:{id:"as2a",name:"Estompe",desc:"Redevient indétectable un tour (1×/combat)",abil:"vanish"}, B:{id:"as2b",name:"Précision",desc:"+10 visée",mod:{aim:10}}},
                {A:{id:"as3a",name:"Tueur",desc:"+2 dégât",mod:{dmg:2}}, B:{id:"as3b",name:"Insaisissable",desc:"+20% parade",mod:{parry:20}}},
                {A:{id:"as4a",name:"Allonge",desc:"+1 point de mouvement gratuit (sans PA)",mod:{freeMp:1}}, B:{id:"as4b",name:"Coupe-jarret",desc:"+2 dégât",mod:{dmg:2}}},
                {A:{id:"as5a",name:"Ombre mortelle",desc:"+3 dégât",mod:{dmg:3}}, B:{id:"as5b",name:"Spectre",desc:"+20% parade",mod:{parry:20}}},
-               {A:{id:"as6a",name:"Fileur",desc:"+1 point de mouvement gratuit (sans PA)",mod:{freeMp:1}}, B:{id:"as6b",name:"Égorgeur",desc:"+20 visée",mod:{aim:20}}} ],
+               {A:{id:"as6a",name:"Fileur",desc:"+1 point de mouvement gratuit (sans PA)",mod:{freeMp:1}}, B:{id:"as6b",name:"Égorgeur",desc:"+20 visée",mod:{aim:20}}},
+               {A:{id:"as7a",name:"Danse des lames",desc:"+3 dégât",mod:{dmg:3}}, B:{id:"as7b",name:"Ombre absolue",desc:"+25% parade",mod:{parry:25}}} ],
     garde:[ {A:{id:"ga1a",name:"Bouclier protecteur",desc:"Intercepte un coup visant un allié adjacent",abil:"protect"}, B:{id:"ga1b",name:"Robuste",desc:"+4 PV",mod:{hp:4}}},
             {A:{id:"ga2a",name:"Mur mobile",desc:"Donne du couvert aux alliés adjacents",abil:"wall"}, B:{id:"ga2b",name:"Repousser",desc:"Repousse l'ennemi adjacent d'une case (50% étourdi)",abil:"shove"}},
             {A:{id:"ga3a",name:"Foulée",desc:"+1 mouvement",mod:{mob:1}}, B:{id:"ga3b",name:"Bastion",desc:"+5 PV",mod:{hp:5}}},
             {A:{id:"ga4a",name:"Charge longue",desc:"Course puis attaque ; impact selon la distance parcourue",abil:"charge"}, B:{id:"ga4b",name:"Rempart",desc:"+15% blocage",mod:{shieldBlock:15}}},
             {A:{id:"ga5a",name:"Forteresse",desc:"+6 PV",mod:{hp:6}}, B:{id:"ga5b",name:"Bouclier-tour",desc:"+20% blocage",mod:{shieldBlock:20}}},
-            {A:{id:"ga6a",name:"Inébranlable",desc:"+8 PV",mod:{hp:8}}, B:{id:"ga6b",name:"Contre-charge",desc:"+2 dégât",mod:{dmg:2}}} ],
+            {A:{id:"ga6a",name:"Inébranlable",desc:"+8 PV",mod:{hp:8}}, B:{id:"ga6b",name:"Contre-charge",desc:"+2 dégât",mod:{dmg:2}}},
+            {A:{id:"ga7a",name:"Mur infranchissable",desc:"+25% blocage",mod:{shieldBlock:25}}, B:{id:"ga7b",name:"Titan",desc:"+10 PV",mod:{hp:10}}} ],
     brute:[ {A:{id:"br1a",name:"Colosse",desc:"+5 PV",mod:{hp:5}}, B:{id:"br1b",name:"Bourrin",desc:"+2 dégât",mod:{dmg:2}}},
             {A:{id:"br2a",name:"Fracasse",desc:"+3 dégât",mod:{dmg:3}}, B:{id:"br2b",name:"Foulée",desc:"+1 mouvement",mod:{mob:1}}},
             {A:{id:"br3a",name:"Cuir épais",desc:"+6 PV",mod:{hp:6}}, B:{id:"br3b",name:"Carnage",desc:"+3 dégât",mod:{dmg:3}}},
@@ -345,7 +349,8 @@
            {A:{id:"mg3a",name:"Givre",desc:"Ralentit un ennemi (−1 PA à son tour)",abil:"frost"}, B:{id:"mg3b",name:"Vitalité",desc:"+5 PV",mod:{hp:5}}},
            {A:{id:"mg4a",name:"Mana profonde",desc:"+1 portée",mod:{range:1}}, B:{id:"mg4b",name:"Robe matelassée",desc:"+4 PV",mod:{hp:4}}},
            {A:{id:"mg5a",name:"Arcaniste",desc:"+2 dégât",mod:{dmg:2}}, B:{id:"mg5b",name:"Longue portée+",desc:"+2 portée",mod:{range:2}}},
-           {A:{id:"mg6a",name:"Archimage",desc:"+3 dégât",mod:{dmg:3}}, B:{id:"mg6b",name:"Flux vital",desc:"+6 PV",mod:{hp:6}}} ],
+           {A:{id:"mg6a",name:"Archimage",desc:"+3 dégât",mod:{dmg:3}}, B:{id:"mg6b",name:"Flux vital",desc:"+6 PV",mod:{hp:6}}},
+           {A:{id:"mg7a",name:"Cataclysme",desc:"+4 dégât",mod:{dmg:4}}, B:{id:"mg7b",name:"Océan de mana",desc:"+2 portée",mod:{range:2}}} ],
   };
   PERKS.sergent=PERKS.soldat;   // compat : « sergent » utilise l'arbre du soldat
   const perkById=(cls,id)=>{ for(const g of (PERKS[cls]||[])){ if(g.A.id===id)return g.A; if(g.B.id===id)return g.B; } return null; };
