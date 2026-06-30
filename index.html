@@ -1687,7 +1687,7 @@
     document.body.classList.remove("testing"); setView("play"); runNode(fromNode||camp.start); }
   async function startPlay(){ let camp=loadCampDraft();
     if(!camp){ const t=await fetchText("campaigns-mesh/principale.json",ghCfg()); if(t){try{camp=JSON.parse(t);}catch(e){}} }
-    if(camp&&Array.isArray(camp.nodes)&&camp.nodes.length){ const C={name:camp.name||"",start:camp.start||(camp.nodes[0]&&camp.nodes[0].id),roster:camp.roster||[],nodes:camp.nodes};
+    if(camp&&Array.isArray(camp.nodes)&&camp.nodes.length){ const C={name:camp.name||"",start:camp.start||(camp.nodes[0]&&camp.nodes[0].id),roster:camp.roster||[],dialogs:camp.dialogs||[],nodes:camp.nodes};
       const save=loadCampRunSave(C.name);
       if(save&&Array.isArray(save.roster)&&save.roster.length){   // un acte est en cours : proposer de reprendre
         askPush("Un acte est en cours — "+(save.winCount||0)+" mission(s) gagnée(s). Reprendre où tu t'es arrêté, ou tout recommencer ?",
