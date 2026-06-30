@@ -529,7 +529,7 @@
     log(`${att.team==="player"?"▲":"▼"} ${att.name} ${w.type==="ranged"?"tire sur":"frappe"} ${tgt.name} (${ch}%) : ${txt}`,att.team);
     const ctx={actorName:att.name,actorCls:att.cls,actorTeam:att.team,targetName:tgt.name,targetCls:tgt.cls,targetTeam:tgt.team,weapon:wn,result,killed,dmg,reaction:!!reaction,targetHpPct:Math.round(100*Math.max(0,tgt.hp)/tgt.max)};
     emit("attack",ctx); if(dmg>0)emit("wounded",ctx); if(killed)emit("kill",ctx);
-    if(tgt.team==="enemy"&&tgt.hp>0)wakeEnemy(tgt,"noise");   // le combat fait du bruit : réveille le pod visé
+    if(tgt.team==="enemy")wakeEnemy(tgt,"noise");   // le combat fait du bruit (un coup OU un kill) : réveille le pod visé — wakePod réveille les survivants
     checkEnd(); if(!over)refresh();}   // si l'attaque met fin à la mission (→ campEnd/geoMissionEnd a déjà basculé le contexte), ne pas recalculer la vision sur des unités/cellules périmées
 
   // ===== évènements scriptés (triggers) + dialogues =====
