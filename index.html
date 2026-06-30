@@ -128,6 +128,7 @@
   #title-btn{ margin-top:10px; font-size:1.05rem; padding:9px 20px }
   #balance-fab{ position:fixed; right:14px; bottom:14px; z-index:18; width:42px; height:42px; border-radius:50%; font-size:1.3rem; background:rgba(12,9,6,.92); border:1px solid #5a4530; color:#e8ddc8; box-shadow:0 3px 10px rgba(0,0,0,.5); cursor:pointer }
   #music-fab{ position:fixed; right:14px; bottom:62px; z-index:18; width:42px; height:42px; border-radius:50%; font-size:1.2rem; background:rgba(12,9,6,.92); border:1px solid #5a4530; color:#e8ddc8; box-shadow:0 3px 10px rgba(0,0,0,.5); cursor:pointer }
+  #music-vol{ position:fixed; right:60px; bottom:73px; z-index:18; width:104px; accent-color:#caa24a; cursor:pointer; background:rgba(12,9,6,.92); border:1px solid #5a4530; border-radius:8px; padding:3px 6px; box-shadow:0 3px 10px rgba(0,0,0,.5) }
   #balance{ position:fixed; inset:0; background:rgba(0,0,0,.6); display:none; z-index:30; align-items:center; justify-content:center; padding:20px }
   #balance.show{ display:flex }
   #balance-card{ background:#14100a; border:1px solid #5a4530; border-radius:12px; width:min(560px,96vw); max-height:88vh; display:flex; flex-direction:column; box-shadow:0 12px 40px rgba(0,0,0,.7); color:var(--ink) }
@@ -283,6 +284,8 @@
 <div id="title"><button id="title-btn">New game</button><button id="title-reset" style="margin-top:10px;font-size:.8rem;opacity:.6;background:none;border:1px solid #555;color:#bbb">↺ Recommencer à zéro</button><button id="title-balance" style="margin-top:8px;font-size:.8rem;opacity:.6;background:none;border:1px solid #555;color:#bbb">⚖ Équilibrage</button></div>
 <button id="balance-fab" title="Réglages d'équilibrage">⚖</button>
 <button id="music-fab" title="Couper / activer la musique">🎵</button>
+<input id="music-vol" type="range" min="0" max="100" title="Volume de la musique">
+
 <div id="balance"><div id="balance-card"><div id="balance-hd">⚖ Équilibrage <span id="balance-x">✕</span></div><div id="balance-body"></div><div id="balance-ft"><button id="balance-reset">↺ Valeurs par défaut</button><span class="hint" style="font-size:.74rem">Sauvé automatiquement · s'applique aux prochains combats</span></div></div></div>
 <div id="camptext"><div id="camptext-body"></div><button id="camptext-btn">…</button></div>
 <div id="sheet"><div id="sheet-card"><div id="sheet-hd">📖 Escouade — grades & perks <button id="sheet-x">✕ Fermer</button></div><div id="sheet-body"></div></div></div>
@@ -387,20 +390,27 @@
     if(m.hp){u.max+=m.hp;u.hp+=m.hp;} if(m.shieldBlock)u.shieldBlock=(u.shieldBlock||0)+m.shieldBlock; if(m.parry)u.parry=(u.parry||0)+m.parry;
     if(m.crackers){u.crackers=(u.crackers||0)+m.crackers;u.crackers0=(u.crackers0||0)+m.crackers;} if(m.mob)u.mobBonus=(u.mobBonus||0)+m.mob; if(m.aim)u.aimBonus=(u.aimBonus||0)+m.aim;
     if(m.dmg)u.dmgBonus=(u.dmgBonus||0)+m.dmg; if(m.range)u.rangeBonus=(u.rangeBonus||0)+m.range; if(m.scatter)u.scatterBonus=(u.scatterBonus||0)+m.scatter; if(m.freeMp)u.freeMpBonus=(u.freeMpBonus||0)+m.freeMp; } }
-  // ===== musique : un dossier music/ + manifest.json ; piste tirée AU HASARD par contexte (missions / interludes / geoscape) =====
-  const MUSIC={ list:{missions:[],interludes:[],geoscape:[]}, cat:null, vol:0.5, mute:false, base:"music/", ready:false };
+  // ===== musique : dossier music/ + manifest.json ; piste tirée AU HASARD par contexte (missions / interludes / geoscape) =====
+  // boucle pendant un contexte ; à chaque transition : fondu de sortie de l'ancienne + fondu d'entrée de la nouvelle (lancée quand l'écran s'affiche)
+  const MUSIC={ list:{missions:[],interludes:[],geoscape:[]}, cat:null, vol:0.5, mute:false, base:"music/", ready:false }, FADE_MS=700;
   try{ const p=JSON.parse(localStorage.getItem("mgf_music")||"{}"); if(typeof p.vol==="number")MUSIC.vol=Math.max(0,Math.min(1,p.vol)); MUSIC.mute=!!p.mute; }catch(e){}
-  const musicEl=new Audio(); musicEl.loop=true; musicEl.preload="auto";
+  const musicEls=[new Audio(),new Audio()]; musicEls.forEach(a=>{a.loop=true;a.preload="auto";}); let curEl=0;
   fetch(MUSIC.base+"manifest.json",{cache:"no-store"}).then(r=>r.ok?r.json():null).then(j=>{ MUSIC.ready=true; if(j)for(const k of ["missions","interludes","geoscape"])if(Array.isArray(j[k]))MUSIC.list[k]=j[k].slice();
     if(MUSIC.cat){ const c=MUSIC.cat; MUSIC.cat=null; playMusic(c); } }).catch(()=>{ MUSIC.ready=true; });   // si une demande est arrivée avant le manifest, on (re)lance
+  function fade(el,to,done){ if(el._ft){clearInterval(el._ft);el._ft=null;} const from=el.volume, steps=Math.max(1,Math.round(FADE_MS/40)); let i=0;
+    el._ft=setInterval(()=>{ i++; el.volume=Math.max(0,Math.min(1,from+(to-from)*i/steps)); if(i>=steps){ clearInterval(el._ft); el._ft=null; el.volume=Math.max(0,Math.min(1,to)); if(done)done(); } },40); }
   function playMusic(cat){ if(!cat||cat===MUSIC.cat)return; MUSIC.cat=cat;   // même contexte → on garde la piste en cours (pas de redémarrage)
-    const pool=MUSIC.list[cat]||[]; if(!pool.length)return;   // pas de fichier listé pour ce contexte : on laisse la piste actuelle (ou le silence)
-    const f=pool[Math.floor(Math.random()*pool.length)]; musicEl.src=MUSIC.base+f; musicEl.volume=MUSIC.mute?0:MUSIC.vol;
-    const pr=musicEl.play(); if(pr&&pr.catch)pr.catch(()=>{}); }   // l'autoplay peut être bloqué tant que l'utilisateur n'a pas interagi : on ignore l'échec
+    const pool=MUSIC.list[cat]||[], old=musicEls[curEl];
+    if(!pool.length){ if(old&&!old.paused)fade(old,0,()=>old.pause()); return; }   // aucun fichier pour ce contexte : on baisse l'actuelle en fondu
+    const f=pool[Math.floor(Math.random()*pool.length)], ni=1-curEl, nEl=musicEls[ni];
+    if(nEl._ft){clearInterval(nEl._ft);nEl._ft=null;} nEl.src=MUSIC.base+f; nEl.volume=0; try{nEl.currentTime=0;}catch(e){}
+    const pr=nEl.play(); if(pr&&pr.catch)pr.catch(()=>{}); curEl=ni;   // l'autoplay peut être bloqué tant que l'utilisateur n'a pas interagi : on ignore l'échec
+    fade(nEl, MUSIC.mute?0:MUSIC.vol);                                  // fondu d'entrée de la nouvelle
+    if(old&&old!==nEl&&!old.paused)fade(old,0,()=>old.pause()); }       // fondu de sortie de l'ancienne
   function saveMusicPrefs(){ try{ localStorage.setItem("mgf_music",JSON.stringify({vol:MUSIC.vol,mute:MUSIC.mute})); }catch(e){} }
-  function setMusicMute(m){ MUSIC.mute=m; musicEl.volume=m?0:MUSIC.vol; if(!m&&musicEl.src&&musicEl.paused){const pr=musicEl.play();if(pr&&pr.catch)pr.catch(()=>{});} saveMusicPrefs(); syncMusicBtn(); }
-  function setMusicVol(v){ MUSIC.vol=Math.max(0,Math.min(1,v)); if(!MUSIC.mute)musicEl.volume=MUSIC.vol; saveMusicPrefs(); }
-  function syncMusicBtn(){ const b=document.getElementById("music-fab"); if(b)b.textContent=MUSIC.mute?"🔇":"🎵"; }
+  function setMusicMute(m){ MUSIC.mute=m; const el=musicEls[curEl]; if(el){ if(el._ft){clearInterval(el._ft);el._ft=null;} el.volume=m?0:MUSIC.vol; if(!m&&el.src&&el.paused){const pr=el.play();if(pr&&pr.catch)pr.catch(()=>{});} } saveMusicPrefs(); syncMusicBtn(); }
+  function setMusicVol(v){ MUSIC.vol=Math.max(0,Math.min(1,v)); if(MUSIC.vol>0&&MUSIC.mute){MUSIC.mute=false;syncMusicBtn();} const el=musicEls[curEl]; if(el&&!MUSIC.mute){ if(el._ft){clearInterval(el._ft);el._ft=null;} el.volume=MUSIC.vol; } saveMusicPrefs(); }
+  function syncMusicBtn(){ const b=document.getElementById("music-fab"); if(b)b.textContent=MUSIC.mute?"🔇":"🎵"; const s=document.getElementById("music-vol"); if(s)s.value=Math.round(MUSIC.vol*100); }
   const ENEMY_VIS=8, SLEEP_VIS=6;   // éveillé : 8 (comme le joueur) ; endormi : 6
   const mk=s=>()=>{s|=0;s=s+0x6D2B79F5|0;let t=Math.imul(s^s>>>15,1|s);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;};
   let RND=mk(7), seed=7, mode="edit", editTool="zone:square", islandTrim=true;   // islandTrim : retire les cellules de bord (effet île), mission + geoscape
@@ -1769,8 +1779,8 @@
     if(n.mortal)applyMortal(n.mortal);   // « son rôle est fait » : ce nœud peut rendre des persos mortels
     if(n.recruit)applyRecruit(n.recruit);   // renforts : ce nœud peut faire rejoindre de nouveaux persos
     if(n.type==="text"||n.type==="choice")saveCampRun();   // point de reprise (hors combat)
-    if(n.type==="text"){ if(campRun.seen&&campRun.seen.has(id)){runNode(n.next);return;} if(campRun.seen)campRun.seen.add(id); playMusic("interludes"); resolveText(n.text,n.file).then(t=>showCampText(t||"…",()=>runNode(n.next)));return;}
-    if(n.type==="choice"){ playMusic("interludes"); showChoice(n);return;}
+    if(n.type==="text"){ if(campRun.seen&&campRun.seen.has(id)){runNode(n.next);return;} if(campRun.seen)campRun.seen.add(id); resolveText(n.text,n.file).then(t=>{ showCampText(t||"…",()=>runNode(n.next)); playMusic("interludes"); });return;}   // musique lancée quand le texte s'affiche
+    if(n.type==="choice"){ showChoice(n); playMusic("interludes"); return;}
     if(n.type==="geoscape"){ enterGeoPlay(n); return; }
     loadMissionNode(n,false); }
   async function loadMissionNode(n,retry){ const t=await fetchText("missions-mesh/"+n.mission,ghCfg()); if(!t){showCampText("Mission introuvable : "+n.mission,()=>endCampaignRun("Fin."));return;}
@@ -1850,7 +1860,7 @@
     banner("Tour du joueur","player"); playMusic("missions"); emit("start",{}); emit("turn",{turn:1}); }
   document.getElementById("end").onclick=()=>{if(!over&&turn==="player"&&mode==="play")endTurn();};
   { const jh=document.getElementById("journal-hd"); if(jh)jh.onclick=()=>document.getElementById("journal").classList.toggle("collapsed"); }
-  { const mb=document.getElementById("music-fab"); if(mb){ mb.onclick=()=>setMusicMute(!MUSIC.mute); } syncMusicBtn(); }
+  { const mb=document.getElementById("music-fab"); if(mb){ mb.onclick=()=>setMusicMute(!MUSIC.mute); } const mv=document.getElementById("music-vol"); if(mv){ mv.value=Math.round(MUSIC.vol*100); mv.oninput=()=>setMusicVol((+mv.value)/100); } syncMusicBtn(); }
   document.getElementById("overbtn").onclick=()=>{ if(mode==="play")startGame(); };
   // escouade de test : posée sur la zone de déploiement le temps d'un essai, retirée en sortant (jamais sauvegardée)
   function spawnTestSquad(){ const dz=cells.filter(c=>c.deploy&&passable(c.id)&&!uAt(c.id)).sort((a,b)=>(a.cy-b.cy)||(a.cx-b.cx));
