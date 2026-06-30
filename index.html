@@ -1981,6 +1981,13 @@
       gunlock:Array.isArray(c.unlockedBy)?c.unlockedBy:[],gstate:st[i]||"locked",gdiff:c.diff||0,gforge:!!c.forge,gboss:!!c.boss}; });
     buildAdj(); geoCampId=(m.camp!=null)?m.camp:null;
     if(campRun){ campRun.geoAdj=campRun.geoAdj||{}; campRun.geoAdj[geoPlay.node.id]=cells.map(c=>c.nb.slice()); } }   // adjacence figée (réutilisable même pendant une mission, où `cells` = la mission)
+  // cadre tout le territoire dans la vue (sinon, à zoom 1, il déborde)
+  function geoFitView(){ cv.width=GEO_W; cv.height=GEO_H; if(!cells.length){ resetView(); return; }
+    let minx=1e9,miny=1e9,maxx=-1e9,maxy=-1e9;
+    for(const c of cells)for(const p of c.poly){ if(p[0]<minx)minx=p[0]; if(p[1]<miny)miny=p[1]; if(p[0]>maxx)maxx=p[0]; if(p[1]>maxy)maxy=p[1]; }
+    const bw=Math.max(1,maxx-minx), bh=Math.max(1,maxy-miny), margin=0.9;
+    zoom=Math.min(cv.width/bw, cv.height/bh)*margin;
+    panX=(cv.width-(minx+maxx)*zoom)/2; panY=(cv.height-(miny+maxy)*zoom)/2; }
   // une région est ACCESSIBLE si un chemin libre la relie au camp : elle touche le camp ou une région déjà PRISE (front).
   function geoAccessibleSet(nodeId){ const acc=new Set(); if(!campRun||!geoPlay)return acc; nodeId=nodeId||geoPlay.node.id;
     const adj=campRun.geoAdj&&campRun.geoAdj[nodeId], st=campRun.geoStates&&campRun.geoStates[nodeId], map=geoPlay.map; if(!adj||!st||!map)return acc;
@@ -2099,7 +2106,7 @@
     else { showCampText("Aucun territoire défini pour ce nœud.",()=>{ if(node.next)runNode(node.next); else endCampaignRun("Fin."); }); return; }
     campRun.geoStates=campRun.geoStates||{}; if(!campRun.geoStates[node.id])campRun.geoStates[node.id]=m.cells.map(c=>c.state||"locked");
     geoPlay={node,map:m,inMission:false}; { const tt=document.getElementById("title"); if(tt)tt.style.display="none"; }
-    document.body.classList.add("geomap"); over=false; resetView(); geoBuildCells(); hoverCell=null; primeInit(); geoBanner(); draw(); runGeoEvents("arrive",()=>saveCampRun()); }   // primes des régions dures + événements de 1ʳᵉ arrivée, puis point de reprise
+    document.body.classList.add("geomap"); over=false; resetView(); geoBuildCells(); geoFitView(); hoverCell=null; primeInit(); geoBanner(); draw(); runGeoEvents("arrive",()=>saveCampRun()); }   // primes des régions dures + événements de 1ʳᵉ arrivée, puis point de reprise
   function geoBanner(t){ const el=document.getElementById("geobanner"); if(!el||!geoPlay)return;
     const avail=geoAccessibleSet().size;   // régions accessibles (sur le front, reliées au camp)
     const sub=t!=null?esc(t):(avail?gtx("messages.choose",{n:avail}):gtx("messages.noFront"));
@@ -2223,7 +2230,7 @@
     if(deaths.length)events.push("✝ "+deaths.join(", ")+(deaths.length>1?" sont tombé·e·s au combat. Iels quittent le roster.":" est tombé·e au combat. Iel quitte le roster."));
     if(lostSpecial.length)events.push("★ "+lostSpecial.join(", ")+" — leur rôle est accompli : iels ne sont plus à l'abri du destin.");
     const showEvents=after=>{ if(!events.length){after();return;} announce(events.shift(),()=>showEvents(after)); };
-    const toCamp=()=>{ document.body.classList.add("geomap"); resetView(); geoBuildCells(); hoverCell=null; primeInit();
+    const toCamp=()=>{ document.body.classList.add("geomap"); resetView(); geoBuildCells(); geoFitView(); hoverCell=null; primeInit();
       geoBanner(win?gtx("messages.secured"):gtx("messages.lost")); draw();
       runGeoEvents("after",{region:rn,missionN:campRun.missionN},()=>runGeoEvents("debrief",()=>{ geoBuildCells(); draw(); geoBanner(); saveCampRun(); })); };   // texte d'après-mission, puis « région prise / N victoires », redessine, point de reprise
     const resolveDebrief=()=>{ if(geoEndReached(node,st)){ const nx=node.next; geoPlay=null; document.body.classList.remove("geomap");
