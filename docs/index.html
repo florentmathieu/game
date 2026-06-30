@@ -113,6 +113,7 @@
   .sh-m{ border:1px solid #3a2c1c; border-radius:9px; padding:10px 12px; margin:9px 0; background:#0f0c08 } .sh-m.sh-dead{ opacity:.5 }
   .sh-h{ font-size:1rem } .sh-h .sh-cls{ color:#8a93a5 } .sh-grade{ color:#9fd0a8; font-weight:bold } .sh-xp{ font-size:.8rem; color:#b9ad95; margin:3px 0 7px }
   .sh-perk{ font-size:.86rem; margin:3px 0; padding-left:4px; border-left:2px solid #5a4530 } .sh-perk .sh-t{ color:#e0b341; font-weight:bold } .sh-perk .sh-ab{ color:#8a93a5; font-size:.78rem } .sh-perk .sh-d{ color:#b9ad95 }
+  .sh-alt{ font-size:.78rem; color:#7a715f; margin-top:2px; padding-left:8px } .sh-alt .sh-d{ color:#6a6253 }
   .sh-none{ font-size:.82rem; color:#7a715f; font-style:italic }
   #storybox{ position:fixed; left:50%; transform:translateX(-50%); bottom:18px; width:min(720px,92vw); display:none; z-index:9;
     background:rgba(10,8,5,.82); border:1px solid #5a4530; border-radius:10px; padding:13px 18px; color:#e8ddc8; font-family:Georgia,serif; box-shadow:0 8px 28px rgba(0,0,0,.6) }
@@ -364,7 +365,20 @@
            {A:{id:"mg7a",name:"Cataclysme",desc:"+4 dégât",mod:{dmg:4}}, B:{id:"mg7b",name:"Océan de mana",desc:"+2 portée",mod:{range:2}}} ],
   };
   PERKS.sergent=PERKS.soldat;   // compat : « sergent » utilise l'arbre du soldat
-  const perkById=(cls,id)=>{ for(const g of (PERKS[cls]||[])){ if(g.A.id===id)return g.A; if(g.B.id===id)return g.B; } return null; };
+  // colonne B (droite) des promotions = perk de stats TIRÉ AU HASARD dans ce pool (utile à toutes les classes)
+  const RANDOM_PERKS=[
+    {id:"rp_dmg2",name:"Lame affûtée",desc:"+2 dégât",mod:{dmg:2}},
+    {id:"rp_dmg3",name:"Frappe lourde",desc:"+3 dégât",mod:{dmg:3}},
+    {id:"rp_hp4",name:"Constitution",desc:"+4 PV",mod:{hp:4}},
+    {id:"rp_hp7",name:"Vigueur",desc:"+7 PV",mod:{hp:7}},
+    {id:"rp_aim15",name:"Œil de faucon",desc:"+15 visée",mod:{aim:15}},
+    {id:"rp_aim25",name:"Tireur d'élite",desc:"+25 visée",mod:{aim:25}},
+    {id:"rp_mob1",name:"Foulée",desc:"+1 mouvement",mod:{mob:1}},
+    {id:"rp_freemp",name:"Allonge",desc:"+1 mouvement gratuit (sans PA)",mod:{freeMp:1}},
+    {id:"rp_parry20",name:"Parade",desc:"+20% parade",mod:{parry:20}},
+  ];
+  const randStatPerk=()=>RANDOM_PERKS[Math.floor(Math.random()*RANDOM_PERKS.length)];
+  const perkById=(cls,id)=>{ for(const g of (PERKS[cls]||[])){ if(g.A.id===id)return g.A; if(g.B.id===id)return g.B; } return RANDOM_PERKS.find(p=>p.id===id)||null; };
   function applyPerkMods(u,perkIds){ for(const id of (perkIds||[])){ const p=perkById(u.cls,id); if(!p)continue;
     if(p.abil){ (u.abil||(u.abil=[])).push(p.abil); if(p.abil==="protect")u.protect=true; continue; }
     const m=p.mod; if(!m)continue;
@@ -1612,7 +1626,7 @@
   const SAVE_PREFIX="mgf_camp_save_";
   const campSlug=n=>(n||"camp").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g,"").replace(/[^a-z0-9]+/g,"-").replace(/(^-|-$)/g,"")||"camp";
   function saveRosterProgress(){ if(!campRun||!campRun.camp)return; try{ localStorage.setItem(SAVE_PREFIX+campSlug(campRun.camp.name),
-    JSON.stringify({roster:campRun.roster.map(m=>({name:m.name,cls:m.cls,xp:m.xp||0,perks:(m.perks||[]).slice(),stress:m.stress||0,fatigue:m.fatigue||0,special:m.special!==false,dead:!!m.dead}))})); }catch(e){} }
+    JSON.stringify({roster:campRun.roster.map(m=>({name:m.name,cls:m.cls,xp:m.xp||0,perks:(m.perks||[]).slice(),offered:m.offered||{},stress:m.stress||0,fatigue:m.fatigue||0,special:m.special!==false,dead:!!m.dead}))})); }catch(e){} }
   function loadRosterProgress(name){ try{ const t=localStorage.getItem(SAVE_PREFIX+campSlug(name)); if(t){ const o=JSON.parse(t); if(o&&Array.isArray(o.roster))return o.roster; } }catch(e){} return null; }
   function clearRosterProgress(name){ try{ localStorage.removeItem(SAVE_PREFIX+campSlug(name)); localStorage.removeItem(EVT_PREFIX+campSlug(name)); }catch(e){} }
   // événements scénarisés déjà déclenchés (pour ne pas les rejouer), persistés par campagne
@@ -1682,15 +1696,17 @@
   // autoPromote (option/tests) : si défini, choisit sans UI ; sinon, écran cliquable.
   let autoPromote=null;
   function showPromotions(done){ const list=pendingPromotions(), el=document.getElementById("promote");
-    if(autoPromote){ for(const it of list){ const pair=PERKS[it.m.cls][it.grade], k=autoPromote(it.m,it.grade,pair)||"A"; it.m.perks=it.m.perks||[]; it.m.perks.push((pair[k]||pair.A).id); } saveRosterProgress(); done(); return; }
+    // colonne A = arbre fixe de la classe ; colonne B = perk de stats tiré au hasard (mémorisé dans m.offered pour pouvoir afficher l'option écartée)
+    const rec=(it,offer,took)=>{ it.m.perks=it.m.perks||[]; it.m.perks.push(offer[took].id); it.m.offered=it.m.offered||{}; it.m.offered[it.grade]={a:offer.A.id,b:offer.B.id,took}; };
+    if(autoPromote){ for(const it of list){ const offer={A:PERKS[it.m.cls][it.grade].A,B:randStatPerk()}, k=autoPromote(it.m,it.grade,offer)||"A"; rec(it,offer,offer[k]?k:"A"); } saveRosterProgress(); done(); return; }
     if(!el||!list.length){ if(el)el.classList.remove("show"); saveRosterProgress(); done(); return; }
     let i=0; (function step(){ if(i>=list.length){ el.classList.remove("show"); saveRosterProgress(); done(); return; }
-      const it=list[i++], pair=PERKS[it.m.cls][it.grade];
+      const it=list[i++], offer={A:PERKS[it.m.cls][it.grade].A,B:randStatPerk()};   // B retiré au hasard à l'ouverture de la carte
       document.getElementById("promote-hd").innerHTML=`<span class="who">${esc(it.m.name)}</span> <span class="gr">→ ${GRADES[it.grade+1]||("grade "+(it.grade+1))}</span> — choisis une compétence (définitif)`;
       const opts=document.getElementById("promote-opts"); opts.innerHTML="";
-      for(const key of ["A","B"]){ const p=pair[key], d=document.createElement("div"); d.className="perkopt";
-        d.innerHTML=`<div class="ab">${key}</div><div class="pn">${esc(p.name)}</div><div class="pd">${esc(p.desc)}</div>`;
-        d.onclick=()=>{ it.m.perks=it.m.perks||[]; it.m.perks.push(p.id); step(); }; opts.appendChild(d); }
+      for(const key of ["A","B"]){ const p=offer[key], d=document.createElement("div"); d.className="perkopt";
+        d.innerHTML=`<div class="ab">${key}${key==="B"?" 🎲":""}</div><div class="pn">${esc(p.name)}</div><div class="pd">${esc(p.desc)}</div>`;
+        d.onclick=()=>{ rec(it,offer,key); step(); }; opts.appendChild(d); }
       el.classList.add("show"); })(); }
   // Phase A — en campagne, on remplace les unités joueur pré-placées de la mission par le ROSTER persistant
   // (les emplacements de la mission servent de slots de déploiement ; PV restaurés ensuite par applyCarry).
@@ -1719,9 +1735,9 @@
     if(v==="campaign"){ if(typeof drawGraph==="function")drawGraph(); }
     if(v==="geoscape"&&typeof geoEnter==="function")geoEnter(); }
   function startCampaign(camp,from,fromNode){ const ephemeral=(from!=="play");   // lancé depuis l'éditeur (test) : les événements (1ʳᵉ arrivée…) se rejouent à chaque essai et ne sont pas mémorisés
-    campRun={camp,carry:{},winCount:0,roster:(camp.roster||[]).map(m=>({name:m.name,cls:m.cls,xp:m.xp||0,perks:Array.isArray(m.perks)?m.perks.slice():[],stress:0,fatigue:0,special:m.special!==false,mortalAfter:m.mortalAfter||null,dead:false})),nodeId:null,from:from||"campaign",seen:new Set(),potions:0,ephemeral,dialogs:(camp.dialogs||[]).slice(),firedDialogs:new Set(),firedEvents:new Set(ephemeral?[]:loadFiredEvents(camp.name))};
-    const saved=loadRosterProgress(camp.name); if(saved){ for(const m of campRun.roster){ const s=saved.find(x=>x.name===m.name&&x.cls===m.cls); if(s){ m.xp=s.xp||0; m.perks=Array.isArray(s.perks)?s.perks.slice():[]; m.stress=s.stress||0; m.fatigue=s.fatigue||0; m.special=s.special!==false; m.dead=!!s.dead; } }   // reprend progression + usure + morts inter-parties
-      for(const s of saved){ if(s.name&&!campRun.roster.some(m=>m.name===s.name))campRun.roster.push({name:s.name,cls:s.cls,xp:s.xp||0,perks:Array.isArray(s.perks)?s.perks.slice():[],stress:s.stress||0,fatigue:s.fatigue||0,special:s.special!==false,mortalAfter:null,dead:!!s.dead}); } }   // recrues scénarisées (absentes du roster de base) conservées
+    campRun={camp,carry:{},winCount:0,roster:(camp.roster||[]).map(m=>({name:m.name,cls:m.cls,xp:m.xp||0,perks:Array.isArray(m.perks)?m.perks.slice():[],offered:{},stress:0,fatigue:0,special:m.special!==false,mortalAfter:m.mortalAfter||null,dead:false})),nodeId:null,from:from||"campaign",seen:new Set(),potions:0,ephemeral,dialogs:(camp.dialogs||[]).slice(),firedDialogs:new Set(),firedEvents:new Set(ephemeral?[]:loadFiredEvents(camp.name))};
+    const saved=loadRosterProgress(camp.name); if(saved){ for(const m of campRun.roster){ const s=saved.find(x=>x.name===m.name&&x.cls===m.cls); if(s){ m.xp=s.xp||0; m.perks=Array.isArray(s.perks)?s.perks.slice():[]; m.offered=s.offered||{}; m.stress=s.stress||0; m.fatigue=s.fatigue||0; m.special=s.special!==false; m.dead=!!s.dead; } }   // reprend progression + usure + morts inter-parties
+      for(const s of saved){ if(s.name&&!campRun.roster.some(m=>m.name===s.name))campRun.roster.push({name:s.name,cls:s.cls,xp:s.xp||0,perks:Array.isArray(s.perks)?s.perks.slice():[],offered:s.offered||{},stress:s.stress||0,fatigue:s.fatigue||0,special:s.special!==false,mortalAfter:null,dead:!!s.dead}); } }   // recrues scénarisées (absentes du roster de base) conservées
     document.body.classList.remove("testing"); setView("play"); runNode(fromNode||camp.start); }
   async function startPlay(){ let camp=loadCampDraft();
     if(!camp){ const t=await fetchText("campaigns-mesh/principale.json",ghCfg()); if(t){try{camp=JSON.parse(t);}catch(e){}} }
@@ -2157,8 +2173,13 @@
   // fiche escouade : grade + perks choisis (choix passés A/B) de chaque membre — consultable à tout moment
   function openSquadSheet(){ const el=document.getElementById("sheet"),body=document.getElementById("sheet-body"); if(!el||!body||!campRun||!campRun.roster)return;
     body.innerHTML=campRun.roster.map(m=>{ const g=gradeFromXp(m.xp||0), next=XP_THRESH[g+1], clsName=(CLASSES[m.cls]&&CLASSES[m.cls].name)||m.cls;
-      const perks=(m.perks||[]).map((id,ti)=>{ const p=perkById(m.cls,id); if(!p)return ""; const pair=PERKS[m.cls]&&PERKS[m.cls][ti], side=pair?(pair.A.id===id?"A":(pair.B.id===id?"B":"?")):"?";
-        return `<div class="sh-perk"><span class="sh-t">${esc(GRADES[ti+1]||("grade "+(ti+1)))}</span> <span class="sh-ab">(choix ${side})</span> — ${esc(p.name)} <span class="sh-d">· ${esc(p.desc)}</span></div>`; }).join("")||`<div class="sh-none">aucun perk choisi pour l'instant</div>`;
+      const perks=(m.perks||[]).map((id,ti)=>{ const p=perkById(m.cls,id); if(!p)return "";
+        const off=m.offered&&m.offered[ti]; let side,altId=null;   // option écartée : depuis m.offered, sinon repli sur l'ancienne paire fixe A/B
+        if(off){ side=(off.a===id)?"A":"B"; altId=(off.a===id)?off.b:off.a; }
+        else { const pair=PERKS[m.cls]&&PERKS[m.cls][ti]; side=(pair&&pair.A.id===id)?"A":"B"; if(pair)altId=(pair.A.id===id)?pair.B.id:pair.A.id; }
+        const alt=altId?perkById(m.cls,altId):null;
+        return `<div class="sh-perk"><span class="sh-t">${esc(GRADES[ti+1]||("grade "+(ti+1)))}</span> <span class="sh-ab">(choix ${side})</span> — ${esc(p.name)} <span class="sh-d">· ${esc(p.desc)}</span>`+
+          (alt?`<div class="sh-alt">écarté : ${esc(alt.name)} <span class="sh-d">· ${esc(alt.desc)}</span></div>`:"")+`</div>`; }).join("")||`<div class="sh-none">aucun perk choisi pour l'instant</div>`;
       return `<div class="sh-m${m.dead?" sh-dead":""}"><div class="sh-h"><b>${esc(m.name)}</b> <span class="sh-cls">${esc(clsName)}</span> · <span class="sh-grade">${esc(GRADES[g])}</span>${m.special!==false?' <span title="personnage protégé">★</span>':""}${m.dead?' ✝':""}</div>`+
         `<div class="sh-xp">${m.xp||0} XP${next!=null?(" · prochain grade à "+next+" XP"):" · grade maximal atteint"}</div>${perks}</div>`; }).join("");
     el.classList.add("show"); }
