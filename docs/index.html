@@ -1999,12 +1999,18 @@
     buildAdj(); geoCampId=(m.camp!=null)?m.camp:null;
     if(campRun){ campRun.geoAdj=campRun.geoAdj||{}; campRun.geoAdj[geoPlay.node.id]=cells.map(c=>c.nb.slice()); } }   // adjacence figée (réutilisable même pendant une mission, où `cells` = la mission)
   // cadre tout le territoire dans la vue (sinon, à zoom 1, il déborde)
-  function geoFitView(){ cv.width=GEO_W; cv.height=GEO_H; if(!cells.length){ resetView(); return; }
+  function geoFitView(){
+    // en jeu, la toile geoscape remplit la fenêtre (carte plus grande qu'avant) ; on réserve le coin bas-gauche au panneau roster
+    cv.width=Math.max(GEO_W,Math.floor((window.innerWidth||GEO_W)-24));
+    cv.height=Math.max(GEO_H,Math.floor((window.innerHeight||GEO_H)-24));
+    if(!cells.length){ resetView(); return; }
     let minx=1e9,miny=1e9,maxx=-1e9,maxy=-1e9;
     for(const c of cells)for(const p of c.poly){ if(p[0]<minx)minx=p[0]; if(p[1]<miny)miny=p[1]; if(p[0]>maxx)maxx=p[0]; if(p[1]>maxy)maxy=p[1]; }
-    const bw=Math.max(1,maxx-minx), bh=Math.max(1,maxy-miny), margin=0.9;
-    zoom=Math.min(cv.width/bw, cv.height/bh)*margin;
-    panX=(cv.width-(minx+maxx)*zoom)/2; panY=(cv.height-(miny+maxy)*zoom)/2; }
+    const bw=Math.max(1,maxx-minx), bh=Math.max(1,maxy-miny);
+    const padT=56, padR=24, padL=Math.min(300,cv.width*0.32), padB=Math.min(230,cv.height*0.4);   // bandeau (haut), roster (bas-gauche)
+    const aw=Math.max(120,cv.width-padL-padR), ah=Math.max(120,cv.height-padT-padB);
+    zoom=Math.min(aw/bw, ah/bh)*0.98;
+    panX=padL+(aw-bw*zoom)/2-minx*zoom; panY=padT+(ah-bh*zoom)/2-miny*zoom; }
   // une région est ACCESSIBLE si un chemin libre la relie au camp : elle touche le camp ou une région déjà PRISE (front).
   function geoAccessibleSet(nodeId){ const acc=new Set(); if(!campRun||!geoPlay)return acc; nodeId=nodeId||geoPlay.node.id;
     const adj=campRun.geoAdj&&campRun.geoAdj[nodeId], st=campRun.geoStates&&campRun.geoStates[nodeId], map=geoPlay.map; if(!adj||!st||!map)return acc;
@@ -2125,9 +2131,8 @@
     geoPlay={node,map:m,inMission:false}; { const tt=document.getElementById("title"); if(tt)tt.style.display="none"; }
     document.body.classList.add("geomap"); over=false; resetView(); geoBuildCells(); geoFitView(); hoverCell=null; primeInit(); geoBanner(); draw(); runGeoEvents("arrive",()=>saveCampRun()); }   // primes des régions dures + événements de 1ʳᵉ arrivée, puis point de reprise
   function geoBanner(t){ const el=document.getElementById("geobanner"); if(!el||!geoPlay)return;
-    const avail=geoAccessibleSet().size;   // régions accessibles (sur le front, reliées au camp)
-    const sub=t!=null?esc(t):(avail?gtx("messages.choose",{n:avail}):gtx("messages.noFront"));
-    el.innerHTML=`<b>${esc(geoPlay.map.name||"Territoire")}</b> — ${sub}`; renderGeoRoster(); }
+    const sub=t!=null?esc(t):"";   // par défaut : juste le titre du territoire ; un message explicite (t) s'affiche en sous-titre
+    el.innerHTML=`<b>${esc(geoPlay.map.name||"Territoire")}</b>${sub?(" — "+sub):""}`; renderGeoRoster(); }
   // panneau « camp » : état du roster (grade, fatigue, stress, statut spécial, mort)
   function renderGeoRoster(){ const el=document.getElementById("georoster"); if(!el||!campRun||!campRun.roster)return;
     const bar=(v,col)=>`<div class="gr-bar"><i style="width:${Math.min(100,Math.round(v||0))}%;background:${col}"></i></div>`;
