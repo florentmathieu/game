@@ -127,6 +127,7 @@
   #title-sub{ font-size:1.1rem; color:#d8cdb4 } #title-hint{ font-size:.85rem; color:#9a8a74; max-width:440px }
   #title-btn{ margin-top:10px; font-size:1.05rem; padding:9px 20px }
   #balance-fab{ position:fixed; right:14px; bottom:14px; z-index:18; width:42px; height:42px; border-radius:50%; font-size:1.3rem; background:rgba(12,9,6,.92); border:1px solid #5a4530; color:#e8ddc8; box-shadow:0 3px 10px rgba(0,0,0,.5); cursor:pointer }
+  #music-fab{ position:fixed; right:14px; bottom:62px; z-index:18; width:42px; height:42px; border-radius:50%; font-size:1.2rem; background:rgba(12,9,6,.92); border:1px solid #5a4530; color:#e8ddc8; box-shadow:0 3px 10px rgba(0,0,0,.5); cursor:pointer }
   #balance{ position:fixed; inset:0; background:rgba(0,0,0,.6); display:none; z-index:30; align-items:center; justify-content:center; padding:20px }
   #balance.show{ display:flex }
   #balance-card{ background:#14100a; border:1px solid #5a4530; border-radius:12px; width:min(560px,96vw); max-height:88vh; display:flex; flex-direction:column; box-shadow:0 12px 40px rgba(0,0,0,.7); color:var(--ink) }
@@ -281,6 +282,7 @@
 <div id="georoster"></div>
 <div id="title"><button id="title-btn">New game</button><button id="title-reset" style="margin-top:10px;font-size:.8rem;opacity:.6;background:none;border:1px solid #555;color:#bbb">↺ Recommencer à zéro</button><button id="title-balance" style="margin-top:8px;font-size:.8rem;opacity:.6;background:none;border:1px solid #555;color:#bbb">⚖ Équilibrage</button></div>
 <button id="balance-fab" title="Réglages d'équilibrage">⚖</button>
+<button id="music-fab" title="Couper / activer la musique">🎵</button>
 <div id="balance"><div id="balance-card"><div id="balance-hd">⚖ Équilibrage <span id="balance-x">✕</span></div><div id="balance-body"></div><div id="balance-ft"><button id="balance-reset">↺ Valeurs par défaut</button><span class="hint" style="font-size:.74rem">Sauvé automatiquement · s'applique aux prochains combats</span></div></div></div>
 <div id="camptext"><div id="camptext-body"></div><button id="camptext-btn">…</button></div>
 <div id="sheet"><div id="sheet-card"><div id="sheet-hd">📖 Escouade — grades & perks <button id="sheet-x">✕ Fermer</button></div><div id="sheet-body"></div></div></div>
@@ -385,6 +387,20 @@
     if(m.hp){u.max+=m.hp;u.hp+=m.hp;} if(m.shieldBlock)u.shieldBlock=(u.shieldBlock||0)+m.shieldBlock; if(m.parry)u.parry=(u.parry||0)+m.parry;
     if(m.crackers){u.crackers=(u.crackers||0)+m.crackers;u.crackers0=(u.crackers0||0)+m.crackers;} if(m.mob)u.mobBonus=(u.mobBonus||0)+m.mob; if(m.aim)u.aimBonus=(u.aimBonus||0)+m.aim;
     if(m.dmg)u.dmgBonus=(u.dmgBonus||0)+m.dmg; if(m.range)u.rangeBonus=(u.rangeBonus||0)+m.range; if(m.scatter)u.scatterBonus=(u.scatterBonus||0)+m.scatter; if(m.freeMp)u.freeMpBonus=(u.freeMpBonus||0)+m.freeMp; } }
+  // ===== musique : un dossier music/ + manifest.json ; piste tirée AU HASARD par contexte (missions / interludes / geoscape) =====
+  const MUSIC={ list:{missions:[],interludes:[],geoscape:[]}, cat:null, vol:0.5, mute:false, base:"music/", ready:false };
+  try{ const p=JSON.parse(localStorage.getItem("mgf_music")||"{}"); if(typeof p.vol==="number")MUSIC.vol=Math.max(0,Math.min(1,p.vol)); MUSIC.mute=!!p.mute; }catch(e){}
+  const musicEl=new Audio(); musicEl.loop=true; musicEl.preload="auto";
+  fetch(MUSIC.base+"manifest.json",{cache:"no-store"}).then(r=>r.ok?r.json():null).then(j=>{ MUSIC.ready=true; if(j)for(const k of ["missions","interludes","geoscape"])if(Array.isArray(j[k]))MUSIC.list[k]=j[k].slice();
+    if(MUSIC.cat){ const c=MUSIC.cat; MUSIC.cat=null; playMusic(c); } }).catch(()=>{ MUSIC.ready=true; });   // si une demande est arrivée avant le manifest, on (re)lance
+  function playMusic(cat){ if(!cat||cat===MUSIC.cat)return; MUSIC.cat=cat;   // même contexte → on garde la piste en cours (pas de redémarrage)
+    const pool=MUSIC.list[cat]||[]; if(!pool.length)return;   // pas de fichier listé pour ce contexte : on laisse la piste actuelle (ou le silence)
+    const f=pool[Math.floor(Math.random()*pool.length)]; musicEl.src=MUSIC.base+f; musicEl.volume=MUSIC.mute?0:MUSIC.vol;
+    const pr=musicEl.play(); if(pr&&pr.catch)pr.catch(()=>{}); }   // l'autoplay peut être bloqué tant que l'utilisateur n'a pas interagi : on ignore l'échec
+  function saveMusicPrefs(){ try{ localStorage.setItem("mgf_music",JSON.stringify({vol:MUSIC.vol,mute:MUSIC.mute})); }catch(e){} }
+  function setMusicMute(m){ MUSIC.mute=m; musicEl.volume=m?0:MUSIC.vol; if(!m&&musicEl.src&&musicEl.paused){const pr=musicEl.play();if(pr&&pr.catch)pr.catch(()=>{});} saveMusicPrefs(); syncMusicBtn(); }
+  function setMusicVol(v){ MUSIC.vol=Math.max(0,Math.min(1,v)); if(!MUSIC.mute)musicEl.volume=MUSIC.vol; saveMusicPrefs(); }
+  function syncMusicBtn(){ const b=document.getElementById("music-fab"); if(b)b.textContent=MUSIC.mute?"🔇":"🎵"; }
   const ENEMY_VIS=8, SLEEP_VIS=6;   // éveillé : 8 (comme le joueur) ; endormi : 6
   const mk=s=>()=>{s|=0;s=s+0x6D2B79F5|0;let t=Math.imul(s^s>>>15,1|s);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;};
   let RND=mk(7), seed=7, mode="edit", editTool="zone:square", islandTrim=true;   // islandTrim : retire les cellules de bord (effet île), mission + geoscape
@@ -1753,8 +1769,8 @@
     if(n.mortal)applyMortal(n.mortal);   // « son rôle est fait » : ce nœud peut rendre des persos mortels
     if(n.recruit)applyRecruit(n.recruit);   // renforts : ce nœud peut faire rejoindre de nouveaux persos
     if(n.type==="text"||n.type==="choice")saveCampRun();   // point de reprise (hors combat)
-    if(n.type==="text"){ if(campRun.seen&&campRun.seen.has(id)){runNode(n.next);return;} if(campRun.seen)campRun.seen.add(id); resolveText(n.text,n.file).then(t=>showCampText(t||"…",()=>runNode(n.next)));return;}
-    if(n.type==="choice"){showChoice(n);return;}
+    if(n.type==="text"){ if(campRun.seen&&campRun.seen.has(id)){runNode(n.next);return;} if(campRun.seen)campRun.seen.add(id); playMusic("interludes"); resolveText(n.text,n.file).then(t=>showCampText(t||"…",()=>runNode(n.next)));return;}
+    if(n.type==="choice"){ playMusic("interludes"); showChoice(n);return;}
     if(n.type==="geoscape"){ enterGeoPlay(n); return; }
     loadMissionNode(n,false); }
   async function loadMissionNode(n,retry){ const t=await fetchText("missions-mesh/"+n.mission,ghCfg()); if(!t){showCampText("Mission introuvable : "+n.mission,()=>endCampaignRun("Fin."));return;}
@@ -1831,9 +1847,10 @@
     for(const u of units){u.hp=u.max;u.ap=AP_MAX;u.freeAvail=true;u.overwatch=false;u.reacted=false;u.bracing=false;u.taunt=false;u.hidden=false;u.wallStance=false;u.vanishUsed=false;u.slowed=false;u.stunned=false;u.spellsCast=0;u.cd={};u.dmgTaken=0;u.asleep=!!u._asleep0;if(u.clip!==undefined)u.ammo=u.clip;if(u.crackers!==undefined)u.crackers=(u.crackers0!==undefined?u.crackers0:CLASSES[u.cls].crackers);} smoke=new Map();ability=null; _podCenters=null; turn="player";over=false;sel=null;amode=null;aimTarget=null;throwing=false;usingItem=false;inv={potion:campRun?(campRun.potions||0):0};
     fired=new Set(); podAlerted=new Set(); neutralSeen=new Set(); lastSeen=new Map(); turnNum=1; turnActions=0; lastOutcome=null; speechQ=[]; speaking=false; if(speechT){clearTimeout(speechT);speechT=null;} document.getElementById("combatline").style.display="none";
     document.getElementById("over").classList.remove("show");document.getElementById("log").innerHTML="";setMsg("");setupBonus();refresh();
-    banner("Tour du joueur","player"); emit("start",{}); emit("turn",{turn:1}); }
+    banner("Tour du joueur","player"); playMusic("missions"); emit("start",{}); emit("turn",{turn:1}); }
   document.getElementById("end").onclick=()=>{if(!over&&turn==="player"&&mode==="play")endTurn();};
   { const jh=document.getElementById("journal-hd"); if(jh)jh.onclick=()=>document.getElementById("journal").classList.toggle("collapsed"); }
+  { const mb=document.getElementById("music-fab"); if(mb){ mb.onclick=()=>setMusicMute(!MUSIC.mute); } syncMusicBtn(); }
   document.getElementById("overbtn").onclick=()=>{ if(mode==="play")startGame(); };
   // escouade de test : posée sur la zone de déploiement le temps d'un essai, retirée en sortant (jamais sauvegardée)
   function spawnTestSquad(){ const dz=cells.filter(c=>c.deploy&&passable(c.id)&&!uAt(c.id)).sort((a,b)=>(a.cy-b.cy)||(a.cx-b.cx));
@@ -2166,7 +2183,7 @@
     else { showCampText("Aucun territoire défini pour ce nœud.",()=>{ if(node.next)runNode(node.next); else endCampaignRun("Fin."); }); return; }
     campRun.geoStates=campRun.geoStates||{}; if(!campRun.geoStates[node.id])campRun.geoStates[node.id]=m.cells.map(c=>c.state||"locked");
     geoPlay={node,map:m,inMission:false}; { const tt=document.getElementById("title"); if(tt)tt.style.display="none"; }
-    document.body.classList.add("geomap"); over=false; resetView(); geoBuildCells(); geoFitView(); hoverCell=null; primeInit(); geoBanner(); draw(); runGeoEvents("arrive",()=>saveCampRun()); }   // primes des régions dures + événements de 1ʳᵉ arrivée, puis point de reprise
+    document.body.classList.add("geomap"); over=false; resetView(); geoBuildCells(); geoFitView(); hoverCell=null; primeInit(); geoBanner(); draw(); playMusic("geoscape"); runGeoEvents("arrive",()=>saveCampRun()); }   // primes des régions dures + événements de 1ʳᵉ arrivée, puis point de reprise
   function geoBanner(t){ const el=document.getElementById("geobanner"); if(!el||!geoPlay)return;
     const sub=t!=null?esc(t):"";   // par défaut : juste le titre du territoire ; un message explicite (t) s'affiche en sous-titre
     el.innerHTML=`<b>${esc(geoPlay.map.name||"Territoire")}</b>${sub?(" — "+sub):""}`; renderGeoRoster(); }
@@ -2304,7 +2321,7 @@
     if(deaths.length)events.push("✝ "+deaths.join(", ")+(deaths.length>1?" sont tombé·e·s au combat. Iels quittent le roster.":" est tombé·e au combat. Iel quitte le roster."));
     if(lostSpecial.length)events.push("★ "+lostSpecial.join(", ")+" — leur rôle est accompli : iels ne sont plus à l'abri du destin.");
     const showEvents=after=>{ if(!events.length){after();return;} announce(events.shift(),()=>showEvents(after)); };
-    const toCamp=()=>{ document.body.classList.add("geomap"); resetView(); geoBuildCells(); geoFitView(); hoverCell=null; primeInit();
+    const toCamp=()=>{ document.body.classList.add("geomap"); resetView(); geoBuildCells(); geoFitView(); hoverCell=null; primeInit(); playMusic("geoscape");
       geoBanner(win?gtx("messages.secured"):gtx("messages.lost")); draw();
       runGeoEvents("after",{region:rn,missionN:campRun.missionN},()=>runGeoEvents("debrief",()=>{ geoBuildCells(); draw(); geoBanner(); saveCampRun(); })); };   // texte d'après-mission, puis « région prise / N victoires », redessine, point de reprise
     const resolveDebrief=()=>{ if(geoEndReached(node,st)){ const nx=node.next; geoPlay=null; document.body.classList.remove("geomap");
