@@ -198,10 +198,11 @@
     <div class="hint">Peins des cases puis crée un évènement « Entrée en zone » : il se déclenche quand une unité y pénètre.</div>
     <h2>Évènements (dialogues)</h2>
     <div id="triglist" class="hint"></div>
-    <div class="row"><select id="t-on"><option value="start">Début</option><option value="turn">Début de tour</option><option value="enter">Entrée en zone</option><option value="attack">Attaque</option><option value="kill">Mise à mort</option><option value="wounded">Blessé</option><option value="move">Déplacement</option><option value="win">Victoire</option><option value="lose">Défaite</option></select></div>
+    <div class="row"><select id="t-on"><option value="start">Début</option><option value="turn">Début de tour</option><option value="enter">Entrée en zone</option><option value="attack">Attaque</option><option value="kill">Mise à mort</option><option value="wounded">Blessé</option><option value="cracker">Cracker (explosion)</option><option value="move">Déplacement</option><option value="win">Victoire</option><option value="lose">Défaite</option></select></div>
     <div class="row"><input id="t-actor" type="text" placeholder="acteur (nom/classe)" style="flex:1"><input id="t-zone" type="text" placeholder="zone (ex: A)" style="flex:1"></div>
     <div class="row"><input id="t-target" type="text" placeholder="cible (nom/classe)" style="flex:1"></div>
     <div class="row"><select id="t-result"><option value="">résultat —</option><option>hit</option><option>miss</option><option>blocked</option></select><select id="t-killed"><option value="">tue ? —</option><option value="true">oui</option><option value="false">non</option></select></div>
+    <div class="row" id="t-cracker-row" style="display:none"><label style="font-size:.85rem;display:flex;align-items:center;gap:5px">💥 ennemis touchés <input id="t-ehmin" type="number" min="0" placeholder="min" style="width:56px"> à <input id="t-ehmax" type="number" min="0" placeholder="max" style="width:56px"></label></div>
     <div class="row"><label style="display:flex;align-items:center;gap:5px;font-size:.85rem"><input type="checkbox" id="t-once" checked> une seule fois</label><label style="display:flex;align-items:center;gap:5px;font-size:.85rem"><input type="checkbox" id="t-first"> 1ʳᵉ action du tour</label></div>
     <div class="row"><input id="t-id" type="text" placeholder="id (optionnel)" style="flex:1"><input id="t-requires" type="text" placeholder="requiert l'id…" style="flex:1"></div>
     <div class="row"><input id="t-wake" type="text" placeholder="réveiller pod N / all" style="flex:1"><select id="t-passmode"><option value="">passage —</option><option value="open">ouvrir zone</option><option value="close">fermer zone</option></select><input id="t-passzone" type="text" placeholder="zone" style="width:64px"></div>
@@ -1294,9 +1295,13 @@
   fetchRepoMissions();
 
   // ===== éditeur d'évènements =====
-  const tOn=document.getElementById("t-on"),tActor=document.getElementById("t-actor"),tZone=document.getElementById("t-zone"),tTarget=document.getElementById("t-target"),tResult=document.getElementById("t-result"),tKilled=document.getElementById("t-killed"),tOnce=document.getElementById("t-once"),tFirst=document.getElementById("t-first"),tId=document.getElementById("t-id"),tRequires=document.getElementById("t-requires"),tWake=document.getElementById("t-wake"),tPassmode=document.getElementById("t-passmode"),tPasszone=document.getElementById("t-passzone"),tWho=document.getElementById("t-who"),tText=document.getElementById("t-text");
+  const tOn=document.getElementById("t-on"),tActor=document.getElementById("t-actor"),tZone=document.getElementById("t-zone"),tTarget=document.getElementById("t-target"),tResult=document.getElementById("t-result"),tKilled=document.getElementById("t-killed"),tOnce=document.getElementById("t-once"),tFirst=document.getElementById("t-first"),tId=document.getElementById("t-id"),tRequires=document.getElementById("t-requires"),tWake=document.getElementById("t-wake"),tPassmode=document.getElementById("t-passmode"),tPasszone=document.getElementById("t-passzone"),tWho=document.getElementById("t-who"),tText=document.getElementById("t-text"),tEhMin=document.getElementById("t-ehmin"),tEhMax=document.getElementById("t-ehmax");
+  // la ligne « ennemis touchés » n'apparaît que pour l'évènement cracker
+  function syncTrigFields(){ const r=document.getElementById("t-cracker-row"); if(r)r.style.display=(tOn.value==="cracker")?"":"none"; }
+  tOn.addEventListener("change",syncTrigFields); syncTrigFields();
+  const fmtMatch=v=>(v&&typeof v==="object")?[v.min!=null?"≥"+v.min:null,v.max!=null?"≤"+v.max:null].filter(Boolean).join(" "):v;
   function renderTrigList(){const el=document.getElementById("triglist");if(!el)return;
-    el.innerHTML=triggers.length?triggers.map((t,i)=>{const mm=Object.entries(t.match||{}).map(([k,v])=>k+":"+v).join(" ");const flags=(t.id?" #"+t.id:"")+(t.once===false?"":" ⟲1×")+(t.firstAction?" ⚑1ʳᵉ":"")+(t.requires?" ⊳"+t.requires:"")+(t.wake?" ⏰"+t.wake:"")+(t.open?" ⛩"+t.open:"")+(t.close?" ⛔"+t.close:"");const say=t.say?`${t.say[0]||"?"} : "${t.say[1]}"`:(t.lines?t.lines.length+" répliques":(t.wake||t.open||t.close?"(action)":""));return `<div><button class="tdel" data-i="${i}">✕</button> <b>${t.on}</b> ${mm}${flags} → 💬 ${say}</div>`;}).join(""):"(aucun évènement)";
+    el.innerHTML=triggers.length?triggers.map((t,i)=>{const mm=Object.entries(t.match||{}).map(([k,v])=>k+":"+fmtMatch(v)).join(" ");const flags=(t.id?" #"+t.id:"")+(t.once===false?"":" ⟲1×")+(t.firstAction?" ⚑1ʳᵉ":"")+(t.requires?" ⊳"+t.requires:"")+(t.wake?" ⏰"+t.wake:"")+(t.open?" ⛩"+t.open:"")+(t.close?" ⛔"+t.close:"");const say=t.say?`${t.say[0]||"?"} : "${t.say[1]}"`:(t.lines?t.lines.length+" répliques":(t.wake||t.open||t.close?"(action)":""));return `<div><button class="tdel" data-i="${i}">✕</button> <b>${t.on}</b> ${mm}${flags} → 💬 ${say}</div>`;}).join(""):"(aucun évènement)";
     el.querySelectorAll(".tdel").forEach(b=>b.onclick=()=>{triggers.splice(+b.dataset.i,1);renderTrigList();saveDraft();});}
   let trigLines=[];   // répliques empilées pour le prochain évènement
   function renderTrigLines(){const el=document.getElementById("t-lines");if(!el)return;
@@ -1305,13 +1310,14 @@
   function addLine(){const text=(tText.value||"").trim();if(!text){alert("Écris une réplique.");return;}trigLines.push({who:(tWho.value||"").trim(),text});tText.value="";tText.focus();renderTrigLines();}
   function addTrig(){const on=tOn.value,m={};const setF=(el,k)=>{const v=(el.value||"").trim();if(v)m[k]=v;};
     setF(tActor,"actor");setF(tZone,"zone");setF(tTarget,"target");if(tResult.value)m.result=tResult.value;if(tKilled.value)m.killed=tKilled.value==="true";
+    if(on==="cracker"){ const lo=(tEhMin.value||"").trim(),hi=(tEhMax.value||"").trim(),rng={}; if(lo!=="")rng.min=+lo; if(hi!=="")rng.max=+hi; if(Object.keys(rng).length)m.enemiesHit=rng; }   // cracker : nombre d'ennemis touchés (borne min/max)
     const lines=trigLines.slice();const cur=(tText.value||"").trim();if(cur)lines.push({who:(tWho.value||"").trim(),text:cur});
     const t={on};if(Object.keys(m).length)t.match=m;t.once=tOnce.checked;if(tFirst.checked)t.firstAction=true;
     const idv=(tId.value||"").trim();if(idv)t.id=idv; const req=(tRequires.value||"").trim();if(req)t.requires=req;
     const wk=(tWake.value||"").trim();if(wk)t.wake=wk; if(tPassmode.value&&(tPasszone.value||"").trim())t[tPassmode.value]=tPasszone.value.trim();
     if(!lines.length&&!(t.wake||t.open||t.close)){alert("Écris une réplique ou choisis une action (réveil / passage).");return;}
     if(lines.length===1)t.say=[lines[0].who,lines[0].text];else if(lines.length)t.lines=lines.map(l=>[l.who,l.text]);
-    triggers.push(t);tText.value="";tId.value="";tRequires.value="";tWake.value="";tPasszone.value="";tPassmode.value="";tActor.value="";tZone.value="";tTarget.value="";tResult.value="";tKilled.value="";trigLines=[];renderTrigLines();renderTrigList();saveDraft();}
+    triggers.push(t);tText.value="";tId.value="";tRequires.value="";tWake.value="";tPasszone.value="";tPassmode.value="";tActor.value="";tZone.value="";tTarget.value="";tResult.value="";tKilled.value="";tEhMin.value="";tEhMax.value="";trigLines=[];renderTrigLines();renderTrigList();saveDraft();}
   document.getElementById("t-addline").onclick=addLine;
   document.getElementById("t-add").onclick=addTrig;
   renderTrigList();
