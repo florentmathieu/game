@@ -2079,7 +2079,10 @@
     const cx0=GEO_W/2,cy0=GEO_H/2;
     const order=gc.map((c,i)=>({i,d:Math.hypot(c.cx-cx0,c.cy-cy0)})).sort((a,b)=>a.d-b.d).map(o=>o.i);   // nouvelles cellules triées du centre vers l'extérieur
     let ci=A.findIndex(c=>c.type==="camp"); if(ci<0)ci=0;
-    const seq=[A[ci]].concat(A.filter((_,i)=>i!==ci));   // camp d'abord → posé au centre du nouveau maillage
+    // camp au centre ; les autres triées par difficulté croissante → faciles près du camp, dures loin
+    // (l'objectif final, le plus dur, atterrit en périphérie : pas accessible dès le départ)
+    const rest=A.filter((_,i)=>i!==ci).map((c,j)=>({c,j})).sort((a,b)=>((a.c.diff||0)-(b.c.diff||0))||(a.j-b.j)).map(o=>o.c);
+    const seq=[A[ci]].concat(rest);
     const N=Math.min(gc.length, seq.length);
     const cells=[]; for(let k=0;k<N;k++){ const a=seq[k]; cells.push({poly:gc[order[k]].poly, name:a.name, type:a.type||"region",
       content:a.content||{kind:"empty",ref:null}, state:a.state||"available", unlockedBy:Array.isArray(a.unlockedBy)?a.unlockedBy:[], diff:a.diff||0, boss:!!a.boss, forge:!!a.forge}); }
