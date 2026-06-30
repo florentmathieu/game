@@ -105,6 +105,15 @@
   #camptext.show{ display:flex } #camptext-body{ width:min(620px,92vw); font-size:1.15rem; line-height:1.7; text-align:left }
   #camptext-btn{ position:absolute; bottom:38px; left:50%; transform:translateX(-50%) }   /* bouton toujours au même endroit */
   .sp-who{ color:#ffd479; font-weight:bold }
+  #georoster .gr-h{ cursor:pointer } #georoster .gr-u{ cursor:pointer }
+  #sheet{ position:fixed; inset:0; background:rgba(8,6,4,.88); display:none; align-items:center; justify-content:center; z-index:14; padding:24px }
+  #sheet.show{ display:flex } #sheet-card{ width:min(640px,95vw); max-height:88vh; display:flex; flex-direction:column; background:#14100a; border:1px solid #5a4530; border-radius:12px; box-shadow:0 12px 40px rgba(0,0,0,.7); color:#e8ddc8 }
+  #sheet-hd{ display:flex; align-items:center; gap:8px; padding:13px 16px; border-bottom:1px solid #3a2c1c; font-size:1.05rem; color:#e0b341 } #sheet-hd #sheet-x{ margin-left:auto }
+  #sheet-body{ overflow-y:auto; padding:10px 16px 16px }
+  .sh-m{ border:1px solid #3a2c1c; border-radius:9px; padding:10px 12px; margin:9px 0; background:#0f0c08 } .sh-m.sh-dead{ opacity:.5 }
+  .sh-h{ font-size:1rem } .sh-h .sh-cls{ color:#8a93a5 } .sh-grade{ color:#9fd0a8; font-weight:bold } .sh-xp{ font-size:.8rem; color:#b9ad95; margin:3px 0 7px }
+  .sh-perk{ font-size:.86rem; margin:3px 0; padding-left:4px; border-left:2px solid #5a4530 } .sh-perk .sh-t{ color:#e0b341; font-weight:bold } .sh-perk .sh-ab{ color:#8a93a5; font-size:.78rem } .sh-perk .sh-d{ color:#b9ad95 }
+  .sh-none{ font-size:.82rem; color:#7a715f; font-style:italic }
   #storybox{ position:fixed; left:50%; transform:translateX(-50%); bottom:18px; width:min(720px,92vw); display:none; z-index:9;
     background:rgba(10,8,5,.82); border:1px solid #5a4530; border-radius:10px; padding:13px 18px; color:#e8ddc8; font-family:Georgia,serif; box-shadow:0 8px 28px rgba(0,0,0,.6) }
   #storybox.show{ display:block } #storybox-body{ font-size:1.05rem; line-height:1.6; min-height:1.6em; text-align:left }
@@ -273,6 +282,7 @@
 <button id="balance-fab" title="Réglages d'équilibrage">⚖</button>
 <div id="balance"><div id="balance-card"><div id="balance-hd">⚖ Équilibrage <span id="balance-x">✕</span></div><div id="balance-body"></div><div id="balance-ft"><button id="balance-reset">↺ Valeurs par défaut</button><span class="hint" style="font-size:.74rem">Sauvé automatiquement · s'applique aux prochains combats</span></div></div></div>
 <div id="camptext"><div id="camptext-body"></div><button id="camptext-btn">…</button></div>
+<div id="sheet"><div id="sheet-card"><div id="sheet-hd">📖 Escouade — grades & perks <button id="sheet-x">✕ Fermer</button></div><div id="sheet-body"></div></div></div>
 <div id="storybox"><div id="storybox-body"></div><button id="storybox-btn">…</button></div>
 <div id="over"><h2 id="overtxt"></h2><button id="overbtn">Rejouer</button></div>
 <div id="promote"><div id="promote-card"><div id="promote-hd"></div><div id="promote-opts"></div></div></div>
@@ -1500,8 +1510,9 @@
   function showCampText(text,cb){ playText(text,false,cb); }
   function hideStory(){ document.getElementById("storybox").classList.remove("show"); }
   function showChoice(n){ const el=document.getElementById("camptext"),body=document.getElementById("camptext-body"),btn=document.getElementById("camptext-btn"); btn.style.display="none";
-    body.innerHTML=`<div style="margin-bottom:12px">${esc(n.title||"Quelle route ?")}</div>`+(n.options||[]).map(oid=>{const tn=campRun.camp.nodes.find(x=>x.id===oid);return `<button class="opt" data-go="${oid}">${tn?nodeLabel(tn):oid}</button>`;}).join(""); el.classList.add("show");
-    body.querySelectorAll("[data-go]").forEach(b=>b.onclick=()=>{el.classList.remove("show");btn.style.display="";runNode(b.dataset.go);}); }
+    body.innerHTML=`<div style="margin-bottom:12px">${esc(n.title||"Quelle route ?")}</div>`+(n.options||[]).map(oid=>{const tn=campRun.camp.nodes.find(x=>x.id===oid);return `<button class="opt" data-go="${oid}">${tn?nodeLabel(tn):oid}</button>`;}).join("")+`<button class="opt" data-sheet="1" style="margin-top:14px;opacity:.85">📖 Consulter l'escouade (grades & perks)</button>`; el.classList.add("show");
+    body.querySelectorAll("[data-go]").forEach(b=>b.onclick=()=>{el.classList.remove("show");btn.style.display="";runNode(b.dataset.go);});
+    const sb=body.querySelector("[data-sheet]"); if(sb)sb.onclick=()=>openSquadSheet(); }   // ouvre la fiche par-dessus le choix (sans le résoudre)
   // report des PV entre missions : un blessé garde ses PV ; un K.O. (héros récupérable, pas mort) revient
   // rétabli (pas de spirale à 1 PV). La récupération fine au camp viendra avec l'usure (stress/fatigue).
   // PV au camp : qui repart tout de suite n'est soigné qu'à moitié (50 % des PV manquants) ; qui se repose une mission
@@ -2143,13 +2154,23 @@
   function geoBanner(t){ const el=document.getElementById("geobanner"); if(!el||!geoPlay)return;
     const sub=t!=null?esc(t):"";   // par défaut : juste le titre du territoire ; un message explicite (t) s'affiche en sous-titre
     el.innerHTML=`<b>${esc(geoPlay.map.name||"Territoire")}</b>${sub?(" — "+sub):""}`; renderGeoRoster(); }
+  // fiche escouade : grade + perks choisis (choix passés A/B) de chaque membre — consultable à tout moment
+  function openSquadSheet(){ const el=document.getElementById("sheet"),body=document.getElementById("sheet-body"); if(!el||!body||!campRun||!campRun.roster)return;
+    body.innerHTML=campRun.roster.map(m=>{ const g=gradeFromXp(m.xp||0), next=XP_THRESH[g+1], clsName=(CLASSES[m.cls]&&CLASSES[m.cls].name)||m.cls;
+      const perks=(m.perks||[]).map((id,ti)=>{ const p=perkById(m.cls,id); if(!p)return ""; const pair=PERKS[m.cls]&&PERKS[m.cls][ti], side=pair?(pair.A.id===id?"A":(pair.B.id===id?"B":"?")):"?";
+        return `<div class="sh-perk"><span class="sh-t">${esc(GRADES[ti+1]||("grade "+(ti+1)))}</span> <span class="sh-ab">(choix ${side})</span> — ${esc(p.name)} <span class="sh-d">· ${esc(p.desc)}</span></div>`; }).join("")||`<div class="sh-none">aucun perk choisi pour l'instant</div>`;
+      return `<div class="sh-m${m.dead?" sh-dead":""}"><div class="sh-h"><b>${esc(m.name)}</b> <span class="sh-cls">${esc(clsName)}</span> · <span class="sh-grade">${esc(GRADES[g])}</span>${m.special!==false?' <span title="personnage protégé">★</span>':""}${m.dead?' ✝':""}</div>`+
+        `<div class="sh-xp">${m.xp||0} XP${next!=null?(" · prochain grade à "+next+" XP"):" · grade maximal atteint"}</div>${perks}</div>`; }).join("");
+    el.classList.add("show"); }
+  { const sx=document.getElementById("sheet-x"),sh=document.getElementById("sheet"); if(sx)sx.onclick=()=>sh.classList.remove("show"); if(sh)sh.addEventListener("click",e=>{ if(e.target===sh)sh.classList.remove("show"); }); }
   // panneau « camp » : état du roster (grade, fatigue, stress, statut spécial, mort)
   function renderGeoRoster(){ const el=document.getElementById("georoster"); if(!el||!campRun||!campRun.roster)return;
     const bar=(v,col)=>`<div class="gr-bar"><i style="width:${Math.min(100,Math.round(v||0))}%;background:${col}"></i></div>`;
-    el.innerHTML=`<div class="gr-h">⛺ Roster</div>`+campRun.roster.map(m=>{ const weary=!m.dead&&((m.fatigue||0)>=100||(m.stress||0)>=100); const cls="gr-u"+(m.dead?" gr-dead":"")+(weary?" gr-weary":""); const dh=memDeployHp(m);
+    el.innerHTML=`<div class="gr-h" title="Voir les grades et perks de l'escouade">⛺ Roster <span style="font-weight:normal;font-size:.72rem;color:#9a8a74">📖 perks</span></div>`+campRun.roster.map(m=>{ const weary=!m.dead&&((m.fatigue||0)>=100||(m.stress||0)>=100); const cls="gr-u"+(m.dead?" gr-dead":"")+(weary?" gr-weary":""); const dh=memDeployHp(m);
       const tag=m.dead?"✝":(weary?"⛔":((m.special!==false)?"★":""));
-      return `<div class="${cls}"><span class="gr-n">${esc(m.name)} <span style="color:#8a93a5">${(CLASSES[m.cls]&&CLASSES[m.cls].name)||m.cls}</span></span>`+
-        (m.dead?`<span style="color:#d8635f">mort</span>`:`<span title="PV au déploiement (soin partiel si déjà sorti)">❤️${bar(Math.round(dh.hp/dh.max*100),dh.full?"#6fd06f":"#d8a23f")}</span> <span title="Fatigue : monte en mission, baisse au repos ; à 100 le perso ne peut plus partir">😮‍💨${bar(m.fatigue,"#5fa9d8")}</span> <span title="Stress : monte sous le feu / aux K.O. d'alliés ; à 100 le perso ne peut plus partir">😰${bar(m.stress,"#d8a23f")}</span>`)+`<span>${tag}</span></div>`; }).join(""); }
+      return `<div class="${cls}" title="Voir grades & perks"><span class="gr-n">${esc(m.name)} <span style="color:#8a93a5">${(CLASSES[m.cls]&&CLASSES[m.cls].name)||m.cls}</span></span>`+
+        (m.dead?`<span style="color:#d8635f">mort</span>`:`<span title="PV au déploiement (soin partiel si déjà sorti)">❤️${bar(Math.round(dh.hp/dh.max*100),dh.full?"#6fd06f":"#d8a23f")}</span> <span title="Fatigue : monte en mission, baisse au repos ; à 100 le perso ne peut plus partir">😮‍💨${bar(m.fatigue,"#5fa9d8")}</span> <span title="Stress : monte sous le feu / aux K.O. d'alliés ; à 100 le perso ne peut plus partir">😰${bar(m.stress,"#d8a23f")}</span>`)+`<span>${tag}</span></div>`; }).join("");
+    el.onclick=openSquadSheet; }   // clic n'importe où sur le panneau roster → fiche grades & perks
   // chemin (régions) du camp jusqu'à `target` : Dijkstra qui PRÉFÈRE passer par les régions ouvertes
   // (camp / prises / disponibles) ; traverser une région verrouillée coûte cher → on les évite si une route ouverte existe.
   function geoPathTo(target){ if(geoCampId==null||target==null||target===geoCampId||!cells[target]||!cells[geoCampId])return null;
