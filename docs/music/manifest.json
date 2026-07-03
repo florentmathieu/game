@@ -1,6 +1,0 @@
-{
-  "_readme": "Liste les fichiers audio disponibles, par contexte. Chemins relatifs à music/. Le jeu tire une piste AU HASARD dans chaque liste : missions = à chaque mission ; interludes = aux écrans de texte/choix ; geoscape = sur la carte stratégique. Laisse une liste vide pour n'avoir aucune musique dans ce contexte. Exemple : \"missions\": [\"missions/combat-1.ogg\", \"missions/combat-2.ogg\"]",
-  "missions": ["missions/Posay.mp3", "missions/Mission_1.mp3", "missions/Mission_2.mp3", "missions/Mission_3.mp3"],
-  "interludes": ["interludes/Interlude_1.mp3"],
-  "geoscape": ["geoscape/Geoscape.mp3"]
-}
