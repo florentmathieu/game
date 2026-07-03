@@ -1,0 +1,53 @@
+name: Deploy site to Pages
+
+# Publie le jeu HTML depuis la RACINE du dépôt (index.html + dossiers de données).
+# Plus besoin de dupliquer les fichiers dans docs/ : le site est assemblé ici à chaque push.
+on:
+  push:
+    branches: [claude/intelligent-hypatia-nojupi]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# un seul déploiement à la fois ; on annule celui en cours si un nouveau push arrive
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/configure-pages@v5
+      - name: Assemble le site
+        run: |
+          set -e
+          mkdir -p _site
+          cp index.html _site/
+          # dossiers de données du jeu HTML
+          for d in music texts campaigns-mesh missions-mesh geoscapes-mesh; do
+            [ -d "$d" ] && cp -r "$d" _site/
+          done
+          # conserve le build web Godot déjà publié, s'il existe (pour ne pas casser /godot/)
+          if [ -d docs/godot ]; then
+            mkdir -p _site/godot
+            cp -r docs/godot/. _site/godot/
+          fi
+          echo "Contenu publié :" && ls -R _site | head -40
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
