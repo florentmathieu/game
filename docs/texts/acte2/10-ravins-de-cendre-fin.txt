@@ -1,0 +1,13 @@
+# ──────────────────────────────────────────────────────────
+# Ravins de cendre — FIN
+# Acte 2 — La Faille · difficulté 1★
+# RÔLE NARRATIF : Entrée dans la Faille. Le monde est déjà bien distordu.
+# ALLÉGORIE : On marche dans les cendres de ce que l'Empire a consumé.
+# PERSOS (suggestion) : Escouade + Kael/Wren
+# FORMAT : "_" seul sur une ligne = nouvelle page · "Nom:" = réplique (gras doré) · "…" = page d'attente · "[...]" à remplacer
+# ──────────────────────────────────────────────────────────
+[... réaction à chaud après la mission ...]
+_
+…
+_
+[... ce que ça change / ce qu'on apprend ...]

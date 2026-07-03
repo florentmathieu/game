@@ -1,0 +1,13 @@
+# ──────────────────────────────────────────────────────────
+# FIN — épilogue
+# Acte 2 — La Faille
+# RÔLE NARRATIF : Le Cœur étouffé sous l'otataral. L'Empire classe le dossier et passe à autre chose.
+# ALLÉGORIE : Pas de rédemption institutionnelle ; seule dignité possible : individuelle.
+# PERSOS (suggestion) : Survivants
+# FORMAT : "_" seul sur une ligne = nouvelle page · "Nom:" = réplique (gras doré) · "…" = page d'attente · "[...]" à remplacer
+# ──────────────────────────────────────────────────────────
+[... le silence après le Cœur ...]
+_
+…
+_
+[... l'Empire reclasse, la vie d'après ...]

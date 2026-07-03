@@ -1,0 +1,13 @@
+# ──────────────────────────────────────────────────────────
+# Crête venteuse — DÉBUT
+# Acte 1 — La Marche de Velhaur · difficulté 1★
+# RÔLE NARRATIF : Première sortie. Le mensonge officiel : « simple nettoyage ».
+# ALLÉGORIE : L'ordre de mission rassurant qui masque la nature de la Faille.
+# PERSOS (suggestion) : Stiff, Gizzard, Merry
+# FORMAT : "_" seul sur une ligne = nouvelle page · "Nom:" = réplique (gras doré) · "…" = page d'attente · "[...]" à remplacer
+# ──────────────────────────────────────────────────────────
+[... réplique d'ouverture ...]
+_
+…
+_
+[... mise en place de la mission ...]

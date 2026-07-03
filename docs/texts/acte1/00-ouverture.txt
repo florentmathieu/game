@@ -1,0 +1,13 @@
+# ──────────────────────────────────────────────────────────
+# OUVERTURE — Acte 1
+# Acte 1 — La Marche de Velhaur
+# RÔLE NARRATIF : Arrivée sur la Marche. L'ordre de mission officiel (le mensonge).
+# ALLÉGORIE : Tout commence par un récit rassurant de l'Empire.
+# PERSOS (suggestion) : Stiff, Gizzard, Merry
+# FORMAT : "_" seul sur une ligne = nouvelle page · "Nom:" = réplique (gras doré) · "…" = page d'attente · "[...]" à remplacer
+# ──────────────────────────────────────────────────────────
+[... la Marche de Velhaur, vue de loin ...]
+_
+…
+_
+[... ce qu'on leur a dit qu'ils venaient faire ...]

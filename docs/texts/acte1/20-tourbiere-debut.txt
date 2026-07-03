@@ -1,0 +1,14 @@
+# ──────────────────────────────────────────────────────────
+# Tourbière — DÉBUT
+# Acte 1 — La Marche de Velhaur · difficulté 2★
+# RÔLE NARRATIF : Démo d'objectif bonus (mini-mission enchaînée → Bois brûlé).
+# ALLÉGORIE : La prime qui appâte : pousser plus loin pour le gain.
+# PERSOS (suggestion) : Escouade
+# NOTE : Cette mission propose une mini-mission bonus.
+# FORMAT : "_" seul sur une ligne = nouvelle page · "Nom:" = réplique (gras doré) · "…" = page d'attente · "[...]" à remplacer
+# ──────────────────────────────────────────────────────────
+[... réplique d'ouverture ...]
+_
+…
+_
+[... mise en place de la mission ...]

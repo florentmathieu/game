@@ -1,0 +1,13 @@
+# ──────────────────────────────────────────────────────────
+# Bastion — DÉBUT
+# Acte 1 — La Marche de Velhaur · difficulté 5★
+# RÔLE NARRATIF : Verrou de l'acte. Le prendre ouvre la suite.
+# ALLÉGORIE : Le poste de commandement de l'exploitation : la machine, pas un monstre.
+# PERSOS (suggestion) : Escouade au complet
+# FORMAT : "_" seul sur une ligne = nouvelle page · "Nom:" = réplique (gras doré) · "…" = page d'attente · "[...]" à remplacer
+# ──────────────────────────────────────────────────────────
+[... réplique d'ouverture ...]
+_
+…
+_
+[... mise en place de la mission ...]
