@@ -798,7 +798,7 @@
   function setMsg(t){const el=document.getElementById("msg");el.textContent=t;if(msgT){clearTimeout(msgT);msgT=null;}if(t)msgT=setTimeout(()=>{el.textContent="";msgT=null;},4000);}   // ephemeral message: clears itself
   function refresh(){ if(geoPlay&&!geoPlay.inMission){ if(typeof drawGeoPlay==="function")drawGeoPlay(); return; }   // back on the strategic map: no "mission" refresh (stale units/cells)
     if(mode==="play"){computeVis();detectEnemies();detectNeutralPods();updateEnemyMemory();computeEVis();checkBonus();
-      if(turn==="player"&&!over&&sel&&(sel.hp<=0||(sel.ap<=0&&!sel.freeAvail))){ const nxt=units.find(u=>u.team==="player"&&u.hp>0&&!(u.ap<=0&&!u.freeAvail)); if(nxt){sel=nxt;amode=null;aimTarget=null;throwing=false;usingItem=false;} }   // unité épuisée → passe à la suivante
+      if(turn==="player"&&!over&&sel&&(sel.hp<=0||(sel.ap<=0&&!sel.freeAvail))){ const nxt=units.find(u=>u.team==="player"&&u.hp>0&&!(u.ap<=0&&!u.freeAvail)); if(nxt){sel=nxt;amode=null;aimTarget=null;throwing=false;usingItem=false;} }   // exhausted unit → switch to the next one
     } else visible=new Set(cells.map(c=>c.id)); draw(); if(mode==="play"){renderActs();renderRoster();maybeAutoEnd();} else { renderCounts(); saveDraft(); } }
   // soldier roster (top-left): name, HP, AP; click = select
   function renderRoster(){ const el=document.getElementById("roster"); if(!el)return; el.innerHTML="";
@@ -1320,7 +1320,7 @@
     const r=await fetch(`https://api.github.com/repos/${cfg.repo}/contents/${path}`,{method:"PUT",headers:{Authorization:"Bearer "+cfg.token,Accept:"application/vnd.github+json"},body:JSON.stringify(body)}); if(r.ok)return r.json();
     if((r.status===409||r.status===422)&&a<3){await new Promise(res=>setTimeout(res,400*(a+1)));continue;} throw new Error(r.status+" "+(await r.text()).slice(0,120)); } }
   async function fetchText(path,cfg){ if(cfg&&cfg.token&&cfg.repo){try{const f=await ghGet(path,cfg.branch,cfg);if(f)return f.text;}catch(e){}} try{const r=await fetch(path+"?_="+Date.now(),{cache:"no-store"});if(r.ok)return await r.text();}catch(e){} return null; }
-  function fillRepoMenu(list){ repoMissionList=list; const opts=list.length?list.map(x=>`<option value="${x.file}">${x.name}</option>`).join(""):`<option value="">(aucune mission)</option>`; repoSel.innerHTML=opts; if(typeof renderNodes==="function")renderNodes(); }
+  function fillRepoMenu(list){ repoMissionList=list; const opts=list.length?list.map(x=>`<option value="${x.file}">${x.name}</option>`).join(""):`<option value="">(no mission)</option>`; repoSel.innerHTML=opts; if(typeof renderNodes==="function")renderNodes(); }
   async function fetchRepoMissions(){ const t=await fetchText("missions-mesh/list.json",ghCfg()); let list=[]; if(t){try{const p=JSON.parse(t);if(Array.isArray(p))list=p;}catch(e){}} fillRepoMenu(list); }
   async function publishToRepo(){ const cfg=ghCfg(),name=(mname.value||"").trim();
     if(!name){ghSt.textContent="Give the mission a name.";return;} if(!cfg.token){ghSt.textContent="GitHub token required.";return;} if(!cfg.repo||!cfg.branch){ghSt.textContent="Repository/branch required.";return;}
@@ -2005,7 +2005,7 @@
     el.querySelectorAll("[data-unlock]").forEach(cb=>cb.onchange=e=>{ const id=+e.target.getAttribute("data-unlock"); c.gunlock=c.gunlock||[]; if(e.target.checked){ if(!c.gunlock.includes(id))c.gunlock.push(id); } else c.gunlock=c.gunlock.filter(x=>x!==id); draw(); }); }
 
   // geoscape serialization (polygons + annotations + mesh parameters)
-  function geoExport(){ return { name:(document.getElementById("geo-name").value||"").trim()||"territoire",
+  function geoExport(){ return { name:(document.getElementById("geo-name").value||"").trim()||"territory",
       mesh:{ infl, seed, g:geoG, cols:COLS, rows:ROWS },
       camp:geoCampId,
       cells:cells.map(c=>({ poly:c.poly.map(p=>[Math.round(p[0]),Math.round(p[1])]), name:c.gname||"", type:c.gtype||"region",
@@ -2033,7 +2033,7 @@
     if(tokEl&&tokEl.value.trim()){ try{localStorage.setItem("mgf_gh_token",tokEl.value.trim());}catch(e){} }
     const cfg=ghCfg(); const name=(document.getElementById("geo-name").value||"").trim();
     if(!name){gs.textContent="Give the territory a name.";return;} if(!cfg.token){gs.textContent="GitHub token required (Mission tab or field above).";return;} if(!cfg.repo||!cfg.branch){gs.textContent="Repository/branch required.";return;}
-    const file=(name.toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/(^-|-$)/g,"")||"territoire")+".json"; const o=geoExport(); o.name=name;
+    const file=(name.toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/(^-|-$)/g,"")||"territory")+".json"; const o=geoExport(); o.name=name;
     try{ gs.textContent="Publishing "+file+"…"; await ghPut("geoscapes-mesh/"+file,JSON.stringify(o),"Geoscape: "+name,cfg);
       const cur=await ghGet("geoscapes-mesh/list.json",cfg.branch,cfg); let list=[]; if(cur){try{const p=JSON.parse(cur.text);if(Array.isArray(p))list=p;}catch(e){}}
       if(list.some(x=>x.file===file))list=list.map(x=>x.file===file?{file,name}:x); else list.push({file,name});
@@ -2212,19 +2212,19 @@
         `<div class="sh-xp">${m.xp||0} XP${next!=null?(" · next grade at "+next+" XP"):" · max grade reached"}</div>${perks}</div>`; }).join("");
     el.classList.add("show"); }
   { const sx=document.getElementById("sheet-x"),sh=document.getElementById("sheet"); if(sx)sx.onclick=()=>sh.classList.remove("show"); if(sh)sh.addEventListener("click",e=>{ if(e.target===sh)sh.classList.remove("show"); }); }
-  // panneau « camp » : état du roster (grade, fatigue, stress, statut spécial, mort)
+  // "camp" panel: roster status (grade, fatigue, stress, special status, death)
   function renderGeoRoster(){ const el=document.getElementById("georoster"); if(!el||!campRun||!campRun.roster)return;
     const bar=(v,col)=>`<div class="gr-bar"><i style="width:${Math.min(100,Math.round(v||0))}%;background:${col}"></i></div>`;
-    el.innerHTML=`<div class="gr-h" title="Voir les grades et perks de l'escouade">⛺ Roster <span style="font-weight:normal;font-size:.72rem;color:#9a8a74">📖 perks</span></div>`+campRun.roster.map(m=>{ const weary=!m.dead&&((m.fatigue||0)>=100||(m.stress||0)>=100); const cls="gr-u"+(m.dead?" gr-dead":"")+(weary?" gr-weary":""); const dh=memDeployHp(m);
+    el.innerHTML=`<div class="gr-h" title="View the squad's grades and perks">⛺ Roster <span style="font-weight:normal;font-size:.72rem;color:#9a8a74">📖 perks</span></div>`+campRun.roster.map(m=>{ const weary=!m.dead&&((m.fatigue||0)>=100||(m.stress||0)>=100); const cls="gr-u"+(m.dead?" gr-dead":"")+(weary?" gr-weary":""); const dh=memDeployHp(m);
       const tag=m.dead?"✝":(weary?"⛔":((m.special!==false)?"★":""));
-      return `<div class="${cls}" title="Voir grades & perks"><span class="gr-n">${esc(m.name)} <span style="color:#8a93a5">${(CLASSES[m.cls]&&CLASSES[m.cls].name)||m.cls}</span></span>`+
-        (m.dead?`<span style="color:#d8635f">mort</span>`:`<span title="PV au déploiement (soin partiel si déjà sorti)">❤️${bar(Math.round(dh.hp/dh.max*100),dh.full?"#6fd06f":"#d8a23f")}</span> <span title="Fatigue : monte en mission, baisse au repos ; à 100 le perso ne peut plus partir">😮‍💨${bar(m.fatigue,"#5fa9d8")}</span> <span title="Stress : monte sous le feu / aux K.O. d'alliés ; à 100 le perso ne peut plus partir">😰${bar(m.stress,"#d8a23f")}</span>`)+`<span>${tag}</span></div>`; }).join("");
-    el.onclick=openSquadSheet; }   // clic n'importe où sur le panneau roster → fiche grades & perks
-  // chemin (régions) du camp jusqu'à `target` : Dijkstra qui PRÉFÈRE passer par les régions ouvertes
-  // (camp / prises / disponibles) ; traverser une région verrouillée coûte cher → on les évite si une route ouverte existe.
+      return `<div class="${cls}" title="View grades & perks"><span class="gr-n">${esc(m.name)} <span style="color:#8a93a5">${(CLASSES[m.cls]&&CLASSES[m.cls].name)||m.cls}</span></span>`+
+        (m.dead?`<span style="color:#d8635f">dead</span>`:`<span title="HP at deployment (partial heal if already sortied)">❤️${bar(Math.round(dh.hp/dh.max*100),dh.full?"#6fd06f":"#d8a23f")}</span> <span title="Fatigue: rises on mission, falls at rest; at 100 the character can no longer deploy">😮‍💨${bar(m.fatigue,"#5fa9d8")}</span> <span title="Stress: rises under fire / on ally K.O.s; at 100 the character can no longer deploy">😰${bar(m.stress,"#d8a23f")}</span>`)+`<span>${tag}</span></div>`; }).join("");
+    el.onclick=openSquadSheet; }   // click anywhere on the roster panel → grades & perks sheet
+  // path (regions) from the camp to `target`: Dijkstra that PREFERS going through open regions
+  // (camp / taken / available); crossing a locked region is expensive → avoid them if an open route exists.
   function geoPathTo(target){ if(geoCampId==null||target==null||target===geoCampId||!cells[target]||!cells[geoCampId])return null;
     const acc=geoAccessibleSet();
-    const cost=id=>{ if(id===geoCampId)return 0; const c=cells[id]; if(!c)return 60; return geoEffState(c,acc)==="locked"?60:1; };   // ouvert = 1, verrouillé = 60
+    const cost=id=>{ if(id===geoCampId)return 0; const c=cells[id]; if(!c)return 60; return geoEffState(c,acc)==="locked"?60:1; };   // open = 1, locked = 60
     const dist={[geoCampId]:0}, prev={}, done=new Set();
     while(true){ let u=-1,best=Infinity; for(const k in dist){ const id=+k; if(done.has(id))continue; if(dist[id]<best){best=dist[id];u=id;} }
       if(u===-1||u===target)break; done.add(u);
@@ -2233,8 +2233,8 @@
   function drawGeoPlay(){ ctx.setTransform(1,0,0,1,0,0); ctx.clearRect(0,0,cv.width,cv.height); ctx.setTransform(zoom,0,0,zoom,panX,panY);
     const acc=geoAccessibleSet();
     for(const c of cells){ const es=geoEffState(c,acc); poly(c); ctx.fillStyle=geoFillForState(c,es); ctx.fill(); ctx.lineWidth=1.5; ctx.strokeStyle="rgba(10,12,16,.5)"; ctx.stroke(); }
-    for(const c of cells){ const es=geoEffState(c,acc); if((es==="available"||es==="lost"||es==="attacked")&&c.gkind==="mission"){ poly(c); ctx.lineWidth=es==="attacked"?4:3; ctx.strokeStyle=(es==="attacked"?"#ff5a44":es==="lost"?"#d89a8a":"#9fd0a8"); ctx.stroke(); } }   // front jouable (perdue = liseré rouge, attaquée = liseré rouge vif)
-    // survol : chemin mauve depuis le camp (comme l'aperçu de déplacement en combat) + région survolée allumée
+    for(const c of cells){ const es=geoEffState(c,acc); if((es==="available"||es==="lost"||es==="attacked")&&c.gkind==="mission"){ poly(c); ctx.lineWidth=es==="attacked"?4:3; ctx.strokeStyle=(es==="attacked"?"#ff5a44":es==="lost"?"#d89a8a":"#9fd0a8"); ctx.stroke(); } }   // playable front (lost = red outline, attacked = bright red outline)
+    // hover: purple path from the camp (like the movement preview in combat) + hovered region lit up
     if(hoverCell!=null&&cells[hoverCell]){ const path=geoPathTo(hoverCell);
       if(path&&path.length>1){ ctx.save(); ctx.lineJoin="round"; ctx.lineCap="round";
         ctx.strokeStyle="rgba(0,0,0,.45)"; ctx.lineWidth=7; ctx.beginPath(); path.forEach((id,i)=>{const cc=cells[id]; i?ctx.lineTo(cc.cx,cc.cy):ctx.moveTo(cc.cx,cc.cy);}); ctx.stroke();
@@ -2245,24 +2245,24 @@
     for(const c of cells){ const es=geoEffState(c,acc); const isCamp=es==="camp"; const icon=isCamp?"⛺":(es==="attacked"?"⚠":(es==="cleared"?"✓":(es==="lost"?"↻":(es==="available"&&c.gkind==="mission"?(c.gforge?"⚒":"⚔"):(es==="locked"?"🔒":"")))));
       if(icon){ ctx.font="bold 15px system-ui"; ctx.fillStyle="#fff"; ctx.fillText(icon,c.cx,c.cy-8); }
       const nm=c.gname||("#"+c.id); ctx.font="11px system-ui"; ctx.fillStyle=(es==="locked")?"rgba(255,255,255,.42)":"rgba(255,255,255,.92)"; ctx.fillText(nm,c.cx,c.cy+10);
-      if(c.gdiff>0&&c.gkind==="mission"&&es!=="cleared"){ ctx.font="10px system-ui"; ctx.fillStyle=(es==="locked")?"rgba(224,179,65,.45)":"#e0b341"; ctx.fillText("★".repeat(c.gdiff),c.cx,c.cy+22); }   // étoiles = difficulté
-      const pr=campRun&&campRun.primes&&campRun.primes[c.gname]; if(pr&&(es==="available"||es==="lost")){ ctx.font="bold 10px system-ui"; ctx.fillStyle="#ffd479"; ctx.fillText("⏳+"+(pr.xp||0)+"xp",c.cx,c.cy+33); } }   // prime express qui fond (seulement sur le front)
+      if(c.gdiff>0&&c.gkind==="mission"&&es!=="cleared"){ ctx.font="10px system-ui"; ctx.fillStyle=(es==="locked")?"rgba(224,179,65,.45)":"#e0b341"; ctx.fillText("★".repeat(c.gdiff),c.cx,c.cy+22); }   // stars = difficulty
+      const pr=campRun&&campRun.primes&&campRun.primes[c.gname]; if(pr&&(es==="available"||es==="lost")){ ctx.font="bold 10px system-ui"; ctx.fillStyle="#ffd479"; ctx.fillText("⏳+"+(pr.xp||0)+"xp",c.cx,c.cy+33); } }   // express bounty that decays (only on the front)
     if(geoCampId!=null&&cells[geoCampId]){ poly(cells[geoCampId]); ctx.lineWidth=3; ctx.strokeStyle="#e0b341"; ctx.stroke(); } }
   function geoPlayClick(X,Y){ const c=cellAtXY(X,Y); if(!c)return; const es=geoEffState(c,geoAccessibleSet());
     if(es!=="available"&&es!=="lost"&&es!=="attacked"){ geoBanner(es==="locked"?gtx("messages.clickLocked"):(es==="cleared"?gtx("messages.clickCleared"):gtx("messages.clickNA"))); return; }
-    if(c.gkind!=="mission"||!c.gref){ geoBanner("rien à faire ici pour l'instant"); return; }
+    if(c.gkind!=="mission"||!c.gref){ geoBanner("nothing to do here for now"); return; }
     geoLaunchMission(c.id,c.gref); }
-  // écran de sélection d'escouade avant de partir : choisir jusqu'à N soldats PRÊTS (ni épuisés ni morts)
+  // squad selection screen before setting out: choose up to N READY soldiers (neither exhausted nor dead)
   function showSquadSelect(maxN,regionName,onConfirm){ const el=document.getElementById("squad"); if(!el||!campRun){ onConfirm(null); return; }
     const ready=campRun.roster.filter(memReady); const sel=new Set(ready.slice(0,maxN).map(m=>m.name));
     const bar=(v,col)=>`<div class="sq-bar"><i style="width:${Math.min(100,Math.round(v||0))}%;background:${col}"></i></div>`;
-    function draw(){ document.getElementById("squad-hd").innerHTML=`<span class="who">${esc(regionName||"Mission")}</span> — choisis ton escouade (${sel.size}/${maxN})`;
+    function draw(){ document.getElementById("squad-hd").innerHTML=`<span class="who">${esc(regionName||"Mission")}</span> — choose your squad (${sel.size}/${maxN})`;
       const list=document.getElementById("squad-list"); list.innerHTML="";
       for(const m of campRun.roster){ const ok=memReady(m), on=sel.has(m.name); const d=document.createElement("div");
         d.className="squ"+(on?" sel":"")+(ok?"":" dis");
         const tag=m.dead?"✝":(!ok?"⛔":(m.special!==false?"★":"")); const dh=memDeployHp(m);
         d.innerHTML=`<span class="sq-x">${on?"✓":(ok?"":tag)}</span><span class="sq-n">${esc(m.name)} <span class="sq-c">${(CLASSES[m.cls]&&CLASSES[m.cls].name)||m.cls}${(m.perks&&m.perks.length)?" "+"★".repeat(m.perks.length):""}</span></span>`
-          +(m.dead?`<span class="sq-c">mort</span>`:`<span title="${dh.full?'PV pleins (reposé)':'soin partiel — il vient de combattre'}">❤️${bar(Math.round(dh.hp/dh.max*100),dh.full?"#6fd06f":"#d8a23f")}</span><span class="sq-c">${dh.hp}/${dh.max}</span> <span title="Fatigue : monte en mission, baisse au repos ; à 100 le perso ne peut plus partir">😮‍💨${bar(m.fatigue,"#5fa9d8")}</span> <span title="Stress : monte sous le feu / aux K.O. d'alliés ; à 100 le perso ne peut plus partir">😰${bar(m.stress,"#d8a23f")}</span><span class="sq-x">${m.special!==false?"★":""}</span>`);
+          +(m.dead?`<span class="sq-c">dead</span>`:`<span title="${dh.full?'full HP (rested)':'partial heal — just came from a fight'}">❤️${bar(Math.round(dh.hp/dh.max*100),dh.full?"#6fd06f":"#d8a23f")}</span><span class="sq-c">${dh.hp}/${dh.max}</span> <span title="Fatigue: rises on mission, falls at rest; at 100 the character can no longer deploy">😮‍💨${bar(m.fatigue,"#5fa9d8")}</span> <span title="Stress: rises under fire / on ally K.O.s; at 100 the character can no longer deploy">😰${bar(m.stress,"#d8a23f")}</span><span class="sq-x">${m.special!==false?"★":""}</span>`);
         if(ok)d.onclick=()=>{ if(sel.has(m.name))sel.delete(m.name); else { if(sel.size>=maxN){ return; } sel.add(m.name); } draw(); };
         list.appendChild(d); }
       const go=document.getElementById("squad-go"); go.disabled=sel.size<1; }
@@ -2270,120 +2270,120 @@
     document.getElementById("squad-go").onclick=()=>{ if(sel.size<1)return; el.classList.remove("show"); onConfirm([...sel]); };
     document.getElementById("squad-cancel").onclick=()=>{ el.classList.remove("show"); onConfirm(null); }; }
   async function geoLaunchMission(cellId,ref){ const t=await fetchText("missions-mesh/"+ref,ghCfg());
-    if(!t){ geoBanner("mission introuvable : "+ref); return; }
-    let m; try{ m=JSON.parse(t); }catch(e){ geoBanner("mission illisible"); return; }
+    if(!t){ geoBanner("mission not found: "+ref); return; }
+    let m; try{ m=JSON.parse(t); }catch(e){ geoBanner("unreadable mission"); return; }
     const slots=(m.units||[]).filter(u=>u.team==="player").length||1;
     const regionName=(cells[cellId]&&cells[cellId].gname)||"Mission";
-    showSquadSelect(slots, regionName, (chosen)=>{ if(!chosen){ geoBanner("départ annulé"); return; }   // Annuler = on reste au camp
+    showSquadSelect(slots, regionName, (chosen)=>{ if(!chosen){ geoBanner("departure cancelled"); return; }   // Cancel = stay at camp
       campRun.deploySel=chosen; campRun.geoReturn={nodeId:geoPlay.node.id,cellId}; campRun.missionN=(campRun.missionN||0)+1; geoPlay.inMission=true; document.body.classList.remove("geomap");
-      try{ applyMissionObj(m,true); }catch(e){ geoBanner("mission illisible"); geoPlay.inMission=false; document.body.classList.add("geomap"); return; }
-      addForgeEnemies();   // ennemis ajustés après les forges libérées
-      distortTerrain(corruptLevel());   // le terrain se tord davantage à mesure qu'on avance
+      try{ applyMissionObj(m,true); }catch(e){ geoBanner("unreadable mission"); geoPlay.inMission=false; document.body.classList.add("geomap"); return; }
+      addForgeEnemies();   // enemies adjusted after the freed forges
+      distortTerrain(corruptLevel());   // the terrain warps more as you advance
       deployRoster(); startGame(); if(!(curMission&&curMission.fullheal))applyCarry(); refresh();
-      // dialogue d'escouade « avant » → événements de territoire « before » → dialogue d'escouade « début »
+      // squad dialogue "before" → territory "before" events → squad dialogue "start"
       playPartyDialog("before",()=>runGeoEvents("before",{region:regionName,missionN:campRun.missionN},()=>playPartyDialog("start",()=>{}))); }); }
   function geoEndReached(node,st){ const ew=node.endWhen||{kind:"all"}; const cs=geoPlay.map.cells;
     if(ew.kind==="key"){ const idx=cs.findIndex(c=>(c.name||"")===(ew.name||"")); return idx>=0&&st[idx]==="cleared"; }
     return cs.every((c,i)=> !(c.type!=="camp"&&c.content&&c.content.kind==="mission") || st[i]==="cleared" || st[i]==="lost"); }
-  // ===== « prime express » : incitation à tenter vite les régions DURES =====
-  // Une région difficile porte une prime (XP + moral) qui FOND à chaque mission jouée. On la touche en
-  // plus si on la prend avant qu'elle s'épuise → dilemme : foncer sur le dur maintenant, ou jouer safe.
-  let PRIME_DIFF_MIN=3, PRIME_XP_MULT=3, PRIME_XP_STEP=2, PRIME_MORALE_STEP=5;   // réglables (panneau d'équilibrage) — XP de prime = difficulté × PRIME_XP_MULT
+  // ===== "express bounty": incentive to attempt the HARD regions quickly =====
+  // A hard region carries a bounty (XP + morale) that DECAYS with each mission played. You get it on
+  // top if you take it before it runs out → dilemma: rush the hard one now, or play it safe.
+  let PRIME_DIFF_MIN=3, PRIME_XP_MULT=3, PRIME_XP_STEP=2, PRIME_MORALE_STEP=5;   // tunable (balancing panel) — bounty XP = difficulty × PRIME_XP_MULT
   function primeInit(){ if(!campRun||!geoPlay||!geoPlay.map)return; campRun.primes=campRun.primes||{};
     geoPlay.map.cells.forEach((c,i)=>{ const st=campRun.geoStates[geoPlay.node.id];
       if(c.content&&c.content.kind==="mission"&&(c.diff||0)>=PRIME_DIFF_MIN&&c.name&&campRun.primes[c.name]===undefined&&st&&st[i]!=="cleared"){
         const d=c.diff||3; campRun.primes[c.name]={xp:d*PRIME_XP_MULT,morale:d*5,potions:d>=5?1:0}; } }); }
   function primeFront(){ const onFront=new Set(); if(!campRun||!geoPlay||!geoPlay.map)return onFront; const acc=geoAccessibleSet(); geoPlay.map.cells.forEach((c,i)=>{ if(acc.has(i)&&c.name)onFront.add(c.name); }); return onFront; }
-  // une prime ne fond QUE quand sa région est déjà sur le front. On lui passe le front d'AVANT la mission :
-  // une région qui vient juste de s'ouvrir garde sa prime PLEINE → toujours atteignable « si on joue bien ».
+  // a bounty ONLY decays when its region is already on the front. We pass it the front from BEFORE the mission:
+  // a region that just opened keeps its FULL bounty → always reachable "if you play well".
   function primeDecay(onFront){ if(!campRun||!campRun.primes)return; onFront=onFront||primeFront();
     for(const k of Object.keys(campRun.primes)){ if(!onFront.has(k))continue; const p=campRun.primes[k];
-      p.xp=Math.max(0,(p.xp||0)-PRIME_XP_STEP); p.morale=Math.max(0,(p.morale||0)-PRIME_MORALE_STEP); if(!p.xp&&!p.morale)delete campRun.primes[k]; } }   // épuisée (xp & moral à 0) → la prime, soin compris, disparaît
-  // ===== « région attaquée » : événement rare, au timing variable, qu'il faut défendre =====
-  let ATTACK_CHANCE=0.14, ATTACK_GAP=3;   // rare (~14%) et jamais deux coups de suite (réglables)
+      p.xp=Math.max(0,(p.xp||0)-PRIME_XP_STEP); p.morale=Math.max(0,(p.morale||0)-PRIME_MORALE_STEP); if(!p.xp&&!p.morale)delete campRun.primes[k]; } }   // exhausted (xp & morale at 0) → the bounty, heals included, disappears
+  // ===== "attacked region": a rare event, at variable timing, that must be defended =====
+  let ATTACK_CHANCE=0.14, ATTACK_GAP=3;   // rare (~14%) and never twice in a row (tunable)
   function maybeAttackRegion(st){ if(!campRun||!geoPlay)return null;
     if(((campRun.missionN||0)-(campRun.lastAttackN||-99))<ATTACK_GAP)return null;   // cooldown
-    if(Math.random()>ATTACK_CHANCE)return null;                                      // rare + timing variable
+    if(Math.random()>ATTACK_CHANCE)return null;                                      // rare + variable timing
     const map=geoPlay.map, cand=[]; map.cells.forEach((c,i)=>{ if(st[i]==="cleared"&&!c.boss)cand.push(i); });
     if(!cand.length)return null; const pick=cand[Math.floor(Math.random()*cand.length)];
     st[pick]="attacked"; campRun.lastAttackN=campRun.missionN||0;
-    return gtx("messages.attack",{region:(map.cells[pick].name)||"Une région"}); }
-  function geoMissionEnd(resultTxt){ playPartyDialog("after",()=>geoMissionEndResolve(resultTxt)); }   // dialogue d'escouade « après » (participants intacts), puis débrief geoscape
-  function geoMissionEndResolve(resultTxt){ const win=resultTxt.indexOf("Victoire")===0; const ret=campRun.geoReturn; const st=campRun.geoStates[ret.nodeId]; saveCarry(); if(win)awardXp(); const deaths=applyAttrition(win); let bonusMsg=null,primeMsg=null,forgeMsg=null,atkMsg=null;
-    const frontBefore=primeFront();   // front d'avant la mission : les régions ouvertes par cette victoire ne fondront pas ce tour-ci
+    return gtx("messages.attack",{region:(map.cells[pick].name)||"A region"}); }
+  function geoMissionEnd(resultTxt){ playPartyDialog("after",()=>geoMissionEndResolve(resultTxt)); }   // squad dialogue "after" (participants intact), then geoscape debrief
+  function geoMissionEndResolve(resultTxt){ const win=resultTxt.indexOf("Victory")===0; const ret=campRun.geoReturn; const st=campRun.geoStates[ret.nodeId]; saveCarry(); if(win)awardXp(); const deaths=applyAttrition(win); let bonusMsg=null,primeMsg=null,forgeMsg=null,atkMsg=null;
+    const frontBefore=primeFront();   // front from before the mission: regions opened by this victory won't decay this turn
     const fcell=geoPlay.map.cells[ret.cellId]; const rn=fcell&&fcell.name;
     if(win){ st[ret.cellId]="cleared"; campRun.potions=(inv.potion||0)+((curMission&&curMission.loot)||0); bonusMsg=grantBonus(win); campRun.winCount=(campRun.winCount||0)+1;
-      if(rn&&campRun.primes&&campRun.primes[rn]){ const s=applyReward(campRun.primes[rn]); delete campRun.primes[rn]; if(s)primeMsg=gtx("messages.prime",{reward:s}); }   // prime de la région prise (avant qu'elle fonde)
-      if(fcell&&fcell.forge){ campRun.forgeDone=campRun.forgeDone||[]; const fk=ret.nodeId+":"+ret.cellId;   // forge libérée : bonus de stats permanent, une seule fois
+      if(rn&&campRun.primes&&campRun.primes[rn]){ const s=applyReward(campRun.primes[rn]); delete campRun.primes[rn]; if(s)primeMsg=gtx("messages.prime",{reward:s}); }   // bounty of the taken region (before it decays)
+      if(fcell&&fcell.forge){ campRun.forgeDone=campRun.forgeDone||[]; const fk=ret.nodeId+":"+ret.cellId;   // freed forge: permanent stat bonus, once only
         if(campRun.forgeDone.indexOf(fk)<0){ campRun.forgeDone.push(fk); campRun.forge=(campRun.forge||0)+1; campRun.forgeBonus={hp:3*campRun.forge,dmg:campRun.forge};
           forgeMsg=gtx("messages.forge",{thp:3*campRun.forge,tdmg:campRun.forge}); } }
       geoPlay.map.cells.forEach((c,i)=>{ if((c.unlockedBy||[]).includes(ret.cellId)&&st[i]==="locked")st[i]="available"; }); }
     else st[ret.cellId]="lost";
-    primeDecay(frontBefore);   // une mission a été jouée : les primes déjà sur le front fondent d'un cran
-    if(win)atkMsg=maybeAttackRegion(st);   // après une victoire, une région prise peut être attaquée (rare)
-    const lostSpecial=checkMortalConditions();   // ★ retiré selon conditions (N victoires / région nettoyée)
+    primeDecay(frontBefore);   // a mission was played: bounties already on the front decay one notch
+    if(win)atkMsg=maybeAttackRegion(st);   // after a victory, a taken region may be attacked (rare)
+    const lostSpecial=checkMortalConditions();   // ★ removed by conditions (N victories / cleared region)
     geoPlay.inMission=false; over=false; const node=geoPlay.node;
-    const announce=(msg,cb)=> autoPromote?cb():showCampText(msg,cb);   // bloquant en jeu, immédiat en test (autoPromote)
-    const events=[];   // prime + forge + bonus + attaque + pertes + retraits de statut spécial, annoncés un par un
+    const announce=(msg,cb)=> autoPromote?cb():showCampText(msg,cb);   // blocking in game, immediate in test (autoPromote)
+    const events=[];   // bounty + forge + bonus + attack + losses + special-status removals, announced one by one
     if(primeMsg)events.push(primeMsg);
     if(forgeMsg)events.push(forgeMsg);
     if(bonusMsg)events.push(bonusMsg);
     if(atkMsg)events.push(atkMsg);
-    if(deaths.length)events.push("✝ "+deaths.join(", ")+(deaths.length>1?" sont tombé·e·s au combat. Iels quittent le roster.":" est tombé·e au combat. Iel quitte le roster."));
-    if(lostSpecial.length)events.push("★ "+lostSpecial.join(", ")+" — leur rôle est accompli : iels ne sont plus à l'abri du destin.");
+    if(deaths.length)events.push("✝ "+deaths.join(", ")+(deaths.length>1?" have fallen in battle. They leave the roster.":" has fallen in battle. They leave the roster."));
+    if(lostSpecial.length)events.push("★ "+lostSpecial.join(", ")+" — their role is fulfilled: they are no longer safe from fate.");
     const showEvents=after=>{ if(!events.length){after();return;} announce(events.shift(),()=>showEvents(after)); };
     const toCamp=()=>{ document.body.classList.add("geomap"); resetView(); geoBuildCells(); geoFitView(); hoverCell=null; primeInit(); playMusic("geoscape");
       geoBanner(win?gtx("messages.secured"):gtx("messages.lost")); draw();
-      runGeoEvents("after",{region:rn,missionN:campRun.missionN},()=>runGeoEvents("debrief",()=>{ geoBuildCells(); draw(); geoBanner(); saveCampRun(); })); };   // texte d'après-mission, puis « région prise / N victoires », redessine, point de reprise
+      runGeoEvents("after",{region:rn,missionN:campRun.missionN},()=>runGeoEvents("debrief",()=>{ geoBuildCells(); draw(); geoBanner(); saveCampRun(); })); };   // post-mission text, then "region taken / N victories", redraws, resume point
     const resolveDebrief=()=>{ if(geoEndReached(node,st)){ const nx=node.next; geoPlay=null; document.body.classList.remove("geomap");
-        announce(gtx(win?"messages.actEndWin":"messages.actEndLoss"),()=>{ if(nx)runNode(nx); else endCampaignRun("Acte terminé."); }); return; }
+        announce(gtx(win?"messages.actEndWin":"messages.actEndLoss"),()=>{ if(nx)runNode(nx); else endCampaignRun("Act finished."); }); return; }
       toCamp(); };
-    const finish=()=>{ showEvents(()=> maybeOfferExtra(win,resolveDebrief) ); };   // pertes/★/bonus, puis offre éventuelle d'une mission bonus, puis retour au camp
-    showPromotions(finish); }   // promotions A/B, puis pertes / retraits de ★, puis retour au camp
+    const finish=()=>{ showEvents(()=> maybeOfferExtra(win,resolveDebrief) ); };   // losses/★/bonus, then a possible bonus mission offer, then return to camp
+    showPromotions(finish); }   // A/B promotions, then losses / ★ removals, then return to camp
 
   function init(){
     let draft=null; try{ draft=JSON.parse(localStorage.getItem("mgf_mesh_draft")||"null"); }catch(e){}
-    try{ const nm=localStorage.getItem("mgf_mesh_mname"); mname.value=(nm!=null&&nm!=="")?nm:((draft&&draft.name&&draft.name!=="mission-maillage")?draft.name:""); }catch(e){}   // nom restauré AVANT applyMissionObj (sinon son refresh→saveDraft l'écraserait par du vide)
+    try{ const nm=localStorage.getItem("mgf_mesh_mname"); mname.value=(nm!=null&&nm!=="")?nm:((draft&&draft.name&&draft.name!=="mission-maillage")?draft.name:""); }catch(e){}   // name restored BEFORE applyMissionObj (otherwise its refresh→saveDraft would overwrite it with empty)
     if(draft&&draft.cells&&draft.cells.length){ try{ applyMissionObj(draft); }catch(e){ defaultBoard(); } }
     else defaultBoard();
-    // restaure le brouillon de campagne dans l'éditeur
+    // restore the campaign draft in the editor
     const cd=loadCampDraft(); if(cd){ cname.value=cd.name||""; campNodes=cd.nodes||[]; campStart=cd.start||(campNodes[0]&&campNodes[0].id)||""; campRoster=cd.roster||[];campDialogs=cd.dialogs||[]; renderNodes(); }
-    // routage par URL : ?edit = éditeur de mission, ?campaign = éditeur de campagne, défaut = page de jeu
+    // URL routing: ?edit = mission editor, ?campaign = campaign editor, default = game page
     const params=new URLSearchParams(location.search);
     const view=params.has("edit")?"mission":params.has("campaign")?"campaign":params.has("geoscape")?"geoscape":"play";
     setView(view);
     refresh();
   }
-  // ===== panneau d'équilibrage : règle les constantes en direct (curseurs), persisté en localStorage =====
+  // ===== balancing panel: tunes the constants live (sliders), persisted in localStorage =====
   const TUNE_KEY="mgf_tune";
   const TUNE_GROUPS=[
-    {name:"Mouvement & PA", items:[
-      {k:"MOB",label:"Mobilité (cases / PA)",get:()=>MOB,set:v=>MOB=v,min:1,max:8,step:1},
-      {k:"AP_MAX",label:"PA par tour",get:()=>AP_MAX,set:v=>AP_MAX=v,min:1,max:4,step:1},
-      {k:"FREE_MP",label:"Déplacement gratuit",get:()=>FREE_MP,set:v=>FREE_MP=v,min:0,max:6,step:1} ]},
+    {name:"Movement & AP", items:[
+      {k:"MOB",label:"Mobility (tiles / AP)",get:()=>MOB,set:v=>MOB=v,min:1,max:8,step:1},
+      {k:"AP_MAX",label:"AP per turn",get:()=>AP_MAX,set:v=>AP_MAX=v,min:1,max:4,step:1},
+      {k:"FREE_MP",label:"Free movement",get:()=>FREE_MP,set:v=>FREE_MP=v,min:0,max:6,step:1} ]},
     {name:"Combat", items:[
-      {k:"COVER_PEN",label:"Pénalité de couvert",get:()=>COVER_PEN,set:v=>COVER_PEN=v,min:0,max:60,step:5,suffix:"%"},
-      {k:"HEIGHT_BONUS",label:"Bonus de hauteur (/niv.)",get:()=>HEIGHT_BONUS,set:v=>HEIGHT_BONUS=v,min:0,max:15,step:1,suffix:"%"},
-      {k:"DEF_BRACE",label:"Défense « en garde »",get:()=>DEF_BRACE,set:v=>DEF_BRACE=v,min:0,max:40,step:5,suffix:"%"},
-      {k:"CD_MULT",label:"Recharges des capacités",get:()=>Math.round(CD_MULT*100),set:v=>CD_MULT=v/100,min:25,max:200,step:25,suffix:"%"} ]},
-    {name:"Usure & mort", items:[
-      {k:"FATIGUE_MISSION",label:"Fatigue par mission",get:()=>FATIGUE_MISSION,set:v=>FATIGUE_MISSION=v,min:0,max:60,step:5},
-      {k:"SPELL_FATIGUE",label:"Fatigue par sort",get:()=>SPELL_FATIGUE,set:v=>SPELL_FATIGUE=v,min:0,max:20,step:1},
-      {k:"REST_FRAC",label:"Récup. au repos",get:()=>Math.round(REST_FRAC*100),set:v=>REST_FRAC=v/100,min:0,max:100,step:5,suffix:"%"},
-      {k:"WEARY",label:"Seuil d'épuisement",get:()=>WEARY,set:v=>WEARY=v,min:50,max:100,step:5},
-      {k:"DEATH_PCT",label:"Risque mort (K.O.+défaite)",get:()=>DEATH_PCT,set:v=>DEATH_PCT=v,min:0,max:100,step:5,suffix:"%"} ]},
-    {name:"Primes express", items:[
-      {k:"PRIME_DIFF_MIN",label:"Difficulté min. (★)",get:()=>PRIME_DIFF_MIN,set:v=>PRIME_DIFF_MIN=v,min:1,max:5,step:1},
-      {k:"PRIME_XP_MULT",label:"XP de prime = ★ ×",get:()=>PRIME_XP_MULT,set:v=>PRIME_XP_MULT=v,min:1,max:8,step:1},
-      {k:"PRIME_XP_STEP",label:"Décrue XP / mission",get:()=>PRIME_XP_STEP,set:v=>PRIME_XP_STEP=v,min:0,max:6,step:1},
-      {k:"PRIME_MORALE_STEP",label:"Décrue moral / mission",get:()=>PRIME_MORALE_STEP,set:v=>PRIME_MORALE_STEP=v,min:0,max:15,step:1} ]},
-    {name:"Ennemis par difficulté", items:[
-      {k:"EN_facile",label:"Facile",get:()=>ENEMY_COUNT.facile,set:v=>ENEMY_COUNT.facile=v,min:1,max:12,step:1},
-      {k:"EN_moyen",label:"Moyen",get:()=>ENEMY_COUNT.moyen,set:v=>ENEMY_COUNT.moyen=v,min:1,max:12,step:1},
-      {k:"EN_difficile",label:"Difficile",get:()=>ENEMY_COUNT.difficile,set:v=>ENEMY_COUNT.difficile=v,min:1,max:16,step:1} ]},
+      {k:"COVER_PEN",label:"Cover penalty",get:()=>COVER_PEN,set:v=>COVER_PEN=v,min:0,max:60,step:5,suffix:"%"},
+      {k:"HEIGHT_BONUS",label:"Height bonus (/level)",get:()=>HEIGHT_BONUS,set:v=>HEIGHT_BONUS=v,min:0,max:15,step:1,suffix:"%"},
+      {k:"DEF_BRACE",label:"\"Brace\" defense",get:()=>DEF_BRACE,set:v=>DEF_BRACE=v,min:0,max:40,step:5,suffix:"%"},
+      {k:"CD_MULT",label:"Ability cooldowns",get:()=>Math.round(CD_MULT*100),set:v=>CD_MULT=v/100,min:25,max:200,step:25,suffix:"%"} ]},
+    {name:"Attrition & death", items:[
+      {k:"FATIGUE_MISSION",label:"Fatigue per mission",get:()=>FATIGUE_MISSION,set:v=>FATIGUE_MISSION=v,min:0,max:60,step:5},
+      {k:"SPELL_FATIGUE",label:"Fatigue per spell",get:()=>SPELL_FATIGUE,set:v=>SPELL_FATIGUE=v,min:0,max:20,step:1},
+      {k:"REST_FRAC",label:"Recovery at rest",get:()=>Math.round(REST_FRAC*100),set:v=>REST_FRAC=v/100,min:0,max:100,step:5,suffix:"%"},
+      {k:"WEARY",label:"Exhaustion threshold",get:()=>WEARY,set:v=>WEARY=v,min:50,max:100,step:5},
+      {k:"DEATH_PCT",label:"Death risk (K.O.+defeat)",get:()=>DEATH_PCT,set:v=>DEATH_PCT=v,min:0,max:100,step:5,suffix:"%"} ]},
+    {name:"Express bounties", items:[
+      {k:"PRIME_DIFF_MIN",label:"Min. difficulty (★)",get:()=>PRIME_DIFF_MIN,set:v=>PRIME_DIFF_MIN=v,min:1,max:5,step:1},
+      {k:"PRIME_XP_MULT",label:"Bounty XP = ★ ×",get:()=>PRIME_XP_MULT,set:v=>PRIME_XP_MULT=v,min:1,max:8,step:1},
+      {k:"PRIME_XP_STEP",label:"XP decay / mission",get:()=>PRIME_XP_STEP,set:v=>PRIME_XP_STEP=v,min:0,max:6,step:1},
+      {k:"PRIME_MORALE_STEP",label:"Morale decay / mission",get:()=>PRIME_MORALE_STEP,set:v=>PRIME_MORALE_STEP=v,min:0,max:15,step:1} ]},
+    {name:"Enemies per difficulty", items:[
+      {k:"EN_facile",label:"Easy",get:()=>ENEMY_COUNT.facile,set:v=>ENEMY_COUNT.facile=v,min:1,max:12,step:1},
+      {k:"EN_moyen",label:"Medium",get:()=>ENEMY_COUNT.moyen,set:v=>ENEMY_COUNT.moyen=v,min:1,max:12,step:1},
+      {k:"EN_difficile",label:"Hard",get:()=>ENEMY_COUNT.difficile,set:v=>ENEMY_COUNT.difficile=v,min:1,max:16,step:1} ]},
   ];
   const tuneItems=()=>{ const a=[]; for(const g of TUNE_GROUPS)for(const it of g.items)a.push(it); return a; };
-  const TUNE_DEFAULTS=(()=>{ const o={}; for(const it of tuneItems())o[it.k]=it.get(); return o; })();   // capturé aux valeurs par défaut
+  const TUNE_DEFAULTS=(()=>{ const o={}; for(const it of tuneItems())o[it.k]=it.get(); return o; })();   // captured at the default values
   function saveTune(){ try{ const o={}; for(const it of tuneItems())o[it.k]=it.get(); localStorage.setItem(TUNE_KEY,JSON.stringify(o)); }catch(e){} }
   function loadTune(){ try{ const o=JSON.parse(localStorage.getItem(TUNE_KEY)||"null"); if(!o)return; for(const it of tuneItems())if(o[it.k]!=null)it.set(o[it.k]); }catch(e){} }
   function renderBalance(){ const b=document.getElementById("balance-body"); if(!b)return;
@@ -2396,14 +2396,14 @@
     const tb2=document.getElementById("title-balance"); if(tb2)tb2.onclick=openBalance;
     const ov=document.getElementById("balance"); if(ov)ov.onclick=e=>{ if(e.target===ov)closeBalance(); };
     const rb=document.getElementById("balance-reset"); if(rb)rb.onclick=()=>{ for(const it of tuneItems())it.set(TUNE_DEFAULTS[it.k]); try{localStorage.removeItem(TUNE_KEY);}catch(e){} renderBalance(); }; }
-  loadTune();   // applique les réglages sauvegardés
+  loadTune();   // applies the saved settings
   { const tb=document.getElementById("title-btn"); if(tb)tb.onclick=()=>{ const t=document.getElementById("title"); if(t)t.style.display="none";
       if(document.body.classList.contains("view-play")&&!campRun) startPlay(); }; }
-  // « Recommencer à zéro » : efface la progression persistée de toutes les campagnes (le roster repart vierge)
-  { const rb=document.getElementById("title-reset"); if(rb)rb.onclick=()=>{ if(!confirm("Effacer toute la progression sauvegardée (niveaux & compétences) ?"))return;
+  // "Start over": clears the persisted progression of all campaigns (the roster starts fresh)
+  { const rb=document.getElementById("title-reset"); if(rb)rb.onclick=()=>{ if(!confirm("Erase all saved progression (levels & skills)?"))return;
       try{ const rm=[]; for(let i=0;i<localStorage.length;i++){ const k=localStorage.key(i); if(k&&(k.indexOf(SAVE_PREFIX)===0||k.indexOf(EVT_PREFIX)===0||k.indexOf(RUN_PREFIX)===0))rm.push(k); } rm.forEach(k=>localStorage.removeItem(k)); }catch(e){}
-      rb.textContent="✓ Progression effacée"; }; }
-  // sections repliables : chaque <h2> de l'éditeur replie le bloc qui le suit
+      rb.textContent="✓ Progression erased"; }; }
+  // collapsible sections: each editor <h2> collapses the block that follows it
   function makeCollapsible(container){ if(!container||!container.querySelectorAll)return;
     [...container.querySelectorAll("h2")].forEach(h=>{ if(h.parentNode!==container)return; let el=h.nextElementSibling; const sibs=[];
       while(el&&el.tagName!=="H2"){const nx=el.nextElementSibling;sibs.push(el);el=nx;}
