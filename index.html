@@ -159,8 +159,8 @@
     <div class="row" id="zones"></div>
     <div class="row"><label style="flex:1">Distortion <input id="dist" type="range" min="0" max="100" value="28"></label><span id="distv">28%</span></div>
     <div class="row"><label style="flex:1">Density <input id="dens" type="range" min="30" max="64" value="44"></label><span id="densv">44</span> <button id="regen">↻</button></div>
-    <div class="row"><label>Tiling <select id="mesh-type"><option value="voronoi">Voronoi (zones)</option><option value="penrose3">Penrose — rhombi (P3)</option><option value="ammann">Ammann–Beenker (8-fold)</option></select></label></div>
-    <div class="hint">Paint the zones (or "🎲 Auto zones") then set the distortion: terrain, elevation, low walls & units are preserved as best as possible. ⚠ only "↻" re-meshes from scratch and resets everything.<br>With a Penrose or Ammann–Beenker tiling: <b>Density</b> = tile size, <b>Distortion</b> = vertex jitter (the zones are ignored).</div>
+    <div class="row"><label>Tiling <select id="mesh-type"><option value="voronoi">Voronoi (zones)</option><option value="penrose3">Penrose — rhombi (P3)</option><option value="ammann">Ammann–Beenker (8-fold)</option><option value="spectre">Spectre (einstein monotile)</option></select></label></div>
+    <div class="hint">Paint the zones (or "🎲 Auto zones") then set the distortion: terrain, elevation, low walls & units are preserved as best as possible. ⚠ only "↻" re-meshes from scratch and resets everything.<br>With a Penrose / Ammann–Beenker / Spectre tiling: <b>Density</b> = tile size, <b>Distortion</b> = vertex jitter (the zones are ignored).</div>
     <h2>2 · Terrain & elevation</h2>
     <div class="row" id="terr"></div>
     <div class="row" id="relief"></div>
@@ -440,7 +440,7 @@
   function distToSeg(px,py,a,b){ const vx=b[0]-a[0],vy=b[1]-a[1],wx=px-a[0],wy=py-a[1],c1=vx*wx+vy*wy; if(c1<=0)return Math.hypot(px-a[0],py-a[1]); const c2=vx*vx+vy*vy; if(c2<=c1)return Math.hypot(px-b[0],py-b[1]); const t=c1/c2; return Math.hypot(px-(a[0]+t*vx),py-(a[1]+t*vy)); }
   const meshTypeEl=()=>document.getElementById("mesh-type");
   function genMesh(gOverride,forceV){
-    if(!forceV&&meshTypeEl()){ const mt=meshTypeEl().value; if(mt==="penrose3"){ genPenrose(gOverride); return; } if(mt==="ammann"){ genAmmann(gOverride); return; } }   // forceV : le geoscape reste toujours en Voronoï
+    if(!forceV&&meshTypeEl()){ const mt=meshTypeEl().value; if(mt==="penrose3"){ genPenrose(gOverride); return; } if(mt==="ammann"){ genAmmann(gOverride); return; } if(mt==="spectre"){ genSpectre(gOverride); return; } }   // forceV : le geoscape reste toujours en Voronoï
     const g=gOverride||+dens.value, dist=+distEl.value/100, rnd=mk(seed), h=g*0.866, jit=a=>(rnd()*2-1)*a;
     const typeAt=(x,y)=>infl[Math.min(ROWS-1,Math.floor(y/MC))][Math.min(COLS-1,Math.floor(x/MC))];
     const seeds=[];
@@ -521,6 +521,46 @@
       if(ct[0]<-g||ct[0]>W+g||ct[1]<-g||ct[1]>H+g)continue;
       cells.push({id:cells.length,poly,cx:ct[0],cy:ct[1],nb:[],terr:"plain",elev:0}); }
     if(islandTrim){ const EPS=0.6; cells=cells.filter(c=>!c.poly.some(p=>p[0]<=EPS||p[0]>=W-EPS||p[1]<=EPS||p[1]>=H-EPS)); cells.forEach((c,i)=>c.id=i); }
+    buildAdj();
+  }
+  // ===== Spectre (einstein monotile) : substitution de Kaplan (9 métatuiles Gamma..Psi), tuiles = spectres Tile(1,1) =====
+  function genSpectre(gOverride){
+    const g=gOverride||+dens.value, dist=+distEl.value/100, rnd=mk(seed), PI=Math.PI, radians=d=>d*PI/180, ident=[1,0,0,0,1,0];
+    const P=(x,y)=>({x,y});
+    const mm=(A,B)=>[A[0]*B[0]+A[1]*B[3],A[0]*B[1]+A[1]*B[4],A[0]*B[2]+A[1]*B[5]+A[2],A[3]*B[0]+A[4]*B[3],A[3]*B[1]+A[4]*B[4],A[3]*B[2]+A[4]*B[5]+A[5]];
+    const trot=a=>{const c=Math.cos(a),s=Math.sin(a);return[c,-s,0,s,c,0];}, ttr=(x,y)=>[1,0,x,0,1,y];
+    const transTo=(p,q)=>ttr(q.x-p.x,q.y-p.y), tp=(M,p)=>P(M[0]*p.x+M[1]*p.y+M[2],M[3]*p.x+M[4]*p.y+M[5]);
+    const base=()=>{ const sp=[P(0,0),P(1,0),P(1.5,-0.8660254037844386),P(2.366025403784439,-0.36602540378443865),P(2.366025403784439,0.6339745962155614),P(3.366025403784439,0.6339745962155614),P(3.866025403784439,1.5),P(3,2),P(2.133974596215561,1.5),P(1.6339745962155614,2.3660254037844393),P(0.6339745962155614,2.3660254037844393),P(-0.3660254037844386,2.3660254037844393),P(-0.866025403784439,1.5),P(0,1)];
+      const keys=[sp[3],sp[5],sp[7],sp[11]], ret={};
+      for(const lab of ['Delta','Theta','Lambda','Xi','Pi','Sigma','Phi','Psi']) ret[lab]={meta:false,pts:sp,quad:keys,label:lab};
+      const my={meta:true,geoms:[],quad:keys};
+      my.geoms.push({geom:{meta:false,pts:sp,quad:keys,label:'Gamma1'},xform:ident});
+      my.geoms.push({geom:{meta:false,pts:sp,quad:keys,label:'Gamma2'},xform:mm(ttr(sp[8].x,sp[8].y),trot(PI/6))});
+      ret['Gamma']=my; return ret; };
+    const supert=sys=>{ const quad=sys['Delta'].quad, R=[-1,0,0,0,1,0];
+      const t_rules=[[60,3,1],[0,2,0],[60,3,1],[60,3,1],[0,2,0],[60,3,1],[-120,3,3]];
+      const Ts=[ident]; let ta=0,rot=ident; const tq=[quad[0],quad[1],quad[2],quad[3]];
+      for(const [ang,from,to] of t_rules){ ta+=ang; if(ang!=0){ rot=trot(radians(ta)); for(let i=0;i<4;i++)tq[i]=tp(rot,quad[i]); }
+        Ts.push(mm(transTo(tq[to],tp(Ts[Ts.length-1],quad[from])),rot)); }
+      for(let i=0;i<Ts.length;i++)Ts[i]=mm(R,Ts[i]);
+      const sr={'Gamma':['Pi','Delta','null','Theta','Sigma','Xi','Phi','Gamma'],'Delta':['Xi','Delta','Xi','Phi','Sigma','Pi','Phi','Gamma'],'Theta':['Psi','Delta','Pi','Phi','Sigma','Pi','Phi','Gamma'],'Lambda':['Psi','Delta','Xi','Phi','Sigma','Pi','Phi','Gamma'],'Xi':['Psi','Delta','Pi','Phi','Sigma','Psi','Phi','Gamma'],'Pi':['Psi','Delta','Xi','Phi','Sigma','Psi','Phi','Gamma'],'Sigma':['Xi','Delta','Xi','Phi','Sigma','Pi','Lambda','Gamma'],'Phi':['Psi','Delta','Psi','Phi','Sigma','Pi','Phi','Gamma'],'Psi':['Psi','Delta','Psi','Phi','Sigma','Psi','Phi','Gamma']};
+      const sq=[tp(Ts[6],quad[2]),tp(Ts[5],quad[1]),tp(Ts[3],quad[2]),tp(Ts[0],quad[1])], ret={};
+      for(const lab in sr){ const sup={meta:true,geoms:[],quad:sq}, subs=sr[lab];
+        for(let i=0;i<8;i++){ if(subs[i]==='null')continue; sup.geoms.push({geom:sys[subs[i]],xform:Ts[i]}); } ret[lab]=sup; }
+      return ret; };
+    const emit=(geom,T,out)=>{ if(!geom.meta){ out.push(geom.pts.map(p=>tp(T,p))); } else { for(const gg of geom.geoms) emit(gg.geom,mm(T,gg.xform),out); } };
+    // le spectre est une grande tuile : peu de niveaux suffisent. Density basse → N=3 (plus fin), haute → N=2 (plus gros)
+    let sys=base(); const N=g>=42?2:3;
+    for(let i=0;i<N;i++)sys=supert(sys);
+    const out=[]; emit(sys['Delta'],ident,out);
+    // le patch de substitution est une île apériodique connexe (sans trou) ; on l'ajuste au plateau
+    let mnx=1e18,mny=1e18,mxx=-1e18,mxy=-1e18; for(const poly of out)for(const p of poly){ if(p.x<mnx)mnx=p.x; if(p.y<mny)mny=p.y; if(p.x>mxx)mxx=p.x; if(p.y>mxy)mxy=p.y; }
+    const bw=Math.max(1,mxx-mnx), bh=Math.max(1,mxy-mny), S=Math.min(W/bw,H/bh)*0.94, ox=(W-(mnx+mxx)*S)/2, oy=(H-(mny+mxy)*S)/2;
+    const vkey=p=>Math.round(p[0]*10)+","+Math.round(p[1]*10), off=new Map(), amp=dist*S*0.34;   // jitter proportionnel à la taille de tuile ajustée
+    const warp=p=>{ const k=vkey(p); let o=off.get(k); if(!o){ o=[(rnd()*2-1)*amp,(rnd()*2-1)*amp]; off.set(k,o); } return [p[0]+o[0],p[1]+o[1]]; };
+    cells=[];
+    for(const poly of out){ const wp=poly.map(p=>warp([ox+p.x*S, oy+p.y*S])); const ct=polyCentroid(wp);
+      cells.push({id:cells.length,poly:wp,cx:ct[0],cy:ct[1],nb:[],terr:"plain",elev:0}); }
     buildAdj();
   }
   // area centroid of a polygon (better centered than a vertex average for irregular cells)
