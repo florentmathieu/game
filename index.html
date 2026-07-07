@@ -601,7 +601,7 @@
     const kp=[]; leaves.forEach((lf,si)=>{ const tpl=lf.turtle?TKc:HKc; for(const k of tpl) kp.push({poly:k.map(v=>tp(lf.T,v)), sup:si}); });
     let mnx=1e18,mny=1e18,mxx=-1e18,mxy=-1e18; for(const kk of kp)for(const p of kk.poly){ if(p.x<mnx)mnx=p.x; if(p.y<mny)mny=p.y; if(p.x>mxx)mxx=p.x; if(p.y>mxy)mxy=p.y; }
     const bw=Math.max(1,mxx-mnx), bh=Math.max(1,mxy-mny), S=Math.min(W/bw,H/bh)*0.94, ox=(W-(mnx+mxx)*S)/2, oy=(H-(mny+mxy)*S)/2;
-    const vkey=p=>Math.round(p[0]*10)+","+Math.round(p[1]*10), off=new Map(), amp=dist*S*0.34;
+    const vkey=p=>Math.round(p[0]*10)+","+Math.round(p[1]*10), off=new Map(), amp=dist*S*0.18;   // kites petits → distortion adoucie
     const warp=p=>{ const k=vkey(p); let o=off.get(k); if(!o){ o=[(rnd()*2-1)*amp,(rnd()*2-1)*amp]; off.set(k,o); } return [p[0]+o[0],p[1]+o[1]]; };
     cells=[];
     for(const kk of kp){ const wp=kk.poly.map(p=>warp([ox+p.x*S, oy+p.y*S])); const ct=polyCentroid(wp);
@@ -1176,6 +1176,7 @@
       const unseen=mode==="play"&&!vis&&!rockEdge; const col=shade(c,unseen);
       poly(c); ctx.fillStyle=col; ctx.fill(); ctx.lineWidth=1.5; ctx.strokeStyle=col; ctx.stroke();   // fill + border = same final color → no antialiasing seam
       poly(c); ctx.lineWidth=0.6; ctx.strokeStyle=unseen?"rgba(18,14,9,.16)":"rgba(18,14,9,.30)"; ctx.stroke();   // very thin tile outline (restored) — more subtle under the fog
+      if(mode==="edit"&&c.sup!=null){ poly(c); ctx.fillStyle="hsla("+Math.round((c.sup*137.508)%360)+",55%,52%,.17)"; ctx.fill(); }   // double maillage : teinte distincte par chapeau (aperçu éditeur)
       if(c.terr==="wall"&&!unseen){ drawRock(c); }
       if(smoke.has(c.id)&&!unseen){ poly(c); ctx.fillStyle="rgba(200,205,212,.55)"; ctx.fill(); } }   // 🌫 smoke: gray veil over the smoked tiles
     if(cells.length&&cells[0].sup!=null){ ctx.lineWidth=2.6; ctx.strokeStyle="rgba(20,14,7,.95)"; ctx.lineCap="round";   // double maillage : trait épais UNIQUEMENT aux frontières de chapeau (sup différent), via l'adjacence robuste
