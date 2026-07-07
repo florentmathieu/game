@@ -570,6 +570,10 @@
     const mm=(A,B)=>[A[0]*B[0]+A[1]*B[3],A[0]*B[1]+A[1]*B[4],A[0]*B[2]+A[1]*B[5]+A[2],A[3]*B[0]+A[4]*B[3],A[3]*B[1]+A[4]*B[4],A[3]*B[2]+A[4]*B[5]+A[5]];
     const trot=a=>{const c=Math.cos(a),s=Math.sin(a);return[c,-s,0,s,c,0];}, ttr=(x,y)=>[1,0,x,0,1,y];
     const transTo=(p,q)=>ttr(q.x-p.x,q.y-p.y), tp=(M,p)=>P(M[0]*p.x+M[1]*p.y+M[2],M[3]*p.x+M[4]*p.y+M[5]);
+    // décomposition en kites [3.4.6.4] (couche fine, conforme) : 8 kites par chapeau, 10 par tortue (coords hexPt, extraites hors-ligne)
+    const HK=[[[-2,2],[-1,3],[0,2],[0,1]],[[0,-2],[-1,0],[0,0],[1,-1]],[[0,4],[1,2],[0,2],[-1,3]],[[2,0],[3,1],[4,0],[4,-1]],[[2,0],[4,-1],[4,-2],[3,-2]],[[2,0],[1,-1],[0,0],[0,1]],[[2,0],[0,1],[0,2],[1,2]],[[2,0],[1,2],[2,2],[3,1]]];
+    const TK=[[[0,-2],[1,-1],[2,-2],[2,-3]],[[0,-2],[2,-3],[2,-4],[1,-4]],[[2,0],[4,-1],[4,-2],[3,-2]],[[2,0],[3,-2],[2,-2],[1,-1]],[[4,-4],[5,-3],[6,-4],[6,-5]],[[4,-4],[3,-5],[2,-4],[2,-3]],[[4,-4],[2,-3],[2,-2],[3,-2]],[[4,-4],[3,-2],[4,-2],[5,-3]],[[6,-2],[7,-4],[6,-4],[5,-3]],[[8,-6],[6,-5],[6,-4],[7,-4]]];
+    const HKc=HK.map(k=>k.map(([x,y])=>hx(x,y))), TKc=TK.map(k=>k.map(([x,y])=>hx(x,y)));
     const base=()=>{ const hat=[hx(-1,2),hx(0,2),hx(0,3),hx(2,2),hx(3,0),hx(4,0),hx(5,-1),hx(4,-2),hx(2,-1),hx(2,-2),hx(1,-2),hx(0,-2),hx(-1,-1),hx(0,0)];
       const turtle=[hx(0,0),hx(2,-1),hx(3,0),hx(4,-1),hx(4,-2),hx(6,-3),hx(7,-5),hx(6,-5),hx(5,-4),hx(4,-5),hx(2,-4),hx(0,-3),hx(-1,-1),hx(0,-1)];
       const hk=[hat[3],hat[5],hat[7],hat[11]], tk=[turtle[3],turtle[5],turtle[7],turtle[11]], ret={};
@@ -589,17 +593,19 @@
       for(const lab in sr){ const sup={meta:true,geoms:[],quad:sq}, subs=sr[lab];
         for(let i=0;i<8;i++){ if(subs[i]==='null')continue; sup.geoms.push({geom:sys[subs[i]],xform:Ts[i]}); } ret[lab]=sup; }
       return ret; };
-    const emit=(geom,T,out)=>{ if(!geom.meta){ out.push(geom.pts.map(p=>tp(T,p))); } else { for(const gg of geom.geoms) emit(gg.geom,mm(T,gg.xform),out); } };
-    let sys=base(); const N=g>=42?2:3;
+    const emit=(geom,T,out)=>{ if(!geom.meta){ out.push({T,turtle:geom.label==='Gamma2'}); } else { for(const gg of geom.geoms) emit(gg.geom,mm(T,gg.xform),out); } };
+    let sys=base(); const N=g>=42?1:2;   // ×8 kites par chapeau → moins de niveaux (N=1 ≈ 100 kites, N=2 ≈ 580)
     for(let i=0;i<N;i++)sys=supert(sys);
-    const out=[]; emit(sys['Delta'],ident,out);
-    let mnx=1e18,mny=1e18,mxx=-1e18,mxy=-1e18; for(const poly of out)for(const p of poly){ if(p.x<mnx)mnx=p.x; if(p.y<mny)mny=p.y; if(p.x>mxx)mxx=p.x; if(p.y>mxy)mxy=p.y; }
+    const leaves=[]; emit(sys['Delta'],ident,leaves);
+    // chaque tuile (chapeau/tortue) → ses kites, en espace substitution, groupés par tuile (sup)
+    const kp=[]; leaves.forEach((lf,si)=>{ const tpl=lf.turtle?TKc:HKc; for(const k of tpl) kp.push({poly:k.map(v=>tp(lf.T,v)), sup:si}); });
+    let mnx=1e18,mny=1e18,mxx=-1e18,mxy=-1e18; for(const kk of kp)for(const p of kk.poly){ if(p.x<mnx)mnx=p.x; if(p.y<mny)mny=p.y; if(p.x>mxx)mxx=p.x; if(p.y>mxy)mxy=p.y; }
     const bw=Math.max(1,mxx-mnx), bh=Math.max(1,mxy-mny), S=Math.min(W/bw,H/bh)*0.94, ox=(W-(mnx+mxx)*S)/2, oy=(H-(mny+mxy)*S)/2;
     const vkey=p=>Math.round(p[0]*10)+","+Math.round(p[1]*10), off=new Map(), amp=dist*S*0.34;
     const warp=p=>{ const k=vkey(p); let o=off.get(k); if(!o){ o=[(rnd()*2-1)*amp,(rnd()*2-1)*amp]; off.set(k,o); } return [p[0]+o[0],p[1]+o[1]]; };
     cells=[];
-    for(const poly of out){ const wp=poly.map(p=>warp([ox+p.x*S, oy+p.y*S])); const ct=polyCentroid(wp);
-      cells.push({id:cells.length,poly:wp,cx:ct[0],cy:ct[1],nb:[],terr:"plain",elev:0}); }
+    for(const kk of kp){ const wp=kk.poly.map(p=>warp([ox+p.x*S, oy+p.y*S])); const ct=polyCentroid(wp);
+      cells.push({id:cells.length,poly:wp,cx:ct[0],cy:ct[1],nb:[],terr:"plain",elev:0,sup:kk.sup}); }   // sup = id du chapeau/tortue parent (couche large)
     buildAdj();
   }
   // area centroid of a polygon (better centered than a vertex average for irregular cells)
@@ -1172,6 +1178,9 @@
       poly(c); ctx.lineWidth=0.6; ctx.strokeStyle=unseen?"rgba(18,14,9,.16)":"rgba(18,14,9,.30)"; ctx.stroke();   // very thin tile outline (restored) — more subtle under the fog
       if(c.terr==="wall"&&!unseen){ drawRock(c); }
       if(smoke.has(c.id)&&!unseen){ poly(c); ctx.fillStyle="rgba(200,205,212,.55)"; ctx.fill(); } }   // 🌫 smoke: gray veil over the smoked tiles
+    if(cells.length&&cells[0].sup!=null){ ctx.lineWidth=2.4; ctx.strokeStyle="rgba(24,18,10,.82)"; ctx.lineCap="round";   // double maillage (chapeaux) : trait épais aux frontières de tuile large (kites de sup différent)
+      for(const c of cells){ const p=c.poly,en=c.edgeNb||[]; for(let k=0;k<p.length;k++){ const n=en[k]; if(n>=0&&cells[n]&&cells[n].sup===c.sup)continue; ctx.beginPath(); ctx.moveTo(p[k][0],p[k][1]); ctx.lineTo(p[(k+1)%p.length][0],p[(k+1)%p.length][1]); ctx.stroke(); } }
+      ctx.lineCap="butt"; }
     // distortion: corruption veil (purplish) + veins/fractures, growing in intensity as you advance
     if(mode==="play"&&curMission&&curMission._corrupt>0){ const L=curMission._corrupt; ctx.save();
       ctx.fillStyle="rgba(120,38,128,"+(0.06+0.20*L).toFixed(3)+")"; ctx.fillRect(0,0,W,H);   // tint
@@ -1411,7 +1420,7 @@
     document.getElementById("counts").textContent=`${cells.length} cells · ${np} allies · ${ne} enemies`; }
   // serialization: cells (polygon + terrain + elevation) + units + shape parameters (to re-mesh)
   function exportObj(){ return { name:((mname&&mname.value)||"").trim()||"mission-maillage", form:{infl,dist:+distEl.value,dens:+dens.value,seed,meshType:(meshTypeEl()&&meshTypeEl().value)||"voronoi"},
-    cells:cells.map(c=>{const o={poly:c.poly.map(p=>[Math.round(p[0]),Math.round(p[1])]),terr:c.terr,elev:c.elev};if(c.zone)o.zone=c.zone;return o;}),
+    cells:cells.map(c=>{const o={poly:c.poly.map(p=>[Math.round(p[0]),Math.round(p[1])]),terr:c.terr,elev:c.elev};if(c.zone)o.zone=c.zone;if(c.sup!=null)o.sup=c.sup;return o;}),
     walls:[...walls],
     deployZone:cells.filter(c=>c.deploy).map(c=>c.id),   // squad deployment zone (tiles where the roster appears)
     podAnchors:cells.filter(c=>c.podAnchor).map(c=>({cell:c.id,sleep:c.podAnchor==="asleep"})),   // enemy pod anchors (awake/asleep) populated by the engine each game
@@ -1434,7 +1443,7 @@
     if(k.value==="mission"&&mref)b.mission=mref; return b; }
   function applyMissionObj(m,noDraw){ resetView(); curMission=m;
     if(!m||!Array.isArray(m.cells))throw new Error("invalid format");
-    cells=m.cells.map((c,i)=>{const ct=polyCentroid(c.poly);return {id:i,poly:c.poly,cx:ct[0],cy:ct[1],nb:[],terr:c.terr||"plain",elev:c.elev||0,zone:c.zone};});
+    cells=m.cells.map((c,i)=>{const ct=polyCentroid(c.poly);return {id:i,poly:c.poly,cx:ct[0],cy:ct[1],nb:[],terr:c.terr||"plain",elev:c.elev||0,zone:c.zone,sup:c.sup};});
     { const dz=new Set(Array.isArray(m.deployZone)?m.deployZone:[]); cells.forEach(c=>{ if(dz.has(c.id))c.deploy=true; }); }   // squad deployment zone
     { (Array.isArray(m.podAnchors)?m.podAnchors:[]).forEach(a=>{ const id=(a&&typeof a==="object")?a.cell:a; const sleep=(a&&typeof a==="object")&&a.sleep; if(cells[id])cells[id].podAnchor=sleep?"asleep":"awake"; }); const ps=document.getElementById("m-podsize"); if(ps)ps.value=m.podSize||2; setMissionEWeights(m.enemyWeights); }   // pod anchors (compat. old format = list of awake ids)
     buildAdj();
