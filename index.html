@@ -1178,8 +1178,8 @@
       poly(c); ctx.lineWidth=0.6; ctx.strokeStyle=unseen?"rgba(18,14,9,.16)":"rgba(18,14,9,.30)"; ctx.stroke();   // very thin tile outline (restored) — more subtle under the fog
       if(c.terr==="wall"&&!unseen){ drawRock(c); }
       if(smoke.has(c.id)&&!unseen){ poly(c); ctx.fillStyle="rgba(200,205,212,.55)"; ctx.fill(); } }   // 🌫 smoke: gray veil over the smoked tiles
-    if(cells.length&&cells[0].sup!=null){ ctx.lineWidth=2.4; ctx.strokeStyle="rgba(24,18,10,.82)"; ctx.lineCap="round";   // double maillage (chapeaux) : trait épais aux frontières de tuile large (kites de sup différent)
-      for(const c of cells){ const p=c.poly,en=c.edgeNb||[]; for(let k=0;k<p.length;k++){ const n=en[k]; if(n>=0&&cells[n]&&cells[n].sup===c.sup)continue; ctx.beginPath(); ctx.moveTo(p[k][0],p[k][1]); ctx.lineTo(p[(k+1)%p.length][0],p[(k+1)%p.length][1]); ctx.stroke(); } }
+    if(cells.length&&cells[0].sup!=null){ ctx.lineWidth=2.6; ctx.strokeStyle="rgba(20,14,7,.95)"; ctx.lineCap="round";   // double maillage : trait épais UNIQUEMENT aux frontières de chapeau (sup différent), via l'adjacence robuste
+      for(const c of cells){ for(const n of c.nb){ if(n<=c.id||cells[n].sup===c.sup)continue; const s=wallSeg.get(wkey(c.id,n)); if(!s)continue; ctx.beginPath(); ctx.moveTo(s[0][0],s[0][1]); ctx.lineTo(s[1][0],s[1][1]); ctx.stroke(); } }
       ctx.lineCap="butt"; }
     // distortion: corruption veil (purplish) + veins/fractures, growing in intensity as you advance
     if(mode==="play"&&curMission&&curMission._corrupt>0){ const L=curMission._corrupt; ctx.save();
