@@ -477,13 +477,15 @@
     // distorsion : on décale chaque sommet PARTAGÉ de façon cohérente (sinon le maillage se déchire)
     const vkey=p=>Math.round(p[0]*10)+","+Math.round(p[1]*10), off=new Map(), amp=dist*g*0.34;
     const warp=p=>{ const k=vkey(p); let o=off.get(k); if(!o){ o=[(rnd()*2-1)*amp,(rnd()*2-1)*amp]; off.set(k,o); } return [p[0]+o[0],p[1]+o[1]]; };
-    // fusion des paires de triangles partageant leur PLUS LONGUE arête → un losange
+    // chaque demi-losange est isocèle (2 jambes = côté du losange, 1 BASE = la diagonale) ;
+    // on fusionne les paires de triangles partageant leur base → un losange complet (fin OU épais)
     const ekey=(a,b)=>{const ka=vkey(a),kb=vkey(b);return ka<kb?ka+"|"+kb:kb+"|"+ka;};
-    const longEdge=([,A,B,C])=>{ const e=[[A,B],[B,C],[C,A]]; let bi=0,bd=-1; e.forEach((s,i)=>{const d=d2(s[0],s[1]);if(d>bd){bd=d;bi=i;}}); return e[bi]; };
+    const baseEdge=([,A,B,C])=>{ const e=[[A,B],[B,C],[C,A]], L=e.map(s=>d2(s[0],s[1])); let bi=0,bd=-1;
+      for(let i=0;i<3;i++){ const dev=Math.abs(L[i]-(L[(i+1)%3]+L[(i+2)%3])/2); if(dev>bd){bd=dev;bi=i;} } return e[bi]; };   // base = arête dont la longueur s'écarte le plus des deux autres
     const byEdge=new Map();
-    for(const tri of tris){ const le=longEdge(tri); const k=ekey(le[0],le[1]); if(!byEdge.has(k))byEdge.set(k,[]); byEdge.get(k).push({tri,le}); }
+    for(const tri of tris){ const le=baseEdge(tri); const k=ekey(le[0],le[1]); if(!byEdge.has(k))byEdge.set(k,[]); byEdge.get(k).push({tri,le}); }
     cells=[];
-    for(const arr of byEdge.values()){ if(arr.length!==2)continue;   // arête intérieure partagée par 2 triangles
+    for(const arr of byEdge.values()){ if(arr.length!==2)continue;   // base intérieure partagée par 2 triangles (mêmes deux moitiés)
       const le=arr[0].le, apex=(tri)=>{ for(const p of [tri[1],tri[2],tri[3]]){ if(vkey(p)!==vkey(le[0])&&vkey(p)!==vkey(le[1]))return p; } };
       let pts=[le[0],apex(arr[0].tri),le[1],apex(arr[1].tri)].filter(Boolean); if(pts.length!==4)continue;
       const cx0=(pts[0][0]+pts[1][0]+pts[2][0]+pts[3][0])/4, cy0=(pts[0][1]+pts[1][1]+pts[2][1]+pts[3][1])/4;   // ordre horaire stable autour du centre (losange simple, non croisé)
