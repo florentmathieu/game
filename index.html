@@ -159,7 +159,8 @@
     <div class="row" id="zones"></div>
     <div class="row"><label style="flex:1">Distortion <input id="dist" type="range" min="0" max="100" value="28"></label><span id="distv">28%</span></div>
     <div class="row"><label style="flex:1">Density <input id="dens" type="range" min="30" max="64" value="44"></label><span id="densv">44</span> <button id="regen">↻</button></div>
-    <div class="hint">Paint the zones (or "🎲 Auto zones") then set the distortion: terrain, elevation, low walls & units are preserved as best as possible. ⚠ only "↻" re-meshes from scratch and resets everything.</div>
+    <div class="row"><label>Tiling <select id="mesh-type"><option value="voronoi">Voronoi (zones)</option><option value="penrose3">Penrose — rhombi (P3)</option></select></label></div>
+    <div class="hint">Paint the zones (or "🎲 Auto zones") then set the distortion: terrain, elevation, low walls & units are preserved as best as possible. ⚠ only "↻" re-meshes from scratch and resets everything.<br>With a Penrose tiling: <b>Density</b> = tile size, <b>Distortion</b> = vertex jitter (the zones are ignored).</div>
     <h2>2 · Terrain & elevation</h2>
     <div class="row" id="terr"></div>
     <div class="row" id="relief"></div>
@@ -437,7 +438,9 @@
     for(const n of c.nb){ const s=wallSeg.get(wkey(c.id,n)); if(!s)continue; const mx=(s[0][0]+s[1][0])/2,my=(s[0][1]+s[1][1])/2,d=Math.hypot(X-mx,Y-my); if(d<bd){bd=d;best=wkey(c.id,n);} }
     return best; }
   function distToSeg(px,py,a,b){ const vx=b[0]-a[0],vy=b[1]-a[1],wx=px-a[0],wy=py-a[1],c1=vx*wx+vy*wy; if(c1<=0)return Math.hypot(px-a[0],py-a[1]); const c2=vx*vx+vy*vy; if(c2<=c1)return Math.hypot(px-b[0],py-b[1]); const t=c1/c2; return Math.hypot(px-(a[0]+t*vx),py-(a[1]+t*vy)); }
-  function genMesh(gOverride){
+  const meshTypeEl=()=>document.getElementById("mesh-type");
+  function genMesh(gOverride,forceV){
+    if(!forceV&&meshTypeEl()&&meshTypeEl().value==="penrose3"){ genPenrose(gOverride); return; }   // forceV : le geoscape reste toujours en Voronoï
     const g=gOverride||+dens.value, dist=+distEl.value/100, rnd=mk(seed), h=g*0.866, jit=a=>(rnd()*2-1)*a;
     const typeAt=(x,y)=>infl[Math.min(ROWS-1,Math.floor(y/MC))][Math.min(COLS-1,Math.floor(x/MC))];
     const seeds=[];
@@ -456,6 +459,39 @@
       if(poly.length>=3){const cl=[];for(let v=0;v<poly.length;v++){const a=poly[v],b=cl[cl.length-1];if(!b||Math.hypot(a[0]-b[0],a[1]-b[1])>0.8)cl.push(a);}if(cl.length>=2&&Math.hypot(cl[0][0]-cl[cl.length-1][0],cl[0][1]-cl[cl.length-1][1])<0.8)cl.pop();
         if(cl.length>=3){const ct=polyCentroid(cl);cells.push({id:cells.length,poly:cl,cx:ct[0],cy:ct[1],nb:[],terr:"plain",elev:0});}}}
     if(islandTrim){ const EPS=0.6; cells=cells.filter(c=>!c.poly.some(p=>p[0]<=EPS||p[0]>=W-EPS||p[1]<=EPS||p[1]>=H-EPS)); cells.forEach((c,i)=>c.id=i); }   // "island" effect: removes cells touching the edge → jagged outline
+    buildAdj();
+  }
+  // ===== Penrose P3 (rhombi) : déflation de triangles de Robinson (Preshing) puis fusion en losanges =====
+  function genPenrose(gOverride){
+    const g=gOverride||+dens.value, dist=+distEl.value/100, PHI=(1+Math.sqrt(5))/2, it=1/PHI, rnd=mk(seed);
+    const lerp=(a,b,t)=>[a[0]+(b[0]-a[0])*t, a[1]+(b[1]-a[1])*t], d2=(a,b)=>Math.hypot(a[0]-b[0],a[1]-b[1]);
+    // roue initiale (décagone) en coordonnées unité (rayon 1)
+    let tris=[]; for(let i=0;i<10;i++){ let B=[Math.cos((2*i-1)*Math.PI/10),Math.sin((2*i-1)*Math.PI/10)], C=[Math.cos((2*i+1)*Math.PI/10),Math.sin((2*i+1)*Math.PI/10)]; if(i%2===0){const t=B;B=C;C=t;} tris.push([0,[0,0],B,C]); }
+    // profondeur de déflation : assez pour couvrir le plateau avec des tuiles ≈ g px
+    const coverR=Math.hypot(W,H)*0.55; let D=Math.round(1+Math.log(coverR*0.618/Math.max(12,g))/Math.log(PHI)); D=Math.max(2,Math.min(7,D));   // profondeur ⇒ arête de tuile ≈ g px, disque qui couvre juste le plateau
+    for(let s=0;s<D;s++){ const out=[]; for(const [col,A,B,C] of tris){ if(col===0){ const P=lerp(A,B,it); out.push([0,C,P,B],[1,P,C,A]); }
+      else { const Q=lerp(B,A,it), R=lerp(B,C,it); out.push([1,R,C,A],[1,Q,R,B],[0,R,Q,A]); } } tris=out; }
+    // mise à l'échelle + centrage sur le plateau
+    const S=coverR, ox=W/2, oy=H/2, tf=p=>[ox+p[0]*S, oy+p[1]*S];
+    tris=tris.map(([col,A,B,C])=>[col,tf(A),tf(B),tf(C)]);
+    // distorsion : on décale chaque sommet PARTAGÉ de façon cohérente (sinon le maillage se déchire)
+    const vkey=p=>Math.round(p[0]*10)+","+Math.round(p[1]*10), off=new Map(), amp=dist*g*0.34;
+    const warp=p=>{ const k=vkey(p); let o=off.get(k); if(!o){ o=[(rnd()*2-1)*amp,(rnd()*2-1)*amp]; off.set(k,o); } return [p[0]+o[0],p[1]+o[1]]; };
+    // fusion des paires de triangles partageant leur PLUS LONGUE arête → un losange
+    const ekey=(a,b)=>{const ka=vkey(a),kb=vkey(b);return ka<kb?ka+"|"+kb:kb+"|"+ka;};
+    const longEdge=([,A,B,C])=>{ const e=[[A,B],[B,C],[C,A]]; let bi=0,bd=-1; e.forEach((s,i)=>{const d=d2(s[0],s[1]);if(d>bd){bd=d;bi=i;}}); return e[bi]; };
+    const byEdge=new Map();
+    for(const tri of tris){ const le=longEdge(tri); const k=ekey(le[0],le[1]); if(!byEdge.has(k))byEdge.set(k,[]); byEdge.get(k).push({tri,le}); }
+    cells=[];
+    for(const arr of byEdge.values()){ if(arr.length!==2)continue;   // arête intérieure partagée par 2 triangles
+      const le=arr[0].le, apex=(tri)=>{ for(const p of [tri[1],tri[2],tri[3]]){ if(vkey(p)!==vkey(le[0])&&vkey(p)!==vkey(le[1]))return p; } };
+      let pts=[le[0],apex(arr[0].tri),le[1],apex(arr[1].tri)].filter(Boolean); if(pts.length!==4)continue;
+      const cx0=(pts[0][0]+pts[1][0]+pts[2][0]+pts[3][0])/4, cy0=(pts[0][1]+pts[1][1]+pts[2][1]+pts[3][1])/4;   // ordre horaire stable autour du centre (losange simple, non croisé)
+      pts.sort((p,q)=>Math.atan2(p[1]-cy0,p[0]-cx0)-Math.atan2(q[1]-cy0,q[0]-cx0));
+      const poly=pts.map(warp); const ct=polyCentroid(poly);
+      if(ct[0]<-g||ct[0]>W+g||ct[1]<-g||ct[1]>H+g)continue;   // hors plateau (avec marge)
+      cells.push({id:cells.length,poly,cx:ct[0],cy:ct[1],nb:[],terr:"plain",elev:0}); }
+    if(islandTrim){ const EPS=0.6; cells=cells.filter(c=>!c.poly.some(p=>p[0]<=EPS||p[0]>=W-EPS||p[1]<=EPS||p[1]>=H-EPS)); cells.forEach((c,i)=>c.id=i); }
     buildAdj();
   }
   // area centroid of a polygon (better centered than a vertex average for irregular cells)
@@ -1256,6 +1292,8 @@
   distEl.oninput=()=>{document.getElementById("distv").textContent=distEl.value+"%";rebuildShape(true);};
   dens.oninput=()=>{document.getElementById("densv").textContent=dens.value;rebuildShape(true);};
   document.getElementById("regen").onclick=()=>{seed=(seed*1103515245+12345)&0x7fffffff;rebuildShape();};   // ↻: re-meshes from scratch (clears terrain & units)
+  { const mt=document.getElementById("mesh-type"); if(mt)mt.onchange=()=>rebuildShape();   // changing the tiling rebuilds from scratch (cell layout is entirely different)
+  }
   { const z=document.getElementById("zauto"); if(z)z.onclick=autoZones; }
   { const bw=document.getElementById("bw"),bh=document.getElementById("bh");
     const apply=()=>{ setBoardSize(+bw.value,+bh.value); bw.value=COLS; bh.value=ROWS; refresh(); };
@@ -1264,7 +1302,7 @@
   function renderCounts(){ const np=units.filter(u=>u.team==="player").length,ne=units.filter(u=>u.team==="enemy").length;
     document.getElementById("counts").textContent=`${cells.length} cells · ${np} allies · ${ne} enemies`; }
   // serialization: cells (polygon + terrain + elevation) + units + shape parameters (to re-mesh)
-  function exportObj(){ return { name:((mname&&mname.value)||"").trim()||"mission-maillage", form:{infl,dist:+distEl.value,dens:+dens.value,seed},
+  function exportObj(){ return { name:((mname&&mname.value)||"").trim()||"mission-maillage", form:{infl,dist:+distEl.value,dens:+dens.value,seed,meshType:(meshTypeEl()&&meshTypeEl().value)||"voronoi"},
     cells:cells.map(c=>{const o={poly:c.poly.map(p=>[Math.round(p[0]),Math.round(p[1])]),terr:c.terr,elev:c.elev};if(c.zone)o.zone=c.zone;return o;}),
     walls:[...walls],
     deployZone:cells.filter(c=>c.deploy).map(c=>c.id),   // squad deployment zone (tiles where the roster appears)
@@ -1301,7 +1339,8 @@
         set("m-bonus-chance",b.chance!=null?Math.round(b.chance*100):35); set("m-bonus-xp",r.xp!=null?r.xp:5); set("m-bonus-morale",r.morale!=null?r.morale:25); set("m-bonus-pot",r.potions||0); set("m-bonus-mission",b.mission||""); } }
     if(m.form){ if(m.form.infl){infl=m.form.infl; ROWS=infl.length; COLS=(infl[0]&&infl[0].length)||COLS; W=COLS*MC;H=ROWS*MC; cv.width=W;cv.height=H;
         const bw=document.getElementById("bw"),bh=document.getElementById("bh"); if(bw)bw.value=COLS; if(bh)bh.value=ROWS; }
-      if(m.form.dist!=null){distEl.value=m.form.dist;document.getElementById("distv").textContent=m.form.dist+"%";} if(m.form.dens!=null){dens.value=m.form.dens;document.getElementById("densv").textContent=m.form.dens;} if(m.form.seed!=null)seed=m.form.seed; }
+      if(m.form.dist!=null){distEl.value=m.form.dist;document.getElementById("distv").textContent=m.form.dist+"%";} if(m.form.dens!=null){dens.value=m.form.dens;document.getElementById("densv").textContent=m.form.dens;} if(m.form.seed!=null)seed=m.form.seed;
+      { const mt=document.getElementById("mesh-type"); if(mt&&m.form.meshType)mt.value=m.form.meshType; } }
     if(!noDraw)refresh();   // in a "live" load (campaign), skip this pre-deployment draw so the map isn't shown before the fog; startGame() draws the 1st frame, already veiled
   }
   function saveDraft(){ try{ localStorage.setItem("mgf_mesh_draft", JSON.stringify(exportObj())); localStorage.setItem("mgf_mesh_mname", (mname.value||"")); }catch(e){} }
@@ -1925,7 +1964,7 @@
     // generate wider (the border cells will be removed), then adjust until close to
     // the target number of *interior* regions (genMesh already applies the "island" trim).
     let g=Math.max(60,Math.round(Math.sqrt(W*H/tgt)*0.95));
-    for(let it=0;it<16;it++){ genMesh(g); const n=cells.length; if(n>tgt*1.2)g=Math.round(g*1.1); else if(n<tgt*0.8)g=Math.round(g*0.9); else break; }
+    for(let it=0;it<16;it++){ genMesh(g,true); const n=cells.length; if(n>tgt*1.2)g=Math.round(g*1.1); else if(n<tgt*0.8)g=Math.round(g*0.9); else break; }
     geoG=g; geoInitCells(); geoEventsDraft=[]; geoRenderEvents(); geoRefresh(); }
   // editor for scripted events (repeatable list) — serialized into the territory JSON
   function geoRenderEvents(){ const el=document.getElementById("geo-events"); if(!el)return; geoEventsDraft=geoEventsDraft||[];
@@ -2021,7 +2060,7 @@
         gname:c.name||"",gtype:c.type||"region",gkind:(c.content&&c.content.kind)||"empty",gref:(c.content&&c.content.ref)||null,
         gstate:c.state||"locked",gunlock:Array.isArray(c.unlockedBy)?c.unlockedBy.slice():[],gdiff:c.diff||0}; });
       buildAdj();
-    } else { genMesh(geoG); geoInitCells(); }
+    } else { genMesh(geoG,true); geoInitCells(); }
     geoCampId=(o.camp!=null)?o.camp:null; geoSel=null; geoStarted=true;
     geoEventsDraft=Array.isArray(o.events)?o.events.map(e=>({when:{kind:(e.when&&e.when.kind)||"arrive",value:e.when&&e.when.value},file:e.file||"",text:e.text||"",recruit:e.recruit||"",reveal:e.reveal||"",mode:e.mode||"plein",priority:e.priority||0})):[]; geoRenderEvents();
     geoRefresh(); }
