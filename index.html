@@ -159,8 +159,8 @@
     <div class="row" id="zones"></div>
     <div class="row"><label style="flex:1">Distortion <input id="dist" type="range" min="0" max="100" value="28"></label><span id="distv">28%</span></div>
     <div class="row"><label style="flex:1">Density <input id="dens" type="range" min="30" max="64" value="44"></label><span id="densv">44</span> <button id="regen">↻</button></div>
-    <div class="row"><label>Tiling <select id="mesh-type"><option value="voronoi">Voronoi (zones)</option><option value="penrose3">Penrose — rhombi (P3)</option></select></label></div>
-    <div class="hint">Paint the zones (or "🎲 Auto zones") then set the distortion: terrain, elevation, low walls & units are preserved as best as possible. ⚠ only "↻" re-meshes from scratch and resets everything.<br>With a Penrose tiling: <b>Density</b> = tile size, <b>Distortion</b> = vertex jitter (the zones are ignored).</div>
+    <div class="row"><label>Tiling <select id="mesh-type"><option value="voronoi">Voronoi (zones)</option><option value="penrose3">Penrose — rhombi (P3)</option><option value="ammann">Ammann–Beenker (8-fold)</option></select></label></div>
+    <div class="hint">Paint the zones (or "🎲 Auto zones") then set the distortion: terrain, elevation, low walls & units are preserved as best as possible. ⚠ only "↻" re-meshes from scratch and resets everything.<br>With a Penrose or Ammann–Beenker tiling: <b>Density</b> = tile size, <b>Distortion</b> = vertex jitter (the zones are ignored).</div>
     <h2>2 · Terrain & elevation</h2>
     <div class="row" id="terr"></div>
     <div class="row" id="relief"></div>
@@ -440,7 +440,7 @@
   function distToSeg(px,py,a,b){ const vx=b[0]-a[0],vy=b[1]-a[1],wx=px-a[0],wy=py-a[1],c1=vx*wx+vy*wy; if(c1<=0)return Math.hypot(px-a[0],py-a[1]); const c2=vx*vx+vy*vy; if(c2<=c1)return Math.hypot(px-b[0],py-b[1]); const t=c1/c2; return Math.hypot(px-(a[0]+t*vx),py-(a[1]+t*vy)); }
   const meshTypeEl=()=>document.getElementById("mesh-type");
   function genMesh(gOverride,forceV){
-    if(!forceV&&meshTypeEl()&&meshTypeEl().value==="penrose3"){ genPenrose(gOverride); return; }   // forceV : le geoscape reste toujours en Voronoï
+    if(!forceV&&meshTypeEl()){ const mt=meshTypeEl().value; if(mt==="penrose3"){ genPenrose(gOverride); return; } if(mt==="ammann"){ genAmmann(gOverride); return; } }   // forceV : le geoscape reste toujours en Voronoï
     const g=gOverride||+dens.value, dist=+distEl.value/100, rnd=mk(seed), h=g*0.866, jit=a=>(rnd()*2-1)*a;
     const typeAt=(x,y)=>infl[Math.min(ROWS-1,Math.floor(y/MC))][Math.min(COLS-1,Math.floor(x/MC))];
     const seeds=[];
@@ -492,6 +492,33 @@
       pts.sort((p,q)=>Math.atan2(p[1]-cy0,p[0]-cx0)-Math.atan2(q[1]-cy0,q[0]-cx0));
       const poly=pts.map(warp); const ct=polyCentroid(poly);
       if(ct[0]<-g||ct[0]>W+g||ct[1]<-g||ct[1]>H+g)continue;   // hors plateau (avec marge)
+      cells.push({id:cells.length,poly,cx:ct[0],cy:ct[1],nb:[],terr:"plain",elev:0}); }
+    if(islandTrim){ const EPS=0.6; cells=cells.filter(c=>!c.poly.some(p=>p[0]<=EPS||p[0]>=W-EPS||p[1]<=EPS||p[1]>=H-EPS)); cells.forEach((c,i)=>c.id=i); }
+    buildAdj();
+  }
+  // ===== Ammann–Beenker (8-fold : carrés + losanges 45°) : multigrille de de Bruijn à 4 familles de droites (0/45/90/135°) =====
+  function genAmmann(gOverride){
+    const g=gOverride||+dens.value, dist=+distEl.value/100, rnd=mk(seed);
+    const Ndir=4, E=[]; for(let j=0;j<Ndir;j++)E.push([Math.cos(j*Math.PI/4),Math.sin(j*Math.PI/4)]);
+    const Gd=[0.12,0.19,0.31,0.23], fl=Math.floor;   // offsets génériques (pas d'intersection triple → pas de sommet dégénéré)
+    const tvert=K=>{ let x=0,y=0; for(let j=0;j<Ndir;j++){x+=K[j]*E[j][0];y+=K[j]*E[j][1];} return [x,y]; };
+    const cellK=q=>{ const K=[]; for(let j=0;j<Ndir;j++)K.push(fl(q[0]*E[j][0]+q[1]*E[j][1]+Gd[j])); return K; };
+    const solve=(r,s,kr,ks)=>{ const a=E[r][0],b=E[r][1],c=E[s][0],d=E[s][1],br=kr-Gd[r],bs=ks-Gd[s],det=a*d-b*c;
+      if(Math.abs(det)<1e-9)return null; return [(br*d-bs*b)/det,(a*bs-c*br)/det]; };
+    const M=Math.ceil(Math.hypot(W,H)/(2*Math.max(12,g)))+2, eps=1e-4;   // portée d'indices pour couvrir le plateau
+    const S=g, ox=W/2, oy=H/2;   // arête de tuile = 1 unité × g px
+    const vkey=p=>Math.round(p[0]*10)+","+Math.round(p[1]*10), off=new Map(), amp=dist*g*0.34;
+    const warp=p=>{ const k=vkey(p); let o=off.get(k); if(!o){ o=[(rnd()*2-1)*amp,(rnd()*2-1)*amp]; off.set(k,o); } return [p[0]+o[0],p[1]+o[1]]; };
+    cells=[];
+    for(let r=0;r<Ndir;r++)for(let s=r+1;s<Ndir;s++)for(let kr=-M;kr<=M;kr++)for(let ks=-M;ks<=M;ks++){
+      const p=solve(r,s,kr,ks); if(!p)continue; const px=ox+p[0]*S, py=oy+p[1]*S;
+      if(px<-2*g||px>W+2*g||py<-2*g||py>H+2*g)continue;   // hors plateau
+      const verts=[]; for(const [da,db] of [[1,1],[1,-1],[-1,-1],[-1,1]]){
+        const q=[p[0]+eps*da*E[r][0]+eps*db*E[s][0], p[1]+eps*da*E[r][1]+eps*db*E[s][1]]; const v=tvert(cellK(q)); verts.push([ox+v[0]*S, oy+v[1]*S]); }
+      const cx0=(verts[0][0]+verts[1][0]+verts[2][0]+verts[3][0])/4, cy0=(verts[0][1]+verts[1][1]+verts[2][1]+verts[3][1])/4;
+      verts.sort((u,v)=>Math.atan2(u[1]-cy0,u[0]-cx0)-Math.atan2(v[1]-cy0,v[0]-cx0));   // ordre autour du centre → polygone simple
+      const poly=verts.map(warp), ct=polyCentroid(poly);
+      if(ct[0]<-g||ct[0]>W+g||ct[1]<-g||ct[1]>H+g)continue;
       cells.push({id:cells.length,poly,cx:ct[0],cy:ct[1],nb:[],terr:"plain",elev:0}); }
     if(islandTrim){ const EPS=0.6; cells=cells.filter(c=>!c.poly.some(p=>p[0]<=EPS||p[0]>=W-EPS||p[1]<=EPS||p[1]>=H-EPS)); cells.forEach((c,i)=>c.id=i); }
     buildAdj();
