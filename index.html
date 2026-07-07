@@ -594,7 +594,7 @@
         for(let i=0;i<8;i++){ if(subs[i]==='null')continue; sup.geoms.push({geom:sys[subs[i]],xform:Ts[i]}); } ret[lab]=sup; }
       return ret; };
     const emit=(geom,T,out)=>{ if(!geom.meta){ out.push({T,turtle:geom.label==='Gamma2'}); } else { for(const gg of geom.geoms) emit(gg.geom,mm(T,gg.xform),out); } };
-    let sys=base(); const N=g>=42?1:2;   // ×8 kites par chapeau → moins de niveaux (N=1 ≈ 100 kites, N=2 ≈ 580)
+    let sys=base(); const N=2;   // N=2 : patch complet ~71 chapeaux (N=1 = supertuile isolée à trous, N=3 = trop de kites)
     for(let i=0;i<N;i++)sys=supert(sys);
     const leaves=[]; emit(sys['Delta'],ident,leaves);
     // chaque tuile (chapeau/tortue) → ses kites, en espace substitution, groupés par tuile (sup)
@@ -1173,10 +1173,10 @@
     const d=(mode==="play"&&sel&&turn==="player"&&!over)?reach(sel):null;
     for(const c of cells){ const vis=visible.has(c.id);
       const rockEdge=mode==="play"&&c.terr==="wall"&&!vis&&c.nb.some(n=>visible.has(n));   // rock at the edge of vision: we see it, but not the tiles behind it
-      const unseen=mode==="play"&&!vis&&!rockEdge; const col=shade(c,unseen);
+      const unseen=mode==="play"&&!vis&&!rockEdge; let col=shade(c,unseen);
+      if(mode==="edit"&&c.sup!=null){ const h=(c.sup*137.508)%360, l=38+((c.sup*47)%3)*7; col="hsl("+Math.round(h)+",40%,"+l+"%)"; }   // double maillage : couleur pleine distincte par chapeau (aperçu éditeur)
       poly(c); ctx.fillStyle=col; ctx.fill(); ctx.lineWidth=1.5; ctx.strokeStyle=col; ctx.stroke();   // fill + border = same final color → no antialiasing seam
       poly(c); ctx.lineWidth=0.6; ctx.strokeStyle=unseen?"rgba(18,14,9,.16)":"rgba(18,14,9,.30)"; ctx.stroke();   // very thin tile outline (restored) — more subtle under the fog
-      if(mode==="edit"&&c.sup!=null){ poly(c); ctx.fillStyle="hsla("+Math.round((c.sup*137.508)%360)+",55%,52%,.17)"; ctx.fill(); }   // double maillage : teinte distincte par chapeau (aperçu éditeur)
       if(c.terr==="wall"&&!unseen){ drawRock(c); }
       if(smoke.has(c.id)&&!unseen){ poly(c); ctx.fillStyle="rgba(200,205,212,.55)"; ctx.fill(); } }   // 🌫 smoke: gray veil over the smoked tiles
     if(cells.length&&cells[0].sup!=null){ ctx.lineWidth=2.6; ctx.strokeStyle="rgba(20,14,7,.95)"; ctx.lineCap="round";   // double maillage : trait épais UNIQUEMENT aux frontières de chapeau (sup différent), via l'adjacence robuste
