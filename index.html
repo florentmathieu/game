@@ -159,7 +159,7 @@
     <div class="row" id="zones"></div>
     <div class="row"><label style="flex:1">Distortion <input id="dist" type="range" min="0" max="100" value="28"></label><span id="distv">28%</span></div>
     <div class="row"><label style="flex:1">Density <input id="dens" type="range" min="30" max="64" value="44"></label><span id="densv">44</span> <button id="regen">↻</button></div>
-    <div class="row"><label>Tiling <select id="mesh-type"><option value="voronoi">Voronoi (zones)</option><option value="penrose3">Penrose — rhombi (P3)</option><option value="ammann">Ammann–Beenker (8-fold)</option><option value="spectre">Spectre (einstein monotile)</option><option value="hat">Hat / einstein (+ tortues)</option></select></label> <label id="mesh-fractal-row" title="Île apériodique au contour fractal (décoché : remplit le plateau)"><input type="checkbox" id="mesh-fractal"> Forme fractale</label></div>
+    <div class="row"><label>Tiling <select id="mesh-type"><option value="voronoi">Voronoi (zones)</option><option value="penrose3">Penrose — rhombi (P3)</option><option value="ammann">Ammann–Beenker (8-fold)</option><option value="spectre">Spectre (einstein monotile)</option><option value="hat">Hat / einstein (+ tortues)</option><option value="pinwheel">Pinwheel (fractale, taille variable)</option></select></label> <label id="mesh-fractal-row" title="Île apériodique au contour fractal (décoché : remplit le plateau)"><input type="checkbox" id="mesh-fractal"> Forme fractale</label></div>
     <div class="hint">Paint the zones (or "🎲 Auto zones") then set the distortion: terrain, elevation, low walls & units are preserved as best as possible. ⚠ only "↻" re-meshes from scratch and resets everything.<br>With a Penrose / Ammann–Beenker / Spectre / Hat tiling: <b>Density</b> = tile size, <b>Distortion</b> = vertex jitter (the zones are ignored).</div>
     <h2>2 · Terrain & elevation</h2>
     <div class="row" id="terr"></div>
@@ -440,7 +440,7 @@
   function distToSeg(px,py,a,b){ const vx=b[0]-a[0],vy=b[1]-a[1],wx=px-a[0],wy=py-a[1],c1=vx*wx+vy*wy; if(c1<=0)return Math.hypot(px-a[0],py-a[1]); const c2=vx*vx+vy*vy; if(c2<=c1)return Math.hypot(px-b[0],py-b[1]); const t=c1/c2; return Math.hypot(px-(a[0]+t*vx),py-(a[1]+t*vy)); }
   const meshTypeEl=()=>document.getElementById("mesh-type");
   function genMesh(gOverride,forceV){
-    if(!forceV&&meshTypeEl()){ const mt=meshTypeEl().value, fr=(document.getElementById("mesh-fractal")||{}).checked; if(mt==="penrose3"){ genPenrose(gOverride); return; } if(mt==="ammann"){ genAmmann(gOverride); return; } if(mt==="spectre"){ genSpectre(gOverride,fr); return; } if(mt==="hat"){ genHat(gOverride,fr); return; } }   // forceV : le geoscape reste toujours en Voronoï ; fr : île fractale (sinon remplit le plateau)
+    if(!forceV&&meshTypeEl()){ const mt=meshTypeEl().value, fr=(document.getElementById("mesh-fractal")||{}).checked; if(mt==="penrose3"){ genPenrose(gOverride); return; } if(mt==="ammann"){ genAmmann(gOverride); return; } if(mt==="spectre"){ genSpectre(gOverride,fr); return; } if(mt==="hat"){ genHat(gOverride,fr); return; } if(mt==="pinwheel"){ genPinwheel(gOverride); return; } }   // forceV : le geoscape reste toujours en Voronoï ; fr : île fractale (sinon remplit le plateau)
     const g=gOverride||+dens.value, dist=+distEl.value/100, rnd=mk(seed), h=g*0.866, jit=a=>(rnd()*2-1)*a;
     const typeAt=(x,y)=>infl[Math.min(ROWS-1,Math.floor(y/MC))][Math.min(COLS-1,Math.floor(x/MC))];
     const seeds=[];
@@ -524,6 +524,61 @@
     buildAdj();
   }
   // ===== Spectre (einstein monotile) : substitution de Kaplan (9 métatuiles Gamma..Psi), tuiles = spectres Tile(1,1) =====
+  // ===== Pinwheel (rep-tuile 1-2-√5) : vraie fractale à TAILLE VARIABLE — subdivision adaptative + T-junctions soudées → maillage conforme (jouable) =====
+  function genPinwheel(gOverride){
+    const g=gOverride||+dens.value, dist=+distEl.value/100, rnd=mk(seed);
+    // bruit de valeur déterministe (pilote la profondeur de subdivision → tailles variables)
+    const gr=[]; for(let i=0;i<256;i++)gr.push(rnd());
+    const vn=(x,y)=>{ const s=140,gx=x/s,gy=y/s,xi=Math.floor(gx),yi=Math.floor(gy),xf=gx-xi,yf=gy-yi;
+      const h=(a,b)=>gr[(((a*73856093)^(b*19349663))>>>0)&255], sm=t=>t*t*(3-2*t), lp=(a,b,t)=>a+(b-a)*sm(t);
+      return lp(lp(h(xi,yi),h(xi+1,yi),xf),lp(h(xi,yi+1),h(xi+1,yi+1),xf),yf); };
+    // subdivision pinwheel : triangle [A(angle droit), B(bout grande jambe), C(bout petite jambe)] → 5 copies semblables (échelle 1/√5)
+    const sub=v=>{ const A=v[0],B=v[1],C=v[2], dx=C[0]-B[0],dy=C[1]-B[1],L2=dx*dx+dy*dy||1, t=((A[0]-B[0])*dx+(A[1]-B[1])*dy)/L2, Hh=[B[0]+t*dx,B[1]+t*dy];
+      const md=(p,q)=>[(p[0]+q[0])/2,(p[1]+q[1])/2], mAB=md(A,B),mBH=md(B,Hh),mAH=md(A,Hh);
+      return [[A,C,Hh],[A,mAB,mAH],[mAB,B,mBH],[mAH,mBH,Hh],[mAB,mBH,mAH]]; };
+    const dd=(p,q)=>Math.hypot(p[0]-q[0],p[1]-q[1]);
+    const canon=tri=>{ const s=[dd(tri[1],tri[2]),dd(tri[0],tri[2]),dd(tri[0],tri[1])]; let hi=0; if(s[1]>s[hi])hi=1; if(s[2]>s[hi])hi=2;
+      const A=tri[hi],o1=tri[(hi+1)%3],o2=tri[(hi+2)%3]; return dd(A,o1)>=dd(A,o2)?[A,o1,o2]:[A,o2,o1]; };
+    const cen=t=>{let x=0,y=0;for(const p of t){x+=p[0];y+=p[1];}return [x/t.length,y/t.length];};
+    // densité → taille de base + profondeur (g haut = grosses cellules ; g bas = fines/nombreuses)
+    const gg=Math.min(64,Math.max(30,g)), baseU=78+(gg-30)*4.6, dMax=gg<=42?3:2, dMin=0;   // dMin=0 : certaines tuiles restent grosses → forte variation de taille
+    const depthAt=p=>dMin+Math.min(dMax-dMin,Math.floor(vn(p[0],p[1])*(dMax-dMin+1)));
+    // grille de base : rectangles 2u×u = 2 triangles pinwheel, couvrant le plateau
+    const base=[], cols=Math.ceil(W/(2*baseU))+1, rows=Math.ceil(H/baseU)+1;
+    for(let r=0;r<rows;r++)for(let c=0;c<cols;c++){ const x=c*2*baseU,y=r*baseU;
+      base.push(canon([[x,y],[x+2*baseU,y],[x,y+baseU]])); base.push(canon([[x+2*baseU,y+baseU],[x,y+baseU],[x+2*baseU,y]])); }
+    const leaves=[]; const rec=(tri,d)=>{ if(d>=depthAt(cen(tri))){leaves.push(tri);return;} for(const k of sub(tri))rec(canon(k),d+1); };
+    for(const b of base)rec(b,0);
+    // souder les T-junctions : hachage spatial des sommets, puis insérer dans chaque triangle les sommets voisins tombant sur ses arêtes → cellules polygonales CONFORMES
+    const key=p=>Math.round(p[0]*20)+","+Math.round(p[1]*20), vmap=new Map(), BK=Math.max(20,baseU/2), gk=(x,y)=>Math.floor(x/BK)+","+Math.floor(y/BK), buckets=new Map();
+    for(const t of leaves)for(const p of t){ const k=key(p); if(!vmap.has(k)){ vmap.set(k,p); const b=gk(p[0],p[1]); if(!buckets.has(b))buckets.set(b,[]); buckets.get(b).push(p); } }
+    const nearVerts=(a,b)=>{ const x0=Math.min(a[0],b[0]),x1=Math.max(a[0],b[0]),y0=Math.min(a[1],b[1]),y1=Math.max(a[1],b[1]), out=[];
+      for(let bx=Math.floor(x0/BK);bx<=Math.floor(x1/BK);bx++)for(let by=Math.floor(y0/BK);by<=Math.floor(y1/BK);by++){ const arr=buckets.get(bx+","+by); if(arr)for(const v of arr)out.push(v); } return out; };
+    const onEdge=(a,b,p)=>{ const dx=b[0]-a[0],dy=b[1]-a[1],L2=dx*dx+dy*dy||1, t=((p[0]-a[0])*dx+(p[1]-a[1])*dy)/L2;
+      if(t<=1e-4||t>=1-1e-4)return null; if(Math.hypot(p[0]-(a[0]+t*dx),p[1]-(a[1]+t*dy))>0.6)return null; return t; };
+    const off=new Map(), amp=dist*baseU*0.045, warp=p=>{ const k=key(p); let o=off.get(k); if(!o){o=[(rnd()*2-1)*amp,(rnd()*2-1)*amp];off.set(k,o);} return [p[0]+o[0],p[1]+o[1]]; };
+    const parea=p=>{let a=0;for(let i=0;i<p.length;i++){const q=p[(i+1)%p.length];a+=p[i][0]*q[1]-q[0]*p[i][1];}return Math.abs(a)/2;};
+    const raw=[];
+    for(const tri of leaves){ const poly=[];
+      for(let i=0;i<3;i++){ const a=tri[i],b=tri[(i+1)%3]; poly.push(a); const ins=[];
+        for(const v of nearVerts(a,b)){ const t=onEdge(a,b,v); if(t!=null)ins.push([t,v]); } ins.sort((x,y)=>x[0]-y[0]); for(const iv of ins)poly.push(iv[1]); }
+      raw.push(poly.map(warp)); }
+    // clip de chaque cellule au rectangle du plateau (Sutherland-Hodgman) → remplissage net, sans rogner les grosses tuiles de bord
+    const clipR=poly=>{ const step=(pts,ins,isc)=>{ const o=[]; for(let i=0;i<pts.length;i++){ const a=pts[i],b=pts[(i+1)%pts.length],ia=ins(a),ib=ins(b);
+        if(ia){o.push(a);if(!ib)o.push(isc(a,b));}else if(ib)o.push(isc(a,b)); } return o; };
+      let p=poly;
+      p=step(p,q=>q[0]>=0,(a,b)=>{const t=(0-a[0])/(b[0]-a[0]);return [0,a[1]+t*(b[1]-a[1])];});
+      p=step(p,q=>q[0]<=W,(a,b)=>{const t=(W-a[0])/(b[0]-a[0]);return [W,a[1]+t*(b[1]-a[1])];});
+      p=step(p,q=>q[1]>=0,(a,b)=>{const t=(0-a[1])/(b[1]-a[1]);return [a[0]+t*(b[0]-a[0]),0];});
+      p=step(p,q=>q[1]<=H,(a,b)=>{const t=(H-a[1])/(b[1]-a[1]);return [a[0]+t*(b[0]-a[0]),H];});
+      return p; };
+    const ars=raw.map(parea);
+    const clipped=raw.map(clipR).map((p,i)=>({p,a:ars[i]})).filter(o=>o.p.length>=3&&parea(o.p)>2);
+    const las=clipped.map(o=>o.a), lmin=Math.log(Math.min(...las)+1), lmax=Math.log(Math.max(...las)+1);
+    cells=clipped.map((o,i)=>{ const ct=polyCentroid(o.p), sz=lmax>lmin?(Math.log(o.a+1)-lmin)/(lmax-lmin):0;
+      return {id:i,poly:o.p,cx:ct[0],cy:ct[1],nb:[],terr:"plain",elev:0,_sz:sz}; });   // _sz : taille normalisée (0=petit,1=gros) → coloration éditeur
+    buildAdj();
+  }
   // ----- Hat FRACTAL : substitution chapeau+tortue (île apériodique au contour fractal) → double maillage (kites HK/TK) -----
   function genHatIsland(gOverride){
     const g=gOverride||+dens.value, dist=+distEl.value/100, rnd=mk(seed), PI=Math.PI, hr3=0.8660254037844386, ident=[1,0,0,0,1,0];
@@ -1248,6 +1303,7 @@
       const rockEdge=mode==="play"&&c.terr==="wall"&&!vis&&c.nb.some(n=>visible.has(n));   // rock at the edge of vision: we see it, but not the tiles behind it
       const unseen=mode==="play"&&!vis&&!rockEdge; let col=shade(c,unseen);
       if(mode==="edit"&&c.sup!=null){ const h=(c.sup*137.508)%360, l=38+((c.sup*47)%3)*7; col="hsl("+Math.round(h)+",40%,"+l+"%)"; }   // double maillage : couleur pleine distincte par chapeau (aperçu éditeur)
+      else if(mode==="edit"&&c._sz!=null){ col="hsl("+Math.round(205-c._sz*165)+",50%,"+Math.round(30+c._sz*24)+"%)"; }   // pinwheel : teinte par TAILLE de cellule (petit=bleu, gros=orange) → structure fractale visible
       poly(c); ctx.fillStyle=col; ctx.fill(); ctx.lineWidth=1.5; ctx.strokeStyle=col; ctx.stroke();   // fill + border = same final color → no antialiasing seam
       poly(c); ctx.lineWidth=c.sup!=null?0.4:0.6; ctx.strokeStyle=unseen?"rgba(18,14,9,.16)":"rgba(18,14,9,.30)"; ctx.stroke();   // very thin tile outline (kites even finer under a double mesh) — subtle under the fog
       if(c.terr==="wall"&&!unseen){ drawRock(c); }
