@@ -568,89 +568,8 @@
       cells.push({id:cells.length,poly:wp,cx:ct[0],cy:ct[1],nb:[],terr:"plain",elev:0,sup:kk.sup}); }
     buildAdj();
   }
-  // ----- Spectre PLATEAU : patch de chapeaux (métatuiles, sans trou) déformé en spectres (rescale d'arêtes Tile(1,√3)→Tile(1,1)) → remplit le rectangle -----
-  function genSpectreFlat(gOverride){
-    const g=gOverride||+dens.value, dist=+distEl.value/100, rnd=mk(seed), PI=Math.PI, hr3=0.8660254037844386, ident=[1,0,0,0,1,0];
-    const P=(x,y)=>({x,y}), hexPt=(x,y)=>P(x+0.5*y,hr3*y);
-    const mm=(A,B)=>[A[0]*B[0]+A[1]*B[3],A[0]*B[1]+A[1]*B[4],A[0]*B[2]+A[1]*B[5]+A[2],A[3]*B[0]+A[4]*B[3],A[3]*B[1]+A[4]*B[4],A[3]*B[2]+A[4]*B[5]+A[5]];
-    const trot=a=>{const c=Math.cos(a),s=Math.sin(a);return[c,-s,0,s,c,0];}, ttr=(x,y)=>[1,0,x,0,1,y];
-    const padd=(p,q)=>P(p.x+q.x,p.y+q.y), psub=(p,q)=>P(p.x-q.x,p.y-q.y);
-    const rotAbout=(p,a)=>mm(ttr(p.x,p.y),mm(trot(a),ttr(-p.x,-p.y))), tp=(M,p)=>P(M[0]*p.x+M[1]*p.y+M[2],M[3]*p.x+M[4]*p.y+M[5]);
-    const inv=T=>{const d=T[0]*T[4]-T[1]*T[3];return [T[4]/d,-T[1]/d,(T[1]*T[5]-T[2]*T[4])/d,-T[3]/d,T[0]/d,(T[2]*T[3]-T[0]*T[5])/d];};
-    const matchSeg=(p,q)=>[q.x-p.x,p.y-q.y,p.x,q.y-p.y,q.x-p.x,p.y];
-    const matchTwo=(p1,q1,p2,q2)=>mm(matchSeg(p2,q2),inv(matchSeg(p1,q1)));
-    const isect=(p1,q1,p2,q2)=>{const d=(q2.y-p2.y)*(q1.x-p1.x)-(q2.x-p2.x)*(q1.y-p1.y);const uA=((q2.x-p2.x)*(p1.y-p2.y)-(q2.y-p2.y)*(p1.x-p2.x))/d;return P(p1.x+uA*(q1.x-p1.x),p1.y+uA*(q1.y-p1.y));};
-    const hat=[hexPt(0,0),hexPt(-1,-1),hexPt(0,-2),hexPt(2,-2),hexPt(2,-1),hexPt(4,-2),hexPt(5,-1),hexPt(4,0),hexPt(3,0),hexPt(2,2),hexPt(0,3),hexPt(0,2),hexPt(-1,2)];
-    const hat14=[hexPt(-1,2),hexPt(0,2),hexPt(0,3),hexPt(2,2),hexPt(3,0),hexPt(4,0),hexPt(5,-1),hexPt(4,-2),hexPt(2,-1),hexPt(2,-2),hexPt(1,-2),hexPt(0,-2),hexPt(-1,-1),hexPt(0,0)];
-    const HK=[[[0,0],[2,-1],[2,0],[1,1]],[[0,0],[1,1],[0,2],[-1,2]],[[0,0],[-1,-1],[0,-2],[1,-2]],[[0,0],[1,-2],[2,-2],[2,-1]],[[4,-2],[5,-1],[4,0],[3,0]],[[4,-2],[3,0],[2,0],[2,-1]],[[2,2],[0,3],[0,2],[1,1]],[[2,2],[1,1],[2,0],[3,0]]];
-    const HKc=HK.map(k=>k.map(([x,y])=>hexPt(x,y)));
-    const HAT=()=>({hat:true,shape:hat}), META=shape=>({hat:false,shape,ch:[]});
-    const Hh=HAT(),H1=HAT(),Th=HAT(),Ph=HAT(),Fh=HAT();
-    const H_init=(()=>{ const o=[P(0,0),P(4,0),P(4.5,hr3),P(2.5,5*hr3),P(1.5,5*hr3),P(-0.5,hr3)], m=META(o);
-      m.ch.push({T:matchTwo(hat[5],hat[7],o[5],o[0]),g:Hh}); m.ch.push({T:matchTwo(hat[9],hat[11],o[1],o[2]),g:Hh});
-      m.ch.push({T:matchTwo(hat[5],hat[7],o[3],o[4]),g:Hh}); m.ch.push({T:mm(ttr(2.5,hr3),mm([-0.5,-hr3,0,hr3,-0.5,0],[0.5,0,0,0,-0.5,0])),g:H1}); return m; })();
-    const T_init=(()=>{ const o=[P(0,0),P(3,0),P(1.5,3*hr3)], m=META(o); m.ch.push({T:[0.5,0,0.5,0,0.5,hr3],g:Th}); return m; })();
-    const P_init=(()=>{ const o=[P(0,0),P(4,0),P(3,2*hr3),P(-1,2*hr3)], m=META(o); m.ch.push({T:[0.5,0,1.5,0,0.5,hr3],g:Ph}); m.ch.push({T:mm(ttr(0,2*hr3),mm([0.5,hr3,0,-hr3,0.5,0],[0.5,0,0,0,0.5,0])),g:Ph}); return m; })();
-    const F_init=(()=>{ const o=[P(0,0),P(3,0),P(3.5,hr3),P(3,2*hr3),P(-1,2*hr3)], m=META(o); m.ch.push({T:[0.5,0,1.5,0,0.5,hr3],g:Fh}); m.ch.push({T:mm(ttr(0,2*hr3),mm([0.5,hr3,0,-hr3,0.5,0],[0.5,0,0,0,0.5,0])),g:Fh}); return m; })();
-    const evalCh=(m,n,i)=>tp(m.ch[n].T,m.ch[n].g.shape[i]);
-    const constructPatch=(H,T,Pp,F)=>{ const rules=[['H'],[0,0,'P',2],[1,0,'H',2],[2,0,'P',2],[3,0,'H',2],[4,4,'P',2],[0,4,'F',3],[2,4,'F',3],[4,1,3,2,'F',0],[8,3,'H',0],[9,2,'P',0],[10,2,'H',0],[11,4,'P',2],[12,0,'H',2],[13,0,'F',3],[14,2,'F',1],[15,3,'H',4],[8,2,'F',1],[17,3,'H',0],[18,2,'P',0],[19,2,'H',2],[20,4,'F',3],[20,0,'P',2],[22,0,'H',2],[23,4,'F',3],[23,0,'F',3],[16,0,'P',2],[9,4,0,2,'T',2],[4,0,'F',3]];
-      const ret=META([]), sh={H,T,P:Pp,F};
-      for(const r of rules){ if(r.length==1){ ret.ch.push({T:ident,g:sh[r[0]]}); }
-        else if(r.length==4){ const c=ret.ch[r[0]],poly=c.g.shape,Q=tp(c.T,poly[r[1]]),A=tp(c.T,poly[(r[1]+1)%poly.length]),ns=sh[r[2]],np=ns.shape;
-          ret.ch.push({T:matchTwo(np[r[3]],np[(r[3]+1)%np.length],A,Q),g:ns}); }
-        else{ const cP=ret.ch[r[0]],cQ=ret.ch[r[2]],A=tp(cQ.T,cQ.g.shape[r[3]]),Q=tp(cP.T,cP.g.shape[r[1]]),ns=sh[r[4]],np=ns.shape;
-          ret.ch.push({T:matchTwo(np[r[5]],np[(r[5]+1)%np.length],A,Q),g:ns}); } }
-      return ret; };
-    const constructMeta=patch=>{ const bps1=evalCh(patch,8,2),bps2=evalCh(patch,21,2), rbps=tp(rotAbout(bps1,-2*PI/3),bps2), p72=evalCh(patch,7,2),p252=evalCh(patch,25,2), llc=isect(bps1,rbps,evalCh(patch,6,2),p72);
-      let w=psub(evalCh(patch,6,2),llc); const nHo=[llc,bps1]; w=tp(trot(-PI/3),w); nHo.push(padd(nHo[1],w)); nHo.push(evalCh(patch,14,2)); w=tp(trot(-PI/3),w); nHo.push(psub(nHo[3],w)); nHo.push(evalCh(patch,6,2));
-      const nH=META(nHo); for(const c of [0,9,16,27,26,6,1,8,10,15]) nH.ch.push({T:patch.ch[c].T,g:patch.ch[c].g});
-      const nP=META([p72,padd(p72,psub(bps1,llc)),bps1,llc]); for(const c of [7,2,3,4,28]) nP.ch.push({T:patch.ch[c].T,g:patch.ch[c].g});
-      const nF=META([bps2,evalCh(patch,24,2),evalCh(patch,25,0),p252,padd(p252,psub(llc,bps1))]); for(const c of [21,20,22,23,24,25]) nF.ch.push({T:patch.ch[c].T,g:patch.ch[c].g});
-      const AAA=nHo[2],BBB=padd(nHo[1],psub(nHo[4],nHo[5])),CCC=tp(rotAbout(BBB,-PI/3),AAA); const nT=META([BBB,CCC,AAA]); nT.ch.push({T:patch.ch[11].T,g:patch.ch[11].g});
-      return [nH,nT,nP,nF]; };
-    const collectT=(geom,T,out)=>{ if(geom.hat){ out.push(T); } else { for(const c of geom.ch) collectT(c.g,mm(T,c.T),out); } };
-    const buildHats=n=>{ let tiles=[H_init,T_init,P_init,F_init]; for(let i=0;i<n;i++)tiles=constructMeta(constructPatch(tiles[0],tiles[1],tiles[2],tiles[3])); const out=[]; collectT(tiles[0],ident,out); return out; };
-    // structure des kites du chapeau exprimée sur ses 14 sommets de bord (hat14) : sommet-de-bord (index) ou barycentrique de 3 sommets
-    const eqp=(a,b)=>Math.hypot(a.x-b.x,a.y-b.y)<1e-6;
-    const det3=m=>m[0][0]*(m[1][1]*m[2][2]-m[1][2]*m[2][1])-m[0][1]*(m[1][0]*m[2][2]-m[1][2]*m[2][0])+m[0][2]*(m[1][0]*m[2][1]-m[1][1]*m[2][0]);
-    const baryOf=p=>{ const near=hat14.map((q,i)=>({i,d:Math.hypot(q.x-p.x,q.y-p.y)})).sort((a,b)=>a.d-b.d).map(o=>o.i);   // 3 plus proches sommets NON dégénérés (évite un triangle plat → poids NaN)
-      let idx=[near[0],near[1],near[2]]; outer: for(let a=0;a<near.length;a++)for(let b=a+1;b<near.length;b++)for(let c=b+1;c<near.length;c++){ const A=[hat14[near[a]],hat14[near[b]],hat14[near[c]]]; if(Math.abs(det3([[A[0].x,A[1].x,A[2].x],[A[0].y,A[1].y,A[2].y],[1,1,1]]))>1e-3){ idx=[near[a],near[b],near[c]]; break outer; } }
-      const A=idx.map(i=>hat14[i]), M=[[A[0].x,A[1].x,A[2].x],[A[0].y,A[1].y,A[2].y],[1,1,1]],r=[p.x,p.y,1],D=det3(M),w=[];
-      for(let c=0;c<3;c++){const Mc=M.map(row=>row.slice());for(let rr=0;rr<3;rr++)Mc[rr][c]=r[rr];w.push(det3(Mc)/D);} return {idx,w}; };
-    const kiteSpec=HKc.map(k=>k.map(v=>{ const bi=hat14.findIndex(q=>eqp(q,v)); if(bi>=0)return {b:bi}; return {bary:baryOf(v)}; }));
-    const gg=Math.min(64,Math.max(30,g)), targetHats=Math.round(84-(gg-30)/34*54);
-    function rescaleTiles(Ts){ const polys=Ts.map(T=>hat14.map(v=>tp(T,v)));
-      const key=p=>Math.round(p.x*1000)+","+Math.round(p.y*1000), vmap=new Map(), verts=[];
-      const tileIdx=polys.map(poly=>poly.map(p=>{const k=key(p);if(!vmap.has(k)){vmap.set(k,verts.length);verts.push({x:p.x,y:p.y});}return vmap.get(k);}));
-      const ek=(u,v)=>u<v?u+'-'+v:v+'-'+u, edgeLen=new Map();
-      for(const ti of tileIdx)for(let i=0;i<ti.length;i++){const u=ti[i],v=ti[(i+1)%ti.length];edgeLen.set(ek(u,v),Math.hypot(verts[u].x-verts[v].x,verts[u].y-verts[v].y));}
-      const lens=[...edgeLen.values()].sort((a,b)=>a-b), shortLen=lens[0];   // Tile(1,1) : toutes les arêtes → shortLen
-      const adj=new Map(); for(let i=0;i<verts.length;i++)adj.set(i,[]);
-      for(const [k,L] of edgeLen){const [u,v]=k.split('-').map(Number);adj.get(u).push({to:v,k});adj.get(v).push({to:u,k});}
-      const npos=new Array(verts.length).fill(null); npos[0]={x:0,y:0}; const q=[0];
-      while(q.length){const u=q.shift();for(const o of adj.get(u)){if(npos[o.to])continue;const L=edgeLen.get(o.k),dx=(verts[o.to].x-verts[u].x)/L,dy=(verts[o.to].y-verts[u].y)/L;npos[o.to]={x:npos[u].x+dx*shortLen,y:npos[u].y+dy*shortLen};q.push(o.to);}}
-      return {tileIdx,npos}; }
-    let Ts=buildHats(2), rs=rescaleTiles(Ts), tileIdx=rs.tileIdx, npos=rs.npos;
-    const tileArea=ti=>{ let a=0; for(let i=0;i<ti.length;i++){const u=npos[ti[i]],v=npos[ti[(i+1)%ti.length]];a+=u.x*v.y-v.x*u.y;} return Math.abs(a)/2; };
-    const meanA=()=>tileIdx.reduce((s,ti)=>s+tileArea(ti),0)/tileIdx.length;
-    let mnx,mny,mxx,mxy; const bb=()=>{mnx=mny=1e18;mxx=mxy=-1e18;for(const p of npos){if(!p)continue;mnx=Math.min(mnx,p.x);mny=Math.min(mny,p.y);mxx=Math.max(mxx,p.x);mxy=Math.max(mxy,p.y);}};
-    let S=Math.sqrt(W*H/(targetHats*meanA())); bb();
-    if(S*(mxx-mnx)<W*1.05||S*(mxy-mny)<H*1.05){ Ts=buildHats(3); rs=rescaleTiles(Ts); tileIdx=rs.tileIdx; npos=rs.npos; S=Math.sqrt(W*H/(targetHats*meanA())); bb(); }
-    const ox=(W-(mnx+mxx)*S)/2, oy=(H-(mny+mxy)*S)/2;
-    const vkey=p=>Math.round(p[0]*10)+","+Math.round(p[1]*10), off=new Map(), amp=dist*S*0.18;
-    const warp=p=>{ const k=vkey(p); let o=off.get(k); if(!o){ o=[(rnd()*2-1)*amp,(rnd()*2-1)*amp]; off.set(k,o); } return [p[0]+o[0],p[1]+o[1]]; };
-    const bpt=(v,bv)=>{ if(v.b!=null)return bv[v.b]; const {idx,w}=v.bary; return {x:w[0]*bv[idx[0]].x+w[1]*bv[idx[1]].x+w[2]*bv[idx[2]].x, y:w[0]*bv[idx[0]].y+w[1]*bv[idx[1]].y+w[2]*bv[idx[2]].y}; };
-    const MARG=-3; cells=[]; let sup=0;
-    for(const ti of tileIdx){ const bv=ti.map(idx=>npos[idx]); const kc=[];
-      for(const k of kiteSpec){ const wp=k.map(v=>{const p=bpt(v,bv); return warp([ox+p.x*S, oy+p.y*S]);}); const ct=polyCentroid(wp);
-        if(ct[0]>MARG&&ct[0]<W-MARG&&ct[1]>MARG&&ct[1]<H-MARG) kc.push({poly:wp,cx:ct[0],cy:ct[1]}); }
-      if(kc.length){ for(const c of kc) cells.push({id:cells.length,poly:c.poly,cx:c.cx,cy:c.cy,nb:[],terr:"plain",elev:0,sup}); sup++; } }
-    buildAdj();
-    if(islandTrim){ const EPS=0.6; cells=cells.filter(c=>!c.poly.some(p=>p[0]<=EPS||p[0]>=W-EPS||p[1]<=EPS||p[1]>=H-EPS)); cells.forEach((c,i)=>c.id=i); buildAdj(); }
-  }
-  // décoché "Forme fractale" → remplit le plateau (patch de chapeaux déformés en spectres) ; coché → île fractale (substitution)
+  // coché "Forme fractale" → île apériodique ajustée dans le plateau ; décoché → on agrandit pour COUVRIR le plateau et on clippe les kites qui en sortent
   function genSpectre(gOverride,fractal){
-    if(!fractal){ genSpectreFlat(gOverride); return; }   // décoché → remplit le plateau ; coché → île fractale
     const g=gOverride||+dens.value, dist=+distEl.value/100, rnd=mk(seed), PI=Math.PI, radians=d=>d*PI/180, ident=[1,0,0,0,1,0];
     const P=(x,y)=>({x,y});
     const mm=(A,B)=>[A[0]*B[0]+A[1]*B[3],A[0]*B[1]+A[1]*B[4],A[0]*B[2]+A[1]*B[5]+A[2],A[3]*B[0]+A[4]*B[3],A[3]*B[1]+A[4]*B[4],A[3]*B[2]+A[4]*B[5]+A[5]];
@@ -678,18 +597,23 @@
       return ret; };
     const emit=(geom,T,out)=>{ if(!geom.meta){ out.push(T); } else { for(const gg of geom.geoms) emit(gg.geom,mm(T,gg.xform),out); } };   // on collecte le transform de chaque spectre (chaque feuille)
     // le spectre est une grande tuile : peu de niveaux suffisent. Density basse → N plus grand (plus fin), haute → plus gros
-    const gg=Math.min(64,Math.max(30,g)); let sys=base(); const N=gg>=52?1:2;
+    const gg=Math.min(64,Math.max(30,g)); let sys=base(); const N=fractal?(gg>=52?1:2):2;   // plateau : toujours N=2 (assez de tuiles après zoom) ; la densité pilote le zoom
     for(let i=0;i<N;i++)sys=supert(sys);
     const leaves=[]; emit(sys['Delta'],ident,leaves);   // chaque feuille = un spectre (transform T), à découper en 8 kites
-    // le patch de substitution est une île apériodique connexe (sans trou) ; on l'ajuste au plateau
     let mnx=1e18,mny=1e18,mxx=-1e18,mxy=-1e18; for(const T of leaves)for(const k of SK)for(const v of k){const p=tp(T,v); if(p.x<mnx)mnx=p.x; if(p.y<mny)mny=p.y; if(p.x>mxx)mxx=p.x; if(p.y>mxy)mxy=p.y;}
-    const bw=Math.max(1,mxx-mnx), bh=Math.max(1,mxy-mny), S=Math.min(W/bw,H/bh)*0.94, ox=(W-(mnx+mxx)*S)/2, oy=(H-(mny+mxy)*S)/2;
+    const bw=Math.max(1,mxx-mnx), bh=Math.max(1,mxy-mny);
+    const zoom=1.2+(gg-30)/34*1.0;   // densité → zoom (bas = plus de tuiles, haut = plus grosses)
+    const S=fractal? Math.min(W/bw,H/bh)*0.94 : Math.max(W/bw,H/bh)*zoom;   // fractal : île ajustée dedans ; plateau : on zoome dans le centre dense pour couvrir le rectangle (fjords repoussés au bord, kites hors-cadre clippés)
+    const ox=(W-(mnx+mxx)*S)/2, oy=(H-(mny+mxy)*S)/2;
     const vkey=p=>Math.round(p[0]*10)+","+Math.round(p[1]*10), off=new Map(), amp=dist*S*0.18;   // jitter doux (kites petits)
     const warp=p=>{ const k=vkey(p); let o=off.get(k); if(!o){ o=[(rnd()*2-1)*amp,(rnd()*2-1)*amp]; off.set(k,o); } return [p[0]+o[0],p[1]+o[1]]; };
-    cells=[]; let sup=0;
-    for(const T of leaves){ for(const k of SK){ const wp=k.map(v=>{const p=tp(T,v); return warp([ox+p.x*S, oy+p.y*S]);}); const ct=polyCentroid(wp);
-        cells.push({id:cells.length,poly:wp,cx:ct[0],cy:ct[1],nb:[],terr:"plain",elev:0,sup}); } sup++; }   // sup = id du spectre parent (couche large)
+    const MARG=-3; cells=[]; let sup=0;
+    for(const T of leaves){ const kc=[];
+      for(const k of SK){ const wp=k.map(v=>{const p=tp(T,v); return warp([ox+p.x*S, oy+p.y*S]);}); const ct=polyCentroid(wp);
+        if(fractal || (ct[0]>MARG&&ct[0]<W-MARG&&ct[1]>MARG&&ct[1]<H-MARG)) kc.push({poly:wp,cx:ct[0],cy:ct[1]}); }   // plateau : on ne garde que les kites dont le centre est dans l'image
+      if(kc.length){ for(const c of kc) cells.push({id:cells.length,poly:c.poly,cx:c.cx,cy:c.cy,nb:[],terr:"plain",elev:0,sup}); sup++; } }   // sup = id du spectre parent
     buildAdj();
+    if(!fractal&&islandTrim){ const EPS=0.6; cells=cells.filter(c=>!c.poly.some(p=>p[0]<=EPS||p[0]>=W-EPS||p[1]<=EPS||p[1]>=H-EPS)); cells.forEach((c,i)=>c.id=i); buildAdj(); }   // enlève les kites qui débordent du plateau
   }
   // ===== Hat (einstein monotile) : métatuiles H/T/P/F de Kaplan → patch dense SANS trou (double maillage : chapeaux = large, kites = fin) =====
   // décoché "Forme fractale" → remplit le plateau (métatuiles) ; coché → île apériodique au contour fractal (substitution chapeau+tortue)
