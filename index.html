@@ -583,6 +583,18 @@
     cells=clipped.map((o,i)=>{ const ct=polyCentroid(o.p);
       return {id:i,poly:o.p,cx:ct[0],cy:ct[1],nb:[],terr:"plain",elev:0,_gen:o.gen}; });   // _gen : génération → coloration par niveau (bleu→orange) dans l'éditeur
     buildAdj();
+    // TROUS : on retire des amas de cellules (2e champ de bruit) — trous de tailles variées — puis on ne garde que la PLUS GRANDE composante connexe par arêtes → tout reste relié
+    const holeAmt=Math.max(0,Math.min(0.6,dist));   // curseur Distorsion pilote la quantité de trous (0 = aucun)
+    if(holeAmt>0.02){ const hv=(x,y)=>{ const s=175,gx=x/s,gy=y/s,xi=Math.floor(gx),yi=Math.floor(gy),xf=gx-xi,yf=gy-yi;
+        const h=(a,b)=>gr[(((a*92837111)^(b*689287499))>>>0)&255], sm=t=>t*t*(3-2*t), lp=(a,b,t)=>a+(b-a)*sm(t);
+        return lp(lp(h(xi,yi),h(xi+1,yi),xf),lp(h(xi,yi+1),h(xi+1,yi+1),xf),yf); };
+      const thr=1-holeAmt, keep=cells.filter(c=>hv(c.cx,c.cy)<thr);
+      if(keep.length>8){ const idset=new Set(keep.map(c=>c.id)), seen=new Set(); let best=[];
+        for(const c of keep){ if(seen.has(c.id))continue; const comp=[],st=[c.id]; seen.add(c.id);
+          while(st.length){ const u=st.pop(); comp.push(u); for(const v of cells[u].nb)if(idset.has(v)&&!seen.has(v)){seen.add(v);st.push(v);} }
+          if(comp.length>best.length)best=comp; }
+        const bset=new Set(best); cells=cells.filter(c=>bset.has(c.id)); cells.forEach((c,i)=>c.id=i); buildAdj(); }
+    }
   }
   // ----- Hat FRACTAL : substitution chapeau+tortue (île apériodique au contour fractal) → double maillage (kites HK/TK) -----
   function genHatIsland(gOverride){
