@@ -541,28 +541,31 @@
       const A=tri[hi],o1=tri[(hi+1)%3],o2=tri[(hi+2)%3]; return dd(A,o1)>=dd(A,o2)?[A,o1,o2]:[A,o2,o1]; };
     const cen=t=>{let x=0,y=0;for(const p of t){x+=p[0];y+=p[1];}return [x/t.length,y/t.length];};
     // densité → taille de base + profondeur (g haut = grosses cellules ; g bas = fines/nombreuses)
-    const gg=Math.min(64,Math.max(30,g)), baseU=78+(gg-30)*4.6, dMax=gg<=42?3:2, dMin=0;   // dMin=0 : certaines tuiles restent grosses → forte variation de taille
-    const depthAt=p=>dMin+Math.min(dMax-dMin,Math.floor(vn(p[0],p[1])*(dMax-dMin+1)));
+    const gg=Math.min(64,Math.max(30,g)), baseU=120+(gg-30)*5.4, dMax=3, dMin=0;
+    // profondeur RADIALE : cœur grossier (bleu) → bords fins (orange) + léger bruit → anneaux de générations organiques (style « fractale par niveau »)
+    const cx0=W/2, cy0=H/2, maxR=Math.hypot(W/2,H/2);
+    const depthAt=p=>{ const r=Math.hypot(p[0]-cx0,p[1]-cy0)/maxR, nz=(vn(p[0],p[1])-0.5)*0.5;
+      return dMin+Math.max(0,Math.min(dMax-dMin,Math.floor((r*1.08+nz)*(dMax-dMin+0.999)))); };
     // grille de base : rectangles 2u×u = 2 triangles pinwheel, couvrant le plateau
     const base=[], cols=Math.ceil(W/(2*baseU))+1, rows=Math.ceil(H/baseU)+1;
     for(let r=0;r<rows;r++)for(let c=0;c<cols;c++){ const x=c*2*baseU,y=r*baseU;
       base.push(canon([[x,y],[x+2*baseU,y],[x,y+baseU]])); base.push(canon([[x+2*baseU,y+baseU],[x,y+baseU],[x+2*baseU,y]])); }
-    const leaves=[]; const rec=(tri,d)=>{ if(d>=depthAt(cen(tri))){leaves.push(tri);return;} for(const k of sub(tri))rec(canon(k),d+1); };
+    const leaves=[]; const rec=(tri,d)=>{ if(d>=depthAt(cen(tri))){leaves.push({tri,gen:d});return;} for(const k of sub(tri))rec(canon(k),d+1); };   // gen = génération (profondeur) de la tuile
     for(const b of base)rec(b,0);
     // souder les T-junctions : hachage spatial des sommets, puis insérer dans chaque triangle les sommets voisins tombant sur ses arêtes → cellules polygonales CONFORMES
     const key=p=>Math.round(p[0]*20)+","+Math.round(p[1]*20), vmap=new Map(), BK=Math.max(20,baseU/2), gk=(x,y)=>Math.floor(x/BK)+","+Math.floor(y/BK), buckets=new Map();
-    for(const t of leaves)for(const p of t){ const k=key(p); if(!vmap.has(k)){ vmap.set(k,p); const b=gk(p[0],p[1]); if(!buckets.has(b))buckets.set(b,[]); buckets.get(b).push(p); } }
+    for(const lf of leaves)for(const p of lf.tri){ const k=key(p); if(!vmap.has(k)){ vmap.set(k,p); const b=gk(p[0],p[1]); if(!buckets.has(b))buckets.set(b,[]); buckets.get(b).push(p); } }
     const nearVerts=(a,b)=>{ const x0=Math.min(a[0],b[0]),x1=Math.max(a[0],b[0]),y0=Math.min(a[1],b[1]),y1=Math.max(a[1],b[1]), out=[];
       for(let bx=Math.floor(x0/BK);bx<=Math.floor(x1/BK);bx++)for(let by=Math.floor(y0/BK);by<=Math.floor(y1/BK);by++){ const arr=buckets.get(bx+","+by); if(arr)for(const v of arr)out.push(v); } return out; };
     const onEdge=(a,b,p)=>{ const dx=b[0]-a[0],dy=b[1]-a[1],L2=dx*dx+dy*dy||1, t=((p[0]-a[0])*dx+(p[1]-a[1])*dy)/L2;
       if(t<=1e-4||t>=1-1e-4)return null; if(Math.hypot(p[0]-(a[0]+t*dx),p[1]-(a[1]+t*dy))>0.6)return null; return t; };
     const off=new Map(), amp=dist*baseU*0.045, warp=p=>{ const k=key(p); let o=off.get(k); if(!o){o=[(rnd()*2-1)*amp,(rnd()*2-1)*amp];off.set(k,o);} return [p[0]+o[0],p[1]+o[1]]; };
     const parea=p=>{let a=0;for(let i=0;i<p.length;i++){const q=p[(i+1)%p.length];a+=p[i][0]*q[1]-q[0]*p[i][1];}return Math.abs(a)/2;};
-    const raw=[];
-    for(const tri of leaves){ const poly=[];
+    const raw=[], gens=[];
+    for(const lf of leaves){ const tri=lf.tri, poly=[];
       for(let i=0;i<3;i++){ const a=tri[i],b=tri[(i+1)%3]; poly.push(a); const ins=[];
         for(const v of nearVerts(a,b)){ const t=onEdge(a,b,v); if(t!=null)ins.push([t,v]); } ins.sort((x,y)=>x[0]-y[0]); for(const iv of ins)poly.push(iv[1]); }
-      raw.push(poly.map(warp)); }
+      raw.push(poly.map(warp)); gens.push(lf.gen); }
     // clip de chaque cellule au rectangle du plateau (Sutherland-Hodgman) → remplissage net, sans rogner les grosses tuiles de bord
     const clipR=poly=>{ const step=(pts,ins,isc)=>{ const o=[]; for(let i=0;i<pts.length;i++){ const a=pts[i],b=pts[(i+1)%pts.length],ia=ins(a),ib=ins(b);
         if(ia){o.push(a);if(!ib)o.push(isc(a,b));}else if(ib)o.push(isc(a,b)); } return o; };
@@ -572,11 +575,9 @@
       p=step(p,q=>q[1]>=0,(a,b)=>{const t=(0-a[1])/(b[1]-a[1]);return [a[0]+t*(b[0]-a[0]),0];});
       p=step(p,q=>q[1]<=H,(a,b)=>{const t=(H-a[1])/(b[1]-a[1]);return [a[0]+t*(b[0]-a[0]),H];});
       return p; };
-    const ars=raw.map(parea);
-    const clipped=raw.map(clipR).map((p,i)=>({p,a:ars[i]})).filter(o=>o.p.length>=3&&parea(o.p)>2);
-    const las=clipped.map(o=>o.a), lmin=Math.log(Math.min(...las)+1), lmax=Math.log(Math.max(...las)+1);
-    cells=clipped.map((o,i)=>{ const ct=polyCentroid(o.p), sz=lmax>lmin?(Math.log(o.a+1)-lmin)/(lmax-lmin):0;
-      return {id:i,poly:o.p,cx:ct[0],cy:ct[1],nb:[],terr:"plain",elev:0,_sz:sz}; });   // _sz : taille normalisée (0=petit,1=gros) → coloration éditeur
+    const clipped=raw.map(clipR).map((p,i)=>({p,gen:gens[i]})).filter(o=>o.p.length>=3&&parea(o.p)>2);
+    cells=clipped.map((o,i)=>{ const ct=polyCentroid(o.p);
+      return {id:i,poly:o.p,cx:ct[0],cy:ct[1],nb:[],terr:"plain",elev:0,_gen:o.gen}; });   // _gen : génération → coloration par niveau (bleu→orange) dans l'éditeur
     buildAdj();
   }
   // ----- Hat FRACTAL : substitution chapeau+tortue (île apériodique au contour fractal) → double maillage (kites HK/TK) -----
@@ -1303,7 +1304,7 @@
       const rockEdge=mode==="play"&&c.terr==="wall"&&!vis&&c.nb.some(n=>visible.has(n));   // rock at the edge of vision: we see it, but not the tiles behind it
       const unseen=mode==="play"&&!vis&&!rockEdge; let col=shade(c,unseen);
       if(mode==="edit"&&c.sup!=null){ const h=(c.sup*137.508)%360, l=38+((c.sup*47)%3)*7; col="hsl("+Math.round(h)+",40%,"+l+"%)"; }   // double maillage : couleur pleine distincte par chapeau (aperçu éditeur)
-      else if(mode==="edit"&&c._sz!=null){ col="hsl("+Math.round(205-c._sz*165)+",50%,"+Math.round(30+c._sz*24)+"%)"; }   // pinwheel : teinte par TAILLE de cellule (petit=bleu, gros=orange) → structure fractale visible
+      else if(mode==="edit"&&c._gen!=null){ const PP=["#4c86e0","#7a46c8","#c0396b","#e8902b","#f0c33e"]; col=PP[Math.min(PP.length-1,c._gen)]; }   // pinwheel : coloration par GÉNÉRATION (gros/peu subdivisé = bleu → fin/profond = orange), style fractale par niveau
       poly(c); ctx.fillStyle=col; ctx.fill(); ctx.lineWidth=1.5; ctx.strokeStyle=col; ctx.stroke();   // fill + border = same final color → no antialiasing seam
       poly(c); ctx.lineWidth=c.sup!=null?0.4:0.6; ctx.strokeStyle=unseen?"rgba(18,14,9,.16)":"rgba(18,14,9,.30)"; ctx.stroke();   // very thin tile outline (kites even finer under a double mesh) — subtle under the fog
       if(c.terr==="wall"&&!unseen){ drawRock(c); }
