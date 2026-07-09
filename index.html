@@ -440,7 +440,7 @@
   function distToSeg(px,py,a,b){ const vx=b[0]-a[0],vy=b[1]-a[1],wx=px-a[0],wy=py-a[1],c1=vx*wx+vy*wy; if(c1<=0)return Math.hypot(px-a[0],py-a[1]); const c2=vx*vx+vy*vy; if(c2<=c1)return Math.hypot(px-b[0],py-b[1]); const t=c1/c2; return Math.hypot(px-(a[0]+t*vx),py-(a[1]+t*vy)); }
   const meshTypeEl=()=>document.getElementById("mesh-type");
   function genMesh(gOverride,forceV){
-    if(!forceV&&meshTypeEl()){ const mt=meshTypeEl().value, fr=(document.getElementById("mesh-fractal")||{}).checked; if(mt==="penrose3"){ genPenrose(gOverride); return; } if(mt==="ammann"){ genAmmann(gOverride); return; } if(mt==="spectre"){ genSpectre(gOverride,fr); return; } if(mt==="hat"){ genHat(gOverride,fr); return; } if(mt==="pinwheel"){ genPinwheel(gOverride); return; } }   // forceV : le geoscape reste toujours en Voronoï ; fr : île fractale (sinon remplit le plateau)
+    if(!forceV&&meshTypeEl()){ const mt=meshTypeEl().value, fr=(document.getElementById("mesh-fractal")||{}).checked; if(mt==="penrose3"){ genPenrose(gOverride); return; } if(mt==="ammann"){ genAmmann(gOverride); return; } if(mt==="spectre"){ genSpectre(gOverride,fr); return; } if(mt==="hat"){ genHat(gOverride,fr); return; } if(mt==="pinwheel"){ genPinwheel(gOverride,fr); return; } }   // forceV : le geoscape reste toujours en Voronoï ; fr : île fractale (sinon remplit le plateau)
     const g=gOverride||+dens.value, dist=+distEl.value/100, rnd=mk(seed), h=g*0.866, jit=a=>(rnd()*2-1)*a;
     const typeAt=(x,y)=>infl[Math.min(ROWS-1,Math.floor(y/MC))][Math.min(COLS-1,Math.floor(x/MC))];
     const seeds=[];
@@ -525,8 +525,9 @@
   }
   // ===== Spectre (einstein monotile) : substitution de Kaplan (9 métatuiles Gamma..Psi), tuiles = spectres Tile(1,1) =====
   // ===== Pinwheel (rep-tuile 1-2-√5) : vraie fractale à TAILLE VARIABLE — subdivision adaptative + T-junctions soudées → maillage conforme (jouable) =====
-  function genPinwheel(gOverride){
-    const g=gOverride||+dens.value, dist=+distEl.value/100, rnd=mk(seed);
+  // décoché "Forme fractale" → remplit le plateau ; coché → île fractale flottante (cœur grossier + liseré fin, style « fractale par génération »)
+  function genPinwheel(gOverride,fractal){
+    const g=gOverride||+dens.value, dist=+distEl.value/100, rnd=mk(seed), island=!!fractal;
     // bruit de valeur déterministe (pilote la profondeur de subdivision → tailles variables)
     const gr=[]; for(let i=0;i<256;i++)gr.push(rnd());
     const vn=(x,y)=>{ const s=140,gx=x/s,gy=y/s,xi=Math.floor(gx),yi=Math.floor(gy),xf=gx-xi,yf=gy-yi;
@@ -542,8 +543,8 @@
     const cen=t=>{let x=0,y=0;for(const p of t){x+=p[0];y+=p[1];}return [x/t.length,y/t.length];};
     // densité → taille de base + profondeur (g haut = grosses cellules ; g bas = fines/nombreuses)
     const gg=Math.min(64,Math.max(30,g)), baseU=120+(gg-30)*5.4, dMax=3, dMin=0;
-    // profondeur RADIALE : cœur grossier (bleu) → bords fins (orange) + léger bruit → anneaux de générations organiques (style « fractale par niveau »)
-    const cx0=W/2, cy0=H/2, maxR=Math.hypot(W/2,H/2);
+    // profondeur RADIALE : cœur grossier (bleu) → bords fins (orange) + léger bruit → anneaux de générations concentriques
+    const cx0=W/2, cy0=H/2, R=Math.min(W,H)*0.46, maxR=island?R:Math.hypot(W/2,H/2);   // île : rayon du disque ; plateau : diagonale
     const depthAt=p=>{ const r=Math.hypot(p[0]-cx0,p[1]-cy0)/maxR, nz=(vn(p[0],p[1])-0.5)*0.5;
       return dMin+Math.max(0,Math.min(dMax-dMin,Math.floor((r*1.08+nz)*(dMax-dMin+0.999)))); };
     // grille de base : rectangles 2u×u = 2 triangles pinwheel, couvrant le plateau
@@ -551,7 +552,8 @@
     for(let r=0;r<rows;r++)for(let c=0;c<cols;c++){ const x=c*2*baseU,y=r*baseU;
       base.push(canon([[x,y],[x+2*baseU,y],[x,y+baseU]])); base.push(canon([[x+2*baseU,y+baseU],[x,y+baseU],[x+2*baseU,y]])); }
     const leaves=[]; const rec=(tri,d)=>{ if(d>=depthAt(cen(tri))){leaves.push({tri,gen:d});return;} for(const k of sub(tri))rec(canon(k),d+1); };   // gen = génération (profondeur) de la tuile
-    for(const b of base)rec(b,0);
+    const baseF=island? base.filter(t=>{const c=cen(t);return Math.hypot(c[0]-cx0,c[1]-cy0)<R+baseU;}) : base;   // île : ne garder que le disque
+    for(const b of baseF)rec(b,0);
     // souder les T-junctions : hachage spatial des sommets, puis insérer dans chaque triangle les sommets voisins tombant sur ses arêtes → cellules polygonales CONFORMES
     const key=p=>Math.round(p[0]*20)+","+Math.round(p[1]*20), vmap=new Map(), BK=Math.max(20,baseU/2), gk=(x,y)=>Math.floor(x/BK)+","+Math.floor(y/BK), buckets=new Map();
     for(const lf of leaves)for(const p of lf.tri){ const k=key(p); if(!vmap.has(k)){ vmap.set(k,p); const b=gk(p[0],p[1]); if(!buckets.has(b))buckets.set(b,[]); buckets.get(b).push(p); } }
@@ -575,7 +577,9 @@
       p=step(p,q=>q[1]>=0,(a,b)=>{const t=(0-a[1])/(b[1]-a[1]);return [a[0]+t*(b[0]-a[0]),0];});
       p=step(p,q=>q[1]<=H,(a,b)=>{const t=(H-a[1])/(b[1]-a[1]);return [a[0]+t*(b[0]-a[0]),H];});
       return p; };
-    const clipped=raw.map(clipR).map((p,i)=>({p,gen:gens[i]})).filter(o=>o.p.length>=3&&parea(o.p)>2);
+    let clipped;
+    if(island){ clipped=[]; for(let i=0;i<raw.length;i++){ const ct=polyCentroid(raw[i]); if(Math.hypot(ct[0]-cx0,ct[1]-cy0)<R && parea(raw[i])>2) clipped.push({p:raw[i],gen:gens[i]}); } }   // île flottante : disque, pas de clip → liseré fin visible
+    else clipped=raw.map(clipR).map((p,i)=>({p,gen:gens[i]})).filter(o=>o.p.length>=3&&parea(o.p)>2);   // plateau : clip au rectangle
     cells=clipped.map((o,i)=>{ const ct=polyCentroid(o.p);
       return {id:i,poly:o.p,cx:ct[0],cy:ct[1],nb:[],terr:"plain",elev:0,_gen:o.gen}; });   // _gen : génération → coloration par niveau (bleu→orange) dans l'éditeur
     buildAdj();
@@ -1542,7 +1546,7 @@
   document.getElementById("regen").onclick=()=>{seed=(seed*1103515245+12345)&0x7fffffff;rebuildShape();};   // ↻: re-meshes from scratch (clears terrain & units)
   { const mf=document.getElementById("mesh-fractal"); if(mf)mf.onchange=()=>rebuildShape(); }   // fractale ⇄ plateau : re-maille
   { const mt=document.getElementById("mesh-type"), mfr=document.getElementById("mesh-fractal-row");
-    const updFr=()=>{ if(mfr)mfr.style.display=(mt&&(mt.value==="hat"||mt.value==="spectre"))?"":"none"; };   // "Forme fractale" ne concerne que hat/spectre
+    const updFr=()=>{ if(mfr)mfr.style.display=(mt&&(mt.value==="hat"||mt.value==="spectre"||mt.value==="pinwheel"))?"":"none"; };   // "Forme fractale" : hat/spectre (île↔plateau) + pinwheel (île flottante ↔ plateau)
     if(mt){ mt.onchange=()=>{updFr();rebuildShape();}; updFr(); }
   }
   { const z=document.getElementById("zauto"); if(z)z.onclick=autoZones; }
