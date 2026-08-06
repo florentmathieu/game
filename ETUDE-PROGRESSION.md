@@ -2,7 +2,7 @@
 
 _Étude de design générale. Comment éviter le treadmill « amasser du stuff / passer des niveaux / aller à tel point de la carte pour de l'XP » et la linéarité, sans gonfler le monde. Panorama d'~25 jeux organisé en **menus d'options** par couche (macro / micro / tension)._
 
-> **Version PDF soignée** : `ETUDE-PROGRESSION.pdf` (source `ETUDE-PROGRESSION.tex`).
+> **Version PDF** : `ETUDE-PROGRESSION.pdf`, générée depuis ce Markdown via `tools/md2pdf.mjs`.
 >
 > **Confiance.** La plupart des mécaniques sont confirmées par wikis/guides + connaissance établie. Les points **†** ont une **source de développeur** (post-mortem / GDC / interview). Les *Compromis*, *Principes* et *Anti-patterns* sont de l'**analyse de design**, pas des faits sourcés. Darkest Dungeon et XCOM n'y sont que **deux exemples parmi beaucoup**.
 

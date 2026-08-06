@@ -4,43 +4,43 @@ _Feuille de route des prochaines phases. Traduit `DIRECTION.md` (les piliers) et
 
 ---
 
-## Où on en est
+## Où on en est *(mis à jour — août 2026)*
 
-**En place :** éditeurs Mission / Campagne / Geoscape, runtime hub geoscape (carte → mission de région → retour → déverrouillage → `endWhen`), moteur de combat tour-par-tour (RNG, pods, vigilance, crackers, potions, brouillard), effet « île ». **L'Acte 1 se joue en avant** : Opening → mission d'intro → geoscape → fin.
+> **Ce document a été écrit avant les phases A→F. Elles sont aujourd'hui faites pour l'essentiel.** Il est conservé comme trace du plan ; les statuts ci-dessous disent où on en est réellement.
 
-**Ce qui manque — le cœur RPG.** Aujourd'hui : un *bac à sable tactique + une coquille de campagne*. Presque tous les piliers de la DIRECTION ne sont pas encore dans le jeu : progression par choix, usure (stress/fatigue), mort à enjeu, roster persistant.
+**La boucle RPG est debout.** Ce qui manquait à l'écriture de ce plan — *roster persistant → déploiement → progression par choix → usure qui force la rotation → mort à enjeu* — **existe** : roster de campagne persistant, déploiement depuis le roster sur zones de départ, grades + perks A/B irréversibles, stress/fatigue avec repos au camp, mort définitive, sauvegarde/chargement.
 
-> **Le constat directeur.** Ce qui transforme le projet en **le jeu de la DIRECTION**, c'est une boucle qui n'existe pas encore :
-> **roster persistant → déploiement → progression par choix → usure qui force la rotation → mort à enjeu.**
-> Tout s'accroche au **roster persistant** — la fondation manquante (actuellement chaque mission définit ses unités ; la campagne ne transporte que les PV par nom).
+**En place également :** éditeurs Mission / Campagne / Geoscape, runtime hub geoscape (carte → mission → retour → déverrouillage → `endWhen`), moteur de combat tour-par-tour (RNG **seedable**, pods, vigilance, crackers, potions, brouillard), génération procédurale de missions avec archétypes d'objectif, calibrage par simulation, lecteur de texte narratif, missions bonus enchaînées, distorsion progressive du maillage, et un **portage Godot 3D** (campagne, cartes, graphe de campagne).
+
+**Ce qui reste :** surtout de la **pression geoscape** (phase E) et du **réglage** (phase F), plus le chantier ouvert par le changement d'univers — voir en bas.
 
 ---
 
 ## Les phases
 
-### Phase A — Roster persistant + déploiement · *fondation*
+### Phase A — Roster persistant + déploiement · *fondation* — ✅ **fait**
 Un **escadron de campagne** : persos nommés, persistants d'une mission à l'autre, stockés dans l'état de partie. En mission lancée depuis le geoscape, le joueur **déploie son roster** sur des cases de départ (au lieu des unités pré-placées de la mission). Éditeur : marquer des **zones de déploiement** dans la mission.
 - **Livrable :** lancer une région → choisir/déployer ses persos → jouer avec eux.
 - **Débloque** B, C, D (tout s'attache au roster). *Réf : préalable à B9/B1/C1/C3.*
 
-### Phase B — Progression par perks · *le pilier « décision »* (B1/B3)
+### Phase B — Progression par perks · *le pilier « décision »* (B1/B3) — ✅ **fait**
 Grades **discrets** ; à chaque grade, un **choix A/B irréversible** — un nouveau *verbe* (capacité), pas un plus gros chiffre. Gain d'XP (ou puissance structurelle) plafonné. Écran de montée entre missions, au camp.
 - **Livrable :** un perso monte d'un cran, on choisit A ou B, deux persos identiques divergent durablement.
 
-### Phase C — Stress + Fatigue → rotation · *le fil rouge* (C3)
+### Phase C — Stress + Fatigue → rotation · *le fil rouge* (C3) — ✅ **fait**
 Deux jauges par perso : montent en mission, **récupèrent lentement au camp à slots limités**. Un perso trop éprouvé/épuisé devient **temporairement indisponible**.
 - **Livrable :** enchaîner les missions **force à faire tourner le roster** (jouer l'équipe B), donc à investir dans plusieurs builds.
 
-### Phase D — Mort & statut spécial · *l'enjeu* (C1/B9)
+### Phase D — Mort & statut spécial · *l'enjeu* (C1/B9) — ✅ **fait**
 **KO vs mort définitive** (asymétrique) ; **statut spécial temporaire** des persos clés (protégés tant qu'ils servent l'histoire, mortels ensuite). Un mort **quitte le roster**.
 - **Livrable :** perdre un perso compte vraiment, sans jamais bloquer le récit.
 
-### Phase E — Pression & échec-fait-avancer · *geoscape vivant* (A1/C4)
+### Phase E — Pression & échec-fait-avancer · *geoscape vivant* (A1/C4) — 🟡 **partiel** (retour win/lose et déverrouillages en place ; l'horloge/menace locale par région reste à faire)
 **Horloge / menace locale par région** ; un **échec change la carte** (région perdue, menace qui s'étend) au lieu de bloquer ; le **camp** devient le hub de récupération (lié à C).
 - **Livrable :** tarder ou échouer **transforme le territoire**.
 
-### Phase F — Thème & feel · *polish*
-**Déformation progressive de la carte** au fil de l'acte (levier thème « tout se déforme ») ; trancher le **dosage RNG** (friction 1) manette en main ; **identité/customisation** des persos (apparence, historique de faits d'armes).
+### Phase F — Thème & feel · *polish* — 🟡 **partiel** (distorsion progressive et RNG seedable faits ; le sens de la déformation est à inverser, cf. ci-dessous)
+**Déformation progressive de la carte** au fil de l'acte — *faite, mais à réorienter* : dans le nouvel univers on part d'une **grille régulière** que l'organique **reconquiert en bloquant le passage** (cf. `DIRECTION.md`). Trancher le **dosage RNG** (friction 1) manette en main ; **identité/customisation** des persos.
 - **Livrable :** le thème se *voit* et se *joue* ; le combat a son grain de hasard calibré.
 
 ---
@@ -68,4 +68,14 @@ A (roster) ─┬─> B (perks)
 ## Cadence
 Travail **autonome, phase par phase** : à chaque phase, implémentation → vérification dans Chromium (headless) → commit/push → aperçu. Un seul déploiement Pages à la fois (on laisse chaque build finir avant de pousser le suivant, pour éviter la course de déploiement).
 
-> **Prochaine étape : Phase A — Roster persistant + déploiement.**
+---
+
+## Ce qui s'ajoute depuis le changement d'univers *(août 2026)*
+
+Le passage à **La Foreuse** (cf. `DIRECTION.md` / `VISION-DU-JEU.md`) ouvre trois chantiers qui ne figuraient pas dans le plan d'origine :
+
+- **G — Inversion de la géométrie.** Démarrer en **grille régulière** (la carte du Consortium) et la faire **reconquérir par l'organique** au fil de la campagne, jusqu'à **bloquer le passage**. Le moteur produit déjà les deux extrêmes (grille ↔ maillages fractals conformes et connexes) ; il reste à **piloter la bascule par la progression** et à revoir la palette (le voile violacé appartenait à l'ancien univers).
+- **H — Brancher le retournement.** `revealTruth()` bascule déjà tout le vocabulaire du jeu vers les vrais noms ; reste à le **déclencher depuis un nœud de campagne** et à le **persister dans la sauvegarde**, pour que les rapports archivés se relisent après coup.
+- **I — Réécrire les textes.** Les textes narratifs (`texts/`) portent encore l'ancien thème de la réalité distordue. *(Écriture — hors périmètre technique.)*
+
+> **Prochaine étape suggérée : G (inversion de la géométrie)** — c'est le levier qui rend le thème visible à chaque case, et le moteur est déjà prêt des deux côtés.

@@ -102,11 +102,13 @@ On a `tools/balance.js` + `tools/engine.js` (**simulateur IA vs IA headless**). 
 ---
 
 ## 8. Plan d'attaque (phases)
-- **P1 — Scatter + pods + objectif (baseline jouable).** Technique A (couvert par densité) + G (placement par graphe) + émission mission (archétype *élimination*). Bouton « 🎲 Générer mission » dans l'éditeur (seedé). *Livrable : une mission générée jouable de bout en bout.*
-- **P2 — Auto-évaluation.** Brancher `balance.js` : générer→simuler→filtrer ; tableau de métriques. *Livrable : on garde/rejette automatiquement.*
-- **P3 — Prefabs/parcels (curé).** Technique B + bibliothèque de chunks faits main. *Livrable : variété maîtrisée, lisible.*
-- **P4 — Relief & cohérence.** Techniques C/D (bruit, automates) sur l'élévation et les amas ; éventuellement F (WFC) si besoin. *Livrable : terrains crédibles.*
-- **P5 — Archétypes de mission.** Sauvetage / extraction / défense / sabotage + triggers générés ; intégration **geoscape** (la région demande un archétype+difficulté). *Livrable : le geoscape peuple ses régions tout seul.*
+
+> **État — août 2026 : P1 à P5 sont faits.** Le générateur produit des missions jouables seedées avec archétypes d'objectif, le calibrage par simulation est branché, et le geoscape peuple ses régions. Les statuts par phase sont indiqués ci-dessous ; ce qui reste est signalé en fin de section.
+- ✅ **P1 — Scatter + pods + objectif (baseline jouable).** Technique A (couvert par densité) + G (placement par graphe) + émission mission (archétype *élimination*). Bouton « 🎲 Générer mission » dans l'éditeur (seedé). *Livrable : une mission générée jouable de bout en bout.*
+- ✅ **P2 — Auto-évaluation.** Brancher `balance.js` : générer→simuler→filtrer ; tableau de métriques. *Livrable : on garde/rejette automatiquement.*
+- 🟡 **P3 — Prefabs/parcels (curé).** *(partiel : génération et profils de terrain en place ; bibliothèque de chunks faits main non constituée.)* Technique B + bibliothèque de chunks faits main. *Livrable : variété maîtrisée, lisible.*
+- ✅ **P4 — Relief & cohérence.** Techniques C/D (bruit, automates) sur l'élévation et les amas ; éventuellement F (WFC) si besoin. *Livrable : terrains crédibles.*
+- ✅ **P5 — Archétypes de mission.** Sauvetage / extraction / défense / sabotage + triggers générés ; intégration **geoscape** (la région demande un archétype+difficulté). *Livrable : le geoscape peuple ses régions tout seul.*
 
 ---
 
@@ -114,6 +116,6 @@ On a `tools/balance.js` + `tools/engine.js` (**simulateur IA vs IA headless**). 
 - **Échelle** : nos cartes (~quelques dizaines de cellules) → réduire les comptes de pods XCOM ? (probablement 1–4 pods).
 - **Curé vs varié** : quel équilibre prefabs (B) vs scatter (A) ? (la DIRECTION penche curé.)
 - **Persistance** : missions générées **figées** (sauvegardées comme JSON, donc rejouables/partageables) ou **régénérées** à la volée par seed ? (figer colle mieux à « l'échec fait avancer » et au golden path).
-- **Déformation/thème** : faire **monter la densité d'obstacles ou la difficulté** à mesure que la carte du monde « se déforme » (levier thème).
+- **Déformation/thème** *(à réorienter — nouvel univers)* : le sens s'inverse. On part d'une **grille régulière** (la carte du Consortium) que l'organique **reconquiert**, jusqu'à **bloquer le passage** — la difficulté monte donc par *fermeture du terrain*, pas seulement par densité d'obstacles. Le moteur de maillage sait déjà produire les deux extrêmes (grille ↔ maillages fractals à tailles variables, avec trous, conformes et connexes par arêtes) ; reste à piloter la bascule par la progression de campagne.
 
-> **Prochaine étape proposée : P1** — un générateur baseline (scatter + pods + objectif) émettant une mission jouable, branché à un bouton « Générer » dans l'éditeur.
+> **Ce qui reste :** la bibliothèque de **prefabs faits main** (P3), et surtout le branchement de la **génération sur le thème inversé** (grille → organique qui ferme le terrain).

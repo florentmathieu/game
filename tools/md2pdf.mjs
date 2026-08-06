@@ -10,6 +10,8 @@ function inline(s){
   s = s.replace(/`([^`]+)`/g, (_,c)=>`<code>${c}</code>`);
   s = s.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
   s = s.replace(/(^|[^*])\*([^*]+)\*(?!\*)/g, '$1<em>$2</em>');
+  // italiques _…_ : uniquement aux frontières de mot, pour ne pas casser les identifiants snake_case
+  s = s.replace(/(^|[\s([{«"'])_([^_\n]+)_(?=[\s.,;:!?)\]}»"']|$)/g, '$1<em>$2</em>');
   s = s.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2">$1</a>');
   return s;
 }

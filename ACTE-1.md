@@ -2,7 +2,7 @@
 
 _Spécification de l'Acte 1, première brique jouable de la campagne. Traduit la direction (`DIRECTION.md`) et le thème en structure concrète. Sert de plan de construction._
 
-> **Pitch.** On appartient à un **camp** dont dépend un petit **territoire**, découpé en **~12 régions** (cellules de maillage) : c'est le **geoscape de départ**. L'acte ouvre sur une **mission d'intro** (elle pose les personnages et le ton — la réalité se déforme, cf. `Opening.txt`), puis le joueur arrive sur le **geoscape**, voit sa carte, et **choisit** par où continuer.
+> **Pitch.** On appartient à un **camp** dont dépend un petit **territoire**, découpé en **~12 régions** (cellules de maillage) : c'est le **geoscape de départ**. L'acte ouvre sur une **mission d'intro** (elle pose les personnages et le ton, cf. `Opening.txt` — **texte à réécrire** : il porte encore l'ancien thème de la réalité distordue), puis le joueur arrive sur le **geoscape**, voit sa carte, et **choisit** par où continuer.
 
 **La boucle de l'acte :**
 
@@ -78,7 +78,7 @@ Les **mêmes personnages nommés** d'une mission à l'autre. La *progression* (p
 | **A3 Choix concurrent** | ≥ 3 régions disponibles à la sortie de l'intro |
 | **C4 Échec fait avancer** | `lose` → état changé (région perdue / menace), pas de reload |
 | **C1/B9 Identité & mort** | Roster nommé persistant ; statut spécial des persos clés de l'intro |
-| **Thème (déformation)** | La carte du monde **est** un maillage déformé ; (option) elle se déforme au fil de l'acte |
+| **Thème (géométrie)** | La carte du monde **est** un maillage, et il se déforme au fil de l'acte — *fait*. **À réorienter** : nouvel univers = grille régulière reconquise par l'organique qui bloque le passage |
 | **A1 Horloge locale** | *(option, peut être différée)* une menace par région qui monte si on tarde |
 
 ---
@@ -92,7 +92,9 @@ Les **mêmes personnages nommés** d'une mission à l'autre. La *progression* (p
 
 ---
 
-## 5. Ordre de construction (après ce doc)
+## 5. Ordre de construction (après ce doc) — ✅ **fait**
+
+> Les quatre étapes ci-dessous sont réalisées : le format geoscape, le nœud de campagne, le runtime jouable et la boucle complète sont en place.
 
 1. **Format geoscape + éditeur dédié** : génération grossière (`genMesh`), nommage des cellules, marquage du camp, liaison cellule→mission, états/déverrouillages. *(la fondation)*
 2. **Nœud `geoscape`** dans l'éditeur de campagne + câblage du retour (win/lose → geoscape) et de `endWhen`.
@@ -101,9 +103,9 @@ Les **mêmes personnages nommés** d'une mission à l'autre. La *progression* (p
 
 ---
 
-## 6. Différé — à décider plus tard
+## 6. Différé — *état août 2026*
 
-- **Progression des personnages** (perks A/B par grade) — explicitement remise à après cette boucle.
-- **Détail de l'horloge locale** (A1) — peut rester minimal en Acte 1.
-- **Déformation visuelle progressive** de la carte (levier thème) — à prototyper une fois la boucle debout.
-- **Dosage du hasard en combat** (friction 1, ouverte) — tranchée au prototype combat, indépendante de cet acte.
+- ✅ **Progression des personnages** (perks A/B par grade) — **faite** (grades, arbres A/B irréversibles, XP plafonné).
+- ⬜ **Détail de l'horloge locale** (A1) — toujours ouvert (cf. `PLAN-SUITE.md`, phase E).
+- 🟡 **Déformation visuelle progressive** de la carte — **faite**, mais **à réorienter** avec le nouvel univers (grille → organique, cf. `DIRECTION.md`).
+- ⬜ **Dosage du hasard en combat** (friction 1) — toujours ouvert ; le RNG est désormais **seedable** (déterminisme), ce qui permet de le calibrer par simulation.
