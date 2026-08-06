@@ -317,22 +317,34 @@
     assassin:{name:"Cleaner",hp:7,mob:8,parry:35,stealth:true,wname:"vibroblade",w:{melee:dagger(80,3,4,5,2)}},   // le "nettoyeur" : règle les incidents discrètement (seul rôle de contact du joueur)
     garde:{name:"Foreman",hp:8,mob:6,shieldBlock:20,wname:"scatter gun",w:{ranged:bow(66,3,5,4,2),melee:sword(65,3,4)}},   // chef d'équipe : bouclier de chantier + fusil à dispersion (courte portée)
     mage:{name:"Siphoner",hp:6,mob:7,wname:"essence siphon",w:{ranged:bow(72,4,6,7,3),melee:sword(45,2,3)}},   // arcaniste du Consortium : tire l'essence RAFFINÉE extraite du monde (clip 3 = fioles) — sa magie est volée à ce qu'il détruit
-    // ===== BIOSPHÈRE (ennemis) — le monde qui se rebelle, majoritairement au contact =====
-    archer:{name:"Spitter",hp:6,mob:6,enemyOnly:true,wname:"spore spit",w:{ranged:bow(70,3,4,9)}},   // tireur longue portée, fragile : la nature te canarde de loin
-    brute:{name:"Trampler",hp:13,mob:8,enemyOnly:true,wname:"limbs",w:{melee:sword(70,5,7)}},   // seul gros bras : c'est lui qui doit venir au contact
-    shieldbearer:{name:"Carapace",hp:12,mob:6,shieldBlock:45,enemyOnly:true,abil:["shove","charge"],wname:"shell",w:{melee:sword(60,3,5)}},   // blindé : encaisse ~45% des tirs de face/flanc, bouscule et charge
-    emage:{name:"Heartwood",hp:7,mob:7,enemyOnly:true,abil:["blast","frost"],wname:"sap surge",w:{ranged:bow(70,4,6,7,3),melee:sword(45,2,3)}},   // la magie BRUTE du monde (même puissance que le Siphoner, non raffinée) : décharge de zone + sève gelante
+    // ===== RÉSISTANCE LOCALE (ennemis ordinaires) — des gens, pas des monstres =====
+    // `name` = la DÉSIGNATION du Consortium (le vocabulaire "sauvage" est de la propagande, pas un fait) ;
+    // `trueName` = comment ils s'appellent eux-mêmes. revealTruth() fait basculer l'un vers l'autre au twist.
+    archer:{name:"Slinger",trueName:"Hunter",hp:6,mob:6,enemyOnly:true,wname:"bone sling",w:{ranged:bow(70,3,4,9)}},   // "primitif" : une fronde. Portée 9 — il te touche avant que tu ne le voies
+    brute:{name:"Berserker",trueName:"Defender",hp:13,mob:8,enemyOnly:true,wname:"war club",w:{melee:sword(70,5,7)}},   // le rapport de mission dira "enragé". Il défend une maison
+    shieldbearer:{name:"Hidebearer",trueName:"Warden",hp:12,mob:6,shieldBlock:45,enemyOnly:true,abil:["shove","charge"],wname:"hide shield",w:{melee:sword(60,3,5)}},   // bouclier de peaux tendues : encaisse ~45% des tirs de face/flanc
+    emage:{name:"Shaman",trueName:"Keeper",hp:7,mob:7,enemyOnly:true,abil:["blast","frost"],wname:"raw essence",w:{ranged:bow(70,4,6,7,3),melee:sword(45,2,3)}},   // pivot du thème : il manie À L'ÉTAT BRUT l'essence que ton Siphoner tire en fioles raffinées. Le Consortium appelle ça de la superstition — et achète le résultat
     // ===== LA CONTREPARTIE (rival) — l'autre puissance venue prendre le monde ; l'alibi moral du Consortium =====
     // Volontairement MAL CONNUE : désignations administratives, pas de noms propres. Absente par défaut
     // des missions générées (poids 0) → elle n'apparaît que quand la campagne la convoque.
     rival:{name:"Counterparty",hp:10,mob:8,shieldBlock:25,enemyOnly:true,wname:"issued rifle",w:{ranged:bow(74,4,6,8,4),melee:sword(68,3,5)}},   // miroir de ton Enforcer : même métier, autre drapeau
-    contact:{name:"Contact",hp:7,mob:10,enemyOnly:true,wname:"unlogged weapon",w:{ranged:bow(78,3,5,10,2)}},   // PORTÉE 10 : il te voit et te touche avant que tu ne puisses répondre — on ne sait pas encore ce que c'est
+    // ===== CONTACT (ennemi final) — les visiteurs. Le twist : ce sont eux, "les gentils" =====
+    contact:{name:"Contact",trueName:"Witness",hp:7,mob:10,enemyOnly:true,wname:"unlogged weapon",w:{ranged:bow(78,3,5,10,2)}},   // PORTÉE 10 : il te touche avant que tu ne puisses répondre. Il n'attaque jamais de civils — personne ne le remarque avant la fin
     // ===== POPULATION LOCALE (civils) =====
     homme:{name:"Man",hp:6,mob:6,civ:true,wname:"bare hands",w:{melee:{type:"melee",aim:40,dmgMin:1,dmgMax:2,bare:true}}},
     femme:{name:"Woman",hp:5,mob:6,civ:true,wname:"bare hands",w:{melee:{type:"melee",aim:40,dmgMin:1,dmgMax:2,bare:true}}},
     enfant:{name:"Child",hp:3,mob:7,civ:true,wname:"bare hands",w:{melee:{type:"melee",aim:25,dmgMin:0,dmgMax:1,bare:true}}},
   };
   CLASSES.sergent=CLASSES.soldat;   // compat: old "sergent" data → soldier (not listed as a class in the editors)
+  // Twist de fin : les désignations du Consortium tombent et les vrais noms apparaissent.
+  // Tous les affichages lisent CLASSES[k].name → un seul appel suffit à retourner tout le jeu.
+  // revealTruth(true) = révélation ; revealTruth(false) = retour aux désignations.
+  function revealTruth(on){ if(on===undefined)on=true;
+    for(const k in CLASSES){ const c=CLASSES[k]; if(!c.trueName)continue;
+      if(on){ if(!c.desig){ c.desig=c.name; c.name=c.trueName; } }
+      else if(c.desig){ c.name=c.desig; delete c.desig; } }
+    if(typeof refresh==="function")refresh(); }
+  window.revealTruth=revealTruth; window.CLASSES=CLASSES;
   // ===== progression: discrete grades + exclusive A/B perks (engine = mission XP) =====
   // Advancement is HORIZONTAL (a perk = a qualitative edge), XP is just a capped gate.
   const GRADES=["Recruit","Seasoned","Veteran","Elite","Champion","Master","Legend","Myth"];   // grade 0..7 (grade = number of perks chosen)
@@ -1421,7 +1433,7 @@
   { const gm=document.getElementById("gen-mission"); if(gm)gm.onclick=()=>genMission();
     const gc=document.getElementById("gen-cover"); if(gc)gc.oninput=()=>{document.getElementById("gen-coverv").textContent=gc.value+"%";}; }
   // enemy class selection for generation (checkboxes)
-  const ENEMY_POOL=["archer","emage","brute","shieldbearer","rival","contact"];   // classes offered for generated enemies (= la biosphère)
+  const ENEMY_POOL=["archer","emage","brute","shieldbearer","rival","contact"];   // résistance locale + Contrepartie + Contact   // classes offered for generated enemies (= la biosphère)
   { const box=document.getElementById("gen-eclasses"); if(box){ box.innerHTML=ENEMY_POOL.map(k=>`<label style="font-size:.82rem;display:inline-flex;align-items:center;gap:3px"><input type="checkbox" data-ecls="${k}"${["archer","emage","brute","shieldbearer"].includes(k)?" checked":""}>${(CLASSES[k]&&CLASSES[k].name)||k}</label>`).join(""); } }
   function chosenEnemyClasses(){ const box=document.getElementById("gen-eclasses"); if(!box)return null; const sel=[...box.querySelectorAll("input[data-ecls]:checked")].map(c=>c.dataset.ecls).filter(k=>CLASSES[k]); return sel.length?sel:null; }
   // composition weights of the anchor pods (per mission)
