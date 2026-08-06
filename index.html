@@ -317,13 +317,14 @@
     assassin:{name:"Cleaner",hp:7,mob:8,parry:35,stealth:true,wname:"vibroblade",w:{melee:dagger(80,3,4,5,2)}},   // le "nettoyeur" : règle les incidents discrètement (seul rôle de contact du joueur)
     garde:{name:"Foreman",hp:8,mob:6,shieldBlock:20,wname:"scatter gun",w:{ranged:bow(66,3,5,4,2),melee:sword(65,3,4)}},   // chef d'équipe : bouclier de chantier + fusil à dispersion (courte portée)
     mage:{name:"Siphoner",hp:6,mob:7,wname:"essence siphon",w:{ranged:bow(72,4,6,7,3),melee:sword(45,2,3)}},   // arcaniste du Consortium : tire l'essence RAFFINÉE extraite du monde (clip 3 = fioles) — sa magie est volée à ce qu'il détruit
-    // ===== RÉSISTANCE LOCALE (ennemis ordinaires) — des gens, pas des monstres =====
-    // `name` = la DÉSIGNATION du Consortium (le vocabulaire "sauvage" est de la propagande, pas un fait) ;
-    // `trueName` = comment ils s'appellent eux-mêmes. revealTruth() fait basculer l'un vers l'autre au twist.
-    archer:{name:"Slinger",trueName:"Hunter",hp:6,mob:6,enemyOnly:true,wname:"bone sling",w:{ranged:bow(70,3,4,9)}},   // "primitif" : une fronde. Portée 9 — il te touche avant que tu ne le voies
-    brute:{name:"Berserker",trueName:"Defender",hp:13,mob:8,enemyOnly:true,wname:"war club",w:{melee:sword(70,5,7)}},   // le rapport de mission dira "enragé". Il défend une maison
-    shieldbearer:{name:"Hidebearer",trueName:"Warden",hp:12,mob:6,shieldBlock:45,enemyOnly:true,abil:["shove","charge"],wname:"hide shield",w:{melee:sword(60,3,5)}},   // bouclier de peaux tendues : encaisse ~45% des tirs de face/flanc
-    emage:{name:"Shaman",trueName:"Keeper",hp:7,mob:7,enemyOnly:true,abil:["blast","frost"],wname:"raw essence",w:{ranged:bow(70,4,6,7,3),melee:sword(45,2,3)}},   // pivot du thème : il manie À L'ÉTAT BRUT l'essence que ton Siphoner tire en fioles raffinées. Le Consortium appelle ça de la superstition — et achète le résultat
+    // ===== RÉSISTANCE LOCALE (ennemis ordinaires) — des gens modernes, pas des sauvages =====
+    // Ils ont la MÊME technologie que toi, en version récupérée et remontée : l'écart n'est pas
+    // civilisationnel mais LOGISTIQUE (tu as l'usine et les pièces neuves, ils ont la casse et le bricolage).
+    // `name` = la désignation du Consortium (vocabulaire d'inventaire) ; `trueName` = leur propre nom.
+    archer:{name:"Irregular",trueName:"Hunter",hp:6,mob:6,enemyOnly:true,wname:"salvaged rifle",w:{ranged:bow(70,3,4,9)}},   // fusil de récup, une génération derrière le tien — portée 9 quand même
+    brute:{name:"Wrecker",trueName:"Defender",hp:13,mob:8,enemyOnly:true,wname:"breaker arm",w:{melee:sword(70,5,7)}},   // bras hydraulique de minage détourné en arme : il te démonte avec TON matériel
+    shieldbearer:{name:"Barricade",trueName:"Warden",hp:12,mob:6,shieldBlock:45,enemyOnly:true,abil:["shove","charge"],wname:"hull plate",w:{melee:sword(60,3,5)}},   // plaque de coque découpée dans une navette abattue : encaisse ~45% des tirs de face/flanc
+    emage:{name:"Wild Siphoner",trueName:"Keeper",hp:7,mob:7,enemyOnly:true,abil:["blast","frost"],wname:"jury-rigged siphon",w:{ranged:bow(70,4,6,7,3),melee:sword(45,2,3)}},   // le chamane du futur : MÊME métier que ton Siphoner, siphon remonté à la main. Le Consortium ne lui reproche pas d'être arriéré — il lui reproche de ne pas avoir de licence
     // ===== LA CONTREPARTIE (rival) — l'autre puissance venue prendre le monde ; l'alibi moral du Consortium =====
     // Volontairement MAL CONNUE : désignations administratives, pas de noms propres. Absente par défaut
     // des missions générées (poids 0) → elle n'apparaît que quand la campagne la convoque.
