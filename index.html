@@ -316,12 +316,12 @@
     sapeur:{name:"Blaster",hp:7,mob:8,crackers:1,wname:"charge launcher",w:{ranged:bow(68,3,5,7,3),melee:sword(65,2,4),cracker:{type:"throw",dmgMin:5,dmgMax:9,range:6,radius:2,scatter:2}}},   // artificier : charges de minage (= "crackers")
     assassin:{name:"Cleaner",hp:7,mob:8,parry:35,stealth:true,wname:"vibroblade",w:{melee:dagger(80,3,4,5,2)}},   // le "nettoyeur" : règle les incidents discrètement (seul rôle de contact du joueur)
     garde:{name:"Foreman",hp:8,mob:6,shieldBlock:20,wname:"scatter gun",w:{ranged:bow(66,3,5,4,2),melee:sword(65,3,4)}},   // chef d'équipe : bouclier de chantier + fusil à dispersion (courte portée)
-    mage:{name:"Arc Operator",hp:6,mob:7,wname:"arc lance",w:{ranged:bow(72,4,6,7,3),melee:sword(45,2,3)}},   // lance à arc : 3 décharges par cellule d'énergie
+    mage:{name:"Siphoner",hp:6,mob:7,wname:"essence siphon",w:{ranged:bow(72,4,6,7,3),melee:sword(45,2,3)}},   // arcaniste du Consortium : tire l'essence RAFFINÉE extraite du monde (clip 3 = fioles) — sa magie est volée à ce qu'il détruit
     // ===== BIOSPHÈRE (ennemis) — le monde qui se rebelle, majoritairement au contact =====
     archer:{name:"Spitter",hp:6,mob:6,enemyOnly:true,wname:"spore spit",w:{ranged:bow(70,3,4,9)}},   // tireur longue portée, fragile : la nature te canarde de loin
     brute:{name:"Trampler",hp:13,mob:8,enemyOnly:true,wname:"limbs",w:{melee:sword(70,5,7)}},   // seul gros bras : c'est lui qui doit venir au contact
     shieldbearer:{name:"Carapace",hp:12,mob:6,shieldBlock:45,enemyOnly:true,abil:["shove","charge"],wname:"shell",w:{melee:sword(60,3,5)}},   // blindé : encaisse ~45% des tirs de face/flanc, bouscule et charge
-    emage:{name:"Heartwood",hp:7,mob:7,enemyOnly:true,abil:["blast","frost"],wname:"sap surge",w:{ranged:bow(70,4,6,7,3),melee:sword(45,2,3)}},   // cœur de sève : décharge de zone + sève gelante
+    emage:{name:"Heartwood",hp:7,mob:7,enemyOnly:true,abil:["blast","frost"],wname:"sap surge",w:{ranged:bow(70,4,6,7,3),melee:sword(45,2,3)}},   // la magie BRUTE du monde (même puissance que le Siphoner, non raffinée) : décharge de zone + sève gelante
     // ===== POPULATION LOCALE (civils) =====
     homme:{name:"Man",hp:6,mob:6,civ:true,wname:"bare hands",w:{melee:{type:"melee",aim:40,dmgMin:1,dmgMax:2,bare:true}}},
     femme:{name:"Woman",hp:5,mob:6,civ:true,wname:"bare hands",w:{melee:{type:"melee",aim:40,dmgMin:1,dmgMax:2,bare:true}}},
@@ -369,12 +369,12 @@
             {A:{id:"br3a",name:"Thick Hide",desc:"+6 HP",mod:{hp:6}}, B:{id:"br3b",name:"Carnage",desc:"+3 damage",mod:{dmg:3}}},
             {A:{id:"br4a",name:"Reach",desc:"+1 free movement point (no AP)",mod:{freeMp:1}}, B:{id:"br4b",name:"Titan",desc:"+8 HP",mod:{hp:8}}} ],
     mage:[ {A:{id:"mg1a",name:"Blast",desc:"Area explosion (splash damage)",abil:"blast"}, B:{id:"mg1b",name:"Piercing Bolt",desc:"+2 damage",mod:{dmg:2}}},
-           {A:{id:"mg2a",name:"Healing Wave",desc:"Heals an ally at range",abil:"heal"}, B:{id:"mg2b",name:"Long Range",desc:"+2 range",mod:{range:2}}},
+           {A:{id:"mg2a",name:"Mending Draw",desc:"Heals an ally at range",abil:"heal"}, B:{id:"mg2b",name:"Long Range",desc:"+2 range",mod:{range:2}}},
            {A:{id:"mg3a",name:"Frost",desc:"Slows an enemy (−1 AP on its turn)",abil:"frost"}, B:{id:"mg3b",name:"Vitality",desc:"+5 HP",mod:{hp:5}}},
-           {A:{id:"mg4a",name:"Deep Mana",desc:"+1 range",mod:{range:1}}, B:{id:"mg4b",name:"Padded Robe",desc:"+4 HP",mod:{hp:4}}},
+           {A:{id:"mg4a",name:"Deep Reserves",desc:"+1 range",mod:{range:1}}, B:{id:"mg4b",name:"Lined Suit",desc:"+4 HP",mod:{hp:4}}},
            {A:{id:"mg5a",name:"Arcanist",desc:"+2 damage",mod:{dmg:2}}, B:{id:"mg5b",name:"Long Range+",desc:"+2 range",mod:{range:2}}},
-           {A:{id:"mg6a",name:"Archmage",desc:"+3 damage",mod:{dmg:3}}, B:{id:"mg6b",name:"Vital Flow",desc:"+6 HP",mod:{hp:6}}},
-           {A:{id:"mg7a",name:"Cataclysm",desc:"+4 damage",mod:{dmg:4}}, B:{id:"mg7b",name:"Ocean of Mana",desc:"+2 range",mod:{range:2}}} ],
+           {A:{id:"mg6a",name:"Refiner",desc:"+3 damage",mod:{dmg:3}}, B:{id:"mg6b",name:"Vital Flow",desc:"+6 HP",mod:{hp:6}}},
+           {A:{id:"mg7a",name:"Cataclysm",desc:"+4 damage",mod:{dmg:4}}, B:{id:"mg7b",name:"Bottomless Reserve",desc:"+2 range",mod:{range:2}}} ],
   };
   PERKS.sergent=PERKS.soldat;   // compat: "sergent" uses the soldier's tree
   // B column (right) of promotions = stat perk drawn AT RANDOM from this pool (useful to all classes)
