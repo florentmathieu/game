@@ -307,19 +307,25 @@
   const sword=(a,l,h)=>({type:"melee",aim:a,dmgMin:l,dmgMax:h});
   const bow=(a,l,h,r,c)=>({type:"ranged",aim:a,dmgMin:l,dmgMax:h,range:r,clip:c});
   const dagger=(a,l,h,b,s)=>({type:"melee",aim:a,dmgMin:l,dmgMax:h,flank:{back:b,side:s}});
+  // Univers "La Foreuse" : on joue l'équipe d'extraction d'un consortium. Le joueur tire À DISTANCE ;
+  // la biosphère qui se réveille est celle qui vient au contact. Les clés internes ne changent pas
+  // (perks, sauvegardes et campagnes existantes restent valides) : seuls les rôles/armes changent.
   const CLASSES={
-    soldat:{name:"Soldier",hp:10,mob:8,shieldBlock:30,w:{melee:sword(75,4,6)}},   // basic infantry on foot (a "sergeant" = an already-seasoned soldier)
-    sapeur:{name:"Sapper",hp:7,mob:8,crackers:1,w:{ranged:bow(65,3,4,6,1),melee:sword(70,3,5),cracker:{type:"throw",dmgMin:5,dmgMax:9,range:6,radius:2,scatter:2}}},
-    assassin:{name:"Assassin",hp:7,mob:8,parry:35,stealth:true,w:{melee:dagger(80,3,4,5,2)}},
-    garde:{name:"Guard",hp:8,mob:6,shieldBlock:20,w:{melee:sword(65,3,4)}},
-    archer:{name:"Archer",hp:6,mob:6,w:{ranged:bow(70,2,3,8)}},
-    brute:{name:"Brute",hp:13,mob:8,w:{melee:sword(70,5,7)}},
-    shieldbearer:{name:"Shieldbearer",hp:12,mob:6,shieldBlock:45,enemyOnly:true,abil:["shove","charge"],w:{melee:sword(60,3,5)}},   // enemy tank: blocks ~45% of front/flank shots; shield shove + charge
-    emage:{name:"Dark mage",hp:7,mob:7,enemyOnly:true,abil:["blast","frost"],w:{ranged:bow(70,4,6,7,3),melee:sword(45,2,3)}},   // enemy caster: area blast + frost
-    mage:{name:"Mage",hp:6,mob:7,w:{ranged:bow(72,4,6,7,3),melee:sword(45,2,3)}},   // spellcaster: magic bolt (range 7, "mana" = clip 3) + weak staff in melee
-    homme:{name:"Man",hp:6,mob:6,civ:true,w:{melee:{type:"melee",aim:40,dmgMin:1,dmgMax:2,bare:true}}},
-    femme:{name:"Woman",hp:5,mob:6,civ:true,w:{melee:{type:"melee",aim:40,dmgMin:1,dmgMax:2,bare:true}}},
-    enfant:{name:"Child",hp:3,mob:7,civ:true,w:{melee:{type:"melee",aim:25,dmgMin:0,dmgMax:1,bare:true}}},
+    // ===== ÉQUIPE D'EXTRACTION (jouable) — le Consortium =====
+    soldat:{name:"Enforcer",hp:10,mob:8,shieldBlock:30,wname:"service rifle",w:{ranged:bow(72,3,5,7,4),melee:sword(70,3,5)}},   // "protection des actifs" : fusil d'ordonnance + plaque pare-balles
+    sapeur:{name:"Blaster",hp:7,mob:8,crackers:1,wname:"charge launcher",w:{ranged:bow(68,3,5,7,3),melee:sword(65,2,4),cracker:{type:"throw",dmgMin:5,dmgMax:9,range:6,radius:2,scatter:2}}},   // artificier : charges de minage (= "crackers")
+    assassin:{name:"Cleaner",hp:7,mob:8,parry:35,stealth:true,wname:"vibroblade",w:{melee:dagger(80,3,4,5,2)}},   // le "nettoyeur" : règle les incidents discrètement (seul rôle de contact du joueur)
+    garde:{name:"Foreman",hp:8,mob:6,shieldBlock:20,wname:"scatter gun",w:{ranged:bow(66,3,5,4,2),melee:sword(65,3,4)}},   // chef d'équipe : bouclier de chantier + fusil à dispersion (courte portée)
+    mage:{name:"Arc Operator",hp:6,mob:7,wname:"arc lance",w:{ranged:bow(72,4,6,7,3),melee:sword(45,2,3)}},   // lance à arc : 3 décharges par cellule d'énergie
+    // ===== BIOSPHÈRE (ennemis) — le monde qui se rebelle, majoritairement au contact =====
+    archer:{name:"Spitter",hp:6,mob:6,enemyOnly:true,wname:"spore spit",w:{ranged:bow(70,3,4,9)}},   // tireur longue portée, fragile : la nature te canarde de loin
+    brute:{name:"Trampler",hp:13,mob:8,enemyOnly:true,wname:"limbs",w:{melee:sword(70,5,7)}},   // seul gros bras : c'est lui qui doit venir au contact
+    shieldbearer:{name:"Carapace",hp:12,mob:6,shieldBlock:45,enemyOnly:true,abil:["shove","charge"],wname:"shell",w:{melee:sword(60,3,5)}},   // blindé : encaisse ~45% des tirs de face/flanc, bouscule et charge
+    emage:{name:"Heartwood",hp:7,mob:7,enemyOnly:true,abil:["blast","frost"],wname:"sap surge",w:{ranged:bow(70,4,6,7,3),melee:sword(45,2,3)}},   // cœur de sève : décharge de zone + sève gelante
+    // ===== POPULATION LOCALE (civils) =====
+    homme:{name:"Man",hp:6,mob:6,civ:true,wname:"bare hands",w:{melee:{type:"melee",aim:40,dmgMin:1,dmgMax:2,bare:true}}},
+    femme:{name:"Woman",hp:5,mob:6,civ:true,wname:"bare hands",w:{melee:{type:"melee",aim:40,dmgMin:1,dmgMax:2,bare:true}}},
+    enfant:{name:"Child",hp:3,mob:7,civ:true,wname:"bare hands",w:{melee:{type:"melee",aim:25,dmgMin:0,dmgMax:1,bare:true}}},
   };
   CLASSES.sergent=CLASSES.soldat;   // compat: old "sergent" data → soldier (not listed as a class in the editors)
   // ===== progression: discrete grades + exclusive A/B perks (engine = mission XP) =====
@@ -869,7 +875,7 @@
     else if(!back&&tgt.shieldBlock&&RND()*100<tgt.shieldBlock){txt="blocked 🛡";result="blocked";}
     else if(!back&&w.type==="melee"&&tgt.parry&&RND()*100<tgt.parry){txt="parried 🗡";result="blocked";}
     else{result="hit";dmg=w.dmgMin+Math.floor(RND()*(w.dmgMax-w.dmgMin+1))+(att.dmgBonus||0);let fb=0,fl="";if(w.flank&&w.type==="melee"){const f=flankOf(att,tgt);if(f==="back"){fb=w.flank.back;fl="back";}else if(f==="side"){fb=w.flank.side;fl="flank";}dmg+=fb;}if(att.team==="enemy")dmg=Math.max(1,dmg-1);tgt.hp-=dmg;if(tgt.team==="player")tgt.dmgTaken=(tgt.dmgTaken||0)+dmg;txt=`hit ${dmg}`+(fb?` (${fl} +${fb})`:"")+(tgt.hp<=0?(tgt.team==="player"?" ✚K.O.":" ✝"):"");if(tgt.hp<=0)tgt.hp=0;}
-    const killed=tgt.hp<=0&&result==="hit", wn=w.type==="ranged"?(att.clip!==undefined?"crossbow":"bow"):(w.flank?"daggers":"sword");
+    const killed=tgt.hp<=0&&result==="hit", wn=(CLASSES[att.cls]&&CLASSES[att.cls].wname)||(w.type==="ranged"?(att.clip!==undefined?"crossbow":"bow"):(w.flank?"daggers":"sword"));
     if(killed&&att.team==="player")att.kills=(att.kills||0)+1;   // for mission XP
     pushShot(att,tgt,w.type==="melee"); if(dmg>0){pushDmg(tgt.cell,dmg,tgt.team);screenShake(killed?4:2);}   // combat juice
     log(`${att.team==="player"?"▲":"▼"} ${att.name} ${w.type==="ranged"?"shoots":"strikes"} ${tgt.name} (${ch}%): ${txt}`,att.team);
@@ -890,7 +896,7 @@
     if(t.wake!=null&&t.wake!==""){ if(String(t.wake).toLowerCase()==="all"){ const pods=new Set(); for(const e of units)if(e.team==="enemy"){if(e.pod!==undefined)pods.add(e.pod);else wakeEnemy(e,"alert");} pods.forEach(pid=>wakePod(pid,"alert")); } else wakePod(+t.wake,"alert"); dirty=true; }
     if(t.open){ for(const c of cells)if(c.zone===t.open&&c.terr==="wall"){c.terr="plain";dirty=true;} }
     if(t.close){ for(const c of cells)if(c.zone===t.close&&c.terr!=="wall"){c.terr="wall";dirty=true;} }
-    if(t.spawn){ const sp=t.spawn,pool=cells.filter(c=>c.zone===sp.zone&&passable(c.id)&&!uAt(c.id)); for(let k=0;k<(sp.count||1)&&pool.length;k++){ const c=pool.splice(Math.floor(RND()*pool.length),1)[0]; if(CLASSES[sp.cls||"garde"]){units.push(U(sp.team||"enemy",sp.cls||"garde",c.id,{pod:sp.pod}));dirty=true;} } }
+    if(t.spawn){ const sp=t.spawn,pool=cells.filter(c=>c.zone===sp.zone&&passable(c.id)&&!uAt(c.id)); for(let k=0;k<(sp.count||1)&&pool.length;k++){ const c=pool.splice(Math.floor(RND()*pool.length),1)[0]; if(CLASSES[sp.cls||"brute"]){units.push(U(sp.team||"enemy",sp.cls||"brute",c.id,{pod:sp.pod}));dirty=true;} } }
     if(dirty&&mode==="play")setTimeout(refresh,0); }
   function emit(type,ctx){ctx=ctx||{};ctx.type=type;ctx.firstAction=turnActions<=1;let best=null,bp=-1e9,bid=-1;   // firstAction: no action played yet (or the one in progress is the 1st) this turn
     for(let i=0;i<triggers.length;i++){const t=triggers[i],id=t.id!=null?t.id:i;if(t.on!==type)continue;if(t.once!==false&&fired.has(id))continue;if(t.firstAction&&!ctx.firstAction)continue;
@@ -1075,7 +1081,7 @@
       const dm=Math.min(...start.map(s=>hops(s,c.id))); if(isFinite(dm)&&dm>bd){bd=dm;best=c.id;} }
     if(best==null)return;
     if(cfg.kind==="pillage"){ cells[best].bonusLoot=true; curMission.bonusActive={kind:"pillage",cell:best,reward,label:cfg.label||"Loot the depot"}; }
-    else if(cfg.kind==="target"){ const ec=["brute","garde","archer"].find(c=>CLASSES[c])||Object.keys(CLASSES).find(c=>CLASSES[c]&&!CLASSES[c].civ);
+    else if(cfg.kind==="target"){ const ec=["brute","archer","shieldbearer"].find(c=>CLASSES[c])||Object.keys(CLASSES).find(c=>CLASSES[c]&&!CLASSES[c].civ);
       const e=U("enemy",ec,best,{}); e.bonus=true; e.pod=900; e.asleep=true; e.name="✦ "+e.name; e.max=Math.round(e.max*1.4); e.hp=e.max; units.push(e);   // sleeping officer, guardian, outside the main objective
       curMission.bonusActive={kind:"target",cell:best,reward,label:cfg.label||"Kill the officer"}; }
     if(curMission.bonusActive){ const r=curMission.bonusActive.reward,bits=[]; if(r.xp)bits.push("+"+r.xp+" XP"); if(r.morale)bits.push("morale"); if(r.potions)bits.push("+"+r.potions+" heal");
@@ -1410,11 +1416,11 @@
   { const gm=document.getElementById("gen-mission"); if(gm)gm.onclick=()=>genMission();
     const gc=document.getElementById("gen-cover"); if(gc)gc.oninput=()=>{document.getElementById("gen-coverv").textContent=gc.value+"%";}; }
   // enemy class selection for generation (checkboxes)
-  const ENEMY_POOL=["garde","archer","brute","shieldbearer","emage"];   // classes offered for generated enemies
-  { const box=document.getElementById("gen-eclasses"); if(box){ box.innerHTML=ENEMY_POOL.map(k=>`<label style="font-size:.82rem;display:inline-flex;align-items:center;gap:3px"><input type="checkbox" data-ecls="${k}"${["garde","archer","brute"].includes(k)?" checked":""}>${(CLASSES[k]&&CLASSES[k].name)||k}</label>`).join(""); } }
+  const ENEMY_POOL=["archer","emage","brute","shieldbearer"];   // classes offered for generated enemies (= la biosphère)
+  { const box=document.getElementById("gen-eclasses"); if(box){ box.innerHTML=ENEMY_POOL.map(k=>`<label style="font-size:.82rem;display:inline-flex;align-items:center;gap:3px"><input type="checkbox" data-ecls="${k}"${["archer","emage","brute","shieldbearer"].includes(k)?" checked":""}>${(CLASSES[k]&&CLASSES[k].name)||k}</label>`).join(""); } }
   function chosenEnemyClasses(){ const box=document.getElementById("gen-eclasses"); if(!box)return null; const sel=[...box.querySelectorAll("input[data-ecls]:checked")].map(c=>c.dataset.ecls).filter(k=>CLASSES[k]); return sel.length?sel:null; }
   // composition weights of the anchor pods (per mission)
-  const DEF_EWEIGHTS={garde:2,archer:2,brute:1,shieldbearer:0,emage:0};
+  const DEF_EWEIGHTS={archer:3,emage:2,brute:2,shieldbearer:1};   // biosphère majoritairement À DISTANCE (cracheurs + coeurs de sève), le contact reste minoritaire
   { const box=document.getElementById("m-eweights"); if(box){ box.innerHTML=ENEMY_POOL.map(k=>`<label style="font-size:.8rem;display:inline-flex;align-items:center;gap:2px">${(CLASSES[k]&&CLASSES[k].name)||k}<input type="number" min="0" max="9" data-ew="${k}" value="${DEF_EWEIGHTS[k]||0}" style="width:36px"></label>`).join(""); box.querySelectorAll("input[data-ew]").forEach(i=>i.oninput=()=>saveDraft()); } }
   function missionEWeights(){ const box=document.getElementById("m-eweights"); const w={}; if(box)box.querySelectorAll("input[data-ew]").forEach(i=>{ const v=+i.value||0; if(v>0&&CLASSES[i.dataset.ew])w[i.dataset.ew]=v; }); return w; }
   function setMissionEWeights(w){ const box=document.getElementById("m-eweights"); if(!box)return; box.querySelectorAll("input[data-ew]").forEach(i=>{ i.value=(w&&w[i.dataset.ew]!=null)?w[i.dataset.ew]:(w?0:(DEF_EWEIGHTS[i.dataset.ew]||0)); }); }
@@ -2185,7 +2191,7 @@
     if(mode==="play"&&!over&&sel&&turn==="player"){ const hc=cell?cell.id:null; if(hc!==hoverCell){hoverCell=hc;draw();} }
     if(!cell){f.style.display="none";return;} const u=uAt(cell.id);
     if(!(u&&(mode==="edit"||u.team==="player"||seen(u)))){ f.style.display="none"; return; }   // no "cell · ground" tooltip
-    const m=u.w.ranged?"ranged":"melee",w=u.w[m]; const wn=u.w.ranged?(u.clip!==undefined?"crossbow":"bow"):(u.flank?"daggers":(w.bare?"bare hands":"sword"));
+    const m=u.w.ranged?"ranged":"melee",w=u.w[m]; const wn=(CLASSES[u.cls]&&CLASSES[u.cls].wname)||(u.w.ranged?(u.clip!==undefined?"crossbow":"bow"):(u.flank?"daggers":(w.bare?"bare hands":"sword")));
     const h=`<b>${u.name}</b> · ${CLASSES[u.cls].name}<br>HP ${Math.max(0,u.hp)}/${u.max} · ${wn} (${w.aim}%) · range ${w.range||1}`
         +(u.shieldBlock?` · 🛡 ${u.shieldBlock}%`:"")+(u.parry?` · 🗡 parry ${u.parry}%`:"")+(u.flank?` · back +${u.flank.back}/flank +${u.flank.side}`:"")
         +(u.crackers?` · 💣×${u.crackers}`:"")+(u.asleep?" · 💤":"")+(u.pod!==undefined?` · pod ${u.pod}`:"")+(u.overwatch?(u.owMode==="ranged"?" · 👁🏹":" · 👁"):"");
