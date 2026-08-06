@@ -322,6 +322,11 @@
     brute:{name:"Trampler",hp:13,mob:8,enemyOnly:true,wname:"limbs",w:{melee:sword(70,5,7)}},   // seul gros bras : c'est lui qui doit venir au contact
     shieldbearer:{name:"Carapace",hp:12,mob:6,shieldBlock:45,enemyOnly:true,abil:["shove","charge"],wname:"shell",w:{melee:sword(60,3,5)}},   // blindé : encaisse ~45% des tirs de face/flanc, bouscule et charge
     emage:{name:"Heartwood",hp:7,mob:7,enemyOnly:true,abil:["blast","frost"],wname:"sap surge",w:{ranged:bow(70,4,6,7,3),melee:sword(45,2,3)}},   // la magie BRUTE du monde (même puissance que le Siphoner, non raffinée) : décharge de zone + sève gelante
+    // ===== LA CONTREPARTIE (rival) — l'autre puissance venue prendre le monde ; l'alibi moral du Consortium =====
+    // Volontairement MAL CONNUE : désignations administratives, pas de noms propres. Absente par défaut
+    // des missions générées (poids 0) → elle n'apparaît que quand la campagne la convoque.
+    rival:{name:"Counterparty",hp:10,mob:8,shieldBlock:25,enemyOnly:true,wname:"issued rifle",w:{ranged:bow(74,4,6,8,4),melee:sword(68,3,5)}},   // miroir de ton Enforcer : même métier, autre drapeau
+    contact:{name:"Contact",hp:7,mob:10,enemyOnly:true,wname:"unlogged weapon",w:{ranged:bow(78,3,5,10,2)}},   // PORTÉE 10 : il te voit et te touche avant que tu ne puisses répondre — on ne sait pas encore ce que c'est
     // ===== POPULATION LOCALE (civils) =====
     homme:{name:"Man",hp:6,mob:6,civ:true,wname:"bare hands",w:{melee:{type:"melee",aim:40,dmgMin:1,dmgMax:2,bare:true}}},
     femme:{name:"Woman",hp:5,mob:6,civ:true,wname:"bare hands",w:{melee:{type:"melee",aim:40,dmgMin:1,dmgMax:2,bare:true}}},
@@ -1416,11 +1421,11 @@
   { const gm=document.getElementById("gen-mission"); if(gm)gm.onclick=()=>genMission();
     const gc=document.getElementById("gen-cover"); if(gc)gc.oninput=()=>{document.getElementById("gen-coverv").textContent=gc.value+"%";}; }
   // enemy class selection for generation (checkboxes)
-  const ENEMY_POOL=["archer","emage","brute","shieldbearer"];   // classes offered for generated enemies (= la biosphère)
+  const ENEMY_POOL=["archer","emage","brute","shieldbearer","rival","contact"];   // classes offered for generated enemies (= la biosphère)
   { const box=document.getElementById("gen-eclasses"); if(box){ box.innerHTML=ENEMY_POOL.map(k=>`<label style="font-size:.82rem;display:inline-flex;align-items:center;gap:3px"><input type="checkbox" data-ecls="${k}"${["archer","emage","brute","shieldbearer"].includes(k)?" checked":""}>${(CLASSES[k]&&CLASSES[k].name)||k}</label>`).join(""); } }
   function chosenEnemyClasses(){ const box=document.getElementById("gen-eclasses"); if(!box)return null; const sel=[...box.querySelectorAll("input[data-ecls]:checked")].map(c=>c.dataset.ecls).filter(k=>CLASSES[k]); return sel.length?sel:null; }
   // composition weights of the anchor pods (per mission)
-  const DEF_EWEIGHTS={archer:3,emage:2,brute:2,shieldbearer:1};   // biosphère majoritairement À DISTANCE (cracheurs + coeurs de sève), le contact reste minoritaire
+  const DEF_EWEIGHTS={archer:3,emage:2,brute:2,shieldbearer:1,rival:0,contact:0};   // la Contrepartie à 0 : on la convoque mission par mission   // biosphère majoritairement À DISTANCE (cracheurs + coeurs de sève), le contact reste minoritaire
   { const box=document.getElementById("m-eweights"); if(box){ box.innerHTML=ENEMY_POOL.map(k=>`<label style="font-size:.8rem;display:inline-flex;align-items:center;gap:2px">${(CLASSES[k]&&CLASSES[k].name)||k}<input type="number" min="0" max="9" data-ew="${k}" value="${DEF_EWEIGHTS[k]||0}" style="width:36px"></label>`).join(""); box.querySelectorAll("input[data-ew]").forEach(i=>i.oninput=()=>saveDraft()); } }
   function missionEWeights(){ const box=document.getElementById("m-eweights"); const w={}; if(box)box.querySelectorAll("input[data-ew]").forEach(i=>{ const v=+i.value||0; if(v>0&&CLASSES[i.dataset.ew])w[i.dataset.ew]=v; }); return w; }
   function setMissionEWeights(w){ const box=document.getElementById("m-eweights"); if(!box)return; box.querySelectorAll("input[data-ew]").forEach(i=>{ i.value=(w&&w[i.dataset.ew]!=null)?w[i.dataset.ew]:(w?0:(DEF_EWEIGHTS[i.dataset.ew]||0)); }); }
