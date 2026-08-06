@@ -2,22 +2,24 @@
 
 _Consolidation des choix de design issus de l'interview (manche par manche) sur la base de `ETUDE-PROGRESSION`. Sert de référence pour diriger l'ensemble du projet._
 
-> **Vision en une ligne.** Un tactique-RPG « **XCOM tempéré** » au service d'un thème — *tout se déforme, l'incertitude augmente* — où **monter une unité, c'est verrouiller une voie de perks** ; où l'on **arbitre entre opportunités concurrentes** sur une carte qui se distord ; et où l'on **ne perd jamais ses héros — mais on les épuise**.
+> **Vision en une ligne.** Un tactique-RPG « **XCOM tempéré** » au service d'un thème — *on prend ce monde, le monde répond* — où l'on **joue l'envahisseur** ; où **monter une unité, c'est verrouiller une voie de perks** ; où l'on **arbitre entre opportunités concurrentes** sur une carte que le monde reprend ; et où l'on **ne perd jamais ses héros — mais on les épuise**.
 
 ---
 
 ## 0. Le thème — la racine du « pourquoi »
 
-> **Tout se déforme. L'incertitude augmente.** *(thème n°1, posé dès l'ouverture)*
+> **On prend ce monde. Le monde répond.** *(thème n°1)*
 
-L'ouverture l'installe sans ambiguïté : réalité distordue (« *It's like someone warped reality. Or was it always like this?* »), mémoire faillible (« *I can never tell* »), vérité incertaine (« *Were we lied to?* »), mission floue (« *What's the plan?* — *Fuck if I know.* »), et jusqu'aux sauvés qui se déforment (« *Those kids look weird… what is this mess?* »).
+Le joueur dirige une **équipe d'extraction** : il arrive, il vide, il repart. Le monde n'est pas un décor — il encaisse, il résiste, puis il **barre le passage**. L'incertitude n'a pas disparu, elle a **changé de camp** : ce n'est plus la réalité qui vacille, c'est **la version des faits** que le joueur a reçue (qui sont vraiment ceux d'en face, ce que veut la puissance rivale, pourquoi les visiteurs épargnent les civils).
 
-**Conséquence directrice : les mécaniques ne sont pas justifiées d'abord par l'anti-treadmill, mais par le thème.** Chaque choix doit être une *traduction jouable* de « tout se déforme / l'incertitude monte ». L'argument anti-corvée (cf. `ETUDE-PROGRESSION`) reste valable, mais vient *en second* — il sert le thème.
+> **À refaire :** les textes d'ouverture (`texts/`, ex-`Opening.txt`) portent encore l'ancien thème de la réalité distordue et doivent être réécrits.
+
+**Conséquence directrice : les mécaniques ne sont pas justifiées d'abord par l'anti-treadmill, mais par le thème.** Chaque choix doit être une *traduction jouable* de « on prend, le monde répond / notre version des faits s'effrite ». L'argument anti-corvée (cf. `ETUDE-PROGRESSION`) reste valable, mais vient *en second* — il sert le thème.
 
 | Le thème… | …se traduit en | Réf. |
 |---|---|---|
-| La réalité se distord (visible) | **Maillage irrégulier** (carrés→hexa→pentagones jittés) — combat **et** carte du monde | géométrie |
-| Le monde se dérègle dans le temps | **Maillage qui se déforme de mission en mission et d'acte en acte** — *implémenté* (voile violacé + veines, distorsion géométrique cumulée) | geoscape |
+| On impose un ordre au monde | **Grille régulière au départ** — la carte telle que le Consortium l'a tracée, propre et prévisible | géométrie |
+| Le monde reprend ce qu'on lui prend | **Le maillage se désaligne** de mission en mission : carré → organique/fractal, tailles très inégales, **et ça bloque le passage** — *moteur prêt des deux côtés, inversion à câbler* | geoscape |
 | L'incertitude augmente | **RNG assumé** en combat (potentiellement croissant) | C7 écarté |
 | On ne retrouve pas la certitude/le passé | **Pas de retour en arrière** (pas de respec/undo/reload) | réversibilité |
 | La déformation est irréversible | **Choix de perks & macro définitifs** | B1, C5 |
@@ -28,28 +30,32 @@ L'ouverture l'installe sans ambiguïté : réalité distordue (« *It's like som
 
 ## 0 bis. Le cadre narratif — l'allégorie *(figé)*
 
-Le thème abstrait (« tout se déforme ») reçoit une **incarnation narrative arrêtée**. Elle dirige l'écriture des textes, le bestiaire et la fin.
+Le thème abstrait (« on prend, le monde répond ») reçoit une **incarnation narrative arrêtée**. Elle dirige l'écriture des textes, le bestiaire et la fin.
 
-**Le lieu — la Marche de Velhaur.** Une frontière 100 % originale dans un monde d'inspiration *Malazan* (Warrens, otataral), sans en reprendre les personnages ni la carte. Une marche impériale reculée, là où l'Empire « met en valeur » des terres.
+**Le cadre — *La Foreuse*.** Science-fiction, 100 % original (aucun emprunt à une œuvre existante : le point était explicitement de sortir de toute question de licence). **Le joueur dirige l'équipe d'extraction d'un consortium interstellaire** débarquée sur un monde vivant pour le vider et repartir. Ton **sombre, avec humour** : brutalité industrielle, absurdité corporate, personne ne se croit méchant.
 
-**La cause — la faute de l'Empire.** Pas d'entité ancienne, pas de malédiction venue d'ailleurs : **l'Empire a foré un nœud de Warren** pour en exploiter la puissance et a **mal confiné l'otataral** censé le contenir. Le résultat est **la Faille** — la distorsion qui ronge le terrain (et que le joueur voit grandir, mission après mission). La catastrophe est **industrielle et choisie**, pas surnaturelle et subie.
+**La cause — pas une faute, un modèle d'affaires.** Il n'y a pas d'accident fondateur à réparer : la dévastation est le **fonctionnement normal** de la machine, mission après mission, quota après quota. Le joueur n'arrive pas après la catastrophe — **il est la catastrophe**, et il la conduit.
 
-**Le sens — une allégorie du capitalisme.** C'est le pivot directeur, et il déborde sur la fiction *et* la mécanique :
+**L'alibi — « avant l'autre ».** Le Consortium ne se présente jamais comme un pillard : il faut prendre ce monde **avant la Contrepartie**, puissance rivale mal connue qui fait exactement le même métier. C'est le discours qui rend le reste supportable, et le moteur de la **complicité** (curseur choisi : *complice*, pas jubilatoire).
 
-> Les corrompus ne sont **pas** de simples victimes perverties par la magie. Ce sont **des gens qui ont choisi** d'accompagner la distorsion **parce que ça paie**.
+**Le sens — une allégorie du capitalisme et de l'impérialisme.** Le pivot directeur, qui déborde sur la fiction *et* la mécanique :
 
-- Les ennemis « tournés » (**mages noirs, porteurs de bouclier**) couvrent un **spectre du désespoir à la cupidité** : on sert la Faille par survie, par ambition, ou par confort. C'est de la **complicité par choix**, pas une possession.
-- La mécanique **encode déjà l'allégorie**, sans surcouche : les **primes** sont l'appât / le leurre d'extraction (on pousse l'escouade trop loin pour le gain) ; l'**usure et la mort** sont le coût humain encaissé par ceux d'en bas ; le motif du **Fallen** (perte du statut protégé une fois le rôle joué) = le travailleur utilisé puis effacé.
+> Ceux d'en face ne sont ni des monstres ni des sauvages : c'est une **résistance locale**, moderne, qui se bat avec ta technologie récupérée. L'écart est **logistique** (usine et pièces neuves contre casse et bricolage), jamais civilisationnel.
 
-**La résolution.** On **étouffe le Cœur de la Faille sous l'otataral** — tuer la magie pour sauver le monde. L'Empire **reclasse le dossier et passe à autre chose** : la machine ne tire aucune leçon. Pas de rédemption institutionnelle ; la seule dignité est individuelle.
+- **La magie appartient au monde.** Le Consortium l'extrait, la raffine et la retourne contre sa source. Le *Siphoner* du joueur tire des fioles d'essence raffinée ; le *Wild Siphoner* d'en face fait le même métier avec un siphon remonté à la main — **le grief est une question de licence, pas de superstition**. C'est là que vit le « chamane du futur ».
+- **Le vocabulaire fait la villainisation, pas la fiction.** L'interface affiche les **désignations du Consortium** (« Irregular », « Wrecker », « Barricade »), un lexique d'inventaire. Chaque classe porte en parallèle son **vrai nom** (`trueName` : Hunter, Defender, Warden, Keeper).
+- La mécanique **encode déjà l'allégorie**, sans surcouche : les **primes** sont l'appât d'extraction ; l'**usure et la mort** sont le coût humain encaissé par ceux d'en bas ; le motif du **Fallen** (perte du statut protégé une fois le rôle joué) = le travailleur utilisé puis effacé.
 
-**Quelques figures (ancrage).**
-- **Sorne** — cadre mage **complice du Forage**, libéré au *Hameau muet*, qui porte la culpabilité ; recrutable.
-- **Kael / Wren** — recrues de la frontière, intégrées en **Acte 2**.
+**La résolution — le retournement.** L'ennemi final, ce sont les **visiteurs** (`Contact` → *Witness*), ceux qu'on a appris à craindre depuis le début : **ce sont eux « les gentils »**. À la révélation, `revealTruth()` **bascule d'un coup tout le vocabulaire du jeu** vers les vrais noms — rétroactivement, jusque dans le roster et les rapports archivés. Le joueur relit ses propres comptes rendus et voit ce qu'il a fait. Le Consortium, lui, classe le dossier et passe au monde suivant : pas de rédemption institutionnelle, la seule dignité est **individuelle** (celle de l'équipe).
 
-> **À l'écriture.** Ton sobre, elliptique, amer. Arc : le mensonge officiel à l'arrivée → le doute qui monte → la révélation « *ils ont choisi ça* » → la vérité de Sorne au Hameau muet → la fin à l'otataral. Diégétiser les libellés (primes, usure) plutôt que les laisser purement « gameplay ».
+**Indices plantés tôt (pour que le twist soit relu, pas subi).**
+- Le `Contact` **n'attaque jamais de civils** — déjà vrai dans les données.
+- Le *Wild Siphoner* fait littéralement le même métier que l'arcaniste du joueur.
+- La *Counterparty* est le **miroir statistique exact** de l'Enforcer du joueur : même métier, autre drapeau.
+
+> **À l'écriture.** Ton sobre, elliptique, amer, avec l'humour corporate en contrepoint (mémos RH, séminaires bien-être, objectifs trimestriels pendant un saccage). Arc : le briefing officiel → les détails qui ne collent pas → la bascule. **Diégétiser les libellés** (primes, usure, désignations) plutôt que les laisser purement « gameplay ».
 >
-> **Question en pause :** une **méca de pacte / tentation** (la distorsion *propose des marchés* : prime corrompue contre avantage immédiat + plus d'usure) pour rendre le « choix de la complicité » jouable. *Non tranché — gelé volontairement.*
+> **Questions en pause.** (a) Une **méca de pacte / tentation** (avantage immédiat contre usure accrue) pour rendre le choix de la complicité jouable — *non tranché*. (b) La **lueur d'espoir par l'équipe** : usure morale menant à refus d'ordre, sabotage, désertion — *piste retenue au pitch, non spécifiée*. (c) Ancienne galerie de personnages (Sorne, Kael, Wren) **abandonnée** avec l'ancien univers ; à réécrire.
 
 ---
 
@@ -96,7 +102,8 @@ C'est l'élégance du système : **une seule pression** — « mes bonnes unité
 - **Une cellule stratégique = une région** porteuse d'une opportunité (mission), dont les voisines sont menacées/verrouillables. L'escouade est un pion qui s'y déplace ; le déplacement **coûte du temps** → rend les unités indisponibles (branche le fil rouge §2).
 - **Génération hybride** (cohérent A6) : graines **posées à la main** pour les lieux nommés du golden path + remplissage **procédural borné** autour.
 - **Réemploi gratuit des mécaniques tactiques au niveau stratégique :** élévation = terrain stratégique (relief lent), murets/arêtes = routes coupées / fronts, **pods = menaces qui rôdent** sur la carte (la pression locale, A1).
-- **Levier thème fort — implémenté :** le maillage **se déforme de mission en mission et d'acte en acte** (niveau de corruption cumulé), avec voile violacé + veines en combat. Distorsion *purement géométrique* (sommets déplacés par un bruit déterministe de position) : l'adjacence topologique est figée avant déformation → arêtes jointes, rendu sans couture, jeu inchangé. L'incertitude qui monte, rendue spatiale.
+- **Levier thème fort — implémenté :** le maillage **se déforme de mission en mission et d'acte en acte** (niveau cumulé). Distorsion *purement géométrique* (sommets déplacés par un bruit déterministe de position) : l'adjacence topologique est figée avant déformation → arêtes jointes, rendu sans couture, jeu inchangé.
+- **À câbler — l'inversion :** dans le nouveau cadre le sens s'inverse. On **démarre en grille régulière** (la carte du Consortium) et l'organique la **reconquiert** : cellules irrégulières de tailles très inégales, trous, **passage bloqué**. Le moteur produit déjà les deux extrêmes (grille ↔ maillages fractals type pinwheel, conformes et connexes par arêtes) ; il reste à piloter la bascule par la progression de campagne, et à revoir la palette (le voile violacé était l'ancien univers).
 - **À surveiller — lisibilité.** Un Voronoï irrégulier se « lit » moins bien comme un *lieu* qu'un graphe propre → iconographie par cellule indispensable (type de mission, menace, statut).
 
 ---

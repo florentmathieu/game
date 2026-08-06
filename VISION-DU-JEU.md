@@ -8,51 +8,61 @@ _Ce document présente le genre de jeu qu'on veut faire et, surtout, **pourquoi*
 
 Tout part d'**un thème** qui irrigue le jeu entier :
 
-> **Tout se déforme. L'incertitude augmente.**
+> **On prend ce monde. Le monde répond.**
 
-Le monde a changé. La réalité semble distordue — *« It's like someone warped reality. Or was it always like this? »*. Les personnages ne sont plus sûrs de rien : ni de leur mémoire (*« I can never tell »*), ni de la vérité (*« Were we lied to? »*), ni même de leur propre mission (*« What's the plan? » — « Fuck if I know. »*). Et ce qu'ils croient sauver finit parfois déformé à son tour (*« Those kids look weird… what is this mess? »*).
+Tu n'es pas venu sauver quoi que ce soit. Tu diriges une **équipe d'extraction** : tu arrives, tu vides, tu repars. Le monde que tu exploites n'est pas un décor — il **encaisse**, puis il **résiste**, et à la fin il te **barre le passage**. Les gens qui y vivent ne sont pas des monstres : ce sont des gens, et ils se défendent avec ce que tu as laissé traîner.
 
-**C'est ça, le cœur.** Le jeu ne parle pas de « devenir plus fort ». Il parle d'un **monde qui se distord sous tes pieds** et d'une **certitude qui s'effrite**. Tout le reste — les règles, la carte, les combats — n'existe que pour **faire ressentir ça**. Chaque choix de design ci-dessous est une **traduction jouable du thème.**
+**C'est ça, le cœur.** Le jeu ne parle pas de « devenir plus fort ». Il parle de **ce que ça coûte au monde que tu sois efficace** — et du moment où tu t'en aperçois. Tout le reste — les règles, la carte, les combats — n'existe que pour **faire ressentir ça**. Chaque choix de design ci-dessous est une **traduction jouable du thème.**
+
+**L'incertitude est toujours là, mais elle a changé de camp.** Ce n'est plus la réalité qui vacille : c'est **ta version des faits**. Tu ne sais pas vraiment qui sont ceux d'en face, ni ce que veut la puissance rivale, ni pourquoi les visiteurs ne tirent jamais sur les civils.
 
 ---
 
 ## En deux phrases, c'est quoi ?
 
-Un jeu de **combats tactiques au tour par tour** (on déplace une petite équipe sur une carte, chacun joue à son tour) mêlé à un **jeu de rôle** : on s'attache à ses personnages, on les fait évoluer, on suit une histoire. Pense à un *XCOM*, mais où on ne perd pas ses soldats préférés au moindre coup du sort — et où **le monde lui-même se déforme**.
+Un jeu de **combats tactiques au tour par tour** (on déplace une petite équipe sur une carte, chacun joue à son tour) mêlé à un **jeu de rôle** : on s'attache à ses personnages, on les fait évoluer, on suit une histoire. Pense à un *XCOM*, mais où on ne perd pas ses soldats préférés au moindre coup du sort — **et où on joue l'envahisseur**.
 
 L'ambition : que **progresser reste passionnant sur la durée**, au lieu de devenir une corvée répétitive.
 
 ---
 
-## La grille qui se déforme
+## La grille qu'on impose — et qui se retourne
 
-Le plateau n'est pas un damier régulier. Il est fait de **cellules irrégulières** — des carrés qui se muent en hexagones, en pentagones, tordus, jamais tout à fait alignés.
+Le plateau n'est pas un damier régulier. Ou plutôt : **il commence par l'être.**
 
-**Ce n'est pas un effet de style : c'est le thème, rendu visible à chaque case.** La réalité est distordue, et tu la vois distordue.
+**Au début, tout est carré.** Des cellules régulières, alignées, lisibles : c'est la carte telle que le Consortium l'a tracée. Une grille d'exploitation, propre et prévisible — **la promesse que la machine se fait à elle-même.**
 
-Et là où ça devient fort : **la carte du monde utilise la même grille déformée que les combats.** Le monde et le champ de bataille ont le même ADN visuel. Mieux — cette grille **se déforme vraiment au fil de la partie** (c'est en place dans le jeu) : **de mission en mission et d'acte en acte**, le terrain se tord un peu plus, gagné par un **voile violacé et des veines** qui s'intensifient. Plus tu avances, plus l'incertitude monte, plus le monde se distord. La forme même du jeu raconte le thème.
+Puis le monde reprend. De mission en mission, la géométrie **se désaligne** : le carré cède la place à des cellules irrégulières, organiques, de tailles très inégales — et surtout, **ce qui repousse te bloque le passage**. La forme même du plateau raconte l'histoire : plus tu avances, moins ta grille tient.
+
+**Ce n'est pas un effet de style : c'est le thème, rendu visible à chaque case.** Et là où ça devient fort : **la carte du monde utilise la même grille que les combats.** Le monde et le champ de bataille ont le même ADN visuel, et se dérèglent ensemble.
+
+> **Où on en est.** Le moteur de maillage sait déjà produire les deux extrêmes — grille régulière d'un côté, maillages organiques et fractals à tailles variables de l'autre (avec trous, tout restant relié bord à bord pour que les unités circulent). **L'inversion progressive carré → organique au fil de la campagne reste à câbler.**
 
 ---
 
 ## L'histoire qu'on raconte (et pourquoi c'est ça)
 
-Le thème « tout se déforme » a maintenant un **décor et un sens précis**.
+Le thème « on prend, le monde répond » a un **décor et un sens précis** : **La Foreuse**.
 
-On est sur **une frontière reculée d'un Empire** — la *Marche de Velhaur*, un monde original d'inspiration sombre (de la magie qu'on puise dans des « veines » du monde, une matière rare capable d'éteindre cette magie).
+**Tu joues l'envahisseur.** Tu diriges une **équipe d'extraction** d'un consortium interstellaire. On t'envoie sur un monde vivant, tu remplis des quotas, tu repars. Le décor est de la **science-fiction** ; le ton est **sombre, avec de l'humour** : la brutalité est industrielle, la paperasse est absurde, et personne ne se croit méchant.
 
-**Ce qui a tout déclenché n'est pas une malédiction : c'est une faute.** L'Empire a voulu **exploiter une de ces veines** de magie, et a **mal contenu** ce qui devait la maîtriser. La distorsion que tu combats — **la Faille** — est le résultat de cette avidité. Une catastrophe **industrielle**, décidée d'en haut, pas un mauvais sort tombé du ciel.
+**L'alibi — pourquoi tu te sens dans le camp du bien.** Le Consortium ne se présente jamais comme un pillard : il faut prendre ce monde **avant l'autre**. Une puissance rivale — *la Contrepartie* — est en route, mal connue, et fait exactement le même métier que toi. « Si on ne le prend pas, eux le prendront » : c'est le discours qui rend tout le reste supportable. C'est aussi ce qui fait de toi un **complice** plutôt qu'un monstre.
 
-**Et c'est là le vrai propos : une allégorie du capitalisme.** Les ennemis que tu affrontes ne sont pas de pauvres gens « possédés » par la magie. Ce sont **des gens qui ont choisi** d'accompagner la distorsion **parce que ça paie** — par désespoir pour les uns, par ambition ou confort pour les autres. La corruption, ici, est une **complicité**, pas une fatalité.
+**La magie appartient au monde.** Le Consortium ne la crée pas : il **l'extrait, la raffine, et la retourne** contre l'endroit d'où elle vient. Ton arcaniste tire des fioles d'essence — autrement dit, **il tire avec ce que tu es en train de tuer.**
 
-Le jeu ne te le dit pas avec de gros discours : **les règles le racontent déjà.** Les **primes** qui te poussent à aller trop loin, c'est l'appât. L'**usure et la mort** de tes gens, c'est le coût payé par ceux d'en bas. Et le fait que même tes héros perdent leur protection « une fois qu'ils ont servi », c'est le travailleur qu'on utilise puis qu'on oublie.
+**Ceux d'en face ne sont pas des sauvages.** C'est une **résistance locale** : des gens modernes, qui se sont approprié ta technologie et se battent avec de la récupération. L'écart n'est pas civilisationnel, il est **logistique** — tu as l'usine et les pièces neuves, ils ont la casse et le bricolage. Leur « chamane » porte le même intitulé de poste que ton arcaniste ; ce qu'on lui reproche n'est pas d'être arriéré, c'est de **ne pas avoir de licence**.
 
-**La fin ?** On **étouffe la source de la Faille** pour sauver le monde — et l'Empire **classe le dossier et passe à la suite**, sans rien apprendre. La seule dignité possible est individuelle, jamais celle de la machine.
+Le jeu ne te le dit pas avec de gros discours : **les règles le racontent déjà.** Les **primes** qui te poussent à aller trop loin, c'est l'appât. L'**usure et la mort** de tes gens, c'est le coût payé par ceux d'en bas. Et le vocabulaire fait le sale travail à ta place : à l'écran, ceux d'en face portent des **désignations d'inventaire** (« Irregular », « Barricade »), pas des noms.
+
+**La fin — le retournement.** L'ennemi final, ce sont les **visiteurs**, ceux qu'on t'a appris à craindre depuis le début. Ce sont eux, « les gentils ». Le jeu conserve en mémoire le **vrai nom** de chaque adversaire, et **à la révélation tout le vocabulaire bascule d'un coup** : les « Irregulars » redeviennent des chasseurs, les « Shamans » des gardiens, le « Contact » un témoin. Tu relis tes propres rapports de mission, et tu vois ce que tu as fait.
+
+**La lueur d'espoir ?** Jamais institutionnelle : le Consortium classera le dossier et passera au monde suivant. La seule dignité possible est **individuelle** — celle des gens de ton équipe.
 
 ---
 
 ## Le problème qu'on veut éviter
 
-Dans beaucoup de jeux, « progresser » veut juste dire **accumuler des chiffres** : +1 en force, une épée un peu meilleure, des ennemis qui deviennent eux aussi plus costauds au même rythme. On a l'impression de courir sur un tapis roulant : on s'épuise, mais on n'avance pas vraiment, et on ne se sent jamais réellement plus fort. C'est lassant — **et surtout, ça raconte le contraire de notre thème** : un tapis roulant, c'est rassurant et prévisible. Nous, on veut l'incertitude.
+Dans beaucoup de jeux, « progresser » veut juste dire **accumuler des chiffres** : +1 en force, un fusil un peu meilleur, des ennemis qui deviennent eux aussi plus costauds au même rythme. On a l'impression de courir sur un tapis roulant : on s'épuise, mais on n'avance pas vraiment, et on ne se sent jamais réellement plus fort. C'est lassant — **et surtout, ça raconte le contraire de notre thème** : un tapis roulant, c'est rassurant et prévisible. Nous, on veut l'incertitude.
 
 **Notre parti pris : remplacer « accumuler » par « décider ».** Ce qui rend la progression intéressante, ce ne sont pas les chiffres qui montent, ce sont les **choix qu'on fait** — surtout quand on ne peut pas revenir dessus.
 
@@ -120,4 +130,4 @@ Un point n'est pas tranché, volontairement — on décidera en testant :
 
 La prochaine étape est concrète : transformer cette vision en un **vrai prototype de combat** sur la grille déformée, pour tester en jouant.
 
-> **En une phrase.** Un jeu où le monde se déforme et où la certitude s'effrite ; où **monter en puissance, c'est faire des choix qu'on assume** ; où **continuer, c'est avancer dans le brouillard** ; et où **on s'attache à des personnages qu'on ne perd pas, mais qu'on apprend à ménager.**
+> **En une phrase.** Un jeu où l'on **joue l'envahisseur** et où le monde qu'on exploite finit par répondre ; où **monter en puissance, c'est faire des choix qu'on assume** ; où **continuer, c'est avancer dans le brouillard de sa propre version des faits** ; et où **on s'attache à des personnages qu'on ne perd pas, mais qu'on apprend à ménager.**
