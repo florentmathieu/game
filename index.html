@@ -2083,11 +2083,19 @@
   const geoEvScope=e=>(""+((e.when&&e.when.value)==null?"":(e.when.value))).trim();   // scope of a before/after: ""=each · number=Nth · text=region
   function geoEventMatch(e,phase,ctx){ const w=e.when||{};
     if(phase==="arrive")return w.kind==="arrive";
+    // "open" : premiere ouverture d'un ecran (roster, fiche, promotion, selection d'escouade).
+    // L'unicite vient de firedEvents (persiste) : l'evenement ne rejoue pas.
+    if(phase==="open"){ if(w.kind!=="open")return false; const v=geoEvScope(e); return v===""||v===(ctx&&ctx.panel); }
     if(phase==="debrief")return (w.kind==="cleared"&&geoRegionCleared(w.value))||(w.kind==="wins"&&(campRun.winCount||0)>=(+w.value||0));
     if(phase==="before"||phase==="after"){ if(w.kind!==phase)return false; const v=geoEvScope(e);
       if(v==="")return true; if(/^\d+$/.test(v))return +v===(ctx&&ctx.missionN); return v===(ctx&&ctx.region); }
     return false; }
   const geoEventRecurring=e=>{ const w=e.when||{}; return (w.kind==="before"||w.kind==="after")&&geoEvScope(e)===""; };   // "each mission": replays (not marked done)
+  // Declenche le texte lie a la premiere ouverture d'un ecran, puis poursuit (cb = ouverture reelle).
+  // Hors campagne / hors geoscape, on ouvre directement.
+  function uiOpened(panel,cb){ cb=cb||function(){};
+    if(!campRun||!geoPlay||!geoPlay.map||!Array.isArray(geoPlay.map.events)){ cb(); return; }
+    runGeoEvents("open",{panel},cb); }
   function runGeoEvents(phase,ctx,cb){ if(typeof ctx==="function"){ cb=ctx; ctx=null; }   // compat: runGeoEvents(phase, cb)
     cb=cb||function(){}; if(!campRun||!geoPlay||!geoPlay.map||!Array.isArray(geoPlay.map.events)){ cb(); return; }
     campRun.firedEvents=campRun.firedEvents||new Set();
@@ -2113,6 +2121,8 @@
         rec(it,offer,k); }
       saveRosterProgress(); done(); return; }
     if(!el||!list.length){ if(el)el.classList.remove("show"); saveRosterProgress(); done(); return; }
+    if(!showPromotions._t){ showPromotions._t=1; uiOpened("promote",()=>showPromotions(done)); return; }   // 1re promotion : le texte d'abord
+    showPromotions._t=0;
     const hd=document.getElementById("promote-hd"), opts=document.getElementById("promote-opts");
     let i=0;
     (function step(){
@@ -2334,13 +2344,14 @@
   function geoRenderEvents(){ const el=document.getElementById("geo-events"); if(!el)return; geoEventsDraft=geoEventsDraft||[];
     if(!geoEventsDraft.length){ el.innerHTML=`<div class="hint">No event.</div>`; return; }
     el.innerHTML=geoEventsDraft.map((e,i)=>{ e.when=e.when||{kind:"arrive"}; const k=e.when.kind||"arrive"; const ba=(k==="before"||k==="after");
-      const ph=ba?"empty=each mission · 3=3rd mission · name=region":(k==="wins"?"N (e.g. 3)":"region name");
+      const ph=ba?"empty=each mission · 3=3rd mission · name=region":(k==="wins"?"N (e.g. 3)":(k==="open"?"roster · squad · sheet · promote (empty=any)":"region name"));
       return `<div class="evrow" data-i="${i}"><div class="row"><select data-ev-kind>
         <option value="arrive"${k==="arrive"?" selected":""}>1st arrival</option>
         <option value="cleared"${k==="cleared"?" selected":""}>region taken</option>
         <option value="wins"${k==="wins"?" selected":""}>after N victories</option>
         <option value="before"${k==="before"?" selected":""}>⏵ before a mission</option>
-        <option value="after"${k==="after"?" selected":""}>⏹ after a mission</option></select>
+        <option value="after"${k==="after"?" selected":""}>⏹ after a mission</option>
+        <option value="open"${k==="open"?" selected":""}>🗂 1st time a screen opens</option></select>
         <input data-ev-val placeholder="${ph}" value="${esc(e.when.value!=null?e.when.value:"")}" style="flex:1${k==="arrive"?";display:none":""}">
         <button data-ev-del title="delete">🗑</button></div>
         <div class="row"><label style="font-size:.78rem">Display <select data-ev-mode><option value="plein"${e.mode!=="over"?" selected":""}>full screen</option><option value="over"${e.mode==="over"?" selected":""}>overlay</option></select></label>
@@ -2603,6 +2614,8 @@
     el.innerHTML=`<b>${esc(geoPlay.map.name||"Territory")}</b>${sub?(" — "+sub):""}`; renderGeoRoster(); }
   // squad sheet: grade + chosen perks (A/B choices made) of each member — viewable at any time
   function openSquadSheet(){ const el=document.getElementById("sheet"),body=document.getElementById("sheet-body"); if(!el||!body||!campRun||!campRun.roster)return;
+    if(!openSquadSheet._t){ openSquadSheet._t=1; uiOpened("sheet",()=>openSquadSheet()); return; }   // 1re ouverture : le texte d'abord
+    openSquadSheet._t=0;
     body.innerHTML=campRun.roster.map(m=>{ const g=gradeFromXp(m.xp||0), next=XP_THRESH[g+1], clsName=(CLASSES[m.cls]&&CLASSES[m.cls].name)||m.cls;
       const perks=(m.perks||[]).map((id,ti)=>{ const p=perkById(m.cls,id); if(!p)return "";
         const off=m.offered&&m.offered[ti]; let side,altIds=[];   // options écartées : depuis m.offered (3 options), sinon repli sur l'ancienne paire A/B
@@ -2618,6 +2631,7 @@
   { const sx=document.getElementById("sheet-x"),sh=document.getElementById("sheet"); if(sx)sx.onclick=()=>sh.classList.remove("show"); if(sh)sh.addEventListener("click",e=>{ if(e.target===sh)sh.classList.remove("show"); }); }
   // "camp" panel: roster status (grade, fatigue, stress, special status, death)
   function renderGeoRoster(){ const el=document.getElementById("georoster"); if(!el||!campRun||!campRun.roster)return;
+    if(!renderGeoRoster._seen){ renderGeoRoster._seen=1; uiOpened("roster"); }   // 1er affichage du panneau camp
     const bar=(v,col)=>`<div class="gr-bar"><i style="width:${Math.min(100,Math.round(v||0))}%;background:${col}"></i></div>`;
     el.innerHTML=`<div class="gr-h" title="View the squad's grades and perks">⛺ Roster <span style="font-weight:normal;font-size:.72rem;color:#9a8a74">📖 perks</span></div>`+campRun.roster.map(m=>{ const weary=!m.dead&&((m.fatigue||0)>=100||(m.stress||0)>=100); const cls="gr-u"+(m.dead?" gr-dead":"")+(weary?" gr-weary":""); const dh=memDeployHp(m);
       const tag=m.dead?"✝":(weary?"⛔":((m.special!==false)?"★":""));
@@ -2670,7 +2684,7 @@
         if(ok)d.onclick=()=>{ if(sel.has(m.name))sel.delete(m.name); else { if(sel.size>=maxN){ return; } sel.add(m.name); } draw(); };
         list.appendChild(d); }
       const go=document.getElementById("squad-go"); go.disabled=sel.size<1; }
-    draw(); el.classList.add("show");
+    draw(); uiOpened("squad",()=>el.classList.add("show"));
     document.getElementById("squad-go").onclick=()=>{ if(sel.size<1)return; el.classList.remove("show"); onConfirm([...sel]); };
     document.getElementById("squad-cancel").onclick=()=>{ el.classList.remove("show"); onConfirm(null); }; }
   async function geoLaunchMission(cellId,ref){ const t=await fetchText("missions-mesh/"+ref,ghCfg());
