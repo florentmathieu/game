@@ -159,6 +159,15 @@
     <div class="row" id="zones"></div>
     <div class="row"><label style="flex:1">Distortion <input id="dist" type="range" min="0" max="100" value="28"></label><span id="distv">28%</span></div>
     <div class="row"><label style="flex:1">Density <input id="dens" type="range" min="30" max="64" value="44"></label><span id="densv">44</span> <button id="regen">↻</button></div>
+    <div class="row"><label>Forme <select id="board-shape">
+      <option value="rect">rectangle (plein)</option>
+      <option value="L">L</option>
+      <option value="S">S</option>
+      <option value="croix">croix</option>
+      <option value="sablier">sablier</option>
+      <option value="anneau">anneau (cour centrale)</option>
+      <option value="diag">diagonale</option>
+    </select></label></div>
     <div class="row"><label>Tiling <select id="mesh-type"><option value="voronoi">Voronoi (zones)</option><option value="penrose3">Penrose — rhombi (P3)</option><option value="ammann">Ammann–Beenker (8-fold)</option><option value="spectre">Spectre (einstein monotile)</option><option value="hat">Hat / einstein (+ tortues)</option><option value="pinwheel">Pinwheel (fractale, taille variable)</option></select></label> <label id="mesh-fractal-row" title="Île apériodique au contour fractal (décoché : remplit le plateau)"><input type="checkbox" id="mesh-fractal"> Forme fractale</label></div>
     <div class="hint">Paint the zones (or "🎲 Auto zones") then set the distortion: terrain, elevation, low walls & units are preserved as best as possible. ⚠ only "↻" re-meshes from scratch and resets everything.<br>With a Penrose / Ammann–Beenker / Spectre / Hat tiling: <b>Density</b> = tile size, <b>Distortion</b> = vertex jitter (the zones are ignored).</div>
     <h2>2 · Terrain & elevation</h2>
@@ -503,6 +512,31 @@
     return best; }
   function distToSeg(px,py,a,b){ const vx=b[0]-a[0],vy=b[1]-a[1],wx=px-a[0],wy=py-a[1],c1=vx*wx+vy*wy; if(c1<=0)return Math.hypot(px-a[0],py-a[1]); const c2=vx*vx+vy*vy; if(c2<=c1)return Math.hypot(px-b[0],py-b[1]); const t=c1/c2; return Math.hypot(px-(a[0]+t*vx),py-(a[1]+t*vy)); }
   const meshTypeEl=()=>document.getElementById("mesh-type");
+  // ===== FORME DU PLATEAU =====
+  // Une forme est décrite en coordonnées normalisées (0..1), donc indépendante de la taille du
+  // plateau et du pavage. Le masque est appliqué APRÈS le maillage : on retire les cellules dont
+  // le centre tombe hors de la forme, puis on reconstruit l'adjacence.
+  const BOARD_SHAPES={
+    rect:   ()=>true,
+    L:      (x,y)=>!(x>0.42&&y<0.58),                                   // un coin évidé
+    S:      (x,y)=>!((y<0.38&&x>0.62)||(y>0.62&&x<0.38)),               // deux coins opposés évidés
+    croix:  (x,y)=>(x>0.30&&x<0.70)||(y>0.30&&y<0.70),
+    sablier:(x,y)=>{ const t=Math.abs(y-0.5)*2; return Math.abs(x-0.5) < 0.16+0.34*t; },   // étranglement central
+    anneau: (x,y)=>Math.hypot(x-0.5,y-0.5)>0.20,                        // cour centrale infranchissable
+    diag:   (x,y)=>Math.abs((x-0.5)+(y-0.5))<0.52,                      // bande en diagonale
+  };
+  const boardShapeEl=()=>document.getElementById("board-shape");
+  function applyBoardShape(){
+    const el=boardShapeEl(); const k=el?el.value:"rect";
+    const f=BOARD_SHAPES[k]; if(!f||k==="rect"||!cells.length)return;
+    const kept=cells.filter(c=>f(c.cx/W, c.cy/H));
+    if(kept.length<12)return;                                           // garde-fou : forme trop agressive
+    cells=kept; cells.forEach((c,i)=>c.id=i); buildAdj();
+    // ne garder que la plus grande composante : une forme peut détacher un îlot
+    const seen=new Set([0]), st=[0];
+    while(st.length){ const u=st.pop(); for(const v of cells[u].nb) if(!seen.has(v)){seen.add(v);st.push(v);} }
+    if(seen.size<cells.length){ cells=cells.filter(c=>seen.has(c.id)); cells.forEach((c,i)=>c.id=i); buildAdj(); }
+  }
   function genMesh(gOverride,forceV){
     if(!forceV&&meshTypeEl()){ const mt=meshTypeEl().value, fr=(document.getElementById("mesh-fractal")||{}).checked; if(mt==="penrose3"){ genPenrose(gOverride); return; } if(mt==="ammann"){ genAmmann(gOverride); return; } if(mt==="spectre"){ genSpectre(gOverride,fr); return; } if(mt==="hat"){ genHat(gOverride,fr); return; } if(mt==="pinwheel"){ genPinwheel(gOverride,fr); return; } }   // forceV : le geoscape reste toujours en Voronoï ; fr : île fractale (sinon remplit le plateau)
     const g=gOverride||+dens.value, dist=+distEl.value/100, rnd=mk(seed), h=g*0.866, jit=a=>(rnd()*2-1)*a;
@@ -927,6 +961,9 @@
                    if(grp.length>10){ ouvert=true; break; } }
                  if(!ouvert&&grp.length<=10)k++; }
                return k; })(),
+             plateformeCellules:cells.filter(c=>c._plat).length,
+             parapets:(function(){ let k=0; for(const key of (walls||[])){ const ab=key.split("-").map(Number);
+               if(cells[ab[0]]&&cells[ab[1]]&&cells[ab[0]].elev!==cells[ab[1]].elev)k++; } return k; })(),
              barriereCellules:cells.filter(c=>c._barrier).length,
              barriereMurs:cells.filter(c=>c._barrier&&c.terr==="wall").length,
              couloirCouvertPct:(function(){ // densite de couvert dans le couloir coin->coin (a comparer a couvertPct)
@@ -1002,7 +1039,10 @@
   // low-wall cover: partial, directional (full value from the front, none from the flank), and only
   // if the target is not higher than the cell across from it (the low ground is protected from the high).
   function muretCover(tgt,att){ const T=cells[tgt.cell],A=cells[att.cell]; let ax=A.cx-T.cx,ay=A.cy-T.cy; const al=Math.hypot(ax,ay)||1; ax/=al;ay/=al; let best=0;
-    for(const n of T.nb){ if(!wallBetween(tgt.cell,n))continue; if(T.elev>cells[n].elev)continue; let dx=cells[n].cx-T.cx,dy=cells[n].cy-T.cy; const dl=Math.hypot(dx,dy)||1; dx/=dl;dy/=dl; const align=ax*dx+ay*dy; if(align<=0)continue; best=Math.max(best,(COVER_PEN/2)*align); }
+    for(const n of T.nb){ if(!wallBetween(tgt.cell,n))continue;
+      // Un muret ne couvre pas quand on domine le voisin : on est au-dessus, on tire par-dessus.
+      // SAUF si l'assaillant est plus bas — là c'est un parapet, et il encaisse les tirs venus d'en bas.
+      if(T.elev>cells[n].elev && A.elev>=T.elev) continue; let dx=cells[n].cx-T.cx,dy=cells[n].cy-T.cy; const dl=Math.hypot(dx,dy)||1; dx/=dl;dy/=dl; const align=ax*dx+ay*dy; if(align<=0)continue; best=Math.max(best,(COVER_PEN/2)*align); }
     return Math.round(best); }
   function chance(att,tgt,m){const w=att.w[m];let cover=0;if(w.type==="ranged"){if(cells[tgt.cell].terr==="cover")cover=COVER_PEN;cover=Math.max(cover,muretCover(tgt,att));if(units.some(a=>a.hp>0&&a.team===tgt.team&&a!==tgt&&a.wallStance&&adjacent(a.cell,tgt.cell)))cover=Math.max(cover,Math.round(COVER_PEN*0.5));}const dh=Math.max(-3,Math.min(3,cells[att.cell].elev-cells[tgt.cell].elev))*HEIGHT_BONUS;const pb=w.type==="ranged"?(PB[hops(att.cell,tgt.cell)]||0):0;const def=(tgt.bracing?DEF_BRACE:0)+(tgt.dodge||0);return Math.max(5,Math.min(95,Math.round(w.aim+(att.aimBonus||0)-cover+dh-pb-def)));}   // dodge = esquive du défenseur
   function doAttack(att,tgt,m,reaction){
@@ -1637,7 +1677,7 @@
     const used=new Set(); units=[];
     s.units.forEach(su=>{ const ord=cells.map((c,i)=>[(c.cx-su.cx)**2+(c.cy-su.cy)**2,i]).sort((a,b)=>a[0]-b[0]);
       for(const [,i] of ord){ if(used.has(i)||cells[i].terr==="wall")continue; used.add(i); units.push(U(su.team,su.cls,i,{name:su.name,pod:su.pod,asleep:su.asleep,hostage:su.hostage,facing:su.facing})); break; } }); }
-  function rebuildShape(keep){ const snap=keep?snapBoard():null; genMesh(); if(snap)restoreBoard(snap); else{units=[];walls=new Set();} refresh(); }
+  function rebuildShape(keep){ const snap=keep?snapBoard():null; genMesh(); applyBoardShape(); if(snap)restoreBoard(snap); else{units=[];walls=new Set();} refresh(); }
   // generates a terrain profile: hills (elevation), rocks, cover and scattered low walls
   function autoTerrain(){ if(!cells.length)return; seed=(seed*1103515245+12345)&0x7fffffff; const rnd=mk((seed^0x9e3779b9)>>>0);
     cells.forEach(c=>{c.terr="plain";c.elev=0;}); walls=new Set();
@@ -1751,6 +1791,27 @@
       }
     })();
 
+    // PLATEFORMES — un petit amas surélevé, ceint de murets : un point haut disputable.
+    // Le bonus de hauteur (+6 par niveau à la visée) récompense qui le tient ; le parapet le
+    // protège des tirs venus d'en bas. Les arêtes sont mémorisées et posées après les murets.
+    const platEdges=[];
+    STRUCT&&(function plateformes(){
+      const n=1+Math.floor(rnd()*2);   // 1 ou 2 par carte
+      const used=[];
+      for(let k=0;k<n;k++){
+        const cand=cells.filter(c=>!c._route&&!c._barrier&&!c._dio&&c.nb.length>=4
+          && used.every(u=>Math.hypot(c.cx-u.cx,c.cy-u.cy)>W*0.25));
+        if(!cand.length)break;
+        const c0=cand[Math.floor(rnd()*cand.length)];
+        const amas=[c0,...c0.nb.map(id=>cells[id]).filter(v=>!v._route&&!v._barrier&&!v._dio).slice(0,2+Math.floor(rnd()*2))];
+        const h=2+Math.floor(rnd()*2);   // hauteur 2 ou 3
+        const ids=new Set(amas.map(c=>c.id));
+        for(const c of amas){ c.elev=h; c.terr="plain"; c._plat=true; }
+        for(const c of amas) for(const v of c.nb) if(!ids.has(v)) platEdges.push(wkey(c.id,v));   // parapet sur le pourtour
+        used.push(c0);
+      }
+    })();
+
     // ÉTAPE 1 — le COUVERT, agrégé. Un tirage indépendant par cellule donne une densité uniforme
     // (du confetti) : aucune position ne vaut mieux qu'une autre, donc aucune tactique. On seuille
     // un champ de bruit par quantile — densité respectée, mais regroupée en fourrés et clairières.
@@ -1796,6 +1857,7 @@
     walls=new Set(); for(const k of wallSeg.keys()){ const ab=k.split("-").map(Number); if(cells[ab[0]].terr==="wall"||cells[ab[1]].terr==="wall")continue;
       if(cells[ab[0]]._route&&cells[ab[1]]._route)continue;   // pas de muret en travers de la route
       if(rnd()<0.15)walls.add(k); }
+    for(const k of platEdges) if(wallSeg.has(k)) walls.add(k);   // parapets des plateformes
     // graph placement
     const pass=cells.filter(c=>passable(c.id)); if(!pass.length){ triggers=[]; renderTrigList(); refresh(); return null; }
     const anchor=pass.reduce((a,b)=>(b.cx+b.cy)<(a.cx+a.cy)?b:a);   // corner of the island = deployment zone
@@ -1905,6 +1967,7 @@
   { const mt=document.getElementById("mesh-type"), mfr=document.getElementById("mesh-fractal-row");
     const updFr=()=>{ if(mfr)mfr.style.display=(mt&&(mt.value==="hat"||mt.value==="spectre"||mt.value==="pinwheel"))?"":"none"; };   // "Forme fractale" : hat/spectre (île↔plateau) + pinwheel (île flottante ↔ plateau)
     if(mt){ mt.onchange=()=>{updFr();rebuildShape();}; updFr(); }
+    { const bs=document.getElementById("board-shape"); if(bs)bs.onchange=()=>rebuildShape(); }
   }
   { const z=document.getElementById("zauto"); if(z)z.onclick=autoZones; }
   { const bw=document.getElementById("bw"),bh=document.getElementById("bh");
