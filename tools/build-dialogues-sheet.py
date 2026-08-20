@@ -88,22 +88,23 @@ text_tab('Acte 1',a1); text_tab('Acte 2',a2); text_tab('Prototype',root)
 # ---------- 2. triggers de mission ----------
 ws=wb.create_sheet('Triggers')
 title(ws,"Triggers — repliques declenchees en mission",span=10)
-ws.cell(2,1,"Une ligne = un trigger. « conditions » : champs de match, ex. actor=Gizzard ; result=miss ; first=oui. « repliques » : une par ligne, forme « Nom: texte ».").font=MUTE
-r=4; r=heads(ws,r,["mission","on","conditions","repliques","une fois","priorite","id","requiert","interdit","actions"])
+ws.cell(2,1,"Une ligne = UNE REPLIQUE. Plusieurs repliques d un meme trigger partagent son numero « n » ; seule la premiere porte les colonnes de reglage. « conditions » : ex. actor=Gizzard ; result=miss ; first=true.").font=MUTE
+r=4; r=heads(ws,r,["mission","n","on","conditions","qui","replique","une fois","priorite","id","requiert","interdit","actions"])
 def fmt_val(v):
     if isinstance(v,bool): return "true" if v else "false"       # meme ecriture que le JSON du moteur
     if isinstance(v,(dict,list)): return json.dumps(v,ensure_ascii=False)
     return str(v)
 def fmt_match(m):
     return " ; ".join(f"{k}={fmt_val(v)}" for k,v in (m or {}).items())
-def fmt_lines(t):
+def split_lines(t):
+    """-> [(qui, texte), ...] : une replique par element, jamais de saut de ligne en cellule."""
     ls=t.get('lines') or ([t['say']] if t.get('say') else [])
     out=[]
     for l in ls:
-        if isinstance(l,dict): out.append(f"{l.get('who','')}: {l.get('text','')}")
-        elif isinstance(l,list) and len(l)>=2: out.append(f"{l[0]}: {l[1]}")
-        else: out.append(str(l))
-    return "\n".join(out)
+        if isinstance(l,dict): out.append((l.get('who',''), l.get('text','')))
+        elif isinstance(l,list) and len(l)>=2: out.append((str(l[0]), str(l[1])))
+        else: out.append(('', str(l)))
+    return out or [('','')]
 def fmt_actions(t):
     a=[]
     for k in ('wake','open','close','spawn'):
@@ -115,27 +116,35 @@ for path in sorted(glob.glob('missions/*.json'))+sorted(glob.glob('missions-mesh
     except Exception: continue
     if not isinstance(d,dict): continue
     for t in (d.get('triggers') or []):
-        vals=[path, t.get('on',''), fmt_match(t.get('match')), fmt_lines(t),
-              'oui' if t.get('once',True) else 'non', t.get('priority',0),
-              t.get('id',''), t.get('requires',''), t.get('forbids',''), fmt_actions(t)]
-        for i,v in enumerate(vals,1):
-            c=ws.cell(r,i,v if not isinstance(v,(list,dict)) else json.dumps(v,ensure_ascii=False))
-            c.font=BODY; c.border=BOX; c.alignment=WRAP
-            c.fill=FILL_LK if i==1 else FILL_IN
-        ws.row_dimensions[r].height=30; r+=1; n+=1
+        n+=1
+        reps=split_lines(t)
+        for j,(qui,txt) in enumerate(reps):
+            meta = (j==0)
+            vals=[path if meta else '', n, t.get('on','') if meta else '',
+                  fmt_match(t.get('match')) if meta else '', qui, txt,
+                  ('oui' if t.get('once',True) else 'non') if meta else '',
+                  t.get('priority',0) if meta else '',
+                  t.get('id','') if meta else '', t.get('requires','') if meta else '',
+                  t.get('forbids','') if meta else '', fmt_actions(t) if meta else '']
+            for i,v in enumerate(vals,1):
+                c=ws.cell(r,i,v if not isinstance(v,(list,dict)) else json.dumps(v,ensure_ascii=False))
+                c.font=BODY; c.border=BOX; c.alignment=WRAP
+                c.fill=FILL_LK if i in (1,2) else FILL_IN
+                if i==5 and v: c.font=GOLD
+            r+=1
 for k in range(6):
-    for i in range(1,11):
-        c=ws.cell(r,i,''); c.border=BOX; c.fill=FILL_LK if i==1 else FILL_IN
+    for i in range(1,13):
+        c=ws.cell(r,i,''); c.border=BOX; c.fill=FILL_LK if i in (1,2) else FILL_IN
     r+=1
-for col,w in zip("ABCDEFGHIJ",[26,12,34,52,9,9,12,14,14,26]): ws.column_dimensions[col].width=w
+for col,w in zip("ABCDEFGHIJKL",[26,5,12,32,14,58,9,9,12,14,14,24]): ws.column_dimensions[col].width=w
 ws.freeze_panes='A5'
 TRIG_N=n
 
 # ---------- 3. geoscape ----------
 ws=wb.create_sheet('Geoscape')
-title(ws,"Geoscape — messages systeme et narration par acte",span=4)
+title(ws,"Geoscape — messages systeme et narration par acte",span=5)
 ws.cell(2,1,"Le geoscape est PROCEDURAL : la narration y est par ACTE, pas par region nommee.").font=MUTE
-r=4; r=heads(ws,r,["section","cle","texte","note"])
+r=4; r=heads(ws,r,["section","cle","page","texte","note"])
 geo=json.load(open('texts/geoscape.json',encoding='utf-8'))
 def walk(prefix,obj):
     global r
@@ -146,14 +155,24 @@ def walk(prefix,obj):
     elif isinstance(obj,list):
         for i,v in enumerate(obj): walk(prefix+[str(i)],v)
     else:
-        vals=[prefix[0] if prefix else '', ".".join(prefix[1:]), str(obj), '']
-        for i,v in enumerate(vals,1):
-            c=ws.cell(r,i,v); c.font=BODY; c.border=BOX; c.alignment=WRAP
-            c.fill=FILL_IN if i>=3 else FILL_LK
-        r+=1
+        page=1; first=True
+        for line in str(obj).replace('\r','').split('\n'):
+            if line.strip()=='_': page+=1; continue
+            vals=[(prefix[0] if prefix else '') if first else '',
+                  (".".join(prefix[1:])) if first else '', page, line.strip(), '']
+            for i,v in enumerate(vals,1):
+                c=ws.cell(r,i,v); c.font=BODY; c.border=BOX; c.alignment=WRAP
+                c.fill=FILL_IN if i>=3 else FILL_LK
+            r+=1; first=False
+        if first:
+            vals=[prefix[0] if prefix else '', ".".join(prefix[1:]), 1, '', '']
+            for i,v in enumerate(vals,1):
+                c=ws.cell(r,i,v); c.font=BODY; c.border=BOX; c.alignment=WRAP
+                c.fill=FILL_IN if i>=3 else FILL_LK
+            r+=1
 walk([],geo)
 GEO_N=r-5
-for col,w in zip("ABCD",[16,34,86,24]): ws.column_dimensions[col].width=w
+for col,w in zip("ABCDE",[16,30,7,86,22]): ws.column_dimensions[col].width=w
 ws.freeze_panes='A5'
 
 # ---------- REFERENCE ----------

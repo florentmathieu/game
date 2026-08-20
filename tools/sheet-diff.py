@@ -16,6 +16,21 @@ import sys
 F=sys.argv[1] if len(sys.argv)>1 else sys.exit("usage: sheet-diff.py <fichier-resultat-read_file_content.txt>")
 raw = json.load(open(F, encoding="utf-8"))["fileContent"]
 
+def _fix_mojibake(t):
+    """L export Drive decode mal l UTF-8 sur 4 octets : les emoji arrivent en latin-1.
+    On repare uniquement les suites qui redonnent un caractere hors BMP (decodage strict),
+    ce qui laisse intacts les accents et les guillemets francais."""
+    def rep(m):
+        seq = m.group(0)
+        try:
+            out = seq.encode("latin-1").decode("utf-8")
+        except Exception:
+            return seq
+        return out if len(out) == 1 and ord(out) > 0xFFFF else seq
+    return re.sub(r"[\u00c0-\u00f4][\u0080-\u00bf]{1,3}", rep, t)
+
+raw = _fix_mojibake(raw)
+
 def clean(c):
     c = c.strip()
     c = re.sub(r"^\\\[merged\\\]\s*", "", c)

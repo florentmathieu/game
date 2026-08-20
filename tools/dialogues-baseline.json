@@ -1,6 +1,6 @@
 {
  "_source": "tools/build-dialogues-sheet.py",
- "_note": "Reference pour tools/sheet-diff.py (classeur DIALOGUES).",
+ "_note": "Reference pour tools/sheet-diff.py (classeur DIALOGUES). Aucune cellule multi-lignes : l export Drive les ecraserait.",
  "onglets": {
   "INDEX": [
    [
@@ -48,7 +48,7 @@
     "Geoscape",
     "messages systeme + narration par acte",
     "texts/geoscape.json",
-    21,
+    30,
     "a reecrire"
    ],
    [
@@ -3796,13 +3796,15 @@
     "Triggers — repliques declenchees en mission"
    ],
    [
-    "Une ligne = un trigger. « conditions » : champs de match, ex. actor=Gizzard ; result=miss ; first=oui. « repliques » : une par ligne, forme « Nom: texte »."
+    "Une ligne = UNE REPLIQUE. Plusieurs repliques d un meme trigger partagent son numero « n » ; seule la premiere porte les colonnes de reglage. « conditions » : ex. actor=Gizzard ; result=miss ; first=true."
    ],
    [
     "mission",
+    "n",
     "on",
     "conditions",
-    "repliques",
+    "qui",
+    "replique",
     "une fois",
     "priorite",
     "id",
@@ -3812,73 +3814,99 @@
    ],
    [
     "missions/mission-1.json",
+    1,
     "attack",
     "actor=Gizzard ; killed=false ; first=true",
-    "Gizzard: Shit! He's tough!",
+    "Gizzard",
+    "Shit! He's tough!",
     "oui",
     0
    ],
    [
     "missions/mission-1.json",
+    2,
     "cracker",
     "first=true ; enemiesHit=1",
-    "Gizzard: You just hit one of them, you numbskull!",
+    "Gizzard",
+    "You just hit one of them, you numbskull!",
     "oui",
     0
    ],
    [
     "missions/mission-1.json",
+    3,
     "enter",
     "zone=zone 1",
-    "Stiff: Careful. There should be more.",
+    "Stiff",
+    "Careful. There should be more.",
     "oui",
     0
    ],
    [
     "missions/mission-1.json",
+    4,
     "cracker",
     "zone=zone 1 ; first=true ; enemiesHit=2",
-    "Merry: Hit 'em both!\nStiff: I owe you ten, Gizz.",
+    "Merry",
+    "Hit 'em both!",
     "oui",
     0
    ],
    [
+    "",
+    4,
+    "",
+    "",
+    "Stiff",
+    "I owe you ten, Gizz."
+   ],
+   [
     "missions/mission-3.json",
+    5,
     "spotted",
     "pod=0 ; actorTeam=neutral",
-    "Stiff: They're here!",
+    "Stiff",
+    "They're here!",
     "oui",
     0
    ],
    [
     "missions/mission-3.json",
+    6,
     "spotted",
     "pod=1 ; actorTeam=enemy",
-    "Shady: Here we go, you bastards!",
+    "Shady",
+    "Here we go, you bastards!",
     "oui",
     0
    ],
    [
     "missions/mission-3.json",
+    7,
     "spotted",
     "pod=0 ; actorTeam=enemy",
-    "Merry: How many of them are there??",
+    "Merry",
+    "How many of them are there??",
     "oui",
     0
    ],
    [
     "missions-mesh/mission-1.json",
+    8,
     "enter",
     "zone=A",
-    "Gizzard: Wow. Sarge, the ground is weird here.",
+    "Gizzard",
+    "Wow. Sarge, the ground is weird here.",
     "oui",
     0
    ],
    [
     "missions-mesh/mission-1.json",
+    9,
     "attack",
     "actor=Gizzard ; result=hit ; killed=false",
-    "Gizzard: Damn, he's tough!",
+    "Gizzard",
+    "Damn, he's tough!",
     "oui",
     0
    ]
@@ -3893,113 +3921,189 @@
    [
     "section",
     "cle",
+    "page",
     "texte",
     "note"
    ],
    [
     "messages",
     "attack",
+    1,
     "⚠ {region} est attaquée ! Reprends-la avant qu'elle ne tombe — sans elle, la route se coupe."
    ],
    [
     "messages",
     "forge",
+    1,
     "🔨 Forge libérée — toute l'escouade gagne +3 PV et +1 dégât (cumulé : +{thp} PV / +{tdmg} dégâts). En réponse, l'ennemi resserre ses rangs."
    ],
    [
     "messages",
     "prime",
+    1,
     "⏳ Prime express empochée : {reward}."
    ],
    [
     "messages",
     "choose",
+    1,
     "choisis une région — {n} sur le front"
    ],
    [
     "messages",
     "noFront",
+    1,
     "aucune région accessible"
    ],
    [
     "messages",
     "secured",
+    1,
     "région sécurisée — choisis la suite"
    ],
    [
     "messages",
     "lost",
+    1,
     "région perdue — la situation a changé"
    ],
    [
     "messages",
     "actEndWin",
+    1,
     "Région sécurisée. L'acte s'achève."
    ],
    [
     "messages",
     "actEndLoss",
+    1,
     "Région perdue. L'acte s'achève."
    ],
    [
     "messages",
     "clickLocked",
+    1,
     "région coupée du camp — libère d'abord un chemin"
    ],
    [
     "messages",
     "clickCleared",
+    1,
     "région déjà nettoyée"
    ],
    [
     "messages",
     "clickNA",
+    1,
     "région indisponible"
    ],
    [
     "acts",
     "1.arrive",
-    "La Marche de Velhaur s'étend devant vous.\n_\n[... ce qu'on vous a dit que vous veniez faire ...]"
+    1,
+    "La Marche de Velhaur s'étend devant vous."
+   ],
+   [
+    "",
+    "",
+    2,
+    "[... ce qu'on vous a dit que vous veniez faire ...]"
    ],
    [
     "acts",
     "1.forge",
-    "Une vieille forge dort sous la région.\n_\n[... la remettre en marche armerait mieux l'escouade ...]"
+    1,
+    "Une vieille forge dort sous la région."
+   ],
+   [
+    "",
+    "",
+    2,
+    "[... la remettre en marche armerait mieux l'escouade ...]"
    ],
    [
     "acts",
     "1.boss",
-    "Le Bastion verrouille la Marche.\n_\n[... le prendre ouvre la suite ...]"
+    1,
+    "Le Bastion verrouille la Marche."
+   ],
+   [
+    "",
+    "",
+    2,
+    "[... le prendre ouvre la suite ...]"
    ],
    [
     "acts",
     "2.arrive",
-    "La Faille s'ouvre sous le territoire.\n_\n[... la corruption, et ceux qui l'ont choisie ...]"
+    1,
+    "La Faille s'ouvre sous le territoire."
+   ],
+   [
+    "",
+    "",
+    2,
+    "[... la corruption, et ceux qui l'ont choisie ...]"
    ],
    [
     "acts",
     "2.forge",
-    "Une forge engloutie peut encore servir.\n_\n[... à quel prix ...]"
+    1,
+    "Une forge engloutie peut encore servir."
+   ],
+   [
+    "",
+    "",
+    2,
+    "[... à quel prix ...]"
    ],
    [
     "acts",
     "2.boss",
-    "Le Verrou de la Faille barre la route du Cœur.\n_\n[... il faut le briser ...]"
+    1,
+    "Le Verrou de la Faille barre la route du Cœur."
+   ],
+   [
+    "",
+    "",
+    2,
+    "[... il faut le briser ...]"
    ],
    [
     "acts",
     "3.arrive",
-    "Le dernier territoire — là où la Faille bat le plus fort.\n_\n[... presque au Cœur ...]"
+    1,
+    "Le dernier territoire — là où la Faille bat le plus fort."
+   ],
+   [
+    "",
+    "",
+    2,
+    "[... presque au Cœur ...]"
    ],
    [
     "acts",
     "3.forge",
-    "La forge du gouffre, ultime atelier.\n_\n[... un dernier renfort ...]"
+    1,
+    "La forge du gouffre, ultime atelier."
+   ],
+   [
+    "",
+    "",
+    2,
+    "[... un dernier renfort ...]"
    ],
    [
     "acts",
     "3.boss",
-    "Le Cœur de la Faille bat devant vous.\n_\n[... l'étouffer sous l'otataral ...]"
+    1,
+    "Le Cœur de la Faille bat devant vous."
+   ],
+   [
+    "",
+    "",
+    2,
+    "[... l'étouffer sous l'otataral ...]"
    ]
   ]
  }
