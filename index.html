@@ -181,7 +181,7 @@
       <span class="hint" style="flex:1">total enemies = the real dial; empty = based on difficulty</span></div>
     <div class="row"><label style="flex:1">Cover <input id="gen-cover" type="range" min="10" max="50" value="30"></label><span id="gen-coverv">30%</span></div>
     <div class="row"><label style="flex:1">Plateformes <input id="gen-plats" type="range" min="0" max="4" value="2"></label><span id="gen-platsv">2</span>
-      <label style="flex:1">taille <input id="gen-platsize" type="range" min="2" max="9" value="4"></label><span id="gen-platsizev">4</span></div>
+      <label style="flex:1">taille <input id="gen-platsize" type="range" min="2" max="9" value="2"></label><span id="gen-platsizev">2</span></div>
     <div class="row" style="flex-wrap:wrap;gap:8px"><span style="font-size:.85rem">Enemy classes:</span><span id="gen-eclasses" style="display:flex;flex-wrap:wrap;gap:8px"></span></div>
     <div class="row"><button id="gen-mission">🎲 Generate a mission</button></div>
     <div class="hint">Generates shape (island) + elevation/cover + <b>deployment & pods</b> (graph-based placement: pods far from the deployment, spaced out, out of sight). <b>Objective</b> of your choice: elimination, assassination (⊕ target), rescue (hostage at the heart of the pods), defend a VIP / survive N turns, extraction (deep zone). Rerolls from scratch on each click (seed).</div>
@@ -1816,7 +1816,7 @@
       const el=id=>document.getElementById(id);
       const rd=(id,def)=>{ const e=el(id); return e&&e.value!=="" ? +e.value : def; };   // 0 est une valeur valide : pas de || ici
       const n=P.plats!=null?P.plats:rd("gen-plats",2);
-      const taille=P.platSize!=null?P.platSize:rd("gen-platsize",4);
+      const taille=P.platSize!=null?P.platSize:rd("gen-platsize",2);   // petites plateformes par défaut : un promontoire, pas un plateau
       const used=[], platsList=[];
       for(let k=0;k<n;k++){
         const ecart=W*(0.18+0.022*taille);   // plus la plateforme est grande, plus on les espace
