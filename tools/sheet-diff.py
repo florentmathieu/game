@@ -48,7 +48,8 @@ for b in blocks:
     name=title.split("—")[0].strip() if "—" in title else title
     cur[key or name]={"titre":title,"rows":rows}
 
-base_doc=json.load(open("tools/classes-baseline.json",encoding="utf-8"))
+BASE=sys.argv[2] if len(sys.argv)>2 else "tools/classes-baseline.json"   # 2e argument : autre reference (ex. tools/dialogues-baseline.json)
+base_doc=json.load(open(BASE,encoding="utf-8"))
 bt=base_doc["onglets"]
 base={}
 for tab,rows in bt.items():

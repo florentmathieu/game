@@ -1,0 +1,4006 @@
+{
+ "_source": "tools/build-dialogues-sheet.py",
+ "_note": "Reference pour tools/sheet-diff.py (classeur DIALOGUES).",
+ "onglets": {
+  "INDEX": [
+   [
+    "INDEX — ecriture des dialogues"
+   ],
+   [
+    "Pre-rempli depuis le depot. Cellules jaunes = a ecrire. Voir l onglet RÉFÉRENCE pour le format."
+   ],
+   [
+    "onglet",
+    "contenu",
+    "source",
+    "lignes",
+    "etat"
+   ],
+   [
+    "Acte 1",
+    "textes narratifs de l acte 1",
+    "texts/acte1/*.txt",
+    20,
+    "a reecrire"
+   ],
+   [
+    "Acte 2",
+    "textes narratifs de l acte 2",
+    "texts/acte2/*.txt",
+    20,
+    "a reecrire"
+   ],
+   [
+    "Prototype",
+    "anciens textes du prototype (reference de ton)",
+    "texts/*.txt",
+    12,
+    "reference"
+   ],
+   [
+    "Triggers",
+    "repliques declenchees en mission",
+    "missions/*.json",
+    9,
+    "a etoffer"
+   ],
+   [
+    "Geoscape",
+    "messages systeme + narration par acte",
+    "texts/geoscape.json",
+    21,
+    "a reecrire"
+   ],
+   [
+    "Les fichiers .txt gardent leurs briefs en commentaire (lignes « # ») : ils indiquent role narratif, beat et persos suggeres."
+   ]
+  ],
+  "RÉFÉRENCE": [
+   [
+    "RÉFÉRENCE — format du lecteur et evenements disponibles"
+   ],
+   [
+    "FORMAT DU LECTEUR DE TEXTE"
+   ],
+   [
+    "colonne « page »",
+    "Quand le numero augmente, le jeu passe a la page suivante (equivaut a une ligne « _ » dans le .txt)."
+   ],
+   [
+    "colonne « qui »",
+    "Un nom -> la replique s affiche avec le nom en gras dore. Vide -> texte de narration. « # » -> commentaire de brief, jamais joue."
+   ],
+   [
+    "texte « … »",
+    "Page d attente / silence, sautable par le joueur."
+   ],
+   [
+    "[...]",
+    "Marqueur d ecriture : passage a remplacer."
+   ],
+   [
+    "EVENEMENTS DE TRIGGER (colonne « on ») ET LEUR CONTEXTE"
+   ],
+   [
+    "on",
+    "champs utilisables dans « conditions »"
+   ],
+   [
+    "start",
+    "(aucun)"
+   ],
+   [
+    "turn",
+    "turn (numero)"
+   ],
+   [
+    "attack",
+    "actor, target, weapon, result (hit/miss/blocked), killed, dmg, reaction, first, actorTeam"
+   ],
+   [
+    "kill",
+    "actor, target, weapon"
+   ],
+   [
+    "wounded",
+    "target, by, hp, maxHp, hpPct (0-100), killed"
+   ],
+   [
+    "cracker",
+    "actor, enemiesHit, alliesHit, killed, first"
+   ],
+   [
+    "friendlyfire",
+    "actor, target, targetTeam, weapon, dmg, killed"
+   ],
+   [
+    "move",
+    "actor, col, row, steps"
+   ],
+   [
+    "enter",
+    "actor, zone, col, row"
+   ],
+   [
+    "spotted",
+    "pod, actorTeam (enemy/neutral), by (sight/noise)"
+   ],
+   [
+    "discovered",
+    "pod, actorTeam"
+   ],
+   [
+    "win / lose",
+    "(fin de partie)"
+   ],
+   [
+    "ACTIONS POSSIBLES (colonne « actions »)"
+   ],
+   [
+    "wake",
+    "reveille un pod : 0, 1, … ou \"all\""
+   ],
+   [
+    "open / close",
+    "ouvre ou ferme un passage : nom de zone"
+   ],
+   [
+    "spawn",
+    "renforts : [{\"cls\":\"brute\",\"team\":\"enemy\",\"col\":8,\"row\":2}]"
+   ],
+   [
+    "REGLES A CONNAITRE"
+   ],
+   [
+    "• Ne pas renommer les en-tetes de colonnes : c est ce qui permet de relire le classeur."
+   ],
+   [
+    "• Ne pas modifier la colonne « fichier » : elle dit dans quel .txt la ligne sera reecrite."
+   ],
+   [
+    "• Une ligne « # » est un brief d ecriture : elle n est jamais jouee, garde-la ou supprime-la."
+   ],
+   [
+    "• Cellules jaunes = a ecrire. Cellules grises = structure."
+   ],
+   [
+    "• Les repliques d un trigger : une par ligne dans la cellule, forme « Nom: texte »."
+   ],
+   [
+    "• PIEGE FR : le moteur lit toute ligne « Mot: texte » (nom de 1 a 18 signes) comme une REPLIQUE. Donc « Resolution : on etouffe… » affiche « Resolution » en nom dore. Pour de la prose, evite les deux-points apres un mot court en debut de ligne."
+   ]
+  ],
+  "Acte 1": [
+   [
+    "Acte 1 — textes narratifs"
+   ],
+   [
+    "Une ligne = une ligne du fichier. « page » : incremente = saut de page (« _»). « qui » : nom affiche en gras dore ; « # » = commentaire de brief, jamais joue. Texte « … » = page d attente."
+   ],
+   [
+    "fichier",
+    "page",
+    "qui",
+    "texte",
+    "note"
+   ],
+   [
+    "texts/acte1/00-ouverture.txt"
+   ],
+   [
+    "",
+    1,
+    "#",
+    "──────────────────────────────────────────────────────────"
+   ],
+   [
+    "",
+    1,
+    "#",
+    "OUVERTURE — Acte 1"
+   ],
+   [
+    "",
+    1,
+    "#",
+    "Acte 1 — La Marche de Velhaur"
+   ],
+   [
+    "",
+    1,
+    "#",
+    "RÔLE NARRATIF : Arrivée sur la Marche. L'ordre de mission officiel (le mensonge)."
+   ],
+   [
+    "",
+    1,
+    "#",
+    "ALLÉGORIE : Tout commence par un récit rassurant de l'Empire."
+   ],
+   [
+    "",
+    1,
+    "#",
+    "PERSOS (suggestion) : Stiff, Gizzard, Merry"
+   ],
+   [
+    "",
+    1,
+    "#",
+    "FORMAT : \"_\" seul sur une ligne = nouvelle page · \"Nom:\" = réplique (gras doré) · \"…\" = page d'attente · \"[...]\" à remplacer"
+   ],
+   [
+    "",
+    1,
+    "#",
+    "──────────────────────────────────────────────────────────"
+   ],
+   [
+    "",
+    1,
+    "",
+    "[... la Marche de Velhaur, vue de loin ...]"
+   ],
+   [
+    "",
+    2,
+    "",
+    "…"
+   ],
+   [
+    "",
+    3,
+    "",
+    "[... ce qu'on leur a dit qu'ils venaient faire ...]"
+   ],
+   [
+    "texts/acte1/01-prologue-debut.txt"
+   ],
+   [
+    "",
+    1,
+    "#",
+    "──────────────────────────────────────────────────────────"
+   ],
+   [
+    "",
+    1,
+    "#",
+    "PROLOGUE — début (mission d'intro)"
+   ],
+   [
+    "",
+    1,
+    "#",
+    "Acte 1 — La Marche de Velhaur"
+   ],
+   [
+    "",
+    1,
+    "#",
+    "RÔLE NARRATIF : Mission tutoriel. Tout semble normal."
+   ],
+   [
+    "",
+    1,
+    "#",
+    "PERSOS (suggestion) : Stiff, Gizzard, Merry"
+   ],
+   [
+    "",
+    1,
+    "#",
+    "FORMAT : \"_\" seul sur une ligne = nouvelle page · \"Nom:\" = réplique (gras doré) · \"…\" = page d'attente · \"[...]\" à remplacer"
+   ],
+   [
+    "",
+    1,
+    "#",
+    "──────────────────────────────────────────────────────────"
+   ],
+   [
+    "",
+    1,
+    "",
+    "[... réplique d'ouverture ...]"
+   ],
+   [
+    "",
+    2,
+    "",
+    "…"
+   ],
+   [
+    "",
+    3,
+    "",
+    "[... mise en place de la mission ...]"
+   ],
+   [
+    "texts/acte1/01-prologue-fin.txt"
+   ],
+   [
+    "",
+    1,
+    "#",
+    "──────────────────────────────────────────────────────────"
+   ],
+   [
+    "",
+    1,
+    "#",
+    "PROLOGUE — fin"
+   ],
+   [
+    "",
+    1,
+    "#",
+    "Acte 1 — La Marche de Velhaur"
+   ],
+   [
+    "",
+    1,
+    "#",
+    "RÔLE NARRATIF : Première fissure dans le « normal »."
+   ],
+   [
+    "",
+    1,
+    "#",
+    "PERSOS (suggestion) : Stiff, Gizzard, Merry"
+   ],
+   [
+    "",
+    1,
+    "#",
+    "FORMAT : \"_\" seul sur une ligne = nouvelle page · \"Nom:\" = réplique (gras doré) · \"…\" = page d'attente · \"[...]\" à remplacer"
+   ],
+   [
+    "",
+    1,
+    "#",
+    "──────────────────────────────────────────────────────────"
+   ],
+   [
+    "",
+    1,
+    "",
+    "[... réaction à chaud après la mission ...]"
+   ],
+   [
+    "",
+    2,
+    "",
+    "…"
+   ],
+   [
+    "",
+    3,
+    "",
+    "[... ce que ça change / ce qu'on apprend ...]"
+   ],
+   [
+    "texts/acte1/10-crete-venteuse-debut.txt"
+   ],
+   [
+    "",
+    1,
+    "#",
+    "──────────────────────────────────────────────────────────"
+   ],
+   [
+    "",
+    1,
+    "#",
+    "Crête venteuse — DÉBUT"
+   ],
+   [
+    "",
+    1,
+    "#",
+    "Acte 1 — La Marche de Velhaur · difficulté 1★"
+   ],
+   [
+    "",
+    1,
+    "#",
+    "RÔLE NARRATIF : Première sortie. Le mensonge officiel : « simple nettoyage »."
+   ],
+   [
+    "",
+    1,
+    "#",
+    "ALLÉGORIE : L'ordre de mission rassurant qui masque la nature de la Faille."
+   ],
+   [
+    "",
+    1,
+    "#",
+    "PERSOS (suggestion) : Stiff, Gizzard, Merry"
+   ],
+   [
+    "",
+    1,
+    "#",
+    "FORMAT : \"_\" seul sur une ligne = nouvelle page · \"Nom:\" = réplique (gras doré) · \"…\" = page d'attente · \"[...]\" à remplacer"
+   ],
+   [
+    "",
+    1,
+    "#",
+    "──────────────────────────────────────────────────────────"
+   ],
+   [
+    "",
+    1,
+    "",
+    "[... réplique d'ouverture ...]"
+   ],
+   [
+    "",
+    2,
+    "",
+    "…"
+   ],
+   [
+    "",
+    3,
+    "",
+    "[... mise en place de la mission ...]"
+   ],
+   [
+    "texts/acte1/10-crete-venteuse-fin.txt"
+   ],
+   [
+    "",
+    1,
+    "#",
+    "──────────────────────────────────────────────────────────"
+   ],
+   [
+    "",
+    1,
+    "#",
+    "Crête venteuse — FIN"
+   ],
+   [
+    "",
+    1,
+    "#",
+    "Acte 1 — La Marche de Velhaur · difficulté 1★"
+   ],
+   [
+    "",
+    1,
+    "#",
+    "RÔLE NARRATIF : Première sortie. Le mensonge officiel : « simple nettoyage »."
+   ],
+   [
+    "",
+    1,
+    "#",
+    "ALLÉGORIE : L'ordre de mission rassurant qui masque la nature de la Faille."
+   ],
+   [
+    "",
+    1,
+    "#",
+    "PERSOS (suggestion) : Stiff, Gizzard, Merry"
+   ],
+   [
+    "",
+    1,
+    "#",
+    "FORMAT : \"_\" seul sur une ligne = nouvelle page · \"Nom:\" = réplique (gras doré) · \"…\" = page d'attente · \"[...]\" à remplacer"
+   ],
+   [
+    "",
+    1,
+    "#",
+    "──────────────────────────────────────────────────────────"
+   ],
+   [
+    "",
+    1,
+    "",
+    "[... réaction à chaud après la mission ...]"
+   ],
+   [
+    "",
+    2,
+    "",
+    "…"
+   ],
+   [
+    "",
+    3,
+    "",
+    "[... ce que ça change / ce qu'on apprend ...]"
+   ],
+   [
+    "texts/acte1/11-carriere-noyee-debut.txt"
+   ],
+   [
+    "",
+    1,
+    "#",
+    "──────────────────────────────────────────────────────────"
+   ],
+   [
+    "",
+    1,
+    "#",
+    "Carrière noyée — DÉBUT"
+   ],
+   [
+    "",
+    1,
+    "#",
+    "Acte 1 — La Marche de Velhaur · difficulté 1★"
+   ],
+   [
+    "",
+    1,
+    "#",
+    "RÔLE NARRATIF : Mission facile. Premiers signes que le terrain n'est pas normal."
+   ],
+   [
+    "",
+    1,
+    "#",
+    "ALLÉGORIE : On exploitait ce lieu : l'industrie impériale a laissé ses traces."
+   ],
+   [
+    "",
+    1,
+    "#",
+    "PERSOS (suggestion) : Escouade de base"
+   ],
+   [
+    "",
+    1,
+    "#",
+    "FORMAT : \"_\" seul sur une ligne = nouvelle page · \"Nom:\" = réplique (gras doré) · \"…\" = page d'attente · \"[...]\" à remplacer"
+   ],
+   [
+    "",
+    1,
+    "#",
+    "──────────────────────────────────────────────────────────"
+   ],
+   [
+    "",
+    1,
+    "",
+    "[... réplique d'ouverture ...]"
+   ],
+   [
+    "",
+    2,
+    "",
+    "…"
+   ],
+   [
+    "",
+    3,
+    "",
+    "[... mise en place de la mission ...]"
+   ],
+   [
+    "texts/acte1/11-carriere-noyee-fin.txt"
+   ],
+   [
+    "",
+    1,
+    "#",
+    "──────────────────────────────────────────────────────────"
+   ],
+   [
+    "",
+    1,
+    "#",
+    "Carrière noyée — FIN"
+   ],
+   [
+    "",
+    1,
+    "#",
+    "Acte 1 — La Marche de Velhaur · difficulté 1★"
+   ],
+   [
+    "",
+    1,
+    "#",
+    "RÔLE NARRATIF : Mission facile. Premiers signes que le terrain n'est pas normal."
+   ],
+   [
+    "",
+    1,
+    "#",
+    "ALLÉGORIE : On exploitait ce lieu : l'industrie impériale a laissé ses traces."
+   ],
+   [
+    "",
+    1,
+    "#",
+    "PERSOS (suggestion) : Escouade de base"
+   ],
+   [
+    "",
+    1,
+    "#",
+    "FORMAT : \"_\" seul sur une ligne = nouvelle page · \"Nom:\" = réplique (gras doré) · \"…\" = page d'attente · \"[...]\" à remplacer"
+   ],
+   [
+    "",
+    1,
+    "#",
+    "──────────────────────────────────────────────────────────"
+   ],
+   [
+    "",
+    1,
+    "",
+    "[... réaction à chaud après la mission ...]"
+   ],
+   [
+    "",
+    2,
+    "",
+    "…"
+   ],
+   [
+    "",
+    3,
+    "",
+    "[... ce que ça change / ce qu'on apprend ...]"
+   ],
+   [
+    "texts/acte1/20-tourbiere-debut.txt"
+   ],
+   [
+    "",
+    1,
+    "#",
+    "──────────────────────────────────────────────────────────"
+   ],
+   [
+    "",
+    1,
+    "#",
+    "Tourbière — DÉBUT"
+   ],
+   [
+    "",
+    1,
+    "#",
+    "Acte 1 — La Marche de Velhaur · difficulté 2★"
+   ],
+   [
+    "",
+    1,
+    "#",
+    "RÔLE NARRATIF : Démo d'objectif bonus (mini-mission enchaînée → Bois brûlé)."
+   ],
+   [
+    "",
+    1,
+    "#",
+    "ALLÉGORIE : La prime qui appâte : pousser plus loin pour le gain."
+   ],
+   [
+    "",
+    1,
+    "#",
+    "PERSOS (suggestion) : Escouade"
+   ],
+   [
+    "",
+    1,
+    "#",
+    "NOTE : Cette mission propose une mini-mission bonus."
+   ],
+   [
+    "",
+    1,
+    "#",
+    "FORMAT : \"_\" seul sur une ligne = nouvelle page · \"Nom:\" = réplique (gras doré) · \"…\" = page d'attente · \"[...]\" à remplacer"
+   ],
+   [
+    "",
+    1,
+    "#",
+    "──────────────────────────────────────────────────────────"
+   ],
+   [
+    "",
+    1,
+    "",
+    "[... réplique d'ouverture ...]"
+   ],
+   [
+    "",
+    2,
+    "",
+    "…"
+   ],
+   [
+    "",
+    3,
+    "",
+    "[... mise en place de la mission ...]"
+   ],
+   [
+    "texts/acte1/20-tourbiere-fin.txt"
+   ],
+   [
+    "",
+    1,
+    "#",
+    "──────────────────────────────────────────────────────────"
+   ],
+   [
+    "",
+    1,
+    "#",
+    "Tourbière — FIN"
+   ],
+   [
+    "",
+    1,
+    "#",
+    "Acte 1 — La Marche de Velhaur · difficulté 2★"
+   ],
+   [
+    "",
+    1,
+    "#",
+    "RÔLE NARRATIF : Démo d'objectif bonus (mini-mission enchaînée → Bois brûlé)."
+   ],
+   [
+    "",
+    1,
+    "#",
+    "ALLÉGORIE : La prime qui appâte : pousser plus loin pour le gain."
+   ],
+   [
+    "",
+    1,
+    "#",
+    "PERSOS (suggestion) : Escouade"
+   ],
+   [
+    "",
+    1,
+    "#",
+    "NOTE : Cette mission propose une mini-mission bonus."
+   ],
+   [
+    "",
+    1,
+    "#",
+    "FORMAT : \"_\" seul sur une ligne = nouvelle page · \"Nom:\" = réplique (gras doré) · \"…\" = page d'attente · \"[...]\" à remplacer"
+   ],
+   [
+    "",
+    1,
+    "#",
+    "──────────────────────────────────────────────────────────"
+   ],
+   [
+    "",
+    1,
+    "",
+    "[... réaction à chaud après la mission ...]"
+   ],
+   [
+    "",
+    2,
+    "",
+    "…"
+   ],
+   [
+    "",
+    3,
+    "",
+    "[... ce que ça change / ce qu'on apprend ...]"
+   ],
+   [
+    "texts/acte1/21-gue-de-l-aval-debut.txt"
+   ],
+   [
+    "",
+    1,
+    "#",
+    "──────────────────────────────────────────────────────────"
+   ],
+   [
+    "",
+    1,
+    "#",
+    "Gué de l'aval — DÉBUT"
+   ],
+   [
+    "",
+    1,
+    "#",
+    "Acte 1 — La Marche de Velhaur · difficulté 2★"
+   ],
+   [
+    "",
+    1,
+    "#",
+    "RÔLE NARRATIF : Le doute commence à monter dans l'escouade."
+   ],
+   [
+    "",
+    1,
+    "#",
+    "ALLÉGORIE : Premiers « tournés » rencontrés : ils ne fuient pas, ils servent."
+   ],
+   [
+    "",
+    1,
+    "#",
+    "PERSOS (suggestion) : Merry, Gizzard"
+   ],
+   [
+    "",
+    1,
+    "#",
+    "FORMAT : \"_\" seul sur une ligne = nouvelle page · \"Nom:\" = réplique (gras doré) · \"…\" = page d'attente · \"[...]\" à remplacer"
+   ],
+   [
+    "",
+    1,
+    "#",
+    "──────────────────────────────────────────────────────────"
+   ],
+   [
+    "",
+    1,
+    "",
+    "[... réplique d'ouverture ...]"
+   ],
+   [
+    "",
+    2,
+    "",
+    "…"
+   ],
+   [
+    "",
+    3,
+    "",
+    "[... mise en place de la mission ...]"
+   ],
+   [
+    "texts/acte1/21-gue-de-l-aval-fin.txt"
+   ],
+   [
+    "",
+    1,
+    "#",
+    "──────────────────────────────────────────────────────────"
+   ],
+   [
+    "",
+    1,
+    "#",
+    "Gué de l'aval — FIN"
+   ],
+   [
+    "",
+    1,
+    "#",
+    "Acte 1 — La Marche de Velhaur · difficulté 2★"
+   ],
+   [
+    "",
+    1,
+    "#",
+    "RÔLE NARRATIF : Le doute commence à monter dans l'escouade."
+   ],
+   [
+    "",
+    1,
+    "#",
+    "ALLÉGORIE : Premiers « tournés » rencontrés : ils ne fuient pas, ils servent."
+   ],
+   [
+    "",
+    1,
+    "#",
+    "PERSOS (suggestion) : Merry, Gizzard"
+   ],
+   [
+    "",
+    1,
+    "#",
+    "FORMAT : \"_\" seul sur une ligne = nouvelle page · \"Nom:\" = réplique (gras doré) · \"…\" = page d'attente · \"[...]\" à remplacer"
+   ],
+   [
+    "",
+    1,
+    "#",
+    "──────────────────────────────────────────────────────────"
+   ],
+   [
+    "",
+    1,
+    "",
+    "[... réaction à chaud après la mission ...]"
+   ],
+   [
+    "",
+    2,
+    "",
+    "…"
+   ],
+   [
+    "",
+    3,
+    "",
+    "[... ce que ça change / ce qu'on apprend ...]"
+   ],
+   [
+    "texts/acte1/22-bois-brule-debut.txt"
+   ],
+   [
+    "",
+    1,
+    "#",
+    "──────────────────────────────────────────────────────────"
+   ],
+   [
+    "",
+    1,
+    "#",
+    "Bois brûlé — DÉBUT"
+   ],
+   [
+    "",
+    1,
+    "#",
+    "Acte 1 — La Marche de Velhaur · difficulté 2★"
+   ],
+   [
+    "",
+    1,
+    "#",
+    "RÔLE NARRATIF : Conséquence d'un revers / cible de la mini-mission Tourbière."
+   ],
+   [
+    "",
+    1,
+    "#",
+    "ALLÉGORIE : Ce qu'on a brûlé pour « assainir » ne revient pas."
+   ],
+   [
+    "",
+    1,
+    "#",
+    "PERSOS (suggestion) : Escouade"
+   ],
+   [
+    "",
+    1,
+    "#",
+    "FORMAT : \"_\" seul sur une ligne = nouvelle page · \"Nom:\" = réplique (gras doré) · \"…\" = page d'attente · \"[...]\" à remplacer"
+   ],
+   [
+    "",
+    1,
+    "#",
+    "──────────────────────────────────────────────────────────"
+   ],
+   [
+    "",
+    1,
+    "",
+    "[... réplique d'ouverture ...]"
+   ],
+   [
+    "",
+    2,
+    "",
+    "…"
+   ],
+   [
+    "",
+    3,
+    "",
+    "[... mise en place de la mission ...]"
+   ],
+   [
+    "texts/acte1/22-bois-brule-fin.txt"
+   ],
+   [
+    "",
+    1,
+    "#",
+    "──────────────────────────────────────────────────────────"
+   ],
+   [
+    "",
+    1,
+    "#",
+    "Bois brûlé — FIN"
+   ],
+   [
+    "",
+    1,
+    "#",
+    "Acte 1 — La Marche de Velhaur · difficulté 2★"
+   ],
+   [
+    "",
+    1,
+    "#",
+    "RÔLE NARRATIF : Conséquence d'un revers / cible de la mini-mission Tourbière."
+   ],
+   [
+    "",
+    1,
+    "#",
+    "ALLÉGORIE : Ce qu'on a brûlé pour « assainir » ne revient pas."
+   ],
+   [
+    "",
+    1,
+    "#",
+    "PERSOS (suggestion) : Escouade"
+   ],
+   [
+    "",
+    1,
+    "#",
+    "FORMAT : \"_\" seul sur une ligne = nouvelle page · \"Nom:\" = réplique (gras doré) · \"…\" = page d'attente · \"[...]\" à remplacer"
+   ],
+   [
+    "",
+    1,
+    "#",
+    "──────────────────────────────────────────────────────────"
+   ],
+   [
+    "",
+    1,
+    "",
+    "[... réaction à chaud après la mission ...]"
+   ],
+   [
+    "",
+    2,
+    "",
+    "…"
+   ],
+   [
+    "",
+    3,
+    "",
+    "[... ce que ça change / ce qu'on apprend ...]"
+   ],
+   [
+    "texts/acte1/30-hameau-muet-debut.txt"
+   ],
+   [
+    "",
+    1,
+    "#",
+    "──────────────────────────────────────────────────────────"
+   ],
+   [
+    "",
+    1,
+    "#",
+    "Hameau muet — DÉBUT"
+   ],
+   [
+    "",
+    1,
+    "#",
+    "Acte 1 — La Marche de Velhaur · difficulté 3★"
+   ],
+   [
+    "",
+    1,
+    "#",
+    "RÔLE NARRATIF : PIVOT : on libère Sorne, cadre mage complice du Forage."
+   ],
+   [
+    "",
+    1,
+    "#",
+    "ALLÉGORIE : La vérité : la Faille est la faute de l'Empire, et certains l'ont servie sciemment."
+   ],
+   [
+    "",
+    1,
+    "#",
+    "PERSOS (suggestion) : Sorne (rencontre + recrutement), Stiff"
+   ],
+   [
+    "",
+    1,
+    "#",
+    "NOTE : Région avec objectif de pillage + recrutement de Sorne (event geoscape)."
+   ],
+   [
+    "",
+    1,
+    "#",
+    "FORMAT : \"_\" seul sur une ligne = nouvelle page · \"Nom:\" = réplique (gras doré) · \"…\" = page d'attente · \"[...]\" à remplacer"
+   ],
+   [
+    "",
+    1,
+    "#",
+    "──────────────────────────────────────────────────────────"
+   ],
+   [
+    "",
+    1,
+    "",
+    "[... réplique d'ouverture ...]"
+   ],
+   [
+    "",
+    2,
+    "",
+    "…"
+   ],
+   [
+    "",
+    3,
+    "",
+    "[... mise en place de la mission ...]"
+   ],
+   [
+    "texts/acte1/30-hameau-muet-fin.txt"
+   ],
+   [
+    "",
+    1,
+    "#",
+    "──────────────────────────────────────────────────────────"
+   ],
+   [
+    "",
+    1,
+    "#",
+    "Hameau muet — FIN"
+   ],
+   [
+    "",
+    1,
+    "#",
+    "Acte 1 — La Marche de Velhaur · difficulté 3★"
+   ],
+   [
+    "",
+    1,
+    "#",
+    "RÔLE NARRATIF : PIVOT : on libère Sorne, cadre mage complice du Forage."
+   ],
+   [
+    "",
+    1,
+    "#",
+    "ALLÉGORIE : La vérité : la Faille est la faute de l'Empire, et certains l'ont servie sciemment."
+   ],
+   [
+    "",
+    1,
+    "#",
+    "PERSOS (suggestion) : Sorne (rencontre + recrutement), Stiff"
+   ],
+   [
+    "",
+    1,
+    "#",
+    "NOTE : Région avec objectif de pillage + recrutement de Sorne (event geoscape)."
+   ],
+   [
+    "",
+    1,
+    "#",
+    "FORMAT : \"_\" seul sur une ligne = nouvelle page · \"Nom:\" = réplique (gras doré) · \"…\" = page d'attente · \"[...]\" à remplacer"
+   ],
+   [
+    "",
+    1,
+    "#",
+    "──────────────────────────────────────────────────────────"
+   ],
+   [
+    "",
+    1,
+    "",
+    "[... réaction à chaud après la mission ...]"
+   ],
+   [
+    "",
+    2,
+    "",
+    "…"
+   ],
+   [
+    "",
+    3,
+    "",
+    "[... ce que ça change / ce qu'on apprend ...]"
+   ],
+   [
+    "texts/acte1/40-vieux-moulin-debut.txt"
+   ],
+   [
+    "",
+    1,
+    "#",
+    "──────────────────────────────────────────────────────────"
+   ],
+   [
+    "",
+    1,
+    "#",
+    "Vieux moulin — DÉBUT"
+   ],
+   [
+    "",
+    1,
+    "#",
+    "Acte 1 — La Marche de Velhaur · difficulté 4★"
+   ],
+   [
+    "",
+    1,
+    "#",
+    "RÔLE NARRATIF : Mission dure. Objectif bonus de cible de valeur."
+   ],
+   [
+    "",
+    1,
+    "#",
+    "ALLÉGORIE : La prime corrompue : un gain qui coûte plus qu'il ne rapporte."
+   ],
+   [
+    "",
+    1,
+    "#",
+    "PERSOS (suggestion) : Escouade aguerrie"
+   ],
+   [
+    "",
+    1,
+    "#",
+    "FORMAT : \"_\" seul sur une ligne = nouvelle page · \"Nom:\" = réplique (gras doré) · \"…\" = page d'attente · \"[...]\" à remplacer"
+   ],
+   [
+    "",
+    1,
+    "#",
+    "──────────────────────────────────────────────────────────"
+   ],
+   [
+    "",
+    1,
+    "",
+    "[... réplique d'ouverture ...]"
+   ],
+   [
+    "",
+    2,
+    "",
+    "…"
+   ],
+   [
+    "",
+    3,
+    "",
+    "[... mise en place de la mission ...]"
+   ],
+   [
+    "texts/acte1/40-vieux-moulin-fin.txt"
+   ],
+   [
+    "",
+    1,
+    "#",
+    "──────────────────────────────────────────────────────────"
+   ],
+   [
+    "",
+    1,
+    "#",
+    "Vieux moulin — FIN"
+   ],
+   [
+    "",
+    1,
+    "#",
+    "Acte 1 — La Marche de Velhaur · difficulté 4★"
+   ],
+   [
+    "",
+    1,
+    "#",
+    "RÔLE NARRATIF : Mission dure. Objectif bonus de cible de valeur."
+   ],
+   [
+    "",
+    1,
+    "#",
+    "ALLÉGORIE : La prime corrompue : un gain qui coûte plus qu'il ne rapporte."
+   ],
+   [
+    "",
+    1,
+    "#",
+    "PERSOS (suggestion) : Escouade aguerrie"
+   ],
+   [
+    "",
+    1,
+    "#",
+    "FORMAT : \"_\" seul sur une ligne = nouvelle page · \"Nom:\" = réplique (gras doré) · \"…\" = page d'attente · \"[...]\" à remplacer"
+   ],
+   [
+    "",
+    1,
+    "#",
+    "──────────────────────────────────────────────────────────"
+   ],
+   [
+    "",
+    1,
+    "",
+    "[... réaction à chaud après la mission ...]"
+   ],
+   [
+    "",
+    2,
+    "",
+    "…"
+   ],
+   [
+    "",
+    3,
+    "",
+    "[... ce que ça change / ce qu'on apprend ...]"
+   ],
+   [
+    "texts/acte1/50-bastion-debut.txt"
+   ],
+   [
+    "",
+    1,
+    "#",
+    "──────────────────────────────────────────────────────────"
+   ],
+   [
+    "",
+    1,
+    "#",
+    "Bastion — DÉBUT"
+   ],
+   [
+    "",
+    1,
+    "#",
+    "Acte 1 — La Marche de Velhaur · difficulté 5★"
+   ],
+   [
+    "",
+    1,
+    "#",
+    "RÔLE NARRATIF : Verrou de l'acte. Le prendre ouvre la suite."
+   ],
+   [
+    "",
+    1,
+    "#",
+    "ALLÉGORIE : Le poste de commandement de l'exploitation : la machine, pas un monstre."
+   ],
+   [
+    "",
+    1,
+    "#",
+    "PERSOS (suggestion) : Escouade au complet"
+   ],
+   [
+    "",
+    1,
+    "#",
+    "FORMAT : \"_\" seul sur une ligne = nouvelle page · \"Nom:\" = réplique (gras doré) · \"…\" = page d'attente · \"[...]\" à remplacer"
+   ],
+   [
+    "",
+    1,
+    "#",
+    "──────────────────────────────────────────────────────────"
+   ],
+   [
+    "",
+    1,
+    "",
+    "[... réplique d'ouverture ...]"
+   ],
+   [
+    "",
+    2,
+    "",
+    "…"
+   ],
+   [
+    "",
+    3,
+    "",
+    "[... mise en place de la mission ...]"
+   ],
+   [
+    "texts/acte1/50-bastion-fin.txt"
+   ],
+   [
+    "",
+    1,
+    "#",
+    "──────────────────────────────────────────────────────────"
+   ],
+   [
+    "",
+    1,
+    "#",
+    "Bastion — FIN"
+   ],
+   [
+    "",
+    1,
+    "#",
+    "Acte 1 — La Marche de Velhaur · difficulté 5★"
+   ],
+   [
+    "",
+    1,
+    "#",
+    "RÔLE NARRATIF : Verrou de l'acte. Le prendre ouvre la suite."
+   ],
+   [
+    "",
+    1,
+    "#",
+    "ALLÉGORIE : Le poste de commandement de l'exploitation : la machine, pas un monstre."
+   ],
+   [
+    "",
+    1,
+    "#",
+    "PERSOS (suggestion) : Escouade au complet"
+   ],
+   [
+    "",
+    1,
+    "#",
+    "FORMAT : \"_\" seul sur une ligne = nouvelle page · \"Nom:\" = réplique (gras doré) · \"…\" = page d'attente · \"[...]\" à remplacer"
+   ],
+   [
+    "",
+    1,
+    "#",
+    "──────────────────────────────────────────────────────────"
+   ],
+   [
+    "",
+    1,
+    "",
+    "[... réaction à chaud après la mission ...]"
+   ],
+   [
+    "",
+    2,
+    "",
+    "…"
+   ],
+   [
+    "",
+    3,
+    "",
+    "[... ce que ça change / ce qu'on apprend ...]"
+   ],
+   [
+    "texts/acte1/99-vers-acte2.txt"
+   ],
+   [
+    "",
+    1,
+    "#",
+    "──────────────────────────────────────────────────────────"
+   ],
+   [
+    "",
+    1,
+    "#",
+    "TRANSITION — vers l'Acte 2"
+   ],
+   [
+    "",
+    1,
+    "#",
+    "Acte 1 — La Marche de Velhaur"
+   ],
+   [
+    "",
+    1,
+    "#",
+    "RÔLE NARRATIF : Bastion pris. On descend vers la Faille. Recrutement de Kael (garde) et Wren (assassin)."
+   ],
+   [
+    "",
+    1,
+    "#",
+    "ALLÉGORIE : On s'enfonce volontairement plus près de la distorsion."
+   ],
+   [
+    "",
+    1,
+    "#",
+    "PERSOS (suggestion) : Kael, Wren, Stiff"
+   ],
+   [
+    "",
+    1,
+    "#",
+    "FORMAT : \"_\" seul sur une ligne = nouvelle page · \"Nom:\" = réplique (gras doré) · \"…\" = page d'attente · \"[...]\" à remplacer"
+   ],
+   [
+    "",
+    1,
+    "#",
+    "──────────────────────────────────────────────────────────"
+   ],
+   [
+    "",
+    1,
+    "",
+    "[... après Bastion, la décision de descendre ...]"
+   ],
+   [
+    "",
+    2,
+    "",
+    "…"
+   ],
+   [
+    "",
+    3,
+    "",
+    "[... Kael et Wren rejoignent l'escouade ...]"
+   ]
+  ],
+  "Acte 2": [
+   [
+    "Acte 2 — textes narratifs"
+   ],
+   [
+    "Une ligne = une ligne du fichier. « page » : incremente = saut de page (« _»). « qui » : nom affiche en gras dore ; « # » = commentaire de brief, jamais joue. Texte « … » = page d attente."
+   ],
+   [
+    "fichier",
+    "page",
+    "qui",
+    "texte",
+    "note"
+   ],
+   [
+    "texts/acte2/00-avant-poste.txt"
+   ],
+   [
+    "",
+    1,
+    "#",
+    "──────────────────────────────────────────────────────────"
+   ],
+   [
+    "",
+    1,
+    "#",
+    "ARRIVÉE — Acte 2 (Avant-poste)"
+   ],
+   [
+    "",
+    1,
+    "#",
+    "Acte 2 — La Faille"
+   ],
+   [
+    "",
+    1,
+    "#",
+    "RÔLE NARRATIF : On établit l'avant-poste au bord de la Faille."
+   ],
+   [
+    "",
+    1,
+    "#",
+    "ALLÉGORIE : Plus on avance, plus le monde se tord (la distorsion est visible)."
+   ],
+   [
+    "",
+    1,
+    "#",
+    "PERSOS (suggestion) : Escouade + recrues"
+   ],
+   [
+    "",
+    1,
+    "#",
+    "FORMAT : \"_\" seul sur une ligne = nouvelle page · \"Nom:\" = réplique (gras doré) · \"…\" = page d'attente · \"[...]\" à remplacer"
+   ],
+   [
+    "",
+    1,
+    "#",
+    "──────────────────────────────────────────────────────────"
+   ],
+   [
+    "",
+    1,
+    "",
+    "[... l'avant-poste, la Faille en contrebas ...]"
+   ],
+   [
+    "",
+    2,
+    "",
+    "…"
+   ],
+   [
+    "",
+    3,
+    "",
+    "[... ce qui les attend ...]"
+   ],
+   [
+    "texts/acte2/10-ravins-de-cendre-debut.txt"
+   ],
+   [
+    "",
+    1,
+    "#",
+    "──────────────────────────────────────────────────────────"
+   ],
+   [
+    "",
+    1,
+    "#",
+    "Ravins de cendre — DÉBUT"
+   ],
+   [
+    "",
+    1,
+    "#",
+    "Acte 2 — La Faille · difficulté 1★"
+   ],
+   [
+    "",
+    1,
+    "#",
+    "RÔLE NARRATIF : Entrée dans la Faille. Le monde est déjà bien distordu."
+   ],
+   [
+    "",
+    1,
+    "#",
+    "ALLÉGORIE : On marche dans les cendres de ce que l'Empire a consumé."
+   ],
+   [
+    "",
+    1,
+    "#",
+    "PERSOS (suggestion) : Escouade + Kael/Wren"
+   ],
+   [
+    "",
+    1,
+    "#",
+    "FORMAT : \"_\" seul sur une ligne = nouvelle page · \"Nom:\" = réplique (gras doré) · \"…\" = page d'attente · \"[...]\" à remplacer"
+   ],
+   [
+    "",
+    1,
+    "#",
+    "──────────────────────────────────────────────────────────"
+   ],
+   [
+    "",
+    1,
+    "",
+    "[... réplique d'ouverture ...]"
+   ],
+   [
+    "",
+    2,
+    "",
+    "…"
+   ],
+   [
+    "",
+    3,
+    "",
+    "[... mise en place de la mission ...]"
+   ],
+   [
+    "texts/acte2/10-ravins-de-cendre-fin.txt"
+   ],
+   [
+    "",
+    1,
+    "#",
+    "──────────────────────────────────────────────────────────"
+   ],
+   [
+    "",
+    1,
+    "#",
+    "Ravins de cendre — FIN"
+   ],
+   [
+    "",
+    1,
+    "#",
+    "Acte 2 — La Faille · difficulté 1★"
+   ],
+   [
+    "",
+    1,
+    "#",
+    "RÔLE NARRATIF : Entrée dans la Faille. Le monde est déjà bien distordu."
+   ],
+   [
+    "",
+    1,
+    "#",
+    "ALLÉGORIE : On marche dans les cendres de ce que l'Empire a consumé."
+   ],
+   [
+    "",
+    1,
+    "#",
+    "PERSOS (suggestion) : Escouade + Kael/Wren"
+   ],
+   [
+    "",
+    1,
+    "#",
+    "FORMAT : \"_\" seul sur une ligne = nouvelle page · \"Nom:\" = réplique (gras doré) · \"…\" = page d'attente · \"[...]\" à remplacer"
+   ],
+   [
+    "",
+    1,
+    "#",
+    "──────────────────────────────────────────────────────────"
+   ],
+   [
+    "",
+    1,
+    "",
+    "[... réaction à chaud après la mission ...]"
+   ],
+   [
+    "",
+    2,
+    "",
+    "…"
+   ],
+   [
+    "",
+    3,
+    "",
+    "[... ce que ça change / ce qu'on apprend ...]"
+   ],
+   [
+    "texts/acte2/11-pont-rompu-debut.txt"
+   ],
+   [
+    "",
+    1,
+    "#",
+    "──────────────────────────────────────────────────────────"
+   ],
+   [
+    "",
+    1,
+    "#",
+    "Pont rompu — DÉBUT"
+   ],
+   [
+    "",
+    1,
+    "#",
+    "Acte 2 — La Faille · difficulté 1★"
+   ],
+   [
+    "",
+    1,
+    "#",
+    "RÔLE NARRATIF : Mission de passage. Le retour en arrière n'existe plus."
+   ],
+   [
+    "",
+    1,
+    "#",
+    "ALLÉGORIE : Les ponts coupés : pas de marche arrière, comme le thème."
+   ],
+   [
+    "",
+    1,
+    "#",
+    "PERSOS (suggestion) : Kael, Wren"
+   ],
+   [
+    "",
+    1,
+    "#",
+    "FORMAT : \"_\" seul sur une ligne = nouvelle page · \"Nom:\" = réplique (gras doré) · \"…\" = page d'attente · \"[...]\" à remplacer"
+   ],
+   [
+    "",
+    1,
+    "#",
+    "──────────────────────────────────────────────────────────"
+   ],
+   [
+    "",
+    1,
+    "",
+    "[... réplique d'ouverture ...]"
+   ],
+   [
+    "",
+    2,
+    "",
+    "…"
+   ],
+   [
+    "",
+    3,
+    "",
+    "[... mise en place de la mission ...]"
+   ],
+   [
+    "texts/acte2/11-pont-rompu-fin.txt"
+   ],
+   [
+    "",
+    1,
+    "#",
+    "──────────────────────────────────────────────────────────"
+   ],
+   [
+    "",
+    1,
+    "#",
+    "Pont rompu — FIN"
+   ],
+   [
+    "",
+    1,
+    "#",
+    "Acte 2 — La Faille · difficulté 1★"
+   ],
+   [
+    "",
+    1,
+    "#",
+    "RÔLE NARRATIF : Mission de passage. Le retour en arrière n'existe plus."
+   ],
+   [
+    "",
+    1,
+    "#",
+    "ALLÉGORIE : Les ponts coupés : pas de marche arrière, comme le thème."
+   ],
+   [
+    "",
+    1,
+    "#",
+    "PERSOS (suggestion) : Kael, Wren"
+   ],
+   [
+    "",
+    1,
+    "#",
+    "FORMAT : \"_\" seul sur une ligne = nouvelle page · \"Nom:\" = réplique (gras doré) · \"…\" = page d'attente · \"[...]\" à remplacer"
+   ],
+   [
+    "",
+    1,
+    "#",
+    "──────────────────────────────────────────────────────────"
+   ],
+   [
+    "",
+    1,
+    "",
+    "[... réaction à chaud après la mission ...]"
+   ],
+   [
+    "",
+    2,
+    "",
+    "…"
+   ],
+   [
+    "",
+    3,
+    "",
+    "[... ce que ça change / ce qu'on apprend ...]"
+   ],
+   [
+    "texts/acte2/20-marais-bleme-debut.txt"
+   ],
+   [
+    "",
+    1,
+    "#",
+    "──────────────────────────────────────────────────────────"
+   ],
+   [
+    "",
+    1,
+    "#",
+    "Marais blême — DÉBUT"
+   ],
+   [
+    "",
+    1,
+    "#",
+    "Acte 2 — La Faille · difficulté 2★"
+   ],
+   [
+    "",
+    1,
+    "#",
+    "RÔLE NARRATIF : La distorsion s'installe dans les têtes."
+   ],
+   [
+    "",
+    1,
+    "#",
+    "ALLÉGORIE : Le confort de ne plus se poser de questions."
+   ],
+   [
+    "",
+    1,
+    "#",
+    "PERSOS (suggestion) : Escouade"
+   ],
+   [
+    "",
+    1,
+    "#",
+    "FORMAT : \"_\" seul sur une ligne = nouvelle page · \"Nom:\" = réplique (gras doré) · \"…\" = page d'attente · \"[...]\" à remplacer"
+   ],
+   [
+    "",
+    1,
+    "#",
+    "──────────────────────────────────────────────────────────"
+   ],
+   [
+    "",
+    1,
+    "",
+    "[... réplique d'ouverture ...]"
+   ],
+   [
+    "",
+    2,
+    "",
+    "…"
+   ],
+   [
+    "",
+    3,
+    "",
+    "[... mise en place de la mission ...]"
+   ],
+   [
+    "texts/acte2/20-marais-bleme-fin.txt"
+   ],
+   [
+    "",
+    1,
+    "#",
+    "──────────────────────────────────────────────────────────"
+   ],
+   [
+    "",
+    1,
+    "#",
+    "Marais blême — FIN"
+   ],
+   [
+    "",
+    1,
+    "#",
+    "Acte 2 — La Faille · difficulté 2★"
+   ],
+   [
+    "",
+    1,
+    "#",
+    "RÔLE NARRATIF : La distorsion s'installe dans les têtes."
+   ],
+   [
+    "",
+    1,
+    "#",
+    "ALLÉGORIE : Le confort de ne plus se poser de questions."
+   ],
+   [
+    "",
+    1,
+    "#",
+    "PERSOS (suggestion) : Escouade"
+   ],
+   [
+    "",
+    1,
+    "#",
+    "FORMAT : \"_\" seul sur une ligne = nouvelle page · \"Nom:\" = réplique (gras doré) · \"…\" = page d'attente · \"[...]\" à remplacer"
+   ],
+   [
+    "",
+    1,
+    "#",
+    "──────────────────────────────────────────────────────────"
+   ],
+   [
+    "",
+    1,
+    "",
+    "[... réaction à chaud après la mission ...]"
+   ],
+   [
+    "",
+    2,
+    "",
+    "…"
+   ],
+   [
+    "",
+    3,
+    "",
+    "[... ce que ça change / ce qu'on apprend ...]"
+   ],
+   [
+    "texts/acte2/21-sente-grise-debut.txt"
+   ],
+   [
+    "",
+    1,
+    "#",
+    "──────────────────────────────────────────────────────────"
+   ],
+   [
+    "",
+    1,
+    "#",
+    "Sente grise — DÉBUT"
+   ],
+   [
+    "",
+    1,
+    "#",
+    "Acte 2 — La Faille · difficulté 2★"
+   ],
+   [
+    "",
+    1,
+    "#",
+    "RÔLE NARRATIF : Rencontre d'anciens habitants devenus complices."
+   ],
+   [
+    "",
+    1,
+    "#",
+    "ALLÉGORIE : « Ils ont choisi ça » : la révélation rendue concrète."
+   ],
+   [
+    "",
+    1,
+    "#",
+    "PERSOS (suggestion) : Sorne (témoin/culpabilité)"
+   ],
+   [
+    "",
+    1,
+    "#",
+    "FORMAT : \"_\" seul sur une ligne = nouvelle page · \"Nom:\" = réplique (gras doré) · \"…\" = page d'attente · \"[...]\" à remplacer"
+   ],
+   [
+    "",
+    1,
+    "#",
+    "──────────────────────────────────────────────────────────"
+   ],
+   [
+    "",
+    1,
+    "",
+    "[... réplique d'ouverture ...]"
+   ],
+   [
+    "",
+    2,
+    "",
+    "…"
+   ],
+   [
+    "",
+    3,
+    "",
+    "[... mise en place de la mission ...]"
+   ],
+   [
+    "texts/acte2/21-sente-grise-fin.txt"
+   ],
+   [
+    "",
+    1,
+    "#",
+    "──────────────────────────────────────────────────────────"
+   ],
+   [
+    "",
+    1,
+    "#",
+    "Sente grise — FIN"
+   ],
+   [
+    "",
+    1,
+    "#",
+    "Acte 2 — La Faille · difficulté 2★"
+   ],
+   [
+    "",
+    1,
+    "#",
+    "RÔLE NARRATIF : Rencontre d'anciens habitants devenus complices."
+   ],
+   [
+    "",
+    1,
+    "#",
+    "ALLÉGORIE : « Ils ont choisi ça » : la révélation rendue concrète."
+   ],
+   [
+    "",
+    1,
+    "#",
+    "PERSOS (suggestion) : Sorne (témoin/culpabilité)"
+   ],
+   [
+    "",
+    1,
+    "#",
+    "FORMAT : \"_\" seul sur une ligne = nouvelle page · \"Nom:\" = réplique (gras doré) · \"…\" = page d'attente · \"[...]\" à remplacer"
+   ],
+   [
+    "",
+    1,
+    "#",
+    "──────────────────────────────────────────────────────────"
+   ],
+   [
+    "",
+    1,
+    "",
+    "[... réaction à chaud après la mission ...]"
+   ],
+   [
+    "",
+    2,
+    "",
+    "…"
+   ],
+   [
+    "",
+    3,
+    "",
+    "[... ce que ça change / ce qu'on apprend ...]"
+   ],
+   [
+    "texts/acte2/30-verriere-brisee-debut.txt"
+   ],
+   [
+    "",
+    1,
+    "#",
+    "──────────────────────────────────────────────────────────"
+   ],
+   [
+    "",
+    1,
+    "#",
+    "Verrière brisée — DÉBUT"
+   ],
+   [
+    "",
+    1,
+    "#",
+    "Acte 2 — La Faille · difficulté 3★"
+   ],
+   [
+    "",
+    1,
+    "#",
+    "RÔLE NARRATIF : Cœur du dispositif d'exploitation, vu de l'intérieur."
+   ],
+   [
+    "",
+    1,
+    "#",
+    "ALLÉGORIE : La salle des machines de la Faille."
+   ],
+   [
+    "",
+    1,
+    "#",
+    "PERSOS (suggestion) : Escouade"
+   ],
+   [
+    "",
+    1,
+    "#",
+    "FORMAT : \"_\" seul sur une ligne = nouvelle page · \"Nom:\" = réplique (gras doré) · \"…\" = page d'attente · \"[...]\" à remplacer"
+   ],
+   [
+    "",
+    1,
+    "#",
+    "──────────────────────────────────────────────────────────"
+   ],
+   [
+    "",
+    1,
+    "",
+    "[... réplique d'ouverture ...]"
+   ],
+   [
+    "",
+    2,
+    "",
+    "…"
+   ],
+   [
+    "",
+    3,
+    "",
+    "[... mise en place de la mission ...]"
+   ],
+   [
+    "texts/acte2/30-verriere-brisee-fin.txt"
+   ],
+   [
+    "",
+    1,
+    "#",
+    "──────────────────────────────────────────────────────────"
+   ],
+   [
+    "",
+    1,
+    "#",
+    "Verrière brisée — FIN"
+   ],
+   [
+    "",
+    1,
+    "#",
+    "Acte 2 — La Faille · difficulté 3★"
+   ],
+   [
+    "",
+    1,
+    "#",
+    "RÔLE NARRATIF : Cœur du dispositif d'exploitation, vu de l'intérieur."
+   ],
+   [
+    "",
+    1,
+    "#",
+    "ALLÉGORIE : La salle des machines de la Faille."
+   ],
+   [
+    "",
+    1,
+    "#",
+    "PERSOS (suggestion) : Escouade"
+   ],
+   [
+    "",
+    1,
+    "#",
+    "FORMAT : \"_\" seul sur une ligne = nouvelle page · \"Nom:\" = réplique (gras doré) · \"…\" = page d'attente · \"[...]\" à remplacer"
+   ],
+   [
+    "",
+    1,
+    "#",
+    "──────────────────────────────────────────────────────────"
+   ],
+   [
+    "",
+    1,
+    "",
+    "[... réaction à chaud après la mission ...]"
+   ],
+   [
+    "",
+    2,
+    "",
+    "…"
+   ],
+   [
+    "",
+    3,
+    "",
+    "[... ce que ça change / ce qu'on apprend ...]"
+   ],
+   [
+    "texts/acte2/31-tour-engloutie-debut.txt"
+   ],
+   [
+    "",
+    1,
+    "#",
+    "──────────────────────────────────────────────────────────"
+   ],
+   [
+    "",
+    1,
+    "#",
+    "Tour engloutie — DÉBUT"
+   ],
+   [
+    "",
+    1,
+    "#",
+    "Acte 2 — La Faille · difficulté 3★"
+   ],
+   [
+    "",
+    1,
+    "#",
+    "RÔLE NARRATIF : Ce qui a été noyé pour la « mise en valeur »."
+   ],
+   [
+    "",
+    1,
+    "#",
+    "ALLÉGORIE : On enterre les preuves comme on enterre les gens."
+   ],
+   [
+    "",
+    1,
+    "#",
+    "PERSOS (suggestion) : Escouade"
+   ],
+   [
+    "",
+    1,
+    "#",
+    "FORMAT : \"_\" seul sur une ligne = nouvelle page · \"Nom:\" = réplique (gras doré) · \"…\" = page d'attente · \"[...]\" à remplacer"
+   ],
+   [
+    "",
+    1,
+    "#",
+    "──────────────────────────────────────────────────────────"
+   ],
+   [
+    "",
+    1,
+    "",
+    "[... réplique d'ouverture ...]"
+   ],
+   [
+    "",
+    2,
+    "",
+    "…"
+   ],
+   [
+    "",
+    3,
+    "",
+    "[... mise en place de la mission ...]"
+   ],
+   [
+    "texts/acte2/31-tour-engloutie-fin.txt"
+   ],
+   [
+    "",
+    1,
+    "#",
+    "──────────────────────────────────────────────────────────"
+   ],
+   [
+    "",
+    1,
+    "#",
+    "Tour engloutie — FIN"
+   ],
+   [
+    "",
+    1,
+    "#",
+    "Acte 2 — La Faille · difficulté 3★"
+   ],
+   [
+    "",
+    1,
+    "#",
+    "RÔLE NARRATIF : Ce qui a été noyé pour la « mise en valeur »."
+   ],
+   [
+    "",
+    1,
+    "#",
+    "ALLÉGORIE : On enterre les preuves comme on enterre les gens."
+   ],
+   [
+    "",
+    1,
+    "#",
+    "PERSOS (suggestion) : Escouade"
+   ],
+   [
+    "",
+    1,
+    "#",
+    "FORMAT : \"_\" seul sur une ligne = nouvelle page · \"Nom:\" = réplique (gras doré) · \"…\" = page d'attente · \"[...]\" à remplacer"
+   ],
+   [
+    "",
+    1,
+    "#",
+    "──────────────────────────────────────────────────────────"
+   ],
+   [
+    "",
+    1,
+    "",
+    "[... réaction à chaud après la mission ...]"
+   ],
+   [
+    "",
+    2,
+    "",
+    "…"
+   ],
+   [
+    "",
+    3,
+    "",
+    "[... ce que ça change / ce qu'on apprend ...]"
+   ],
+   [
+    "texts/acte2/32-dedale-noye-debut.txt"
+   ],
+   [
+    "",
+    1,
+    "#",
+    "──────────────────────────────────────────────────────────"
+   ],
+   [
+    "",
+    1,
+    "#",
+    "Dédale noyé — DÉBUT"
+   ],
+   [
+    "",
+    1,
+    "#",
+    "Acte 2 — La Faille · difficulté 3★"
+   ],
+   [
+    "",
+    1,
+    "#",
+    "RÔLE NARRATIF : Labyrinthe distordu. L'incertitude au maximum."
+   ],
+   [
+    "",
+    1,
+    "#",
+    "ALLÉGORIE : Perdre le nord : le monde ne se lit plus."
+   ],
+   [
+    "",
+    1,
+    "#",
+    "PERSOS (suggestion) : Escouade"
+   ],
+   [
+    "",
+    1,
+    "#",
+    "FORMAT : \"_\" seul sur une ligne = nouvelle page · \"Nom:\" = réplique (gras doré) · \"…\" = page d'attente · \"[...]\" à remplacer"
+   ],
+   [
+    "",
+    1,
+    "#",
+    "──────────────────────────────────────────────────────────"
+   ],
+   [
+    "",
+    1,
+    "",
+    "[... réplique d'ouverture ...]"
+   ],
+   [
+    "",
+    2,
+    "",
+    "…"
+   ],
+   [
+    "",
+    3,
+    "",
+    "[... mise en place de la mission ...]"
+   ],
+   [
+    "texts/acte2/32-dedale-noye-fin.txt"
+   ],
+   [
+    "",
+    1,
+    "#",
+    "──────────────────────────────────────────────────────────"
+   ],
+   [
+    "",
+    1,
+    "#",
+    "Dédale noyé — FIN"
+   ],
+   [
+    "",
+    1,
+    "#",
+    "Acte 2 — La Faille · difficulté 3★"
+   ],
+   [
+    "",
+    1,
+    "#",
+    "RÔLE NARRATIF : Labyrinthe distordu. L'incertitude au maximum."
+   ],
+   [
+    "",
+    1,
+    "#",
+    "ALLÉGORIE : Perdre le nord : le monde ne se lit plus."
+   ],
+   [
+    "",
+    1,
+    "#",
+    "PERSOS (suggestion) : Escouade"
+   ],
+   [
+    "",
+    1,
+    "#",
+    "FORMAT : \"_\" seul sur une ligne = nouvelle page · \"Nom:\" = réplique (gras doré) · \"…\" = page d'attente · \"[...]\" à remplacer"
+   ],
+   [
+    "",
+    1,
+    "#",
+    "──────────────────────────────────────────────────────────"
+   ],
+   [
+    "",
+    1,
+    "",
+    "[... réaction à chaud après la mission ...]"
+   ],
+   [
+    "",
+    2,
+    "",
+    "…"
+   ],
+   [
+    "",
+    3,
+    "",
+    "[... ce que ça change / ce qu'on apprend ...]"
+   ],
+   [
+    "texts/acte2/40-crevasse-debut.txt"
+   ],
+   [
+    "",
+    1,
+    "#",
+    "──────────────────────────────────────────────────────────"
+   ],
+   [
+    "",
+    1,
+    "#",
+    "Crevasse — DÉBUT"
+   ],
+   [
+    "",
+    1,
+    "#",
+    "Acte 2 — La Faille · difficulté 4★"
+   ],
+   [
+    "",
+    1,
+    "#",
+    "RÔLE NARRATIF : Dernier obstacle avant le Cœur. Coût humain maximal."
+   ],
+   [
+    "",
+    1,
+    "#",
+    "ALLÉGORIE : On paie le prix fort pour approcher la source."
+   ],
+   [
+    "",
+    1,
+    "#",
+    "PERSOS (suggestion) : Escouade éprouvée"
+   ],
+   [
+    "",
+    1,
+    "#",
+    "FORMAT : \"_\" seul sur une ligne = nouvelle page · \"Nom:\" = réplique (gras doré) · \"…\" = page d'attente · \"[...]\" à remplacer"
+   ],
+   [
+    "",
+    1,
+    "#",
+    "──────────────────────────────────────────────────────────"
+   ],
+   [
+    "",
+    1,
+    "",
+    "[... réplique d'ouverture ...]"
+   ],
+   [
+    "",
+    2,
+    "",
+    "…"
+   ],
+   [
+    "",
+    3,
+    "",
+    "[... mise en place de la mission ...]"
+   ],
+   [
+    "texts/acte2/40-crevasse-fin.txt"
+   ],
+   [
+    "",
+    1,
+    "#",
+    "──────────────────────────────────────────────────────────"
+   ],
+   [
+    "",
+    1,
+    "#",
+    "Crevasse — FIN"
+   ],
+   [
+    "",
+    1,
+    "#",
+    "Acte 2 — La Faille · difficulté 4★"
+   ],
+   [
+    "",
+    1,
+    "#",
+    "RÔLE NARRATIF : Dernier obstacle avant le Cœur. Coût humain maximal."
+   ],
+   [
+    "",
+    1,
+    "#",
+    "ALLÉGORIE : On paie le prix fort pour approcher la source."
+   ],
+   [
+    "",
+    1,
+    "#",
+    "PERSOS (suggestion) : Escouade éprouvée"
+   ],
+   [
+    "",
+    1,
+    "#",
+    "FORMAT : \"_\" seul sur une ligne = nouvelle page · \"Nom:\" = réplique (gras doré) · \"…\" = page d'attente · \"[...]\" à remplacer"
+   ],
+   [
+    "",
+    1,
+    "#",
+    "──────────────────────────────────────────────────────────"
+   ],
+   [
+    "",
+    1,
+    "",
+    "[... réaction à chaud après la mission ...]"
+   ],
+   [
+    "",
+    2,
+    "",
+    "…"
+   ],
+   [
+    "",
+    3,
+    "",
+    "[... ce que ça change / ce qu'on apprend ...]"
+   ],
+   [
+    "texts/acte2/50-coeur-de-la-faille-debut.txt"
+   ],
+   [
+    "",
+    1,
+    "#",
+    "──────────────────────────────────────────────────────────"
+   ],
+   [
+    "",
+    1,
+    "#",
+    "Cœur de la Faille — DÉBUT"
+   ],
+   [
+    "",
+    1,
+    "#",
+    "Acte 2 — La Faille · difficulté 5★"
+   ],
+   [
+    "",
+    1,
+    "#",
+    "RÔLE NARRATIF : FINALE : on étouffe le Cœur sous l'otataral."
+   ],
+   [
+    "",
+    1,
+    "#",
+    "ALLÉGORIE : Tuer la magie pour sauver le monde. L'Empire classera le dossier."
+   ],
+   [
+    "",
+    1,
+    "#",
+    "PERSOS (suggestion) : Tous"
+   ],
+   [
+    "",
+    1,
+    "#",
+    "NOTE : Boss de fin. La fin enchaîne sur 99-fin.txt."
+   ],
+   [
+    "",
+    1,
+    "#",
+    "FORMAT : \"_\" seul sur une ligne = nouvelle page · \"Nom:\" = réplique (gras doré) · \"…\" = page d'attente · \"[...]\" à remplacer"
+   ],
+   [
+    "",
+    1,
+    "#",
+    "──────────────────────────────────────────────────────────"
+   ],
+   [
+    "",
+    1,
+    "",
+    "[... réplique d'ouverture ...]"
+   ],
+   [
+    "",
+    2,
+    "",
+    "…"
+   ],
+   [
+    "",
+    3,
+    "",
+    "[... mise en place de la mission ...]"
+   ],
+   [
+    "texts/acte2/50-coeur-de-la-faille-fin.txt"
+   ],
+   [
+    "",
+    1,
+    "#",
+    "──────────────────────────────────────────────────────────"
+   ],
+   [
+    "",
+    1,
+    "#",
+    "Cœur de la Faille — FIN"
+   ],
+   [
+    "",
+    1,
+    "#",
+    "Acte 2 — La Faille · difficulté 5★"
+   ],
+   [
+    "",
+    1,
+    "#",
+    "RÔLE NARRATIF : FINALE : on étouffe le Cœur sous l'otataral."
+   ],
+   [
+    "",
+    1,
+    "#",
+    "ALLÉGORIE : Tuer la magie pour sauver le monde. L'Empire classera le dossier."
+   ],
+   [
+    "",
+    1,
+    "#",
+    "PERSOS (suggestion) : Tous"
+   ],
+   [
+    "",
+    1,
+    "#",
+    "NOTE : Boss de fin. La fin enchaîne sur 99-fin.txt."
+   ],
+   [
+    "",
+    1,
+    "#",
+    "FORMAT : \"_\" seul sur une ligne = nouvelle page · \"Nom:\" = réplique (gras doré) · \"…\" = page d'attente · \"[...]\" à remplacer"
+   ],
+   [
+    "",
+    1,
+    "#",
+    "──────────────────────────────────────────────────────────"
+   ],
+   [
+    "",
+    1,
+    "",
+    "[... réaction à chaud après la mission ...]"
+   ],
+   [
+    "",
+    2,
+    "",
+    "…"
+   ],
+   [
+    "",
+    3,
+    "",
+    "[... ce que ça change / ce qu'on apprend ...]"
+   ],
+   [
+    "texts/acte2/99-fin.txt"
+   ],
+   [
+    "",
+    1,
+    "#",
+    "──────────────────────────────────────────────────────────"
+   ],
+   [
+    "",
+    1,
+    "#",
+    "FIN — épilogue"
+   ],
+   [
+    "",
+    1,
+    "#",
+    "Acte 2 — La Faille"
+   ],
+   [
+    "",
+    1,
+    "#",
+    "RÔLE NARRATIF : Le Cœur étouffé sous l'otataral. L'Empire classe le dossier et passe à autre chose."
+   ],
+   [
+    "",
+    1,
+    "#",
+    "ALLÉGORIE : Pas de rédemption institutionnelle ; seule dignité possible : individuelle."
+   ],
+   [
+    "",
+    1,
+    "#",
+    "PERSOS (suggestion) : Survivants"
+   ],
+   [
+    "",
+    1,
+    "#",
+    "FORMAT : \"_\" seul sur une ligne = nouvelle page · \"Nom:\" = réplique (gras doré) · \"…\" = page d'attente · \"[...]\" à remplacer"
+   ],
+   [
+    "",
+    1,
+    "#",
+    "──────────────────────────────────────────────────────────"
+   ],
+   [
+    "",
+    1,
+    "",
+    "[... le silence après le Cœur ...]"
+   ],
+   [
+    "",
+    2,
+    "",
+    "…"
+   ],
+   [
+    "",
+    3,
+    "",
+    "[... l'Empire reclasse, la vie d'après ...]"
+   ]
+  ],
+  "Prototype": [
+   [
+    "Prototype — textes narratifs"
+   ],
+   [
+    "Une ligne = une ligne du fichier. « page » : incremente = saut de page (« _»). « qui » : nom affiche en gras dore ; « # » = commentaire de brief, jamais joue. Texte « … » = page d attente."
+   ],
+   [
+    "fichier",
+    "page",
+    "qui",
+    "texte",
+    "note"
+   ],
+   [
+    "texts/AVANCEMENT.txt"
+   ],
+   [
+    "",
+    1,
+    "#",
+    "══════════════════════════════════════════════════════════════════"
+   ],
+   [
+    "",
+    1,
+    "#",
+    "AVANCEMENT GÉNÉRAL — Cœur maillage"
+   ],
+   [
+    "",
+    1,
+    "#",
+    "Suivi de l'écriture narrative, acte par acte, mission par mission."
+   ],
+   [
+    "",
+    1,
+    "#",
+    "Coche [x] quand un texte est écrit. Les briefs détaillés sont dans"
+   ],
+   [
+    "",
+    1,
+    "#",
+    "chaque fichier .txt (un par mission, début + fin séparés)."
+   ],
+   [
+    "",
+    1,
+    "#",
+    "══════════════════════════════════════════════════════════════════"
+   ],
+   [
+    "",
+    1,
+    "",
+    "ARC GLOBAL (la trame, à garder en tête)"
+   ],
+   [
+    "",
+    1,
+    "",
+    "La Marche de Velhaur, frontière reculée d'un Empire."
+   ],
+   [
+    "",
+    1,
+    "",
+    "La Faille = la faute de l'Empire : forage d'un nœud de Warren + otataral mal confiné."
+   ],
+   [
+    "",
+    1,
+    "",
+    "Allégorie du capitalisme : les « tournés » ont CHOISI de servir la distorsion parce que ça paie."
+   ],
+   [
+    "",
+    1,
+    "",
+    "Mensonge officiel à l'arrivée → doute → révélation « ils ont choisi ça » → vérité de Sorne → fin à l'otataral."
+   ],
+   [
+    "",
+    1,
+    "Résolution",
+    "on étouffe le Cœur sous l'otataral ; l'Empire classe le dossier, n'apprend rien."
+   ],
+   [
+    "",
+    1,
+    "#",
+    "── ACTE 1 — La Marche de Velhaur ─────────────────────────────────"
+   ],
+   [
+    "",
+    1,
+    "",
+    "[ ] Ouverture .................... acte1/00-ouverture.txt        (le mensonge officiel)"
+   ],
+   [
+    "",
+    1,
+    "",
+    "[ ] Prologue — début ............. acte1/01-prologue-debut.txt"
+   ],
+   [
+    "",
+    1,
+    "",
+    "[ ] Prologue — fin ............... acte1/01-prologue-fin.txt     (première fissure)"
+   ],
+   [
+    "",
+    1,
+    "",
+    "[ ] Crête venteuse (1★) .......... acte1/10-crete-venteuse-{debut,fin}.txt"
+   ],
+   [
+    "",
+    1,
+    "",
+    "[ ] Carrière noyée (1★) .......... acte1/11-carriere-noyee-{debut,fin}.txt"
+   ],
+   [
+    "",
+    1,
+    "",
+    "[ ] Tourbière (2★) ............... acte1/20-tourbiere-{debut,fin}.txt        (mini-mission bonus)"
+   ],
+   [
+    "",
+    1,
+    "",
+    "[ ] Gué de l'aval (2★) ........... acte1/21-gue-de-l-aval-{debut,fin}.txt    (1ers « tournés »)"
+   ],
+   [
+    "",
+    1,
+    "",
+    "[ ] Bois brûlé (2★) .............. acte1/22-bois-brule-{debut,fin}.txt"
+   ],
+   [
+    "",
+    1,
+    "",
+    "[ ] Hameau muet (3★) ............. acte1/30-hameau-muet-{debut,fin}.txt      ★ PIVOT : Sorne"
+   ],
+   [
+    "",
+    1,
+    "",
+    "[ ] Vieux moulin (4★) ............ acte1/40-vieux-moulin-{debut,fin}.txt     (prime corrompue)"
+   ],
+   [
+    "",
+    1,
+    "",
+    "[ ] Bastion (5★) ................. acte1/50-bastion-{debut,fin}.txt          (verrou de l'acte)"
+   ],
+   [
+    "",
+    1,
+    "",
+    "[ ] Transition vers Acte 2 ....... acte1/99-vers-acte2.txt       (recrues Kael + Wren)"
+   ],
+   [
+    "",
+    1,
+    "#",
+    "── ACTE 2 — La Faille ────────────────────────────────────────────"
+   ],
+   [
+    "",
+    1,
+    "",
+    "[ ] Arrivée (Avant-poste) ........ acte2/00-avant-poste.txt"
+   ],
+   [
+    "",
+    1,
+    "",
+    "[ ] Ravins de cendre (1★) ........ acte2/10-ravins-de-cendre-{debut,fin}.txt"
+   ],
+   [
+    "",
+    1,
+    "",
+    "[ ] Pont rompu (1★) .............. acte2/11-pont-rompu-{debut,fin}.txt"
+   ],
+   [
+    "",
+    1,
+    "",
+    "[ ] Marais blême (2★) ............ acte2/20-marais-bleme-{debut,fin}.txt"
+   ],
+   [
+    "",
+    1,
+    "",
+    "[ ] Sente grise (2★) ............. acte2/21-sente-grise-{debut,fin}.txt      (« ils ont choisi ça »)"
+   ],
+   [
+    "",
+    1,
+    "",
+    "[ ] Verrière brisée (3★) ......... acte2/30-verriere-brisee-{debut,fin}.txt"
+   ],
+   [
+    "",
+    1,
+    "",
+    "[ ] Tour engloutie (3★) .......... acte2/31-tour-engloutie-{debut,fin}.txt"
+   ],
+   [
+    "",
+    1,
+    "",
+    "[ ] Dédale noyé (3★) ............. acte2/32-dedale-noye-{debut,fin}.txt"
+   ],
+   [
+    "",
+    1,
+    "",
+    "[ ] Crevasse (4★) ................ acte2/40-crevasse-{debut,fin}.txt"
+   ],
+   [
+    "",
+    1,
+    "",
+    "[ ] Cœur de la Faille (5★) ....... acte2/50-coeur-de-la-faille-{debut,fin}.txt  ★ FINALE"
+   ],
+   [
+    "",
+    1,
+    "",
+    "[ ] Épilogue ..................... acte2/99-fin.txt              (l'Empire classe le dossier)"
+   ],
+   [
+    "",
+    1,
+    "#",
+    "── EN PAUSE / À DÉCIDER ──────────────────────────────────────────"
+   ],
+   [
+    "",
+    1,
+    "",
+    "[ ] Méca de pacte / tentation (gelée) : la distorsion propose des marchés"
+   ],
+   [
+    "",
+    1,
+    "",
+    "(prime corrompue contre avantage immédiat + plus d'usure). Décision en attente."
+   ],
+   [
+    "",
+    1,
+    "",
+    "[ ] Diégétiser les libellés gameplay (primes, usure) dans les textes."
+   ],
+   [
+    "",
+    1,
+    "",
+    "[ ] Câblage : brancher chaque texte dans les events du geoscape (before/after,"
+   ],
+   [
+    "",
+    1,
+    "",
+    "par ordre N ou par région) une fois l'écriture faite."
+   ],
+   [
+    "texts/Interlude1.txt"
+   ],
+   [
+    "",
+    1,
+    "Gizzard",
+    "So… It was about kids after all."
+   ],
+   [
+    "",
+    1,
+    "Stiff",
+    "They must have moved them."
+   ],
+   [
+    "",
+    1,
+    "Merry",
+    "I hope."
+   ],
+   [
+    "",
+    2,
+    "Stiff",
+    "It's probably in the next camp. They didn't have much time."
+   ],
+   [
+    "",
+    2,
+    "Gizzard",
+    "We're not in great shape. Wouldn't mind a bit of rest, and a potion or two."
+   ],
+   [
+    "",
+    2,
+    "Merry",
+    "If we leave now they'll know about us wherever we come back. We'll have the upper hand if we move right now."
+   ],
+   [
+    "texts/Interlude2.txt"
+   ],
+   [
+    "",
+    1,
+    "Stiff",
+    "Let's heal up, boys. We'll need it."
+   ],
+   [
+    "",
+    2,
+    "Merry",
+    "It stinks here. Looks like the kind of bandits that can't handle logistics well."
+   ],
+   [
+    "",
+    2,
+    "Gizzard",
+    "It's coming from you, Merr."
+   ],
+   [
+    "",
+    2,
+    "Merry",
+    "Is it? I can never tell."
+   ],
+   [
+    "",
+    2,
+    "Gizzard",
+    "It's because it's always you."
+   ],
+   [
+    "",
+    3,
+    "Stiff",
+    "Shut up. To work."
+   ],
+   [
+    "texts/Interlude2bis.txt"
+   ],
+   [
+    "",
+    1,
+    "Stiff",
+    "Let's find someone at camp and heal up."
+   ],
+   [
+    "",
+    2,
+    "",
+    "…"
+   ],
+   [
+    "",
+    3,
+    "",
+    "…"
+   ],
+   [
+    "",
+    4,
+    "Merry",
+    "Thanks for coming with us, Shady, appreciate it."
+   ],
+   [
+    "",
+    5,
+    "Shady",
+    "Well, I was bored anyway. Too much drinking becomes boring at some point."
+   ],
+   [
+    "",
+    5,
+    "Gizzard",
+    "What, you're drunk again?"
+   ],
+   [
+    "",
+    5,
+    "Merry",
+    "I can never tell."
+   ],
+   [
+    "",
+    6,
+    "Stiff",
+    "Shut up. To work."
+   ],
+   [
+    "texts/Interlude3.txt"
+   ],
+   [
+    "",
+    1,
+    "Merry",
+    "I found them!"
+   ],
+   [
+    "",
+    1,
+    "Gizzard",
+    "Your clothes? Oh no. Too bad."
+   ],
+   [
+    "",
+    2,
+    "Merry",
+    "The kids! I know where they are."
+   ],
+   [
+    "",
+    2,
+    "Stiff",
+    "Shit, how?"
+   ],
+   [
+    "",
+    2,
+    "Merry",
+    "The mage from Puke's squad. He found them through his warren. Cost me a beer, though."
+   ],
+   [
+    "",
+    2,
+    "Stiff",
+    "We really need a squad mage."
+   ],
+   [
+    "texts/Interlude4.txt"
+   ],
+   [
+    "",
+    1,
+    "Merry",
+    "Oh well, that was a close one. Thanks, Gizz."
+   ],
+   [
+    "",
+    1,
+    "Gizzard",
+    "Yeah, you owe me."
+   ],
+   [
+    "",
+    1,
+    "Merry",
+    "That's not a very nice thing to say."
+   ],
+   [
+    "",
+    2,
+    "Shady",
+    "Those kids look weird, innit?"
+   ],
+   [
+    "",
+    2,
+    "Stiff",
+    "…"
+   ],
+   [
+    "",
+    2,
+    "Gizzard",
+    "…"
+   ],
+   [
+    "",
+    2,
+    "Merry",
+    "… Hood, what is this mess? [?]"
+   ],
+   [
+    "",
+    3,
+    "",
+    "… Thanks for playing"
+   ],
+   [
+    "texts/Mission1-beginning.txt"
+   ],
+   [
+    "",
+    1,
+    "Gizzard",
+    "Here they are. Looks easy enough."
+   ],
+   [
+    "",
+    1,
+    "Merry",
+    "Just the two of them? Couldn't you have gone by yourself, sarge?"
+   ],
+   [
+    "",
+    2,
+    "Stiff",
+    "How nice it would have been. But that's not just the two, you idiots. Probably."
+   ],
+   [
+    "",
+    2,
+    "Merry",
+    "I knew you were probably an idiot, Gizz."
+   ],
+   [
+    "",
+    3,
+    "Gizzard",
+    "I say I got the one on the left and you take care of the rest."
+   ],
+   [
+    "",
+    3,
+    "Merry",
+    "Yeah, right."
+   ],
+   [
+    "",
+    3,
+    "Gizzard",
+    "What?"
+   ],
+   [
+    "",
+    4,
+    "Merry",
+    "You're too vicious, is all. Your taste for blood is disgusting."
+   ],
+   [
+    "",
+    4,
+    "Gizzard",
+    "It's just reasonable. And I don't hear a better idea."
+   ],
+   [
+    "",
+    4,
+    "Merry",
+    "Well, they're uphill, but I have a cracker left, that could probably take care of both, clean."
+   ],
+   [
+    "",
+    5,
+    "Gizzard",
+    "Not tempted. I don't like the smell of burnt flesh. Nor the idea of others running here."
+   ],
+   [
+    "",
+    5,
+    "Merry",
+    "You prefer it raw, don't you."
+   ],
+   [
+    "",
+    6,
+    "Stiff",
+    "Enough. I've decided."
+   ],
+   [
+    "texts/Mission1-end.txt"
+   ],
+   [
+    "",
+    1,
+    "Gizzard",
+    "Hood's balls, that was close."
+   ],
+   [
+    "texts/Mission2-beginning.txt"
+   ],
+   [
+    "",
+    1,
+    "Stiff",
+    "Target is up there. Let's go."
+   ],
+   [
+    "",
+    1,
+    "Gizzard",
+    "How nice it is to have a brief though."
+   ],
+   [
+    "",
+    1,
+    "Merry",
+    "You deserved it."
+   ],
+   [
+    "texts/Mission2-ending.txt"
+   ],
+   [
+    "",
+    1,
+    "Gizzard",
+    "Wasn't there either, looks like."
+   ],
+   [
+    "",
+    1,
+    "Stiff",
+    "Let's regroup."
+   ],
+   [
+    "texts/Mission3-beginning.txt"
+   ],
+   [
+    "",
+    1,
+    "Stiff",
+    "We have the upper hand now, they're downhill."
+   ],
+   [
+    "",
+    1,
+    "Gizzard",
+    "Don't go and blow up the kids though, Merr. Remember what happened to the sheeps."
+   ],
+   [
+    "",
+    1,
+    "Merry",
+    "I told you a thousand times, they should have announced themselves!"
+   ],
+   [
+    "texts/Opening.txt"
+   ],
+   [
+    "",
+    1,
+    "",
+    "She says the world is different now."
+   ],
+   [
+    "",
+    1,
+    "",
+    "Remember when things were simple?"
+   ],
+   [
+    "",
+    2,
+    "",
+    "Remember when we used to wait eagerly for summer?"
+   ],
+   [
+    "",
+    3,
+    "",
+    "Things are all going to shit now. Everything's different."
+   ],
+   [
+    "",
+    3,
+    "",
+    "It's like someone warped reality."
+   ],
+   [
+    "",
+    3,
+    "",
+    "Or was it always like this?"
+   ],
+   [
+    "",
+    4,
+    "",
+    "Were we lied to?"
+   ],
+   [
+    "",
+    4,
+    "",
+    "Or is this what it means to be an adult?"
+   ],
+   [
+    "",
+    5,
+    "",
+    "…"
+   ],
+   [
+    "",
+    6,
+    "",
+    "…"
+   ],
+   [
+    "",
+    7,
+    "Merry",
+    "What are we off to again?"
+   ],
+   [
+    "",
+    7,
+    "Gizzard",
+    "Asking me? … Fuck if I know."
+   ],
+   [
+    "",
+    8,
+    "Merry",
+    "Sarge, What's the plan? Saving a bunch of kids?"
+   ],
+   [
+    "",
+    8,
+    "Gizzard",
+    "Or animals, innit?"
+   ],
+   [
+    "",
+    9,
+    "Stiff",
+    "…"
+   ],
+   [
+    "",
+    10,
+    "Gizzard",
+    "Maybe it was about killing some sort of undead?"
+   ],
+   [
+    "",
+    10,
+    "Merry",
+    "Can't kill 'em."
+   ],
+   [
+    "",
+    11,
+    "Gizzard",
+    "Or bandits?"
+   ],
+   [
+    "",
+    11,
+    "Merry",
+    "I think I recall bandits, yeah. From the brief."
+   ],
+   [
+    "",
+    11,
+    "Gizzard",
+    "You've had a brief?? Come on…"
+   ],
+   [
+    "",
+    12,
+    "Stiff",
+    "You did too, Gizz. I think."
+   ],
+   [
+    "",
+    12,
+    "Gizzard",
+    "Weren't you the one giving it?"
+   ],
+   [
+    "",
+    12,
+    "Stiff",
+    "I imagine I should've been."
+   ],
+   [
+    "",
+    13,
+    "Stiff",
+    "Anyway, let's get this going. They should be close now."
+   ],
+   [
+    "",
+    14,
+    "Merry",
+    "So it WAS bandits! I knew it."
+   ],
+   [
+    "",
+    14,
+    "Stiff",
+    "See, you're not such a no-good."
+   ],
+   [
+    "",
+    15,
+    "",
+    "…"
+   ]
+  ],
+  "Triggers": [
+   [
+    "Triggers — repliques declenchees en mission"
+   ],
+   [
+    "Une ligne = un trigger. « conditions » : champs de match, ex. actor=Gizzard ; result=miss ; first=oui. « repliques » : une par ligne, forme « Nom: texte »."
+   ],
+   [
+    "mission",
+    "on",
+    "conditions",
+    "repliques",
+    "une fois",
+    "priorite",
+    "id",
+    "requiert",
+    "interdit",
+    "actions"
+   ],
+   [
+    "missions/mission-1.json",
+    "attack",
+    "actor=Gizzard ; killed=false ; first=true",
+    "Gizzard: Shit! He's tough!",
+    "oui",
+    0
+   ],
+   [
+    "missions/mission-1.json",
+    "cracker",
+    "first=true ; enemiesHit=1",
+    "Gizzard: You just hit one of them, you numbskull!",
+    "oui",
+    0
+   ],
+   [
+    "missions/mission-1.json",
+    "enter",
+    "zone=zone 1",
+    "Stiff: Careful. There should be more.",
+    "oui",
+    0
+   ],
+   [
+    "missions/mission-1.json",
+    "cracker",
+    "zone=zone 1 ; first=true ; enemiesHit=2",
+    "Merry: Hit 'em both!\nStiff: I owe you ten, Gizz.",
+    "oui",
+    0
+   ],
+   [
+    "missions/mission-3.json",
+    "spotted",
+    "pod=0 ; actorTeam=neutral",
+    "Stiff: They're here!",
+    "oui",
+    0
+   ],
+   [
+    "missions/mission-3.json",
+    "spotted",
+    "pod=1 ; actorTeam=enemy",
+    "Shady: Here we go, you bastards!",
+    "oui",
+    0
+   ],
+   [
+    "missions/mission-3.json",
+    "spotted",
+    "pod=0 ; actorTeam=enemy",
+    "Merry: How many of them are there??",
+    "oui",
+    0
+   ],
+   [
+    "missions-mesh/mission-1.json",
+    "enter",
+    "zone=A",
+    "Gizzard: Wow. Sarge, the ground is weird here.",
+    "oui",
+    0
+   ],
+   [
+    "missions-mesh/mission-1.json",
+    "attack",
+    "actor=Gizzard ; result=hit ; killed=false",
+    "Gizzard: Damn, he's tough!",
+    "oui",
+    0
+   ]
+  ],
+  "Geoscape": [
+   [
+    "Geoscape — messages systeme et narration par acte"
+   ],
+   [
+    "Le geoscape est PROCEDURAL : la narration y est par ACTE, pas par region nommee."
+   ],
+   [
+    "section",
+    "cle",
+    "texte",
+    "note"
+   ],
+   [
+    "messages",
+    "attack",
+    "⚠ {region} est attaquée ! Reprends-la avant qu'elle ne tombe — sans elle, la route se coupe."
+   ],
+   [
+    "messages",
+    "forge",
+    "🔨 Forge libérée — toute l'escouade gagne +3 PV et +1 dégât (cumulé : +{thp} PV / +{tdmg} dégâts). En réponse, l'ennemi resserre ses rangs."
+   ],
+   [
+    "messages",
+    "prime",
+    "⏳ Prime express empochée : {reward}."
+   ],
+   [
+    "messages",
+    "choose",
+    "choisis une région — {n} sur le front"
+   ],
+   [
+    "messages",
+    "noFront",
+    "aucune région accessible"
+   ],
+   [
+    "messages",
+    "secured",
+    "région sécurisée — choisis la suite"
+   ],
+   [
+    "messages",
+    "lost",
+    "région perdue — la situation a changé"
+   ],
+   [
+    "messages",
+    "actEndWin",
+    "Région sécurisée. L'acte s'achève."
+   ],
+   [
+    "messages",
+    "actEndLoss",
+    "Région perdue. L'acte s'achève."
+   ],
+   [
+    "messages",
+    "clickLocked",
+    "région coupée du camp — libère d'abord un chemin"
+   ],
+   [
+    "messages",
+    "clickCleared",
+    "région déjà nettoyée"
+   ],
+   [
+    "messages",
+    "clickNA",
+    "région indisponible"
+   ],
+   [
+    "acts",
+    "1.arrive",
+    "La Marche de Velhaur s'étend devant vous.\n_\n[... ce qu'on vous a dit que vous veniez faire ...]"
+   ],
+   [
+    "acts",
+    "1.forge",
+    "Une vieille forge dort sous la région.\n_\n[... la remettre en marche armerait mieux l'escouade ...]"
+   ],
+   [
+    "acts",
+    "1.boss",
+    "Le Bastion verrouille la Marche.\n_\n[... le prendre ouvre la suite ...]"
+   ],
+   [
+    "acts",
+    "2.arrive",
+    "La Faille s'ouvre sous le territoire.\n_\n[... la corruption, et ceux qui l'ont choisie ...]"
+   ],
+   [
+    "acts",
+    "2.forge",
+    "Une forge engloutie peut encore servir.\n_\n[... à quel prix ...]"
+   ],
+   [
+    "acts",
+    "2.boss",
+    "Le Verrou de la Faille barre la route du Cœur.\n_\n[... il faut le briser ...]"
+   ],
+   [
+    "acts",
+    "3.arrive",
+    "Le dernier territoire — là où la Faille bat le plus fort.\n_\n[... presque au Cœur ...]"
+   ],
+   [
+    "acts",
+    "3.forge",
+    "La forge du gouffre, ultime atelier.\n_\n[... un dernier renfort ...]"
+   ],
+   [
+    "acts",
+    "3.boss",
+    "Le Cœur de la Faille bat devant vous.\n_\n[... l'étouffer sous l'otataral ...]"
+   ]
+  ]
+ }
+}
