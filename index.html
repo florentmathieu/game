@@ -2994,7 +2994,11 @@
   // ===== "express bounty": incentive to attempt the HARD regions quickly =====
   // A hard region carries a bounty (XP + morale) that DECAYS with each mission played. You get it on
   // top if you take it before it runs out → dilemma: rush the hard one now, or play it safe.
-  let HARVEST_XP=3, HARVEST_XP_SOLO=2;   // XP par gisement épuisé : à toute l'escouade déployée, + un supplément au porteur
+  // XP par gisement épuisé : à toute l'escouade déployée, + un supplément au porteur.
+  // Calibré sur les paliers XP_THRESH [0,4,10,18,…] : une victoire ordinaire vaut 3-5 XP,
+  // une récolte de 3 gisements en vaut 6-9 — le double, ce que justifie l'immobilisation
+  // des unités sous le feu, sans faire sauter trois grades en une mission.
+  let HARVEST_XP=1, HARVEST_XP_SOLO=1;
   let PRIME_DIFF_MIN=3, PRIME_XP_MULT=3, PRIME_XP_STEP=2, PRIME_MORALE_STEP=5;   // tunable (balancing panel) — bounty XP = difficulty × PRIME_XP_MULT
   function primeInit(){ if(!campRun||!geoPlay||!geoPlay.map)return; campRun.primes=campRun.primes||{};
     geoPlay.map.cells.forEach((c,i)=>{ const st=campRun.geoStates[geoPlay.node.id];
