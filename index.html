@@ -862,6 +862,68 @@
   const norm=a=>{while(a<=-Math.PI)a+=TWO;while(a>Math.PI)a-=TWO;return a;};
   const ang=(a,b)=>Math.atan2(cells[b].cy-cells[a].cy,cells[b].cx-cells[a].cx);
   const passable=id=>cells[id].terr!=="wall";
+  // ===== Instrument de mesure des cartes generees (tools/) — aucune incidence sur le jeu =====
+  // Sert a juger la STRUCTURE d'une carte, pas sa difficulte : une carte semee au hasard
+  // et une carte structuree ont la meme densite de couvert mais pas le meme groupement.
+  window.MAPSTATS=function(){
+    if(!cells||!cells.length)return null;
+    const n=cells.length, isCov=c=>c.terr==="wall"||c.terr==="rough";
+    const cov=cells.filter(isCov).length, wall=cells.filter(c=>c.terr==="wall").length;
+    // groupement : part des voisins d'une cellule de couvert qui sont eux aussi du couvert.
+    // Tirage independant => proche de la densite globale. Agrege => nettement au-dessus.
+    let pairs=0, same=0;
+    for(const c of cells) for(const nb of c.nb){ if(nb<=c.id)continue; pairs++; if(isCov(c)===isCov(cells[nb]))same++; }
+    const joint=pairs?same/pairs:0;
+    // amas de couvert connexes
+    const seen=new Set(); const sizes=[];
+    for(const c of cells){ if(!isCov(c)||seen.has(c.id))continue; let k=0; const st=[c.id]; seen.add(c.id);
+      while(st.length){ const u=st.pop(); k++; for(const v of cells[u].nb) if(isCov(cells[v])&&!seen.has(v)){seen.add(v);st.push(v);} } sizes.push(k); }
+    sizes.sort((a,b)=>b-a);
+    // plus grande zone degagee (praticable ET sans couvert)
+    const seen2=new Set(); let openMax=0;
+    for(const c of cells){ if(isCov(c)||seen2.has(c.id))continue; let k=0; const st=[c.id]; seen2.add(c.id);
+      while(st.length){ const u=st.pop(); k++; for(const v of cells[u].nb) if(!isCov(cells[v])&&!seen2.has(v)){seen2.add(v);st.push(v);} } if(k>openMax)openMax=k; }
+    // goulots : points d'articulation du graphe praticable (Tarjan)
+    const idx=new Map(), low=new Map(); let timer=0, arts=0;
+    const pass=cells.filter(c=>passable(c.id)).map(c=>c.id), ps=new Set(pass);
+    const dfs=(u,root,parent)=>{ idx.set(u,timer); low.set(u,timer); timer++; let ch=0, isArt=false;
+      for(const v of cells[u].nb){ if(!ps.has(v)||wallBetween(u,v))continue;
+        if(!idx.has(v)){ ch++; dfs(v,root,u); low.set(u,Math.min(low.get(u),low.get(v)));
+          if(parent!==-1&&low.get(v)>=idx.get(u))isArt=true; }
+        else if(v!==parent) low.set(u,Math.min(low.get(u),idx.get(v))); }
+      if(parent===-1&&ch>1)isArt=true; if(isArt)arts++; };
+    for(const id of pass) if(!idx.has(id)) dfs(id,id,-1);
+    // elevation
+    const elevs=cells.map(c=>c.elev||0), hi=elevs.filter(e=>e>0).length;
+    return { cellules:n, couvertPct:+(100*cov/n).toFixed(1), murPct:+(100*wall/n).toFixed(1),
+             groupement:+(100*joint).toFixed(1), amas:sizes.length, plusGrosAmas:sizes[0]||0,
+             amasMoyen:+(sizes.length?sizes.reduce((a,b)=>a+b,0)/sizes.length:0).toFixed(1),
+             plusGrandeZoneDegagee:openMax, goulots:arts, relievePct:+(100*hi/n).toFixed(1),
+             abris:(function(){ // POCHES : petite zone dégagée (<=6 cellules) entièrement ceinte de couvert = un lieu défendable
+               const vu=new Set(); let k=0;
+               for(const c of cells){ if(isCov(c)||vu.has(c.id))continue;
+                 const grp=[c.id]; vu.add(c.id); let i=0, ouvert=false;
+                 while(i<grp.length){ const u=grp[i++];
+                   if(cells[u].nb.length<3)ouvert=true;                       // touche le bord de l'île
+                   for(const v of cells[u].nb){ if(isCov(cells[v]))continue;
+                     if(!vu.has(v)){ vu.add(v); grp.push(v); } }
+                   if(grp.length>6){ ouvert=true; break; } }
+                 if(!ouvert&&grp.length<=6)k++; }
+               return k; })(),
+             barriereCellules:cells.filter(c=>c._barrier).length,
+             barriereMurs:cells.filter(c=>c._barrier&&c.terr==="wall").length,
+             couloirCouvertPct:(function(){ // densite de couvert dans le couloir coin->coin (a comparer a couvertPct)
+               const cor=(sx,sy)=>cells.reduce((a,b)=>((b.cx*sx+b.cy*sy)<(a.cx*sx+a.cy*sy)?b:a));
+               const A=cor(1,1),B=cor(-1,-1); const prev=new Map(),seen=new Set([A.id]); const q=[A.id];
+               while(q.length){ const u=q.shift(); if(u===B.id)break;
+                 for(const v of cells[u].nb){ if(seen.has(v)||!passable(v)||wallBetween(u,v))continue; seen.add(v); prev.set(v,u); q.push(v); } }
+               if(!seen.has(B.id))return 0; let cur=B.id; const onPath=new Set();
+               while(cur!==undefined){ onPath.add(cur); cur=prev.get(cur); }
+               const corr=new Set(onPath); for(const id of onPath) for(const v of cells[id].nb) corr.add(v);
+               let cc=0; for(const id of corr) if(isCov(cells[id]))cc++;
+               return +(100*cc/corr.size).toFixed(1); })(),   // couvert DANS le couloir : doit etre bien sous la moyenne
+             murets:walls?walls.size:0 };
+  };
   const opaque=id=>cells[id].terr==="wall"||smoke.has(id);   // rock OR smoke blocks line of sight
   const enterCost=(from,to)=>{ if(!passable(to))return null; if(cells[to].elev-cells[from].elev>=2)return null; const climb=Math.max(0,cells[to].elev-cells[from].elev); return (cells[to].terr==="rough"?2:1)+climb; };
 
@@ -1532,8 +1594,136 @@
     const nh=2+Math.floor(rnd()*2);
     for(let k=0;k<nh;k++){ const hx=rnd()*W,hy=rnd()*H,rad=W*(0.12+rnd()*0.13),pk=1+Math.floor(rnd()*3);
       cells.forEach(c=>{const dd=Math.hypot(c.cx-hx,c.cy-hy); if(dd<rad)c.elev=Math.min(3,Math.max(c.elev,Math.round(pk*(1-dd/rad))));}); }
-    cells.forEach(c=>{ if(c.elev>0)return; const r=rnd(); if(r<cover*0.35)c.terr="wall"; else if(r<cover)c.terr="rough"; });
-    walls=new Set(); for(const k of wallSeg.keys()){ const ab=k.split("-").map(Number); if(cells[ab[0]].terr==="wall"||cells[ab[1]].terr==="wall")continue; if(rnd()<0.15)walls.add(k); }
+    // ===== Génération du terrain en trois temps : GÉOMÉTRIE d'abord, remplissage ensuite =====
+    // (leçon du plot/parcel : la structure est décidée, le décor est tiré au sort)
+    const ngrid=[]; for(let i=0;i<256;i++)ngrid.push(rnd());
+    const nz=(x,y,sc)=>{ const gx=x/sc,gy=y/sc,xi=Math.floor(gx),yi=Math.floor(gy),xf=gx-xi,yf=gy-yi;
+      const h=(a,b)=>ngrid[(((a*73856093)^(b*19349663))>>>0)&255], sm=t=>t*t*(3-2*t), lp=(a,b,t)=>a+(b-a)*sm(t);
+      return lp(lp(h(xi,yi),h(xi+1,yi),xf),lp(h(xi,yi+1),h(xi+1,yi+1),xf),yf); };
+    const SC=W*0.17;
+    cells.forEach(c=>{ c._route=false; c._barrier=false; c._dio=false; });
+    const STRUCT=(window.GENSTRUCT!==false);   // false => ancien comportement (semis pur), pour comparer
+
+    // ÉTAPE 2 — la ROUTE (le « plot » : le tissu connectif). Un axe qui serpente du coin de
+    // déploiement au coin opposé : il donne un sens de progression, donc un flanc, donc un choix.
+    let ROUTE={A:null,B:null,path:[]};
+    STRUCT&&(function carveRoute(){
+      const corner=(sx,sy)=>cells.reduce((a,b)=>((b.cx*sx+b.cy*sy)<(a.cx*sx+a.cy*sy)?b:a));
+      const A=corner(1,1), B=corner(-1,-1);
+      const prev=new Map(), dist=new Map([[A.id,0]]), pq=[[0,A.id]];
+      const cost=id=>{ const c=cells[id]; return 1+2.2*nz(c.cx,c.cy,SC*0.8); };
+      while(pq.length){ pq.sort((x,y)=>x[0]-y[0]); const [d,u]=pq.shift();
+        if(u===B.id)break; if(d>(dist.get(u)??1e9))continue;
+        for(const v of cells[u].nb){ const nd=d+cost(v);
+          if(nd<(dist.get(v)??1e9)){ dist.set(v,nd); prev.set(v,u); pq.push([nd,v]); } } }
+      const path=[]; let cur=B.id; while(cur!==undefined){ path.push(cur); cur=prev.get(cur); }
+      for(const id of path){ cells[id]._route=true;
+        for(const v of cells[id].nb) if(rnd()<0.5) cells[v]._route=true; }   // la route a une largeur
+      ROUTE={A,B,path};
+    })();
+
+    // ÉTAPE 3 — les GOULOTS. Sans barrière la carte est un seul champ ouvert : on la traverse en
+    // diagonale sans jamais choisir. 1 à 2 barrières perpendiculaires à l'axe, percées de passages
+    // — dont un sur la route, pour ne jamais enfermer le joueur.
+    STRUCT&&(function chokepoints(){
+      const A=ROUTE.A,B=ROUTE.B; if(!A||!B)return;
+      const ax=B.cx-A.cx, ay=B.cy-A.cy, L=Math.hypot(ax,ay)||1, ux=ax/L, uy=ay/L;
+      const proj=c=>((c.cx-A.cx)*ux+(c.cy-A.cy)*uy)/L;
+      const onRoute=new Set(ROUTE.path);
+      const at=(rnd()<0.5)?[0.45+rnd()*0.12]:[0.34+rnd()*0.08,0.66+rnd()*0.08];
+      for(const t of at){
+        const band=cells.filter(c=>Math.abs(proj(c)-t)<0.033&&c.elev===0);
+        if(band.length<4)continue;
+        for(const c of band){ c.terr="wall"; c._barrier=true; }
+        const gaps=band.filter(c=>onRoute.has(c.id));
+        const others=band.filter(c=>!onRoute.has(c.id));
+        for(let k=0;k<1+Math.floor(rnd()*2)&&others.length;k++)
+          gaps.push(others.splice(Math.floor(rnd()*others.length),1)[0]);
+        for(const g of gaps){ g.terr="plain"; g._barrier=false;
+          for(const v of g.nb) if(cells[v]._barrier&&rnd()<0.45){ cells[v].terr="plain"; cells[v]._barrier=false; } }
+      }
+    })();
+
+    // ÉTAPE 4 — les DIORAMAS. Le semis, même groupé, ne produit pas de LIEUX : il faut des motifs
+    // composés à la main. Comme le maillage est irrégulier, un motif n'est pas une forme en cases
+    // mais une règle sur les anneaux de voisinage — ce qui le rend valable sur n'importe quel pavage.
+    // C'est l'équivalent bon marché des « parcels » de Firaxis : de la donnée, pas des assets.
+    STRUCT&&(function dioramas(){
+      const MOTIFS=[
+        { nom:"redoute",  poids:5, pose:(c,r1)=>{ c.terr="plain";               // pièce défendable : anneau fermé, UNE entrée
+            r1.forEach((v,i)=>{ v.terr = (i===0) ? "plain" : "wall"; }); } },
+        { nom:"ruine",    poids:3, pose:(c,r1)=>{ c.terr="rough";               // un L de murs : couvert directionnel
+            r1.forEach((v,i)=>{ if(i<Math.ceil(r1.length/2)) v.terr="wall"; }); } },
+        { nom:"bosquet",  poids:4, pose:(c,r1)=>{ c.terr="rough";               // couvert doux et large
+            r1.forEach(v=>{ if(rnd()<0.75) v.terr="rough"; }); } },
+        { nom:"carriere", poids:2, pose:(c,r1)=>{ c.terr="rough"; c.elev=Math.max(c.elev,1);   // point haut disputable
+            r1.forEach((v,i)=>{ v.terr = i%2 ? "wall" : "plain"; }); } },
+      ];
+      const tot=MOTIFS.reduce((a,m)=>a+m.poids,0);
+      const pick=()=>{ let r=rnd()*tot; for(const m of MOTIFS){ r-=m.poids; if(r<=0)return m; } return MOTIFS[0]; };
+      const n=4+Math.floor(rnd()*4);
+      const used=[];
+      const forces=["redoute","redoute"];   // au moins deux lieux défendables par carte
+      for(let k=0;k<n;k++){
+        // un emplacement à l'écart de la route, des barrières et des dioramas déjà posés
+        const cand=cells.filter(c=>!c._route&&!c._barrier&&c.nb.length>=4
+          && used.every(u=>Math.hypot(c.cx-u.cx,c.cy-u.cy)>W*0.16));
+        if(!cand.length)break;
+        const c=cand[Math.floor(rnd()*cand.length)];
+        const r1=c.nb.map(id=>cells[id]).filter(v=>!v._route&&!v._barrier);
+        if(r1.length<3)continue;
+        const f=forces.shift();
+        const motif=f?MOTIFS.find(m=>m.nom===f):pick();
+        motif.pose(c,r1); used.push(c);
+        c._dio=true; r1.forEach(v=>v._dio=true);
+      }
+    })();
+
+    // ÉTAPE 1 — le COUVERT, agrégé. Un tirage indépendant par cellule donne une densité uniforme
+    // (du confetti) : aucune position ne vaut mieux qu'une autre, donc aucune tactique. On seuille
+    // un champ de bruit par quantile — densité respectée, mais regroupée en fourrés et clairières.
+    // Le budget tient compte des murs déjà posés par les barrières, pour que le curseur reste juste.
+    (function scatterCover(){
+      const flat=cells.filter(c=>c.elev===0);
+      const already=flat.filter(c=>(c._barrier||c._dio)&&(c.terr==="wall"||c.terr==="rough")).length;
+      const elig=flat.filter(c=>!c._barrier&&!c._route&&!c._dio);
+      const budget=Math.max(0,Math.round(flat.length*cover)-already);
+      const scored=elig.map(c=>({c,v:STRUCT?(nz(c.cx,c.cy,SC)*0.72+nz(c.cx,c.cy,SC*0.42)*0.28):rnd()}));
+      scored.sort((a,b)=>b.v-a.v);
+      scored.forEach((o,i)=>{ o.c.terr = i<budget*0.35 ? "wall" : (i<budget ? "rough" : "plain"); });
+      // normalisation : barrières et dioramas ont pu faire déborder le budget (une carrière change
+      // l'élévation, donc le dénominateur). On retire le surplus sur le couvert semé uniquement,
+      // pour que le curseur « Couvert » reste vrai à l'unité près.
+      const cible=Math.round(flat.length*cover);
+      let ecart=flat.filter(c=>c.terr==="wall"||c.terr==="rough").length-cible;
+      if(ecart>0) for(let i=scored.length-1;i>=0&&ecart>0;i--){
+        const c=scored[i].c; if(c.terr==="rough"){ c.terr="plain"; ecart--; } }
+    })();
+
+    // garde-fou : murs agrégés + barrières peuvent isoler un morceau de carte.
+    (function keepConnected(){
+      // Rattache chaque composante isolée en perçant UNE seule paroi vers la composante principale
+      // (percer par cellule isolée démolissait les barrières entières).
+      for(let guard=0; guard<12; guard++){
+        const pass=cells.filter(c=>c.terr!=="wall").map(c=>c.id), ps=new Set(pass);
+        if(!pass.length)return;
+        const comp=new Map(); let k=0;
+        for(const id of pass){ if(comp.has(id))continue; const st=[id]; comp.set(id,k);
+          while(st.length){ const u=st.pop(); for(const v of cells[u].nb) if(ps.has(v)&&!comp.has(v)){comp.set(v,k);st.push(v);} } k++; }
+        if(k<=1)return;
+        const size=new Array(k).fill(0); for(const [,g] of comp)size[g]++;
+        const main=size.indexOf(Math.max(...size));
+        let done=false;
+        for(const id of pass){ if(comp.get(id)===main)continue;
+          for(const v of cells[id].nb){ if(cells[v].terr!=="wall")continue;
+            if(cells[v].nb.some(w=>ps.has(w)&&comp.get(w)===main)){ cells[v].terr="rough"; cells[v]._barrier=false; done=true; break; } }
+          if(done)break; }
+        if(!done)return;
+      }
+    })();
+    walls=new Set(); for(const k of wallSeg.keys()){ const ab=k.split("-").map(Number); if(cells[ab[0]].terr==="wall"||cells[ab[1]].terr==="wall")continue;
+      if(cells[ab[0]]._route&&cells[ab[1]]._route)continue;   // pas de muret en travers de la route
+      if(rnd()<0.15)walls.add(k); }
     // graph placement
     const pass=cells.filter(c=>passable(c.id)); if(!pass.length){ triggers=[]; renderTrigList(); refresh(); return null; }
     const anchor=pass.reduce((a,b)=>(b.cx+b.cy)<(a.cx+a.cy)?b:a);   // corner of the island = deployment zone
