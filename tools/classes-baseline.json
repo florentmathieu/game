@@ -1,0 +1,2577 @@
+{
+ "_source": "Classeur généré pour la conception des classes (tools/build-classes-sheet.py)",
+ "_sheet": "https://docs.google.com/spreadsheets/d/1ujdlCplZcWjku8jn3CSZUcby-2KpiUVfYE1RmYA7Ylc/edit",
+ "_ecarts_connus": [
+  "RÉFÉRENCE : le Sheet converti n'a pas la ligne 'protect' (13 capacités au lieu de 14).",
+  "Cleaner / Wrecker / Barricade : première ligne d'armes étiquetée 'arme 2' au lieu de 'arme 1' (cosmétique)."
+ ],
+ "onglets": {
+  "INDEX": [
+   [
+    "INDEX DES CLASSES"
+   ],
+   [
+    "Un onglet par classe. Cellules jaunes = à remplir. Voir l'onglet RÉFÉRENCE pour les capacités et effets disponibles."
+   ],
+   [
+    "key",
+    "onglet",
+    "camp",
+    "état",
+    "grades remplis (auto)",
+    "note"
+   ],
+   [
+    "soldat",
+    "Enforcer",
+    "joueur",
+    "valeurs actuelles du jeu — à réécrire",
+    "=COUNTA('Enforcer'!B34:B40)"
+   ],
+   [
+    "sapeur",
+    "Blaster",
+    "joueur",
+    "valeurs actuelles du jeu — à réécrire",
+    "=COUNTA('Blaster'!B34:B40)"
+   ],
+   [
+    "assassin",
+    "Cleaner",
+    "joueur",
+    "valeurs actuelles du jeu — à réécrire",
+    "=COUNTA('Cleaner'!B34:B40)"
+   ],
+   [
+    "garde",
+    "Foreman",
+    "joueur",
+    "valeurs actuelles du jeu — à réécrire",
+    "=COUNTA('Foreman'!B34:B40)"
+   ],
+   [
+    "mage",
+    "Siphoner",
+    "joueur",
+    "valeurs actuelles du jeu — à réécrire",
+    "=COUNTA('Siphoner'!B34:B40)"
+   ],
+   [
+    "archer",
+    "Irregular",
+    "ennemi",
+    "valeurs actuelles du jeu — à réécrire",
+    "—"
+   ],
+   [
+    "brute",
+    "Wrecker",
+    "ennemi",
+    "valeurs actuelles du jeu — à réécrire",
+    "—"
+   ],
+   [
+    "shieldbearer",
+    "Barricade",
+    "ennemi",
+    "valeurs actuelles du jeu — à réécrire",
+    "—"
+   ],
+   [
+    "emage",
+    "WildSiphoner",
+    "ennemi",
+    "valeurs actuelles du jeu — à réécrire",
+    "—"
+   ],
+   [
+    "rival",
+    "Counterparty",
+    "ennemi",
+    "valeurs actuelles du jeu — à réécrire",
+    "—"
+   ],
+   [
+    "contact",
+    "Contact",
+    "ennemi",
+    "valeurs actuelles du jeu — à réécrire",
+    "—"
+   ],
+   [
+    "seer",
+    "Seer",
+    "ennemi",
+    "à écrire",
+    "—",
+    "piste proposée (univers Ore)"
+   ],
+   [
+    "relay",
+    "Relay",
+    "ennemi",
+    "à écrire",
+    "—",
+    "piste proposée (univers Ore)"
+   ],
+   [
+    "kindler",
+    "Kindler",
+    "ennemi",
+    "à écrire",
+    "—",
+    "piste proposée (univers Ore)"
+   ],
+   [
+    "vessel",
+    "Vessel",
+    "ennemi",
+    "à écrire",
+    "—",
+    "piste proposée (univers Ore)"
+   ],
+   [
+    "poacher",
+    "Poacher",
+    "ennemi",
+    "à écrire",
+    "—",
+    "piste proposée (univers Ore)"
+   ],
+   [
+    "leech",
+    "Leech",
+    "ennemi",
+    "à écrire",
+    "—",
+    "piste proposée (univers Ore)"
+   ],
+   [
+    "homme",
+    "—",
+    "civil",
+    "pas d'onglet : PV/déplacement seulement",
+    "—"
+   ],
+   [
+    "femme",
+    "—",
+    "civil",
+    "pas d'onglet : PV/déplacement seulement",
+    "—"
+   ],
+   [
+    "enfant",
+    "—",
+    "civil",
+    "pas d'onglet : PV/déplacement seulement",
+    "—"
+   ],
+   [
+    "« grades remplis » compte les noms de perk du côté A : il doit afficher 7 pour une classe joueur terminée."
+   ]
+  ],
+  "RÉFÉRENCE": [
+   [
+    "RÉFÉRENCE — ce que le moteur sait déjà faire"
+   ],
+   [
+    "CAPACITÉS EXISTANTES (à mettre en colonne « moteur »)"
+   ],
+   [
+    "identifiant",
+    "ce que ça fait"
+   ],
+   [
+    "smoke",
+    "Voile la ligne de vue (zone, 2 tours)"
+   ],
+   [
+    "breach",
+    "Détruit un rocher / muret, ouvre un passage"
+   ],
+   [
+    "shadowstrike",
+    "Bond vers le flanc ou le dos d’un ennemi + dégâts"
+   ],
+   [
+    "rally",
+    "Rend 1 PA à un allié adjacent"
+   ],
+   [
+    "vanish",
+    "Redevient indétectable un tour (1×/combat)"
+   ],
+   [
+    "taunt",
+    "Les ennemis te ciblent en priorité"
+   ],
+   [
+    "holdline",
+    "Vigilance au profit des alliés adjacents"
+   ],
+   [
+    "wall",
+    "Donne un couvert aux alliés adjacents"
+   ],
+   [
+    "protect",
+    "Intercepte un coup destiné à un allié adjacent (passif)"
+   ],
+   [
+    "blast",
+    "Explosion de zone (dégâts de souffle)"
+   ],
+   [
+    "heal",
+    "Soigne un allié à distance"
+   ],
+   [
+    "frost",
+    "Ralentit un ennemi (−1 PA à son tour)"
+   ],
+   [
+    "shove",
+    "Repousse d’une case (50 % étourdi)"
+   ],
+   [
+    "charge",
+    "Course puis attaque ; impact selon la distance parcourue"
+   ],
+   [
+    "EFFETS CHIFFRÉS DE PERK (colonne « effet »)"
+   ],
+   [
+    "+X pv"
+   ],
+   [
+    "+X dégât"
+   ],
+   [
+    "+X visée"
+   ],
+   [
+    "+X portée"
+   ],
+   [
+    "+X déplacement"
+   ],
+   [
+    "+X blocage %"
+   ],
+   [
+    "+X parade %"
+   ],
+   [
+    "+X grenade"
+   ],
+   [
+    "+X précision de jet"
+   ],
+   [
+    "+X déplacement gratuit"
+   ],
+   [
+    "RÈGLES À CONNAÎTRE"
+   ],
+   [
+    "• La colonne A (les intitulés) ne doit pas être renommée : c'est elle qui me permet de relire les onglets."
+   ],
+   [
+    "• La ligne « key » ne doit jamais changer : elle relie la classe à ses perks et aux sauvegardes existantes."
+   ],
+   [
+    "• Une classe JOUEUR a besoin de 7 grades × (A et B). Une classe ENNEMIE n'a pas d'arbre."
+   ],
+   [
+    "• Tout effet ou capacité hors des listes ci-dessus est possible, mais demande du code : écris-le et marque À CODER."
+   ],
+   [
+    "• Portées de référence : équipe joueur 7 · Irregular 9 · Contact 10. La portée est le levier le plus expressif."
+   ],
+   [
+    "• Cellules jaunes = à remplir. Cellules grises = structure, ne pas toucher."
+   ]
+  ],
+  "Enforcer": [
+   [
+    "Enforcer   —   joueur"
+   ],
+   [
+    "IDENTITÉ"
+   ],
+   [
+    "key",
+    "soldat",
+    "identifiant moteur — NE JAMAIS MODIFIER"
+   ],
+   [
+    "nom affiché",
+    "Enforcer",
+    "la désignation officielle de l'État"
+   ],
+   [
+    "vrai nom",
+    "",
+    "pour la bascule de fin (revealTruth)"
+   ],
+   [
+    "camp",
+    "joueur",
+    "joueur / ennemi / civil"
+   ],
+   [
+    "pitch",
+    "« Protection des actifs ». Fusil d'ordonnance et plaque pare-balles : le métier de base, celui qu'on ne remarque pas.",
+    "une phrase : qui c'est, pourquoi il se bat"
+   ],
+   [
+    "STATS"
+   ],
+   [
+    "pv",
+    10
+   ],
+   [
+    "déplacement",
+    8
+   ],
+   [
+    "blocage %",
+    30
+   ],
+   [
+    "parade %",
+    0
+   ],
+   [
+    "furtif",
+    "non"
+   ],
+   [
+    "poids génération",
+    "",
+    "0 = n'apparaît que si la campagne l'invoque"
+   ],
+   [
+    "ARMES"
+   ],
+   [
+    "emplacement",
+    "type",
+    "nom",
+    "visée",
+    "dmg min",
+    "dmg max",
+    "portée",
+    "chargeur",
+    "notes"
+   ],
+   [
+    "arme 1",
+    "distance",
+    "service rifle",
+    72,
+    3,
+    5,
+    7,
+    4
+   ],
+   [
+    "arme 2",
+    "contact",
+    "",
+    70,
+    3,
+    5,
+    "—"
+   ],
+   [
+    "arme 3"
+   ],
+   [
+    "CAPACITÉS"
+   ],
+   [
+    "nom",
+    "description (langage naturel)",
+    "moteur"
+   ],
+   [
+    "« moteur » = un identifiant existant (voir RÉFÉRENCE) ou À CODER si la capacité n'existe pas encore."
+   ],
+   [
+    "ARBRE DE COMPÉTENCES  —  7 grades, choix A ou B, irréversible"
+   ],
+   [
+    "grade",
+    "A : nom",
+    "A : description",
+    "A : effet",
+    "B : nom",
+    "B : description",
+    "B : effet"
+   ],
+   [
+    1,
+    "Rallying Cry",
+    "Restores 1 AP to an adjacent ally",
+    "rally",
+    "Tenacious",
+    "+4 HP",
+    "+4 pv"
+   ],
+   [
+    2,
+    "Taunt",
+    "Enemies target you first",
+    "taunt",
+    "Leader",
+    "+1 damage",
+    "+1 dégât"
+   ],
+   [
+    3,
+    "Hold the Line",
+    "Overwatch for adjacent allies",
+    "holdline",
+    "Steel Guard",
+    "+15% block",
+    "+15 blocage %"
+   ],
+   [
+    4,
+    "Reach",
+    "+1 free movement point (no AP)",
+    "+1 déplacement gratuit",
+    "Veteran",
+    "+2 damage",
+    "+2 dégât"
+   ],
+   [
+    5,
+    "Standard-Bearer",
+    "+2 damage",
+    "+2 dégât",
+    "Unkillable",
+    "+6 HP",
+    "+6 pv"
+   ],
+   [
+    6,
+    "Weapon Master",
+    "+20 aim",
+    "+20 visée",
+    "Living Bastion",
+    "+20% block",
+    "+20 blocage %"
+   ],
+   [
+    7,
+    "War Hero",
+    "+3 damage",
+    "+3 dégât",
+    "Steel Colossus",
+    "+8 HP",
+    "+8 pv"
+   ],
+   [
+    "Les 7 grades doivent être remplis : un grade vide bloque la montée du personnage à ce palier."
+   ]
+  ],
+  "Blaster": [
+   [
+    "Blaster   —   joueur"
+   ],
+   [
+    "IDENTITÉ"
+   ],
+   [
+    "key",
+    "sapeur",
+    "identifiant moteur — NE JAMAIS MODIFIER"
+   ],
+   [
+    "nom affiché",
+    "Blaster",
+    "la désignation officielle de l'État"
+   ],
+   [
+    "vrai nom",
+    "",
+    "pour la bascule de fin (revealTruth)"
+   ],
+   [
+    "camp",
+    "joueur",
+    "joueur / ennemi / civil"
+   ],
+   [
+    "pitch",
+    "Artificier. Pose et lance les charges de minage — l'outil de production reconverti en arme.",
+    "une phrase : qui c'est, pourquoi il se bat"
+   ],
+   [
+    "STATS"
+   ],
+   [
+    "pv",
+    7
+   ],
+   [
+    "déplacement",
+    8
+   ],
+   [
+    "blocage %",
+    0
+   ],
+   [
+    "parade %",
+    0
+   ],
+   [
+    "furtif",
+    "non"
+   ],
+   [
+    "poids génération",
+    "",
+    "0 = n'apparaît que si la campagne l'invoque"
+   ],
+   [
+    "ARMES"
+   ],
+   [
+    "emplacement",
+    "type",
+    "nom",
+    "visée",
+    "dmg min",
+    "dmg max",
+    "portée",
+    "chargeur",
+    "notes"
+   ],
+   [
+    "arme 1",
+    "distance",
+    "charge launcher",
+    68,
+    3,
+    5,
+    7,
+    3
+   ],
+   [
+    "arme 2",
+    "contact",
+    "",
+    65,
+    2,
+    4,
+    "—"
+   ],
+   [
+    "arme 3",
+    "jet",
+    "charge",
+    " ",
+    5,
+    9,
+    6,
+    1,
+    "rayon 2 · dispersion 2"
+   ],
+   [
+    "CAPACITÉS"
+   ],
+   [
+    "nom",
+    "description (langage naturel)",
+    "moteur"
+   ],
+   [
+    "« moteur » = un identifiant existant (voir RÉFÉRENCE) ou À CODER si la capacité n'existe pas encore."
+   ],
+   [
+    "ARBRE DE COMPÉTENCES  —  7 grades, choix A ou B, irréversible"
+   ],
+   [
+    "grade",
+    "A : nom",
+    "A : description",
+    "A : effet",
+    "B : nom",
+    "B : description",
+    "B : effet"
+   ],
+   [
+    1,
+    "Smoke Bomb",
+    "Veils line of sight (area, 2 turns)",
+    "smoke",
+    "Lynx Eye",
+    "+10 aim",
+    "+10 visée"
+   ],
+   [
+    2,
+    "Shaped Charge",
+    "Destroys a rock/low wall (opens a passage)",
+    "breach",
+    "Hardened",
+    "+3 HP",
+    "+3 pv"
+   ],
+   [
+    3,
+    "Bombardier",
+    "More accurate cracker (less scatter)",
+    "+1 précision de jet",
+    "Heavy Charge",
+    "+2 damage",
+    "+2 dégât"
+   ],
+   [
+    4,
+    "Ammo",
+    "+1 cracker",
+    "+1 grenade",
+    "Nimble",
+    "+1 movement",
+    "+1 déplacement"
+   ],
+   [
+    5,
+    "Sharp Aim",
+    "+15 aim",
+    "+15 visée",
+    "Endurance",
+    "+5 HP",
+    "+5 pv"
+   ],
+   [
+    6,
+    "Demolisher",
+    "+3 damage",
+    "+3 dégât",
+    "Elite Bombardier",
+    "+1 cracker",
+    "+1 grenade"
+   ],
+   [
+    7,
+    "Rain of Fire",
+    "+1 cracker",
+    "+1 grenade",
+    "Master Bombardier",
+    "+2 damage",
+    "+2 dégât"
+   ],
+   [
+    "Les 7 grades doivent être remplis : un grade vide bloque la montée du personnage à ce palier."
+   ]
+  ],
+  "Cleaner": [
+   [
+    "Cleaner   —   joueur"
+   ],
+   [
+    "IDENTITÉ"
+   ],
+   [
+    "key",
+    "assassin",
+    "identifiant moteur — NE JAMAIS MODIFIER"
+   ],
+   [
+    "nom affiché",
+    "Cleaner",
+    "la désignation officielle de l'État"
+   ],
+   [
+    "vrai nom",
+    "",
+    "pour la bascule de fin (revealTruth)"
+   ],
+   [
+    "camp",
+    "joueur",
+    "joueur / ennemi / civil"
+   ],
+   [
+    "pitch",
+    "Le « nettoyeur ». Règle les incidents discrètement. Seul rôle de contact du joueur.",
+    "une phrase : qui c'est, pourquoi il se bat"
+   ],
+   [
+    "STATS"
+   ],
+   [
+    "pv",
+    7
+   ],
+   [
+    "déplacement",
+    8
+   ],
+   [
+    "blocage %",
+    0
+   ],
+   [
+    "parade %",
+    35
+   ],
+   [
+    "furtif",
+    "oui"
+   ],
+   [
+    "poids génération",
+    "",
+    "0 = n'apparaît que si la campagne l'invoque"
+   ],
+   [
+    "ARMES"
+   ],
+   [
+    "emplacement",
+    "type",
+    "nom",
+    "visée",
+    "dmg min",
+    "dmg max",
+    "portée",
+    "chargeur",
+    "notes"
+   ],
+   [
+    "arme 1",
+    "contact",
+    "",
+    80,
+    3,
+    4,
+    "—",
+    "",
+    "flanc dos +5 / côté +2"
+   ],
+   [
+    "arme 2"
+   ],
+   [
+    "arme 3"
+   ],
+   [
+    "CAPACITÉS"
+   ],
+   [
+    "nom",
+    "description (langage naturel)",
+    "moteur"
+   ],
+   [
+    "« moteur » = un identifiant existant (voir RÉFÉRENCE) ou À CODER si la capacité n'existe pas encore."
+   ],
+   [
+    "ARBRE DE COMPÉTENCES  —  7 grades, choix A ou B, irréversible"
+   ],
+   [
+    "grade",
+    "A : nom",
+    "A : description",
+    "A : effet",
+    "B : nom",
+    "B : description",
+    "B : effet"
+   ],
+   [
+    1,
+    "Shadow Strike",
+    "Leap to an enemy's flank/back + damage",
+    "shadowstrike",
+    "Keen Blade",
+    "+2 damage",
+    "+2 dégât"
+   ],
+   [
+    2,
+    "Fade",
+    "Becomes undetectable again for a turn (1×/fight)",
+    "vanish",
+    "Precision",
+    "+10 aim",
+    "+10 visée"
+   ],
+   [
+    3,
+    "Killer",
+    "+2 damage",
+    "+2 dégât",
+    "Elusive",
+    "+20% parry",
+    "+20 parade %"
+   ],
+   [
+    4,
+    "Reach",
+    "+1 free movement point (no AP)",
+    "+1 déplacement gratuit",
+    "Hamstring",
+    "+2 damage",
+    "+2 dégât"
+   ],
+   [
+    5,
+    "Deadly Shadow",
+    "+3 damage",
+    "+3 dégât",
+    "Specter",
+    "+20% parry",
+    "+20 parade %"
+   ],
+   [
+    6,
+    "Stalker",
+    "+1 free movement point (no AP)",
+    "+1 déplacement gratuit",
+    "Cutthroat",
+    "+20 aim",
+    "+20 visée"
+   ],
+   [
+    7,
+    "Dance of Blades",
+    "+3 damage",
+    "+3 dégât",
+    "Absolute Shadow",
+    "+25% parry",
+    "+25 parade %"
+   ],
+   [
+    "Les 7 grades doivent être remplis : un grade vide bloque la montée du personnage à ce palier."
+   ]
+  ],
+  "Foreman": [
+   [
+    "Foreman   —   joueur"
+   ],
+   [
+    "IDENTITÉ"
+   ],
+   [
+    "key",
+    "garde",
+    "identifiant moteur — NE JAMAIS MODIFIER"
+   ],
+   [
+    "nom affiché",
+    "Foreman",
+    "la désignation officielle de l'État"
+   ],
+   [
+    "vrai nom",
+    "",
+    "pour la bascule de fin (revealTruth)"
+   ],
+   [
+    "camp",
+    "joueur",
+    "joueur / ennemi / civil"
+   ],
+   [
+    "pitch",
+    "Chef d'équipe : bouclier de chantier et fusil à dispersion. Encadre autant qu'il combat.",
+    "une phrase : qui c'est, pourquoi il se bat"
+   ],
+   [
+    "STATS"
+   ],
+   [
+    "pv",
+    8
+   ],
+   [
+    "déplacement",
+    6
+   ],
+   [
+    "blocage %",
+    20
+   ],
+   [
+    "parade %",
+    0
+   ],
+   [
+    "furtif",
+    "non"
+   ],
+   [
+    "poids génération",
+    "",
+    "0 = n'apparaît que si la campagne l'invoque"
+   ],
+   [
+    "ARMES"
+   ],
+   [
+    "emplacement",
+    "type",
+    "nom",
+    "visée",
+    "dmg min",
+    "dmg max",
+    "portée",
+    "chargeur",
+    "notes"
+   ],
+   [
+    "arme 1",
+    "distance",
+    "scatter gun",
+    66,
+    3,
+    5,
+    4,
+    2
+   ],
+   [
+    "arme 2",
+    "contact",
+    "",
+    65,
+    3,
+    4,
+    "—"
+   ],
+   [
+    "arme 3"
+   ],
+   [
+    "CAPACITÉS"
+   ],
+   [
+    "nom",
+    "description (langage naturel)",
+    "moteur"
+   ],
+   [
+    "« moteur » = un identifiant existant (voir RÉFÉRENCE) ou À CODER si la capacité n'existe pas encore."
+   ],
+   [
+    "ARBRE DE COMPÉTENCES  —  7 grades, choix A ou B, irréversible"
+   ],
+   [
+    "grade",
+    "A : nom",
+    "A : description",
+    "A : effet",
+    "B : nom",
+    "B : description",
+    "B : effet"
+   ],
+   [
+    1,
+    "Protecting Shield",
+    "Intercepts a blow aimed at an adjacent ally",
+    "protect",
+    "Robust",
+    "+4 HP",
+    "+4 pv"
+   ],
+   [
+    2,
+    "Mobile Wall",
+    "Gives cover to adjacent allies",
+    "wall",
+    "Shove",
+    "Pushes the adjacent enemy back one tile (50% stunned)",
+    "shove"
+   ],
+   [
+    3,
+    "Stride",
+    "+1 movement",
+    "+1 déplacement",
+    "Bastion",
+    "+5 HP",
+    "+5 pv"
+   ],
+   [
+    4,
+    "Long Charge",
+    "Run then attack; impact scales with distance covered",
+    "charge",
+    "Rampart",
+    "+15% block",
+    "+15 blocage %"
+   ],
+   [
+    5,
+    "Fortress",
+    "+6 HP",
+    "+6 pv",
+    "Tower Shield",
+    "+20% block",
+    "+20 blocage %"
+   ],
+   [
+    6,
+    "Unshakable",
+    "+8 HP",
+    "+8 pv",
+    "Counter-Charge",
+    "+2 damage",
+    "+2 dégât"
+   ],
+   [
+    7,
+    "Impassable Wall",
+    "+25% block",
+    "+25 blocage %",
+    "Titan",
+    "+10 HP",
+    "+10 pv"
+   ],
+   [
+    "Les 7 grades doivent être remplis : un grade vide bloque la montée du personnage à ce palier."
+   ]
+  ],
+  "Siphoner": [
+   [
+    "Siphoner   —   joueur"
+   ],
+   [
+    "IDENTITÉ"
+   ],
+   [
+    "key",
+    "mage",
+    "identifiant moteur — NE JAMAIS MODIFIER"
+   ],
+   [
+    "nom affiché",
+    "Siphoner",
+    "la désignation officielle de l'État"
+   ],
+   [
+    "vrai nom",
+    "",
+    "pour la bascule de fin (revealTruth)"
+   ],
+   [
+    "camp",
+    "joueur",
+    "joueur / ennemi / civil"
+   ],
+   [
+    "pitch",
+    "Arcaniste. Tire l'essence RAFFINÉE extraite du monde : sa magie est volée à ce qu'il détruit.",
+    "une phrase : qui c'est, pourquoi il se bat"
+   ],
+   [
+    "STATS"
+   ],
+   [
+    "pv",
+    6
+   ],
+   [
+    "déplacement",
+    7
+   ],
+   [
+    "blocage %",
+    0
+   ],
+   [
+    "parade %",
+    0
+   ],
+   [
+    "furtif",
+    "non"
+   ],
+   [
+    "poids génération",
+    "",
+    "0 = n'apparaît que si la campagne l'invoque"
+   ],
+   [
+    "ARMES"
+   ],
+   [
+    "emplacement",
+    "type",
+    "nom",
+    "visée",
+    "dmg min",
+    "dmg max",
+    "portée",
+    "chargeur",
+    "notes"
+   ],
+   [
+    "arme 1",
+    "distance",
+    "essence siphon",
+    72,
+    4,
+    6,
+    7,
+    3
+   ],
+   [
+    "arme 2",
+    "contact",
+    "",
+    45,
+    2,
+    3,
+    "—"
+   ],
+   [
+    "arme 3"
+   ],
+   [
+    "CAPACITÉS"
+   ],
+   [
+    "nom",
+    "description (langage naturel)",
+    "moteur"
+   ],
+   [
+    "« moteur » = un identifiant existant (voir RÉFÉRENCE) ou À CODER si la capacité n'existe pas encore."
+   ],
+   [
+    "ARBRE DE COMPÉTENCES  —  7 grades, choix A ou B, irréversible"
+   ],
+   [
+    "grade",
+    "A : nom",
+    "A : description",
+    "A : effet",
+    "B : nom",
+    "B : description",
+    "B : effet"
+   ],
+   [
+    1,
+    "Blast",
+    "Area explosion (splash damage)",
+    "blast",
+    "Piercing Bolt",
+    "+2 damage",
+    "+2 dégât"
+   ],
+   [
+    2,
+    "Mending Draw",
+    "Heals an ally at range",
+    "heal",
+    "Long Range",
+    "+2 range",
+    "+2 portée"
+   ],
+   [
+    3,
+    "Frost",
+    "Slows an enemy (−1 AP on its turn)",
+    "frost",
+    "Vitality",
+    "+5 HP",
+    "+5 pv"
+   ],
+   [
+    4,
+    "Deep Reserves",
+    "+1 range",
+    "+1 portée",
+    "Lined Suit",
+    "+4 HP",
+    "+4 pv"
+   ],
+   [
+    5,
+    "Arcanist",
+    "+2 damage",
+    "+2 dégât",
+    "Long Range+",
+    "+2 range",
+    "+2 portée"
+   ],
+   [
+    6,
+    "Refiner",
+    "+3 damage",
+    "+3 dégât",
+    "Vital Flow",
+    "+6 HP",
+    "+6 pv"
+   ],
+   [
+    7,
+    "Cataclysm",
+    "+4 damage",
+    "+4 dégât",
+    "Bottomless Reserve",
+    "+2 range",
+    "+2 portée"
+   ],
+   [
+    "Les 7 grades doivent être remplis : un grade vide bloque la montée du personnage à ce palier."
+   ]
+  ],
+  "Irregular": [
+   [
+    "Irregular   —   ennemi"
+   ],
+   [
+    "IDENTITÉ"
+   ],
+   [
+    "key",
+    "archer",
+    "identifiant moteur — NE JAMAIS MODIFIER"
+   ],
+   [
+    "nom affiché",
+    "Irregular",
+    "la désignation officielle de l'État"
+   ],
+   [
+    "vrai nom",
+    "Hunter",
+    "pour la bascule de fin (revealTruth)"
+   ],
+   [
+    "camp",
+    "ennemi",
+    "joueur / ennemi / civil"
+   ],
+   [
+    "pitch",
+    "Fusil de récupération, une génération derrière le tien — et il te touche quand même à portée 9.",
+    "une phrase : qui c'est, pourquoi il se bat"
+   ],
+   [
+    "STATS"
+   ],
+   [
+    "pv",
+    6
+   ],
+   [
+    "déplacement",
+    6
+   ],
+   [
+    "blocage %",
+    0
+   ],
+   [
+    "parade %",
+    0
+   ],
+   [
+    "furtif",
+    "non"
+   ],
+   [
+    "poids génération",
+    3,
+    "0 = n'apparaît que si la campagne l'invoque"
+   ],
+   [
+    "ARMES"
+   ],
+   [
+    "emplacement",
+    "type",
+    "nom",
+    "visée",
+    "dmg min",
+    "dmg max",
+    "portée",
+    "chargeur",
+    "notes"
+   ],
+   [
+    "arme 1",
+    "distance",
+    "salvaged rifle",
+    70,
+    3,
+    4,
+    9,
+    "—"
+   ],
+   [
+    "arme 2"
+   ],
+   [
+    "arme 3"
+   ],
+   [
+    "CAPACITÉS"
+   ],
+   [
+    "nom",
+    "description (langage naturel)",
+    "moteur"
+   ],
+   [
+    "« moteur » = un identifiant existant (voir RÉFÉRENCE) ou À CODER si la capacité n'existe pas encore."
+   ],
+   [
+    "Classe ennemie : pas d'arbre de compétences (les perks ne concernent que les classes joueur)."
+   ]
+  ],
+  "Wrecker": [
+   [
+    "Wrecker   —   ennemi"
+   ],
+   [
+    "IDENTITÉ"
+   ],
+   [
+    "key",
+    "brute",
+    "identifiant moteur — NE JAMAIS MODIFIER"
+   ],
+   [
+    "nom affiché",
+    "Wrecker",
+    "la désignation officielle de l'État"
+   ],
+   [
+    "vrai nom",
+    "Defender",
+    "pour la bascule de fin (revealTruth)"
+   ],
+   [
+    "camp",
+    "ennemi",
+    "joueur / ennemi / civil"
+   ],
+   [
+    "pitch",
+    "Bras hydraulique de minage détourné en arme : il te démonte avec ton propre matériel.",
+    "une phrase : qui c'est, pourquoi il se bat"
+   ],
+   [
+    "STATS"
+   ],
+   [
+    "pv",
+    13
+   ],
+   [
+    "déplacement",
+    8
+   ],
+   [
+    "blocage %",
+    0
+   ],
+   [
+    "parade %",
+    0
+   ],
+   [
+    "furtif",
+    "non"
+   ],
+   [
+    "poids génération",
+    2,
+    "0 = n'apparaît que si la campagne l'invoque"
+   ],
+   [
+    "ARMES"
+   ],
+   [
+    "emplacement",
+    "type",
+    "nom",
+    "visée",
+    "dmg min",
+    "dmg max",
+    "portée",
+    "chargeur",
+    "notes"
+   ],
+   [
+    "arme 1",
+    "contact",
+    "",
+    70,
+    5,
+    7,
+    "—"
+   ],
+   [
+    "arme 2"
+   ],
+   [
+    "arme 3"
+   ],
+   [
+    "CAPACITÉS"
+   ],
+   [
+    "nom",
+    "description (langage naturel)",
+    "moteur"
+   ],
+   [
+    "« moteur » = un identifiant existant (voir RÉFÉRENCE) ou À CODER si la capacité n'existe pas encore."
+   ],
+   [
+    "Classe ennemie : pas d'arbre de compétences (les perks ne concernent que les classes joueur)."
+   ]
+  ],
+  "Barricade": [
+   [
+    "Barricade   —   ennemi"
+   ],
+   [
+    "IDENTITÉ"
+   ],
+   [
+    "key",
+    "shieldbearer",
+    "identifiant moteur — NE JAMAIS MODIFIER"
+   ],
+   [
+    "nom affiché",
+    "Barricade",
+    "la désignation officielle de l'État"
+   ],
+   [
+    "vrai nom",
+    "Warden",
+    "pour la bascule de fin (revealTruth)"
+   ],
+   [
+    "camp",
+    "ennemi",
+    "joueur / ennemi / civil"
+   ],
+   [
+    "pitch",
+    "Plaque de coque découpée dans une navette abattue. Ferme les couloirs.",
+    "une phrase : qui c'est, pourquoi il se bat"
+   ],
+   [
+    "STATS"
+   ],
+   [
+    "pv",
+    12
+   ],
+   [
+    "déplacement",
+    6
+   ],
+   [
+    "blocage %",
+    45
+   ],
+   [
+    "parade %",
+    0
+   ],
+   [
+    "furtif",
+    "non"
+   ],
+   [
+    "poids génération",
+    1,
+    "0 = n'apparaît que si la campagne l'invoque"
+   ],
+   [
+    "ARMES"
+   ],
+   [
+    "emplacement",
+    "type",
+    "nom",
+    "visée",
+    "dmg min",
+    "dmg max",
+    "portée",
+    "chargeur",
+    "notes"
+   ],
+   [
+    "arme 1",
+    "contact",
+    "",
+    60,
+    3,
+    5,
+    "—"
+   ],
+   [
+    "arme 2"
+   ],
+   [
+    "arme 3"
+   ],
+   [
+    "CAPACITÉS"
+   ],
+   [
+    "nom",
+    "description (langage naturel)",
+    "moteur"
+   ],
+   [
+    "shove",
+    "",
+    "shove"
+   ],
+   [
+    "charge",
+    "",
+    "charge"
+   ],
+   [
+    "« moteur » = un identifiant existant (voir RÉFÉRENCE) ou À CODER si la capacité n'existe pas encore."
+   ],
+   [
+    "Classe ennemie : pas d'arbre de compétences (les perks ne concernent que les classes joueur)."
+   ]
+  ],
+  "WildSiphoner": [
+   [
+    "Wild Siphoner   —   ennemi"
+   ],
+   [
+    "IDENTITÉ"
+   ],
+   [
+    "key",
+    "emage",
+    "identifiant moteur — NE JAMAIS MODIFIER"
+   ],
+   [
+    "nom affiché",
+    "Wild Siphoner",
+    "la désignation officielle de l'État"
+   ],
+   [
+    "vrai nom",
+    "Keeper",
+    "pour la bascule de fin (revealTruth)"
+   ],
+   [
+    "camp",
+    "ennemi",
+    "joueur / ennemi / civil"
+   ],
+   [
+    "pitch",
+    "Même métier que ton arcaniste, siphon remonté à la main. On ne lui reproche pas d'être arriéré : on lui reproche de ne pas avoir de licence.",
+    "une phrase : qui c'est, pourquoi il se bat"
+   ],
+   [
+    "STATS"
+   ],
+   [
+    "pv",
+    7
+   ],
+   [
+    "déplacement",
+    7
+   ],
+   [
+    "blocage %",
+    0
+   ],
+   [
+    "parade %",
+    0
+   ],
+   [
+    "furtif",
+    "non"
+   ],
+   [
+    "poids génération",
+    2,
+    "0 = n'apparaît que si la campagne l'invoque"
+   ],
+   [
+    "ARMES"
+   ],
+   [
+    "emplacement",
+    "type",
+    "nom",
+    "visée",
+    "dmg min",
+    "dmg max",
+    "portée",
+    "chargeur",
+    "notes"
+   ],
+   [
+    "arme 1",
+    "distance",
+    "jury-rigged siphon",
+    70,
+    4,
+    6,
+    7,
+    3
+   ],
+   [
+    "arme 2",
+    "contact",
+    "",
+    45,
+    2,
+    3,
+    "—"
+   ],
+   [
+    "arme 3"
+   ],
+   [
+    "CAPACITÉS"
+   ],
+   [
+    "nom",
+    "description (langage naturel)",
+    "moteur"
+   ],
+   [
+    "blast",
+    "",
+    "blast"
+   ],
+   [
+    "frost",
+    "",
+    "frost"
+   ],
+   [
+    "« moteur » = un identifiant existant (voir RÉFÉRENCE) ou À CODER si la capacité n'existe pas encore."
+   ],
+   [
+    "Classe ennemie : pas d'arbre de compétences (les perks ne concernent que les classes joueur)."
+   ]
+  ],
+  "Counterparty": [
+   [
+    "Counterparty   —   ennemi"
+   ],
+   [
+    "IDENTITÉ"
+   ],
+   [
+    "key",
+    "rival",
+    "identifiant moteur — NE JAMAIS MODIFIER"
+   ],
+   [
+    "nom affiché",
+    "Counterparty",
+    "la désignation officielle de l'État"
+   ],
+   [
+    "vrai nom",
+    "",
+    "pour la bascule de fin (revealTruth)"
+   ],
+   [
+    "camp",
+    "ennemi",
+    "joueur / ennemi / civil"
+   ],
+   [
+    "pitch",
+    "Miroir exact de ton Enforcer : même métier, autre drapeau. Rien ne le distingue de toi.",
+    "une phrase : qui c'est, pourquoi il se bat"
+   ],
+   [
+    "STATS"
+   ],
+   [
+    "pv",
+    10
+   ],
+   [
+    "déplacement",
+    8
+   ],
+   [
+    "blocage %",
+    25
+   ],
+   [
+    "parade %",
+    0
+   ],
+   [
+    "furtif",
+    "non"
+   ],
+   [
+    "poids génération",
+    0,
+    "0 = n'apparaît que si la campagne l'invoque"
+   ],
+   [
+    "ARMES"
+   ],
+   [
+    "emplacement",
+    "type",
+    "nom",
+    "visée",
+    "dmg min",
+    "dmg max",
+    "portée",
+    "chargeur",
+    "notes"
+   ],
+   [
+    "arme 1",
+    "distance",
+    "issued rifle",
+    74,
+    4,
+    6,
+    8,
+    4
+   ],
+   [
+    "arme 2",
+    "contact",
+    "",
+    68,
+    3,
+    5,
+    "—"
+   ],
+   [
+    "arme 3"
+   ],
+   [
+    "CAPACITÉS"
+   ],
+   [
+    "nom",
+    "description (langage naturel)",
+    "moteur"
+   ],
+   [
+    "« moteur » = un identifiant existant (voir RÉFÉRENCE) ou À CODER si la capacité n'existe pas encore."
+   ],
+   [
+    "Classe ennemie : pas d'arbre de compétences (les perks ne concernent que les classes joueur)."
+   ]
+  ],
+  "Contact": [
+   [
+    "Contact   —   ennemi"
+   ],
+   [
+    "IDENTITÉ"
+   ],
+   [
+    "key",
+    "contact",
+    "identifiant moteur — NE JAMAIS MODIFIER"
+   ],
+   [
+    "nom affiché",
+    "Contact",
+    "la désignation officielle de l'État"
+   ],
+   [
+    "vrai nom",
+    "Witness",
+    "pour la bascule de fin (revealTruth)"
+   ],
+   [
+    "camp",
+    "ennemi",
+    "joueur / ennemi / civil"
+   ],
+   [
+    "pitch",
+    "Portée 10, très mobile, fragile — il te touche avant que tu ne puisses répondre. Et il n'attaque jamais de civils.",
+    "une phrase : qui c'est, pourquoi il se bat"
+   ],
+   [
+    "STATS"
+   ],
+   [
+    "pv",
+    7
+   ],
+   [
+    "déplacement",
+    10
+   ],
+   [
+    "blocage %",
+    0
+   ],
+   [
+    "parade %",
+    0
+   ],
+   [
+    "furtif",
+    "non"
+   ],
+   [
+    "poids génération",
+    0,
+    "0 = n'apparaît que si la campagne l'invoque"
+   ],
+   [
+    "ARMES"
+   ],
+   [
+    "emplacement",
+    "type",
+    "nom",
+    "visée",
+    "dmg min",
+    "dmg max",
+    "portée",
+    "chargeur",
+    "notes"
+   ],
+   [
+    "arme 1",
+    "distance",
+    "unlogged weapon",
+    78,
+    3,
+    5,
+    10,
+    2
+   ],
+   [
+    "arme 2"
+   ],
+   [
+    "arme 3"
+   ],
+   [
+    "CAPACITÉS"
+   ],
+   [
+    "nom",
+    "description (langage naturel)",
+    "moteur"
+   ],
+   [
+    "« moteur » = un identifiant existant (voir RÉFÉRENCE) ou À CODER si la capacité n'existe pas encore."
+   ],
+   [
+    "Classe ennemie : pas d'arbre de compétences (les perks ne concernent que les classes joueur)."
+   ]
+  ],
+  "Seer": [
+   [
+    "Seer   —   ennemi"
+   ],
+   [
+    "IDENTITÉ"
+   ],
+   [
+    "key",
+    "seer",
+    "identifiant moteur — NE JAMAIS MODIFIER"
+   ],
+   [
+    "nom affiché",
+    "Seer",
+    "la désignation officielle de l'État"
+   ],
+   [
+    "vrai nom",
+    "",
+    "pour la bascule de fin (revealTruth)"
+   ],
+   [
+    "camp",
+    "ennemi",
+    "joueur / ennemi / civil"
+   ],
+   [
+    "pitch",
+    "Ore-touché. Voit à travers le brouillard et le décor, et tire dessus. Aveugle au corps à corps.",
+    "une phrase : qui c'est, pourquoi il se bat"
+   ],
+   [
+    "STATS"
+   ],
+   [
+    "pv"
+   ],
+   [
+    "déplacement"
+   ],
+   [
+    "blocage %"
+   ],
+   [
+    "parade %"
+   ],
+   [
+    "furtif"
+   ],
+   [
+    "poids génération",
+    "",
+    "0 = n'apparaît que si la campagne l'invoque"
+   ],
+   [
+    "ARMES"
+   ],
+   [
+    "emplacement",
+    "type",
+    "nom",
+    "visée",
+    "dmg min",
+    "dmg max",
+    "portée",
+    "chargeur",
+    "notes"
+   ],
+   [
+    "arme 1"
+   ],
+   [
+    "arme 2"
+   ],
+   [
+    "arme 3"
+   ],
+   [
+    "CAPACITÉS"
+   ],
+   [
+    "nom",
+    "description (langage naturel)",
+    "moteur"
+   ],
+   [
+    "« moteur » = un identifiant existant (voir RÉFÉRENCE) ou À CODER si la capacité n'existe pas encore."
+   ],
+   [
+    "Classe ennemie : pas d'arbre de compétences (les perks ne concernent que les classes joueur)."
+   ]
+  ],
+  "Relay": [
+   [
+    "Relay   —   ennemi"
+   ],
+   [
+    "IDENTITÉ"
+   ],
+   [
+    "key",
+    "relay",
+    "identifiant moteur — NE JAMAIS MODIFIER"
+   ],
+   [
+    "nom affiché",
+    "Relay",
+    "la désignation officielle de l'État"
+   ],
+   [
+    "vrai nom",
+    "",
+    "pour la bascule de fin (revealTruth)"
+   ],
+   [
+    "camp",
+    "ennemi",
+    "joueur / ennemi / civil"
+   ],
+   [
+    "pitch",
+    "Ore-touché. Ne t'attaque pas : il alimente les autres (portée/dégâts). Cible prioritaire, sans défense.",
+    "une phrase : qui c'est, pourquoi il se bat"
+   ],
+   [
+    "STATS"
+   ],
+   [
+    "pv"
+   ],
+   [
+    "déplacement"
+   ],
+   [
+    "blocage %"
+   ],
+   [
+    "parade %"
+   ],
+   [
+    "furtif"
+   ],
+   [
+    "poids génération",
+    "",
+    "0 = n'apparaît que si la campagne l'invoque"
+   ],
+   [
+    "ARMES"
+   ],
+   [
+    "emplacement",
+    "type",
+    "nom",
+    "visée",
+    "dmg min",
+    "dmg max",
+    "portée",
+    "chargeur",
+    "notes"
+   ],
+   [
+    "arme 1"
+   ],
+   [
+    "arme 2"
+   ],
+   [
+    "arme 3"
+   ],
+   [
+    "CAPACITÉS"
+   ],
+   [
+    "nom",
+    "description (langage naturel)",
+    "moteur"
+   ],
+   [
+    "« moteur » = un identifiant existant (voir RÉFÉRENCE) ou À CODER si la capacité n'existe pas encore."
+   ],
+   [
+    "Classe ennemie : pas d'arbre de compétences (les perks ne concernent que les classes joueur)."
+   ]
+  ],
+  "Kindler": [
+   [
+    "Kindler   —   ennemi"
+   ],
+   [
+    "IDENTITÉ"
+   ],
+   [
+    "key",
+    "kindler",
+    "identifiant moteur — NE JAMAIS MODIFIER"
+   ],
+   [
+    "nom affiché",
+    "Kindler",
+    "la désignation officielle de l'État"
+   ],
+   [
+    "vrai nom",
+    "",
+    "pour la bascule de fin (revealTruth)"
+   ],
+   [
+    "camp",
+    "ennemi",
+    "joueur / ennemi / civil"
+   ],
+   [
+    "pitch",
+    "Ore-touché. Brûle sa réserve pour un burst énorme, puis s'effondre. Le suicide économique en un tour.",
+    "une phrase : qui c'est, pourquoi il se bat"
+   ],
+   [
+    "STATS"
+   ],
+   [
+    "pv"
+   ],
+   [
+    "déplacement"
+   ],
+   [
+    "blocage %"
+   ],
+   [
+    "parade %"
+   ],
+   [
+    "furtif"
+   ],
+   [
+    "poids génération",
+    "",
+    "0 = n'apparaît que si la campagne l'invoque"
+   ],
+   [
+    "ARMES"
+   ],
+   [
+    "emplacement",
+    "type",
+    "nom",
+    "visée",
+    "dmg min",
+    "dmg max",
+    "portée",
+    "chargeur",
+    "notes"
+   ],
+   [
+    "arme 1"
+   ],
+   [
+    "arme 2"
+   ],
+   [
+    "arme 3"
+   ],
+   [
+    "CAPACITÉS"
+   ],
+   [
+    "nom",
+    "description (langage naturel)",
+    "moteur"
+   ],
+   [
+    "« moteur » = un identifiant existant (voir RÉFÉRENCE) ou À CODER si la capacité n'existe pas encore."
+   ],
+   [
+    "Classe ennemie : pas d'arbre de compétences (les perks ne concernent que les classes joueur)."
+   ]
+  ],
+  "Vessel": [
+   [
+    "Vessel   —   ennemi"
+   ],
+   [
+    "IDENTITÉ"
+   ],
+   [
+    "key",
+    "vessel",
+    "identifiant moteur — NE JAMAIS MODIFIER"
+   ],
+   [
+    "nom affiché",
+    "Vessel",
+    "la désignation officielle de l'État"
+   ],
+   [
+    "vrai nom",
+    "",
+    "pour la bascule de fin (revealTruth)"
+   ],
+   [
+    "camp",
+    "ennemi",
+    "joueur / ennemi / civil"
+   ],
+   [
+    "pitch",
+    "Ore-touché. Peau minéralisée, encaisse énormément. Lent, et l'Ore le tue lentement.",
+    "une phrase : qui c'est, pourquoi il se bat"
+   ],
+   [
+    "STATS"
+   ],
+   [
+    "pv"
+   ],
+   [
+    "déplacement"
+   ],
+   [
+    "blocage %"
+   ],
+   [
+    "parade %"
+   ],
+   [
+    "furtif"
+   ],
+   [
+    "poids génération",
+    "",
+    "0 = n'apparaît que si la campagne l'invoque"
+   ],
+   [
+    "ARMES"
+   ],
+   [
+    "emplacement",
+    "type",
+    "nom",
+    "visée",
+    "dmg min",
+    "dmg max",
+    "portée",
+    "chargeur",
+    "notes"
+   ],
+   [
+    "arme 1"
+   ],
+   [
+    "arme 2"
+   ],
+   [
+    "arme 3"
+   ],
+   [
+    "CAPACITÉS"
+   ],
+   [
+    "nom",
+    "description (langage naturel)",
+    "moteur"
+   ],
+   [
+    "« moteur » = un identifiant existant (voir RÉFÉRENCE) ou À CODER si la capacité n'existe pas encore."
+   ],
+   [
+    "Classe ennemie : pas d'arbre de compétences (les perks ne concernent que les classes joueur)."
+   ]
+  ],
+  "Poacher": [
+   [
+    "Poacher   —   ennemi"
+   ],
+   [
+    "IDENTITÉ"
+   ],
+   [
+    "key",
+    "poacher",
+    "identifiant moteur — NE JAMAIS MODIFIER"
+   ],
+   [
+    "nom affiché",
+    "Poacher",
+    "la désignation officielle de l'État"
+   ],
+   [
+    "vrai nom",
+    "",
+    "pour la bascule de fin (revealTruth)"
+   ],
+   [
+    "camp",
+    "ennemi",
+    "joueur / ennemi / civil"
+   ],
+   [
+    "pitch",
+    "Non augmenté. Pose pièges et mines avant ton arrivée : la lande est à eux.",
+    "une phrase : qui c'est, pourquoi il se bat"
+   ],
+   [
+    "STATS"
+   ],
+   [
+    "pv"
+   ],
+   [
+    "déplacement"
+   ],
+   [
+    "blocage %"
+   ],
+   [
+    "parade %"
+   ],
+   [
+    "furtif"
+   ],
+   [
+    "poids génération",
+    "",
+    "0 = n'apparaît que si la campagne l'invoque"
+   ],
+   [
+    "ARMES"
+   ],
+   [
+    "emplacement",
+    "type",
+    "nom",
+    "visée",
+    "dmg min",
+    "dmg max",
+    "portée",
+    "chargeur",
+    "notes"
+   ],
+   [
+    "arme 1"
+   ],
+   [
+    "arme 2"
+   ],
+   [
+    "arme 3"
+   ],
+   [
+    "CAPACITÉS"
+   ],
+   [
+    "nom",
+    "description (langage naturel)",
+    "moteur"
+   ],
+   [
+    "« moteur » = un identifiant existant (voir RÉFÉRENCE) ou À CODER si la capacité n'existe pas encore."
+   ],
+   [
+    "Classe ennemie : pas d'arbre de compétences (les perks ne concernent que les classes joueur)."
+   ]
+  ],
+  "Leech": [
+   [
+    "Leech   —   ennemi"
+   ],
+   [
+    "IDENTITÉ"
+   ],
+   [
+    "key",
+    "leech",
+    "identifiant moteur — NE JAMAIS MODIFIER"
+   ],
+   [
+    "nom affiché",
+    "Leech",
+    "la désignation officielle de l'État"
+   ],
+   [
+    "vrai nom",
+    "",
+    "pour la bascule de fin (revealTruth)"
+   ],
+   [
+    "camp",
+    "ennemi",
+    "joueur / ennemi / civil"
+   ],
+   [
+    "pitch",
+    "Ore-touché. Draine l'Ore ou l'équipement de tes soldats. Le vol te vole.",
+    "une phrase : qui c'est, pourquoi il se bat"
+   ],
+   [
+    "STATS"
+   ],
+   [
+    "pv"
+   ],
+   [
+    "déplacement"
+   ],
+   [
+    "blocage %"
+   ],
+   [
+    "parade %"
+   ],
+   [
+    "furtif"
+   ],
+   [
+    "poids génération",
+    "",
+    "0 = n'apparaît que si la campagne l'invoque"
+   ],
+   [
+    "ARMES"
+   ],
+   [
+    "emplacement",
+    "type",
+    "nom",
+    "visée",
+    "dmg min",
+    "dmg max",
+    "portée",
+    "chargeur",
+    "notes"
+   ],
+   [
+    "arme 1"
+   ],
+   [
+    "arme 2"
+   ],
+   [
+    "arme 3"
+   ],
+   [
+    "CAPACITÉS"
+   ],
+   [
+    "nom",
+    "description (langage naturel)",
+    "moteur"
+   ],
+   [
+    "« moteur » = un identifiant existant (voir RÉFÉRENCE) ou À CODER si la capacité n'existe pas encore."
+   ],
+   [
+    "Classe ennemie : pas d'arbre de compétences (les perks ne concernent que les classes joueur)."
+   ]
+  ],
+  "MODÈLE": [
+   [
+    "<nom affiché>   —   joueur"
+   ],
+   [
+    "Onglet vierge à dupliquer pour toute nouvelle classe. Remplace <clé> par un identifiant court sans accent."
+   ],
+   [
+    "IDENTITÉ"
+   ],
+   [
+    "key",
+    "<clé>",
+    "identifiant moteur — NE JAMAIS MODIFIER"
+   ],
+   [
+    "nom affiché",
+    "<nom affiché>",
+    "la désignation officielle de l'État"
+   ],
+   [
+    "vrai nom",
+    "",
+    "pour la bascule de fin (revealTruth)"
+   ],
+   [
+    "camp",
+    "joueur",
+    "joueur / ennemi / civil"
+   ],
+   [
+    "pitch",
+    "<une phrase>",
+    "une phrase : qui c'est, pourquoi il se bat"
+   ],
+   [
+    "STATS"
+   ],
+   [
+    "pv"
+   ],
+   [
+    "déplacement"
+   ],
+   [
+    "blocage %"
+   ],
+   [
+    "parade %"
+   ],
+   [
+    "furtif"
+   ],
+   [
+    "poids génération",
+    "",
+    "0 = n'apparaît que si la campagne l'invoque"
+   ],
+   [
+    "ARMES"
+   ],
+   [
+    "emplacement",
+    "type",
+    "nom",
+    "visée",
+    "dmg min",
+    "dmg max",
+    "portée",
+    "chargeur",
+    "notes"
+   ],
+   [
+    "arme 1"
+   ],
+   [
+    "arme 2"
+   ],
+   [
+    "arme 3"
+   ],
+   [
+    "CAPACITÉS"
+   ],
+   [
+    "nom",
+    "description (langage naturel)",
+    "moteur"
+   ],
+   [
+    "« moteur » = un identifiant existant (voir RÉFÉRENCE) ou À CODER si la capacité n'existe pas encore."
+   ],
+   [
+    "ARBRE DE COMPÉTENCES  —  7 grades, choix A ou B, irréversible"
+   ],
+   [
+    "grade",
+    "A : nom",
+    "A : description",
+    "A : effet",
+    "B : nom",
+    "B : description",
+    "B : effet"
+   ],
+   [
+    1
+   ],
+   [
+    2
+   ],
+   [
+    3
+   ],
+   [
+    4
+   ],
+   [
+    5
+   ],
+   [
+    6
+   ],
+   [
+    7
+   ],
+   [
+    "Les 7 grades doivent être remplis : un grade vide bloque la montée du personnage à ce palier."
+   ]
+  ]
+ }
+}
