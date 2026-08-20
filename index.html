@@ -1325,8 +1325,11 @@
   function harvestTick(){ if(!curMission||curMission.objective!=="harvest")return;
     const need=curMission.harvestTurns||2;
     for(const c of cells){ if(!c.ore||c.oreP>=need)continue;
-      if(units.some(u=>u.team==="player"&&u.hp>0&&u.cell===c.id)){ c.oreP=(c.oreP||0)+1;
-        log(c.oreP>=need?`⛏ gisement épuisé (${c.oreP}/${need})`:`⛏ extraction en cours (${c.oreP}/${need})`,"player"); } } }
+      const holder=units.find(u=>u.team==="player"&&u.hp>0&&u.cell===c.id);
+      if(holder){ c.oreP=(c.oreP||0)+1;
+        if(c.oreP>=need){ c.oreBy=holder.name;   // le porteur au moment où le filon s'épuise : c'est lui qu'on crédite
+          log(`⛏ gisement épuisé (${c.oreP}/${need}) — ${holder.name} +${HARVEST_XP+HARVEST_XP_SOLO} XP`,"player"); }
+        else log(`⛏ extraction en cours (${c.oreP}/${need})`,"player"); } } }
   // INTERCEPTION : un fuyard court vers la sortie et ne combat pas.
   const RUNNER_STEPS=3;   // cases parcourues par un fuyard à chaque tour
   function runnerStep(e){
@@ -2215,7 +2218,15 @@
   function memDeployHp(m){ const max=memMaxHp(m), c=(campRun&&campRun.carry)?campRun.carry[m.name]:null;
     const hp=(c==null)?max:Math.min(max,c+Math.ceil((max-c)*0.5)); return {hp,max,full:hp>=max}; }   // full = redeploys at full HP
   // ===== mission XP → grades → A/B promotion =====
-  function awardXp(){ if(!campRun||!campRun.roster)return; for(const u of units){ if(u.team!=="player")continue; const m=campRun.roster.find(r=>r.name===u.name); if(!m)continue; m.xp=(m.xp||0)+3+(u.kills||0); } }   // mission won: 3 (participation+victory) + 1/kill
+  function awardXp(){ if(!campRun||!campRun.roster)return;
+    // RÉCOLTE : chaque gisement épuisé rapporte à toute l'escouade déployée, plus un supplément
+    // au porteur — celui qui est resté immobile sous le feu pendant que les autres couvraient.
+    const done=cells.filter(c=>c.ore&&(c.oreP||0)>=((curMission&&curMission.harvestTurns)||2));
+    const bonus=done.length*HARVEST_XP, solo={};
+    for(const c of done) if(c.oreBy) solo[c.oreBy]=(solo[c.oreBy]||0)+HARVEST_XP_SOLO;
+    for(const u of units){ if(u.team!=="player")continue; const m=campRun.roster.find(r=>r.name===u.name); if(!m)continue;
+      m.xp=(m.xp||0)+3+(u.kills||0)+bonus+(solo[u.name]||0); }
+    if(done.length)log(`⛏ ${done.length} gisement(s) épuisé(s) : +${bonus} XP pour l'escouade`,"player"); }   // mission won: 3 (participation+victory) + 1/kill
   // applies a reward (xp + morale + heals) to the deployed squad; returns the text summary (or null).
   function applyReward(r){ if(!campRun||!campRun.roster||!r)return null;
     const deployed=new Set(units.filter(u=>u.team==="player").map(u=>u.name)), parts=[];
@@ -2983,6 +2994,7 @@
   // ===== "express bounty": incentive to attempt the HARD regions quickly =====
   // A hard region carries a bounty (XP + morale) that DECAYS with each mission played. You get it on
   // top if you take it before it runs out → dilemma: rush the hard one now, or play it safe.
+  let HARVEST_XP=3, HARVEST_XP_SOLO=2;   // XP par gisement épuisé : à toute l'escouade déployée, + un supplément au porteur
   let PRIME_DIFF_MIN=3, PRIME_XP_MULT=3, PRIME_XP_STEP=2, PRIME_MORALE_STEP=5;   // tunable (balancing panel) — bounty XP = difficulty × PRIME_XP_MULT
   function primeInit(){ if(!campRun||!geoPlay||!geoPlay.map)return; campRun.primes=campRun.primes||{};
     geoPlay.map.cells.forEach((c,i)=>{ const st=campRun.geoStates[geoPlay.node.id];
@@ -3069,6 +3081,8 @@
       {k:"DEATH_PCT",label:"Death risk (K.O.+defeat)",get:()=>DEATH_PCT,set:v=>DEATH_PCT=v,min:0,max:100,step:5,suffix:"%"} ]},
     {name:"Express bounties", items:[
       {k:"PRIME_DIFF_MIN",label:"Min. difficulty (★)",get:()=>PRIME_DIFF_MIN,set:v=>PRIME_DIFF_MIN=v,min:1,max:5,step:1},
+      {k:"HARVEST_XP",label:"XP / gisement (escouade)",get:()=>HARVEST_XP,set:v=>HARVEST_XP=v,min:0,max:10,step:1},
+      {k:"HARVEST_XP_SOLO",label:"XP / gisement (porteur)",get:()=>HARVEST_XP_SOLO,set:v=>HARVEST_XP_SOLO=v,min:0,max:10,step:1},
       {k:"PRIME_XP_MULT",label:"Bounty XP = ★ ×",get:()=>PRIME_XP_MULT,set:v=>PRIME_XP_MULT=v,min:1,max:8,step:1},
       {k:"PRIME_XP_STEP",label:"XP decay / mission",get:()=>PRIME_XP_STEP,set:v=>PRIME_XP_STEP=v,min:0,max:6,step:1},
       {k:"PRIME_MORALE_STEP",label:"Morale decay / mission",get:()=>PRIME_MORALE_STEP,set:v=>PRIME_MORALE_STEP=v,min:0,max:15,step:1} ]},
