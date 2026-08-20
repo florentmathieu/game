@@ -180,6 +180,8 @@
       <label>Pods <input id="gen-pods" type="number" min="1" max="6" placeholder="auto" style="width:54px"></label>
       <span class="hint" style="flex:1">total enemies = the real dial; empty = based on difficulty</span></div>
     <div class="row"><label style="flex:1">Cover <input id="gen-cover" type="range" min="10" max="50" value="30"></label><span id="gen-coverv">30%</span></div>
+    <div class="row"><label style="flex:1">Plateformes <input id="gen-plats" type="range" min="0" max="4" value="2"></label><span id="gen-platsv">2</span>
+      <label style="flex:1">taille <input id="gen-platsize" type="range" min="2" max="9" value="4"></label><span id="gen-platsizev">4</span></div>
     <div class="row" style="flex-wrap:wrap;gap:8px"><span style="font-size:.85rem">Enemy classes:</span><span id="gen-eclasses" style="display:flex;flex-wrap:wrap;gap:8px"></span></div>
     <div class="row"><button id="gen-mission">🎲 Generate a mission</button></div>
     <div class="hint">Generates shape (island) + elevation/cover + <b>deployment & pods</b> (graph-based placement: pods far from the deployment, spaced out, out of sight). <b>Objective</b> of your choice: elimination, assassination (⊕ target), rescue (hostage at the heart of the pods), defend a VIP / survive N turns, extraction (deep zone). Rerolls from scratch on each click (seed).</div>
@@ -962,6 +964,15 @@
                  if(!ouvert&&grp.length<=10)k++; }
                return k; })(),
              plateformeCellules:cells.filter(c=>c._plat).length,
+             plateformesAccessibles:(function(){ // rejoue enterCost : combien de plateformes atteint-on depuis le sol ?
+               const plats=cells.filter(c=>c._plat); if(!plats.length)return "—";
+               const sol=cells.find(c=>c.elev===0&&passable(c.id)); if(!sol)return 0;
+               const vu=new Set([sol.id]), st=[sol.id];
+               while(st.length){ const u=st.pop();
+                 for(const v of cells[u].nb){ if(vu.has(v))continue; if(enterCost(u,v)===null)continue; vu.add(v); st.push(v); } }
+               const groupes=new Set(); let ok=0;
+               for(const c of plats){ if(vu.has(c.id))ok++; }
+               return ok+"/"+plats.length; })(),
              parapets:(function(){ let k=0; for(const key of (walls||[])){ const ab=key.split("-").map(Number);
                if(cells[ab[0]]&&cells[ab[1]]&&cells[ab[0]].elev!==cells[ab[1]].elev)k++; } return k; })(),
              barriereCellules:cells.filter(c=>c._barrier).length,
@@ -979,7 +990,11 @@
              murets:walls?walls.size:0 };
   };
   const opaque=id=>cells[id].terr==="wall"||smoke.has(id);   // rock OR smoke blocks line of sight
-  const enterCost=(from,to)=>{ if(!passable(to))return null; if(cells[to].elev-cells[from].elev>=2)return null; const climb=Math.max(0,cells[to].elev-cells[from].elev); return (cells[to].terr==="rough"?2:1)+climb; };
+  const enterCost=(from,to)=>{ if(!passable(to))return null;
+    const dz=cells[to].elev-cells[from].elev;
+    if(dz>=2)return null;                                    // une falaise de 2 niveaux ne se grimpe pas
+    if(dz!==0&&wallBetween(from,to))return null;             // PARAPET : un muret en dénivelé se contourne, il ne s'escalade pas
+    return (cells[to].terr==="rough"?2:1)+Math.max(0,dz); };  // (sur terrain plat, un muret reste franchissable : c'est du couvert)
 
   // ===== units =====
   let units=[], podAlerted=new Set(), neutralSeen=new Set(), lastSeen=new Map(), curMission=null;
@@ -1642,7 +1657,9 @@
   btnRow(document.getElementById("relief"),[["⬆ raise","elev+"],["⬇ lower","elev-"]]);
   { const b=document.createElement("button"); b.textContent="🎲 Auto profile"; b.title="Generates random elevation, rocks, cover and low walls"; b.onclick=()=>autoTerrain(); document.getElementById("relief").appendChild(b); }
   { const gm=document.getElementById("gen-mission"); if(gm)gm.onclick=()=>genMission();
-    const gc=document.getElementById("gen-cover"); if(gc)gc.oninput=()=>{document.getElementById("gen-coverv").textContent=gc.value+"%";}; }
+    const gc=document.getElementById("gen-cover"); if(gc)gc.oninput=()=>{document.getElementById("gen-coverv").textContent=gc.value+"%";};
+    const gp=document.getElementById("gen-plats"); if(gp)gp.oninput=()=>{document.getElementById("gen-platsv").textContent=gp.value;};
+    const gs=document.getElementById("gen-platsize"); if(gs)gs.oninput=()=>{document.getElementById("gen-platsizev").textContent=gs.value;}; }
   // enemy class selection for generation (checkboxes)
   const ENEMY_POOL=["archer","emage","brute","shieldbearer","rival","contact"];   // résistance locale + Contrepartie + Contact   // classes offered for generated enemies (= la biosphère)
   { const box=document.getElementById("gen-eclasses"); if(box){ box.innerHTML=ENEMY_POOL.map(k=>`<label style="font-size:.82rem;display:inline-flex;align-items:center;gap:3px"><input type="checkbox" data-ecls="${k}"${["archer","emage","brute","shieldbearer"].includes(k)?" checked":""}>${(CLASSES[k]&&CLASSES[k].name)||k}</label>`).join(""); } }
@@ -1796,19 +1813,57 @@
     // protège des tirs venus d'en bas. Les arêtes sont mémorisées et posées après les murets.
     const platEdges=[];
     STRUCT&&(function plateformes(){
-      const n=1+Math.floor(rnd()*2);   // 1 ou 2 par carte
-      const used=[];
+      const el=id=>document.getElementById(id);
+      const rd=(id,def)=>{ const e=el(id); return e&&e.value!=="" ? +e.value : def; };   // 0 est une valeur valide : pas de || ici
+      const n=P.plats!=null?P.plats:rd("gen-plats",2);
+      const taille=P.platSize!=null?P.platSize:rd("gen-platsize",4);
+      const used=[], platsList=[];
       for(let k=0;k<n;k++){
-        const cand=cells.filter(c=>!c._route&&!c._barrier&&!c._dio&&c.nb.length>=4
-          && used.every(u=>Math.hypot(c.cx-u.cx,c.cy-u.cy)>W*0.25));
+        const ecart=W*(0.18+0.022*taille);   // plus la plateforme est grande, plus on les espace
+        const cand=cells.filter(c=>!c._route&&!c._barrier&&!c._dio&&!c._plat&&!c._ramp&&c.nb.length>=4
+          && used.every(u=>Math.hypot(c.cx-u.cx,c.cy-u.cy)>ecart));
         if(!cand.length)break;
         const c0=cand[Math.floor(rnd()*cand.length)];
-        const amas=[c0,...c0.nb.map(id=>cells[id]).filter(v=>!v._route&&!v._barrier&&!v._dio).slice(0,2+Math.floor(rnd()*2))];
-        const h=2+Math.floor(rnd()*2);   // hauteur 2 ou 3
-        const ids=new Set(amas.map(c=>c.id));
-        for(const c of amas){ c.elev=h; c.terr="plain"; c._plat=true; }
-        for(const c of amas) for(const v of c.nb) if(!ids.has(v)) platEdges.push(wkey(c.id,v));   // parapet sur le pourtour
-        used.push(c0);
+        // amas de la taille demandée, par anneaux successifs autour du centre
+        const amas=[c0], ids=new Set([c0.id]);
+        let front=[c0];
+        while(amas.length<taille&&front.length){
+          const nx=[];
+          for(const c of front) for(const v of c.nb){ const cv=cells[v];
+            if(ids.has(v)||cv._route||cv._barrier||cv._dio||cv._plat||cv._ramp)continue;
+            ids.add(v); amas.push(cv); nx.push(cv); if(amas.length>=taille)break; }
+          front=nx;
+        }
+        if(amas.length<2)continue;
+        for(const c of amas){ c.elev=2; c.terr="plain"; c._plat=true; }   // hauteur 2 : accessible via une rampe à 1
+        // pourtour : parapet partout SAUF 1 ou 2 accès, où l'on pose une rampe (niveau 1)
+        const bord=[];
+        for(const c of amas) for(const v of c.nb) if(!ids.has(v)) bord.push([c.id,v]);
+        const nAcces=1+(rnd()<0.4?1:0);
+        const acces=new Set();
+        // la rampe doit partir du SOL : on la choisit parmi les cellules de pourtour au niveau 0,
+        // sinon la plateforme reste scellée (une falaise de 2 niveaux ne se grimpe pas).
+        const auSol=bord.filter(([,v])=>cells[v].elev===0&&cells[v].terr!=="wall");
+        const pool=auSol.length?auSol:bord;
+        for(let a=0;a<nAcces&&pool.length;a++){ const pick=pool[Math.floor(rnd()*pool.length)]; acces.add(pick[1]); }
+        for(const [a,v] of bord){
+          if(acces.has(v)){ const cv=cells[v]; cv.elev=1; cv.terr="plain"; cv._ramp=true; continue; }   // rampe
+          platEdges.push(wkey(a,v));                                                                     // parapet
+        }
+        used.push(c0); platsList.push({amas,ids,bord});
+      }
+      // GARANTIE D'ACCÈS : une grande plateforme peut avoir absorbé toutes ses cellules de sol.
+      // On revérifie chacune et, si aucune rampe ne mène au sol, on en force une.
+      for(const pl of platsList){
+        const aRampe=pl.bord.some(([,v])=>cells[v]._ramp&&cells[v].nb.some(w=>!pl.ids.has(w)&&cells[w].elev===0&&passable(w)));
+        if(aRampe)continue;
+        const cand=pl.bord.filter(([,v])=>!pl.ids.has(v)&&cells[v].terr!=="wall")
+          .sort((x,y)=>cells[x[1]].elev-cells[y[1]].elev)[0];
+        if(!cand)continue;
+        const v=cand[1], cv=cells[v]; cv.elev=1; cv.terr="plain"; cv._ramp=true;
+        for(const w of cv.nb) if(!pl.ids.has(w)&&!cells[w]._plat&&cells[w].elev>1){ cells[w].elev=0; }   // dégage un accès au sol
+        for(let i=platEdges.length-1;i>=0;i--){ const ab=platEdges[i].split("-").map(Number);
+          if(ab[0]===v||ab[1]===v) platEdges.splice(i,1); }                              // et on retire le parapet devenu rampe
       }
     })();
 
@@ -1855,8 +1910,9 @@
       }
     })();
     walls=new Set(); for(const k of wallSeg.keys()){ const ab=k.split("-").map(Number); if(cells[ab[0]].terr==="wall"||cells[ab[1]].terr==="wall")continue;
-      if(cells[ab[0]]._route&&cells[ab[1]]._route)continue;   // pas de muret en travers de la route
-      if(rnd()<0.15)walls.add(k); }
+      if(cells[ab[0]]._route&&cells[ab[1]]._route)continue;              // pas de muret en travers de la route
+      if(cells[ab[0]].elev!==cells[ab[1]].elev)continue;                 // JAMAIS de muret aléatoire sur un dénivelé :
+      if(rnd()<0.15)walls.add(k); }                                      // seuls les parapets voulus y sont posés, sinon ils scelleraient des reliefs
     for(const k of platEdges) if(wallSeg.has(k)) walls.add(k);   // parapets des plateformes
     // graph placement
     const pass=cells.filter(c=>passable(c.id)); if(!pass.length){ triggers=[]; renderTrigList(); refresh(); return null; }
