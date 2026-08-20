@@ -534,10 +534,14 @@
     const kept=cells.filter(c=>f(c.cx/W, c.cy/H));
     if(kept.length<12)return;                                           // garde-fou : forme trop agressive
     cells=kept; cells.forEach((c,i)=>c.id=i); buildAdj();
-    // ne garder que la plus grande composante : une forme peut détacher un îlot
-    const seen=new Set([0]), st=[0];
-    while(st.length){ const u=st.pop(); for(const v of cells[u].nb) if(!seen.has(v)){seen.add(v);st.push(v);} }
-    if(seen.size<cells.length){ cells=cells.filter(c=>seen.has(c.id)); cells.forEach((c,i)=>c.id=i); buildAdj(); }
+    // ne garder que la PLUS GRANDE composante : une forme peut détacher un îlot.
+    // (partir de la cellule 0 ne suffit pas : si elle est dans l'îlot, c'est l'îlot qu'on garderait)
+    const comp=new Map(); let nComp=0;
+    for(const c of cells){ if(comp.has(c.id))continue; const st=[c.id]; comp.set(c.id,nComp);
+      while(st.length){ const u=st.pop(); for(const v of cells[u].nb) if(!comp.has(v)){ comp.set(v,nComp); st.push(v); } } nComp++; }
+    if(nComp>1){ const size=new Array(nComp).fill(0); for(const [,g] of comp)size[g]++;
+      const main=size.indexOf(Math.max(...size));
+      cells=cells.filter(c=>comp.get(c.id)===main); cells.forEach((c,i)=>c.id=i); buildAdj(); }
   }
   function genMesh(gOverride,forceV){
     if(!forceV&&meshTypeEl()){ const mt=meshTypeEl().value, fr=(document.getElementById("mesh-fractal")||{}).checked; if(mt==="penrose3"){ genPenrose(gOverride); return; } if(mt==="ammann"){ genAmmann(gOverride); return; } if(mt==="spectre"){ genSpectre(gOverride,fr); return; } if(mt==="hat"){ genHat(gOverride,fr); return; } if(mt==="pinwheel"){ genPinwheel(gOverride,fr); return; } }   // forceV : le geoscape reste toujours en Voronoï ; fr : île fractale (sinon remplit le plateau)
@@ -944,6 +948,12 @@
              cellules:n, couvertPct:+(100*cov/n).toFixed(1), murPct:+(100*wall/n).toFixed(1),
              groupement:+(100*joint).toFixed(1), amas:sizes.length, plusGrosAmas:sizes[0]||0,
              amasMoyen:+(sizes.length?sizes.reduce((a,b)=>a+b,0)/sizes.length:0).toFixed(1),
+             composantes:(function(){ // secteurs réellement atteignables les uns depuis les autres (règles de déplacement)
+               const vu=new Set(); let n=0;
+               for(const c of cells){ if(vu.has(c.id)||!passable(c.id))continue; n++; const st=[c.id]; vu.add(c.id);
+                 while(st.length){ const u=st.pop();
+                   for(const v of cells[u].nb){ if(vu.has(v)||!passable(v))continue; if(enterCost(u,v)===null)continue; vu.add(v); st.push(v); } } }
+               return n; })(),
              plusGrandeZoneDegagee:openMax, goulots:arts,
              visibiliteMoy:(function(){ // nb moyen de cellules en ligne de vue : c'est ça qui rend une carte
                const pass=cells.filter(c=>passable(c.id));   // ouverte ou serrée, pas la connexité
@@ -964,14 +974,27 @@
                  if(!ouvert&&grp.length<=10)k++; }
                return k; })(),
              plateformeCellules:cells.filter(c=>c._plat).length,
+             diagPlat:(function(){ // diagnostic : pourquoi une plateforme serait-elle injoignable ?
+               const plats=cells.filter(c=>c._plat); if(!plats.length)return null;
+               const sol=cells.find(c=>c.elev===0&&passable(c.id)); if(!sol)return null;
+               const vu=new Set([sol.id]), st=[sol.id];
+               while(st.length){ const u=st.pop(); for(const v of cells[u].nb){ if(vu.has(v))continue; if(enterCost(u,v)===null)continue; vu.add(v); st.push(v); } }
+               const ko=plats.filter(c=>!vu.has(c.id)); if(!ko.length)return "ok";
+               const ids=new Set(plats.map(c=>c.id));
+               const bord=[]; for(const c of ko) for(const v of c.nb) if(!ids.has(v)) bord.push(v);
+               const u=[...new Set(bord)].map(v=>{ const cv=cells[v];
+                 return `elev${cv.elev}${cv._ramp?"(rampe)":""}/${cv.terr}${walls.has(wkey(ko[0].id,v))?"/PARAPET":""}${vu.has(v)?"/joignable":"/injoignable"}`; });
+               return ko.length+" cellules KO · pourtour: "+u.slice(0,8).join(" , "); })(),
              plateformesAccessibles:(function(){ // rejoue enterCost : combien de plateformes atteint-on depuis le sol ?
                const plats=cells.filter(c=>c._plat); if(!plats.length)return "—";
-               const sol=cells.find(c=>c.elev===0&&passable(c.id)); if(!sol)return 0;
-               const vu=new Set([sol.id]), st=[sol.id];
-               while(st.length){ const u=st.pop();
-                 for(const v of cells[u].nb){ if(vu.has(v))continue; if(enterCost(u,v)===null)continue; vu.add(v); st.push(v); } }
-               const groupes=new Set(); let ok=0;
-               for(const c of plats){ if(vu.has(c.id))ok++; }
+               // on part du PLUS GRAND secteur joignable, pas d'une cellule arbitraire :
+               // sinon on mesure l'accessibilité depuis une poche perdue.
+               const sol=cells.filter(c=>c.elev===0&&passable(c.id)); if(!sol.length)return 0;
+               const vu=new Set(); let best=new Set();
+               for(const s of sol){ if(vu.has(s.id))continue; const grp=new Set([s.id]); const st=[s.id]; vu.add(s.id);
+                 while(st.length){ const u=st.pop(); for(const v of cells[u].nb){ if(vu.has(v))continue; if(enterCost(u,v)===null)continue; vu.add(v); grp.add(v); st.push(v); } }
+                 if(grp.size>best.size)best=grp; }
+               let ok=0; for(const c of plats) if(best.has(c.id))ok++;
                return ok+"/"+plats.length; })(),
              parapets:(function(){ let k=0; for(const key of (walls||[])){ const ab=key.split("-").map(Number);
                if(cells[ab[0]]&&cells[ab[1]]&&cells[ab[0]].elev!==cells[ab[1]].elev)k++; } return k; })(),
@@ -1874,7 +1897,9 @@
     (function scatterCover(){
       const flat=cells.filter(c=>c.elev===0);
       const already=flat.filter(c=>(c._barrier||c._dio)&&(c.terr==="wall"||c.terr==="rough")).length;
-      const elig=flat.filter(c=>!c._barrier&&!c._route&&!c._dio);
+      // on épargne aussi les ABORDS d'une rampe : y poser un mur scellerait la plateforme
+      const abords=new Set(); for(const c of cells) if(c._ramp) for(const v of c.nb) abords.add(v);
+      const elig=flat.filter(c=>!c._barrier&&!c._route&&!c._dio&&!c._ramp&&!abords.has(c.id));
       const budget=Math.max(0,Math.round(flat.length*cover)-already);
       const scored=elig.map(c=>({c,v:STRUCT?(nz(c.cx,c.cy,SC)*0.72+nz(c.cx,c.cy,SC*0.42)*0.28):rnd()}));
       scored.sort((a,b)=>b.v-a.v);
@@ -1914,6 +1939,57 @@
       if(cells[ab[0]].elev!==cells[ab[1]].elev)continue;                 // JAMAIS de muret aléatoire sur un dénivelé :
       if(rnd()<0.15)walls.add(k); }                                      // seuls les parapets voulus y sont posés, sinon ils scelleraient des reliefs
     for(const k of platEdges) if(wallSeg.has(k)) walls.add(k);   // parapets des plateformes
+    // GARANTIE DE CIRCULATION — avec les VRAIES règles de déplacement (enterCost), donc après les
+    // parapets. Falaises et parapets peuvent isoler des secteurs entiers : une plateforme enfermée
+    // n'était qu'un symptôme. On raccroche chaque secteur au principal en ouvrant le strict minimum.
+    (function garantirCirculation(){
+      const secteurs=()=>{ const vu=new Set(), groupes=[];
+        for(const c of cells){ if(vu.has(c.id)||!passable(c.id))continue;
+          const g=[c.id], st=[c.id]; vu.add(c.id);
+          while(st.length){ const u=st.pop();
+            for(const v of cells[u].nb){ if(vu.has(v)||!passable(v))continue; if(enterCost(u,v)===null)continue; vu.add(v); g.push(v); st.push(v); } }
+          groupes.push(g); }
+        groupes.sort((a,b)=>b.length-a.length); return groupes; };
+      for(let tour=0; tour<25; tour++){
+        const g=secteurs(); if(g.length<=1)return;
+        let ouvert=false;
+        for(let i=1;i<g.length&&!ouvert;i++){
+          const sec=new Set(g[i]);   // on fusionne avec N'IMPORTE quel secteur voisin, pas seulement le principal :
+          for(const u of g[i]){      // deux lobes sont souvent séparés par un troisième (une plateforme entre eux)
+            for(const v of cells[u].nb){
+              if(sec.has(v)||!passable(v))continue;
+              const k=wkey(u,v);
+              if(walls.has(k)){ walls.delete(k); ouvert=true; break; }  // 1) ôter le parapet
+              const dz=Math.abs(cells[u].elev-cells[v].elev);
+              if(dz>=2){ const bas=cells[u].elev<cells[v].elev?u:v, haut=bas===u?v:u;
+                cells[bas].elev=cells[haut].elev-1; cells[bas]._ramp=true; ouvert=true; break; }   // 2) adoucir la marche
+            }
+            if(ouvert)break; }
+          if(ouvert)break;
+          // 3) aucun contact direct : les deux secteurs sont séparés par du ROCHER. On perce.
+          for(const u of g[i]){
+            for(const v of cells[u].nb){
+              if(passable(v))continue;
+              if(!cells[v].nb.some(w=>!sec.has(w)&&passable(w)))continue;   // ce rocher touche bien un autre secteur
+              cells[v].terr="rough"; cells[v]._barrier=false;
+              for(const w of cells[v].nb){ const kk=wkey(v,w); if(walls.has(kk))walls.delete(kk); }
+              ouvert=true; break; }
+            if(ouvert)break; }
+          if(ouvert)break;
+          // 4) le secteur est ceint d'un rocher ÉPAIS : aucun bloc ne touche les deux côtés.
+          // On creuse d'une cellule vers le secteur principal, et le tour suivant poursuivra.
+          { let cx=0,cy=0; for(const id of g[0]){ cx+=cells[id].cx; cy+=cells[id].cy; }
+            cx/=g[0].length; cy/=g[0].length;
+            let best=null,bd=Infinity;
+            for(const u of g[i]) for(const v of cells[u].nb){ if(passable(v)||sec.has(v))continue;
+              const d=Math.hypot(cells[v].cx-cx,cells[v].cy-cy); if(d<bd){ bd=d; best=v; } }
+            if(best!=null){ cells[best].terr="rough"; cells[best]._barrier=false;
+              for(const w of cells[best].nb){ const kk=wkey(best,w); if(walls.has(kk))walls.delete(kk); }
+              ouvert=true; } }
+        }
+        if(!ouvert)return;   // plus rien d'ouvrable : on laisse la carte telle quelle plutôt que de la casser
+      }
+    })();
     // graph placement
     const pass=cells.filter(c=>passable(c.id)); if(!pass.length){ triggers=[]; renderTrigList(); refresh(); return null; }
     const anchor=pass.reduce((a,b)=>(b.cx+b.cy)<(a.cx+a.cy)?b:a);   // corner of the island = deployment zone
