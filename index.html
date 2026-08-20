@@ -348,8 +348,8 @@
   window.revealTruth=revealTruth; window.CLASSES=CLASSES;
   // ===== progression: discrete grades + exclusive A/B perks (engine = mission XP) =====
   // Advancement is HORIZONTAL (a perk = a qualitative edge), XP is just a capped gate.
-  const GRADES=["Recruit","Seasoned","Veteran","Elite","Champion","Master","Legend","Myth"];   // grade 0..7 (grade = number of perks chosen)
-  const XP_THRESH=[0,4,10,18,28,42,60,82];                  // cumulative XP needed to reach grade i (increasingly spaced tiers)
+  const GRADES=["Recruit","Seasoned","Veteran","Elite","Champion","Master","Legend","Myth","Paragon"];   // grade 0..8 (grade = nombre de perks choisis) — 8 choix, dont 3 de voie (niv. 4/6/8)
+  const XP_THRESH=[0,4,10,18,28,42,60,82,108];              // XP cumulée pour atteindre le grade i (paliers de plus en plus espacés)
   const gradeFromXp=xp=>{ let g=0; for(let i=0;i<XP_THRESH.length;i++)if((xp||0)>=XP_THRESH[i])g=i; return g; };
   // catalog: per class, one A/B pair per grade (index 0 = 1st grade). mod = bonuses applied at deployment.
   // A = special ability (verb), B = numeric bonus. abil = id of an active ability (cf. ABIL).
@@ -396,25 +396,65 @@
   };
   PERKS.sergent=PERKS.soldat;   // compat: "sergent" uses the soldier's tree
   // B column (right) of promotions = stat perk drawn AT RANDOM from this pool (useful to all classes)
+  // Pool ALÉATOIRE (3e option proposée à chaque niveau) — reprend l'onglet « bonus random » du Sheet.
+  // Les ids sont stables (ils sont stockés en sauvegarde) ; les NOMS sont provisoires tant que la liste
+  // n'est pas écrite. Les lettres entre crochets renvoient à la colonne « Nom » de l'onglet.
   const RANDOM_PERKS=[
-    {id:"rp_dmg2",name:"Sharpened Blade",desc:"+2 damage",mod:{dmg:2}},
-    {id:"rp_dmg3",name:"Heavy Strike",desc:"+3 damage",mod:{dmg:3}},
-    {id:"rp_hp4",name:"Constitution",desc:"+4 HP",mod:{hp:4}},
-    {id:"rp_hp7",name:"Vigor",desc:"+7 HP",mod:{hp:7}},
-    {id:"rp_aim15",name:"Hawk Eye",desc:"+15 aim",mod:{aim:15}},
-    {id:"rp_aim25",name:"Sharpshooter",desc:"+25 aim",mod:{aim:25}},
-    {id:"rp_mob1",name:"Stride",desc:"+1 movement",mod:{mob:1}},
-    {id:"rp_freemp",name:"Reach",desc:"+1 free movement (no AP)",mod:{freeMp:1}},
-    {id:"rp_parry20",name:"Parry",desc:"+20% parry",mod:{parry:20}},
+    {id:"rp_hp2",   name:"Constitution",  desc:"+2 HP",                        mod:{hp:2}},        // [À]
+    {id:"rp_dmg1",  name:"Force",         desc:"+1 damage",                    mod:{dmg:1}},       // [B]
+    {id:"rp_dr1",   name:"Thick Hide",    desc:"−1 damage taken",              mod:{dr:1}},        // [C]
+    {id:"rp_dodge10",name:"Evasive",      desc:"−10% chance to be hit",        mod:{dodge:10}},    // [D]
+    {id:"rp_aim10", name:"Steady Aim",    desc:"+10 aim",                      mod:{aim:10}},      // [Z]
+    {id:"rp_reload",name:"Quick Hands",   desc:"1 free reload per fight",      mod:{reload:1}},    // [E]
   ];
+  // ===== VOIES (ancienneté) : au niveau 4 le soldat choisit OFFICIER ou VÉTÉRAN, définitivement.
+  // Les niveaux 4, 6 et 8 puisent dans la voie choisie ; les autres dans l'arbre de classe.
+  // Contenu PROVISOIRE : à remplacer par les onglets « Officer » / « Vétéran » du Sheet (colonnes Niveau/Nom/Perk/Effet).
+  const TRACK_LEVELS=[4,6,8];
+  const TRACKS={ officer:{name:"Officer",desc:"Commande : agit sur l'escouade"},
+                 veteran:{name:"Veteran",desc:"Métier : agit sur soi-même"} };
+  const TRACK_PERKS={
+    officer:{
+      4:{A:{id:"of4a",name:"Field Orders",desc:"Restores 1 AP to an adjacent ally",abil:"rally"},
+         B:{id:"of4b",name:"Hold the Line",desc:"Overwatch for adjacent allies",abil:"holdline"}},
+      6:{A:{id:"of6a",name:"Covering Shout",desc:"Gives cover to adjacent allies",abil:"wall"},
+         B:{id:"of6b",name:"Standard",desc:"+2 damage",mod:{dmg:2}}},
+      8:{A:{id:"of8a",name:"Bodyguard",desc:"Intercepts a blow aimed at an adjacent ally",abil:"protect"},
+         B:{id:"of8b",name:"Command Presence",desc:"+20 aim",mod:{aim:20}}},
+    },
+    veteran:{
+      4:{A:{id:"vt4a",name:"Dig In",desc:"+15% block",mod:{shieldBlock:15}},
+         B:{id:"vt4b",name:"Hardened",desc:"+4 HP",mod:{hp:4}}},
+      6:{A:{id:"vt6a",name:"Old Scars",desc:"−1 damage taken",mod:{dr:1}},
+         B:{id:"vt6b",name:"Marksman",desc:"+15 aim",mod:{aim:15}}},
+      8:{A:{id:"vt8a",name:"Unbreakable",desc:"+8 HP",mod:{hp:8}},
+         B:{id:"vt8b",name:"Killer Instinct",desc:"+3 damage",mod:{dmg:3}}},
+    },
+  };
+  // Classes DISPENSÉES de voie : elles gardent leur arbre de classe aux niveaux 4/6/8.
+  // (les mages auront leur propre système de progression — à définir)
+  const TRACK_EXEMPT=new Set(["mage"]);
+  const isTrackLevel=lvl=>TRACK_LEVELS.includes(lvl);
+  const usesTrack=(m,lvl)=>isTrackLevel(lvl)&&!TRACK_EXEMPT.has(m.cls);
+  // point d'accès pour les tests et les outils d'équilibrage (tools/)
+  window.PROGRESSION={GRADES,XP_THRESH,PERKS,RANDOM_PERKS,TRACKS,TRACK_PERKS,TRACK_LEVELS,TRACK_EXEMPT,isTrackLevel,usesTrack,
+    gradeFromXp,perkPairFor:(m,l)=>perkPairFor(m,l)};
+  // source des deux perks CONNUS pour un niveau donné (1-indexé) : la voie, sinon l'arbre de classe
+  function perkPairFor(m,lvl){
+    if(usesTrack(m,lvl)){ const t=m.track&&TRACK_PERKS[m.track]; return (t&&t[lvl])||null; }
+    return (PERKS[m.cls]||[])[lvl-1]||null;
+  }
   const randStatPerk=()=>RANDOM_PERKS[Math.floor(Math.random()*RANDOM_PERKS.length)];
-  const perkById=(cls,id)=>{ for(const g of (PERKS[cls]||[])){ if(g.A.id===id)return g.A; if(g.B.id===id)return g.B; } return RANDOM_PERKS.find(p=>p.id===id)||null; };
+  const perkById=(cls,id)=>{ for(const g of (PERKS[cls]||[])){ if(g.A.id===id)return g.A; if(g.B.id===id)return g.B; }
+    for(const tk in TRACK_PERKS){ for(const lv in TRACK_PERKS[tk]){ const g=TRACK_PERKS[tk][lv]; if(g.A.id===id)return g.A; if(g.B.id===id)return g.B; } }
+    return RANDOM_PERKS.find(p=>p.id===id)||null; };
   function applyPerkMods(u,perkIds){ for(const id of (perkIds||[])){ const p=perkById(u.cls,id); if(!p)continue;
     if(p.abil){ (u.abil||(u.abil=[])).push(p.abil); if(p.abil==="protect")u.protect=true; continue; }
     const m=p.mod; if(!m)continue;
     if(m.hp){u.max+=m.hp;u.hp+=m.hp;} if(m.shieldBlock)u.shieldBlock=(u.shieldBlock||0)+m.shieldBlock; if(m.parry)u.parry=(u.parry||0)+m.parry;
     if(m.crackers){u.crackers=(u.crackers||0)+m.crackers;u.crackers0=(u.crackers0||0)+m.crackers;} if(m.mob)u.mobBonus=(u.mobBonus||0)+m.mob; if(m.aim)u.aimBonus=(u.aimBonus||0)+m.aim;
-    if(m.dmg)u.dmgBonus=(u.dmgBonus||0)+m.dmg; if(m.range)u.rangeBonus=(u.rangeBonus||0)+m.range; if(m.scatter)u.scatterBonus=(u.scatterBonus||0)+m.scatter; if(m.freeMp)u.freeMpBonus=(u.freeMpBonus||0)+m.freeMp; } }
+    if(m.dmg)u.dmgBonus=(u.dmgBonus||0)+m.dmg; if(m.range)u.rangeBonus=(u.rangeBonus||0)+m.range; if(m.scatter)u.scatterBonus=(u.scatterBonus||0)+m.scatter; if(m.freeMp)u.freeMpBonus=(u.freeMpBonus||0)+m.freeMp;
+    if(m.dr)u.dr=(u.dr||0)+m.dr; if(m.dodge)u.dodge=(u.dodge||0)+m.dodge; if(m.reload){u.freeReload=(u.freeReload||0)+m.reload;u.freeReload0=(u.freeReload0||0)+m.reload;} } }
   // ===== music: music/ folder + manifest.json; track drawn AT RANDOM per context (missions / interludes / geoscape) =====
   // loops during a context; on each transition: fade out the old + fade in the new (started when the screen shows)
   const MUSIC={ list:{missions:[],interludes:[],geoscape:[]}, cat:null, vol:0.5, mute:false, base:"music/", ready:false }, FADE_MS=700;
@@ -884,7 +924,7 @@
   function muretCover(tgt,att){ const T=cells[tgt.cell],A=cells[att.cell]; let ax=A.cx-T.cx,ay=A.cy-T.cy; const al=Math.hypot(ax,ay)||1; ax/=al;ay/=al; let best=0;
     for(const n of T.nb){ if(!wallBetween(tgt.cell,n))continue; if(T.elev>cells[n].elev)continue; let dx=cells[n].cx-T.cx,dy=cells[n].cy-T.cy; const dl=Math.hypot(dx,dy)||1; dx/=dl;dy/=dl; const align=ax*dx+ay*dy; if(align<=0)continue; best=Math.max(best,(COVER_PEN/2)*align); }
     return Math.round(best); }
-  function chance(att,tgt,m){const w=att.w[m];let cover=0;if(w.type==="ranged"){if(cells[tgt.cell].terr==="cover")cover=COVER_PEN;cover=Math.max(cover,muretCover(tgt,att));if(units.some(a=>a.hp>0&&a.team===tgt.team&&a!==tgt&&a.wallStance&&adjacent(a.cell,tgt.cell)))cover=Math.max(cover,Math.round(COVER_PEN*0.5));}const dh=Math.max(-3,Math.min(3,cells[att.cell].elev-cells[tgt.cell].elev))*HEIGHT_BONUS;const pb=w.type==="ranged"?(PB[hops(att.cell,tgt.cell)]||0):0;const def=tgt.bracing?DEF_BRACE:0;return Math.max(5,Math.min(95,Math.round(w.aim+(att.aimBonus||0)-cover+dh-pb-def)));}
+  function chance(att,tgt,m){const w=att.w[m];let cover=0;if(w.type==="ranged"){if(cells[tgt.cell].terr==="cover")cover=COVER_PEN;cover=Math.max(cover,muretCover(tgt,att));if(units.some(a=>a.hp>0&&a.team===tgt.team&&a!==tgt&&a.wallStance&&adjacent(a.cell,tgt.cell)))cover=Math.max(cover,Math.round(COVER_PEN*0.5));}const dh=Math.max(-3,Math.min(3,cells[att.cell].elev-cells[tgt.cell].elev))*HEIGHT_BONUS;const pb=w.type==="ranged"?(PB[hops(att.cell,tgt.cell)]||0):0;const def=(tgt.bracing?DEF_BRACE:0)+(tgt.dodge||0);return Math.max(5,Math.min(95,Math.round(w.aim+(att.aimBonus||0)-cover+dh-pb-def)));}   // dodge = esquive du défenseur
   function doAttack(att,tgt,m,reaction){
     if(!reaction&&tgt.team==="player"&&!tgt.protect){ const g=units.find(o=>o!==tgt&&o.team==="player"&&o.hp>0&&o.protect&&!o.reacted&&adjacent(o.cell,tgt.cell)); if(g){g.reacted=true;log(`🛡 ${g.name} protects ${tgt.name}`,"player");tgt=g;} }   // Protecting Shield: the guard steps in
     const w=att.w[m];att.facing=ang(att.cell,tgt.cell);if(!reaction){att.ap=0;att.freeAvail=false;turnActions++;}if(w.type==="ranged"&&att.clip!==undefined)att.ammo--;
@@ -892,7 +932,8 @@
     if(!hit){txt="missed";result="miss";}
     else if(!back&&tgt.shieldBlock&&RND()*100<tgt.shieldBlock){txt="blocked 🛡";result="blocked";}
     else if(!back&&w.type==="melee"&&tgt.parry&&RND()*100<tgt.parry){txt="parried 🗡";result="blocked";}
-    else{result="hit";dmg=w.dmgMin+Math.floor(RND()*(w.dmgMax-w.dmgMin+1))+(att.dmgBonus||0);let fb=0,fl="";if(w.flank&&w.type==="melee"){const f=flankOf(att,tgt);if(f==="back"){fb=w.flank.back;fl="back";}else if(f==="side"){fb=w.flank.side;fl="flank";}dmg+=fb;}if(att.team==="enemy")dmg=Math.max(1,dmg-1);tgt.hp-=dmg;if(tgt.team==="player")tgt.dmgTaken=(tgt.dmgTaken||0)+dmg;txt=`hit ${dmg}`+(fb?` (${fl} +${fb})`:"")+(tgt.hp<=0?(tgt.team==="player"?" ✚K.O.":" ✝"):"");if(tgt.hp<=0)tgt.hp=0;}
+    else{result="hit";dmg=w.dmgMin+Math.floor(RND()*(w.dmgMax-w.dmgMin+1))+(att.dmgBonus||0);dmg=Math.max(1,dmg-(tgt.dr||0));   // dr = réduction de dégâts (jamais en dessous de 1)
+      let fb=0,fl="";if(w.flank&&w.type==="melee"){const f=flankOf(att,tgt);if(f==="back"){fb=w.flank.back;fl="back";}else if(f==="side"){fb=w.flank.side;fl="flank";}dmg+=fb;}if(att.team==="enemy")dmg=Math.max(1,dmg-1);tgt.hp-=dmg;if(tgt.team==="player")tgt.dmgTaken=(tgt.dmgTaken||0)+dmg;txt=`hit ${dmg}`+(fb?` (${fl} +${fb})`:"")+(tgt.hp<=0?(tgt.team==="player"?" ✚K.O.":" ✝"):"");if(tgt.hp<=0)tgt.hp=0;}
     const killed=tgt.hp<=0&&result==="hit", wn=(CLASSES[att.cls]&&CLASSES[att.cls].wname)||(w.type==="ranged"?(att.clip!==undefined?"crossbow":"bow"):(w.flank?"daggers":"sword"));
     if(killed&&att.team==="player")att.kills=(att.kills||0)+1;   // for mission XP
     pushShot(att,tgt,w.type==="melee"); if(dmg>0){pushDmg(tgt.cell,dmg,tgt.team);screenShake(killed?4:2);}   // combat juice
@@ -1978,12 +2019,17 @@
       else if(cleared.has(ma))trip=true;                                            // name of a cleared region
       if(trip){ mem.special=false; lost.push(mem.name); } }
     if(lost.length)saveRosterProgress(); return lost; }
-  function pendingPromotions(){ const list=[]; if(!campRun||!campRun.roster)return list; for(const m of campRun.roster){ const reach=gradeFromXp(m.xp), have=(m.perks||[]).length; for(let g=have; g<reach; g++){ if(PERKS[m.cls]&&PERKS[m.cls][g])list.push({m,grade:g}); } } return list; }
+  function pendingPromotions(){ const list=[]; if(!campRun||!campRun.roster)return list;
+    for(const m of campRun.roster){ const reach=gradeFromXp(m.xp), have=(m.perks||[]).length;
+      for(let g=have; g<reach; g++){ const lvl=g+1;
+        if(isTrackLevel(lvl)) list.push({m,grade:g,lvl});                       // niveau de VOIE : la paire vient de la voie (choisie au niveau 4)
+        else if(PERKS[m.cls]&&PERKS[m.cls][g]) list.push({m,grade:g,lvl}); } }   // niveau de CLASSE
+    return list; }
   // CROSS-GAME persistence: keep the roster's progression (xp/perks), per campaign, in localStorage
   const SAVE_PREFIX="mgf_camp_save_";
   const campSlug=n=>(n||"camp").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g,"").replace(/[^a-z0-9]+/g,"-").replace(/(^-|-$)/g,"")||"camp";
   function saveRosterProgress(){ if(!campRun||!campRun.camp)return; try{ localStorage.setItem(SAVE_PREFIX+campSlug(campRun.camp.name),
-    JSON.stringify({roster:campRun.roster.map(m=>({name:m.name,cls:m.cls,xp:m.xp||0,perks:(m.perks||[]).slice(),offered:m.offered||{},stress:m.stress||0,fatigue:m.fatigue||0,special:m.special!==false,dead:!!m.dead}))})); }catch(e){} }
+    JSON.stringify({roster:campRun.roster.map(m=>({name:m.name,cls:m.cls,xp:m.xp||0,perks:(m.perks||[]).slice(),offered:m.offered||{},track:m.track||null,stress:m.stress||0,fatigue:m.fatigue||0,special:m.special!==false,dead:!!m.dead}))})); }catch(e){} }
   function loadRosterProgress(name){ try{ const t=localStorage.getItem(SAVE_PREFIX+campSlug(name)); if(t){ const o=JSON.parse(t); if(o&&Array.isArray(o.roster))return o.roster; } }catch(e){} return null; }
   function clearRosterProgress(name){ try{ localStorage.removeItem(SAVE_PREFIX+campSlug(name)); localStorage.removeItem(EVT_PREFIX+campSlug(name)); }catch(e){} }
   // scripted events already triggered (so they don't replay), persisted per campaign
@@ -2053,16 +2099,43 @@
   // autoPromote (option/tests): if set, chooses without UI; otherwise, a clickable screen.
   let autoPromote=null;
   function showPromotions(done){ const list=pendingPromotions(), el=document.getElementById("promote");
-    // column A = the class's fixed tree; column B = a randomly drawn stat perk (stored in m.offered so the discarded option can be shown)
-    const rec=(it,offer,took)=>{ it.m.perks=it.m.perks||[]; it.m.perks.push(offer[took].id); it.m.offered=it.m.offered||{}; it.m.offered[it.grade]={a:offer.A.id,b:offer.B.id,took}; };
-    if(autoPromote){ for(const it of list){ const offer={A:PERKS[it.m.cls][it.grade].A,B:randStatPerk()}, k=autoPromote(it.m,it.grade,offer)||"A"; rec(it,offer,offer[k]?k:"A"); } saveRosterProgress(); done(); return; }
+    // À chaque niveau : A et B = les deux perks CONNUS (arbre de classe, ou VOIE aux niveaux 4/6/8), C = un perk ALÉATOIRE.
+    // Le choix est irréversible ; on garde les options écartées dans m.offered pour pouvoir les réafficher.
+    const rec=(it,offer,took)=>{ it.m.perks=it.m.perks||[]; it.m.perks.push(offer[took].id);
+      it.m.offered=it.m.offered||{}; it.m.offered[it.grade]={a:offer.A&&offer.A.id,b:offer.B&&offer.B.id,c:offer.C&&offer.C.id,took}; };
+    const buildOffer=it=>{ const pair=perkPairFor(it.m,it.lvl);
+      return {A:pair&&pair.A, B:pair&&pair.B, C:randStatPerk()}; };
+    if(autoPromote){
+      for(const it of list){
+        if(usesTrack(it.m,it.lvl)&&!it.m.track) it.m.track=(autoPromote(it.m,it.grade,null,"track")||"veteran");
+        const offer=buildOffer(it); if(!offer.A&&!offer.B){ offer.A=randStatPerk(); }
+        let k=autoPromote(it.m,it.grade,offer)||"A"; if(!offer[k])k=offer.A?"A":(offer.B?"B":"C");
+        rec(it,offer,k); }
+      saveRosterProgress(); done(); return; }
     if(!el||!list.length){ if(el)el.classList.remove("show"); saveRosterProgress(); done(); return; }
-    let i=0; (function step(){ if(i>=list.length){ el.classList.remove("show"); saveRosterProgress(); done(); return; }
-      const it=list[i++], offer={A:PERKS[it.m.cls][it.grade].A,B:randStatPerk()};   // B drawn at random when the card opens
-      document.getElementById("promote-hd").innerHTML=`<span class="who">${esc(it.m.name)}</span> <span class="gr">→ ${GRADES[it.grade+1]||("grade "+(it.grade+1))}</span> — choose a skill (permanent)`;
-      const opts=document.getElementById("promote-opts"); opts.innerHTML="";
-      for(const key of ["A","B"]){ const p=offer[key], d=document.createElement("div"); d.className="perkopt";
-        d.innerHTML=`<div class="ab">${key}${key==="B"?" 🎲":""}</div><div class="pn">${esc(p.name)}</div><div class="pd">${esc(p.desc)}</div>`;
+    const hd=document.getElementById("promote-hd"), opts=document.getElementById("promote-opts");
+    let i=0;
+    (function step(){
+      if(i>=list.length){ el.classList.remove("show"); saveRosterProgress(); done(); return; }
+      const it=list[i];
+      // 1) au premier niveau de voie, on choisit d'abord OFFICIER ou VÉTÉRAN — définitif
+      if(usesTrack(it.m,it.lvl)&&!it.m.track){
+        hd.innerHTML=`<span class="who">${esc(it.m.name)}</span> <span class="gr">→ niveau ${it.lvl}</span> — choisis une voie (définitive)`;
+        opts.innerHTML="";
+        for(const key of Object.keys(TRACKS)){ const t=TRACKS[key], d=document.createElement("div"); d.className="perkopt";
+          d.innerHTML=`<div class="ab">${esc(t.name)}</div><div class="pn">${esc(t.name)}</div><div class="pd">${esc(t.desc)}</div>`;
+          d.onclick=()=>{ it.m.track=key; saveRosterProgress(); step(); }; opts.appendChild(d); }
+        el.classList.add("show"); return; }
+      // 2) puis le choix du perk parmi trois
+      i++;
+      const offer=buildOffer(it);
+      if(!offer.A&&!offer.B){ offer.A=randStatPerk(); }   // filet : voie sans contenu à ce niveau → on ne bloque pas la montée
+      const trk=usesTrack(it.m,it.lvl)&&it.m.track?` · ${TRACKS[it.m.track].name}`:"";
+      hd.innerHTML=`<span class="who">${esc(it.m.name)}</span> <span class="gr">→ ${GRADES[it.grade+1]||("niveau "+it.lvl)}${trk}</span> — choose a skill (permanent)`;
+      opts.innerHTML="";
+      for(const key of ["A","B","C"]){ const pk=offer[key]; if(!pk)continue;
+        const d=document.createElement("div"); d.className="perkopt";
+        d.innerHTML=`<div class="ab">${key}${key==="C"?" 🎲":""}</div><div class="pn">${esc(pk.name)}</div><div class="pd">${esc(pk.desc)}</div>`;
         d.onclick=()=>{ rec(it,offer,key); step(); }; opts.appendChild(d); }
       el.classList.add("show"); })(); }
   // Phase A — in a campaign, replace the mission's pre-placed player units with the persistent ROSTER
@@ -2093,8 +2166,8 @@
     if(v==="geoscape"&&typeof geoEnter==="function")geoEnter(); }
   function startCampaign(camp,from,fromNode){ const ephemeral=(from!=="play");   // launched from the editor (test): events (1st arrival…) replay each attempt and aren't remembered
     campRun={camp,carry:{},winCount:0,roster:(camp.roster||[]).map(m=>({name:m.name,cls:m.cls,xp:m.xp||0,perks:Array.isArray(m.perks)?m.perks.slice():[],offered:{},stress:0,fatigue:0,special:m.special!==false,mortalAfter:m.mortalAfter||null,dead:false})),nodeId:null,from:from||"campaign",seen:new Set(),potions:0,ephemeral,dialogs:(camp.dialogs||[]).slice(),firedDialogs:new Set(),firedEvents:new Set(ephemeral?[]:loadFiredEvents(camp.name))};
-    const saved=loadRosterProgress(camp.name); if(saved){ for(const m of campRun.roster){ const s=saved.find(x=>x.name===m.name&&x.cls===m.cls); if(s){ m.xp=s.xp||0; m.perks=Array.isArray(s.perks)?s.perks.slice():[]; m.offered=s.offered||{}; m.stress=s.stress||0; m.fatigue=s.fatigue||0; m.special=s.special!==false; m.dead=!!s.dead; } }   // resumes progression + attrition + deaths across games
-      for(const s of saved){ if(s.name&&!campRun.roster.some(m=>m.name===s.name))campRun.roster.push({name:s.name,cls:s.cls,xp:s.xp||0,perks:Array.isArray(s.perks)?s.perks.slice():[],offered:s.offered||{},stress:s.stress||0,fatigue:s.fatigue||0,special:s.special!==false,mortalAfter:null,dead:!!s.dead}); } }   // scripted recruits (absent from the base roster) kept
+    const saved=loadRosterProgress(camp.name); if(saved){ for(const m of campRun.roster){ const s=saved.find(x=>x.name===m.name&&x.cls===m.cls); if(s){ m.xp=s.xp||0; m.perks=Array.isArray(s.perks)?s.perks.slice():[]; m.offered=s.offered||{}; m.track=s.track||null; m.stress=s.stress||0; m.fatigue=s.fatigue||0; m.special=s.special!==false; m.dead=!!s.dead; } }   // resumes progression + attrition + deaths across games
+      for(const s of saved){ if(s.name&&!campRun.roster.some(m=>m.name===s.name))campRun.roster.push({name:s.name,cls:s.cls,xp:s.xp||0,perks:Array.isArray(s.perks)?s.perks.slice():[],offered:s.offered||{},track:s.track||null,stress:s.stress||0,fatigue:s.fatigue||0,special:s.special!==false,mortalAfter:null,dead:!!s.dead}); } }   // scripted recruits (absent from the base roster) kept
     document.body.classList.remove("testing"); setView("play"); runNode(fromNode||camp.start); }
   async function startPlay(){ let camp=loadCampDraft();
     if(!camp){ const t=await fetchText("campaigns-mesh/principale.json",ghCfg()); if(t){try{camp=JSON.parse(t);}catch(e){}} }
@@ -2162,7 +2235,7 @@
       if(sel.ap>0&&sel.w.melee)btn("👁","Overwatch — melee (ends the turn)",sel.overwatch&&sel.owMode==="melee",()=>doOverwatch("melee"));
       if(sel.w.cracker&&sel.crackers>0&&sel.ap>0)btn("💣","Cracker ×"+sel.crackers+" — ends the turn",throwing,()=>{throwing=!throwing;usingItem=false;amode=null;setMsg(throwing?"Click a target tile (area — the landing spot is uncertain).":"");if(throwing)startCrackerJit();else{crackerJit=null;draw();}renderActs();});
       if(inv.potion>0&&sel.ap>0)btn("🧪","Potion ×"+inv.potion+" (1 AP, doesn't end the turn)",usingItem,()=>{usingItem=!usingItem;throwing=false;amode=null;setMsg(usingItem?"Click an ally (self/adjacent).":"");renderActs();});
-      if(sel.clip!==undefined&&sel.ammo<sel.clip&&sel.ap>0)btn("🔄","Reload (1 AP, doesn't end the turn)",false,()=>{sel.ap--;sel.ammo=sel.clip;refresh();});
+      if(sel.clip!==undefined&&sel.ammo<sel.clip&&(sel.ap>0||sel.freeReload>0))btn("🔄",sel.freeReload>0?"Reload (FREE, "+sel.freeReload+" left)":"Reload (1 AP, doesn't end the turn)",false,()=>{if(sel.freeReload>0)sel.freeReload--;else sel.ap--;sel.ammo=sel.clip;refresh();});
       if(sel.shieldBlock>0&&sel.ap>0&&!sel.bracing)btn("🛡","Brace (+def., 1 AP, doesn't end the turn)",false,()=>{sel.ap--;sel.freeAvail=false;sel.bracing=true;setMsg("Bracing — reinforced defense this turn.");refresh();});
       if(sel.abil)for(const aid of sel.abil){ const A=ABIL[aid]; if(!A)continue; if(aid==="vanish"&&sel.vanishUsed)continue;
         const cd=(sel.cd&&sel.cd[aid])||0;
@@ -2185,7 +2258,7 @@
   function startGame(){ resetView(); { const t=document.getElementById("title"); if(t)t.style.display="none"; }   // a game starts: remove the title screen
     if(cells.some(c=>c.podAnchor)){ units=units.filter(u=>!u.fromAnchor); spawnAnchorPods(); }   // (re)generates the anchor pods on each (re)launch
     if(!units.some(u=>u.team==="player")||!units.some(u=>u.team==="enemy")){ setMsg("Place at least 1 ally and 1 enemy (Edit mode)."); }
-    for(const u of units){u.hp=u.max;u.ap=AP_MAX;u.freeAvail=true;u.overwatch=false;u.reacted=false;u.bracing=false;u.taunt=false;u.hidden=false;u.wallStance=false;u.vanishUsed=false;u.slowed=false;u.stunned=false;u.spellsCast=0;u.cd={};u.dmgTaken=0;u.asleep=!!u._asleep0;if(u.clip!==undefined)u.ammo=u.clip;if(u.crackers!==undefined)u.crackers=(u.crackers0!==undefined?u.crackers0:CLASSES[u.cls].crackers);} smoke=new Map();ability=null; _podCenters=null; turn="player";over=false;sel=null;amode=null;aimTarget=null;throwing=false;usingItem=false;inv={potion:campRun?(campRun.potions||0):0};
+    for(const u of units){u.hp=u.max;u.ap=AP_MAX;u.freeAvail=true;u.overwatch=false;u.reacted=false;u.bracing=false;u.taunt=false;u.hidden=false;u.wallStance=false;u.vanishUsed=false;u.slowed=false;u.stunned=false;u.spellsCast=0;u.cd={};u.dmgTaken=0;u.asleep=!!u._asleep0;if(u.clip!==undefined)u.ammo=u.clip;if(u.freeReload0!==undefined)u.freeReload=u.freeReload0;if(u.crackers!==undefined)u.crackers=(u.crackers0!==undefined?u.crackers0:CLASSES[u.cls].crackers);} smoke=new Map();ability=null; _podCenters=null; turn="player";over=false;sel=null;amode=null;aimTarget=null;throwing=false;usingItem=false;inv={potion:campRun?(campRun.potions||0):0};
     fired=new Set(); podAlerted=new Set(); neutralSeen=new Set(); lastSeen=new Map(); turnNum=1; turnActions=0; lastOutcome=null; speechQ=[]; speaking=false; if(speechT){clearTimeout(speechT);speechT=null;} document.getElementById("combatline").style.display="none";
     document.getElementById("over").classList.remove("show");document.getElementById("log").innerHTML="";setMsg("");setupBonus();refresh();
     banner("Player turn","player"); playMusic("missions"); emit("start",{}); emit("turn",{turn:1}); }
@@ -2532,13 +2605,14 @@
   function openSquadSheet(){ const el=document.getElementById("sheet"),body=document.getElementById("sheet-body"); if(!el||!body||!campRun||!campRun.roster)return;
     body.innerHTML=campRun.roster.map(m=>{ const g=gradeFromXp(m.xp||0), next=XP_THRESH[g+1], clsName=(CLASSES[m.cls]&&CLASSES[m.cls].name)||m.cls;
       const perks=(m.perks||[]).map((id,ti)=>{ const p=perkById(m.cls,id); if(!p)return "";
-        const off=m.offered&&m.offered[ti]; let side,altId=null;   // discarded option: from m.offered, otherwise fall back on the old fixed A/B pair
-        if(off){ side=(off.a===id)?"A":"B"; altId=(off.a===id)?off.b:off.a; }
-        else { const pair=PERKS[m.cls]&&PERKS[m.cls][ti]; side=(pair&&pair.A.id===id)?"A":"B"; if(pair)altId=(pair.A.id===id)?pair.B.id:pair.A.id; }
-        const alt=altId?perkById(m.cls,altId):null;
+        const off=m.offered&&m.offered[ti]; let side,altIds=[];   // options écartées : depuis m.offered (3 options), sinon repli sur l'ancienne paire A/B
+        if(off){ side=off.took||((off.a===id)?"A":(off.b===id?"B":"C")); altIds=[off.a,off.b,off.c].filter(x=>x&&x!==id); }
+        else { const pair=PERKS[m.cls]&&PERKS[m.cls][ti]; side=(pair&&pair.A.id===id)?"A":"B"; if(pair)altIds=[(pair.A.id===id)?pair.B.id:pair.A.id]; }
+        const alt=altIds.length?perkById(m.cls,altIds[0]):null; const alt2=altIds.length>1?perkById(m.cls,altIds[1]):null;
         return `<div class="sh-perk"><span class="sh-t">${esc(GRADES[ti+1]||("grade "+(ti+1)))}</span> <span class="sh-ab">(choice ${side})</span> — ${esc(p.name)} <span class="sh-d">· ${esc(p.desc)}</span>`+
-          (alt?`<div class="sh-alt">discarded: ${esc(alt.name)} <span class="sh-d">· ${esc(alt.desc)}</span></div>`:"")+`</div>`; }).join("")||`<div class="sh-none">no perk chosen yet</div>`;
-      return `<div class="sh-m${m.dead?" sh-dead":""}"><div class="sh-h"><b>${esc(m.name)}</b> <span class="sh-cls">${esc(clsName)}</span> · <span class="sh-grade">${esc(GRADES[g])}</span>${m.special!==false?' <span title="protected character">★</span>':""}${m.dead?' ✝':""}</div>`+
+          (alt?`<div class="sh-alt">discarded: ${esc(alt.name)} <span class="sh-d">· ${esc(alt.desc)}</span></div>`:"")+
+          (alt2?`<div class="sh-alt">discarded: ${esc(alt2.name)} <span class="sh-d">· ${esc(alt2.desc)}</span></div>`:"")+`</div>`; }).join("")||`<div class="sh-none">no perk chosen yet</div>`;
+      return `<div class="sh-m${m.dead?" sh-dead":""}"><div class="sh-h"><b>${esc(m.name)}</b> <span class="sh-cls">${esc(clsName)}</span>${m.track?' · <span class="sh-cls">'+esc(TRACKS[m.track].name)+'</span>':""} · <span class="sh-grade">${esc(GRADES[g])}</span>${m.special!==false?' <span title="protected character">★</span>':""}${m.dead?' ✝':""}</div>`+
         `<div class="sh-xp">${m.xp||0} XP${next!=null?(" · next grade at "+next+" XP"):" · max grade reached"}</div>${perks}</div>`; }).join("");
     el.classList.add("show"); }
   { const sx=document.getElementById("sheet-x"),sh=document.getElementById("sheet"); if(sx)sx.onclick=()=>sh.classList.remove("show"); if(sh)sh.addEventListener("click",e=>{ if(e.target===sh)sh.classList.remove("show"); }); }
