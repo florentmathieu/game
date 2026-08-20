@@ -166,7 +166,7 @@
     <div class="row" id="relief"></div>
     <h2>Auto-generation (mission)</h2>
     <div class="row"><label>Difficulty <select id="gen-diff"><option value="facile">easy</option><option value="moyen" selected>medium</option><option value="difficile">hard</option></select></label>
-      <label>Objective <select id="gen-arch"><option value="eliminate" selected>elimination</option><option value="assassinate">assassination (target)</option><option value="rescue">rescue (hostage)</option><option value="defend">defense (VIP, N turns)</option><option value="survive">survival (N turns)</option><option value="extract">extraction (zone)</option></select></label></div>
+      <label>Objective <select id="gen-arch"><option value="eliminate" selected>elimination</option><option value="assassinate">assassination (target)</option><option value="rescue">rescue (hostage)</option><option value="defend">defense (VIP, N turns)</option><option value="survive">survival (N turns)</option><option value="harvest">récolte (gisements)</option><option value="intercept">interception (fuyards)</option><option value="extract">extraction (zone)</option></select></label></div>
     <div class="row"><label>Enemies <input id="gen-enemies" type="number" min="1" max="16" placeholder="auto" style="width:54px"></label>
       <label>Pods <input id="gen-pods" type="number" min="1" max="6" placeholder="auto" style="width:54px"></label>
       <span class="hint" style="flex:1">total enemies = the real dial; empty = based on difficulty</span></div>
@@ -895,7 +895,17 @@
     for(const id of pass) if(!idx.has(id)) dfs(id,id,-1);
     // elevation
     const elevs=cells.map(c=>c.elev||0), hi=elevs.filter(e=>e>0).length;
-    return { cellules:n, couvertPct:+(100*cov/n).toFixed(1), murPct:+(100*wall/n).toFixed(1),
+    return { objectif:(curMission&&curMission.objective)||"?",
+             gisements:cells.filter(c=>c.ore).length,
+             gisementsAvances:cells.filter(c=>c.ore&&(c.oreP||0)>0).length,
+             gisementXY:cells.filter(c=>c.ore).map(c=>[Math.round(c.cx),Math.round(c.cy)]),
+             fuyards:units.filter(u=>u.runner&&u.hp>0).length,
+             fuyardDist:(function(){ const ez=cells.filter(c=>c.zone==="exit").map(c=>c.id); if(!ez.length)return -1;
+               const rs=units.filter(u=>u.runner&&u.hp>0); if(!rs.length)return -1;
+               return rs.map(u=>Math.min(...ez.map(x=>hops(u.cell,x)))).join("/"); })(),
+             echappes:(curMission&&curMission.escaped)||0,
+             zoneSortie:cells.filter(c=>c.zone==="exit").length,
+             cellules:n, couvertPct:+(100*cov/n).toFixed(1), murPct:+(100*wall/n).toFixed(1),
              groupement:+(100*joint).toFixed(1), amas:sizes.length, plusGrosAmas:sizes[0]||0,
              amasMoyen:+(sizes.length?sizes.reduce((a,b)=>a+b,0)/sizes.length:0).toFixed(1),
              plusGrandeZoneDegagee:openMax, goulots:arts,
@@ -941,6 +951,7 @@
     if(w.clip!==undefined){u.clip=w.clip;u.ammo=w.clip;} if(t.crackers){u.crackers=t.crackers;u.crackers0=t.crackers;}   // crackers0 = base (incl. perks) that startGame restores
     if(opts.pod!=null&&opts.pod!=="")u.pod=+opts.pod; if(opts.asleep&&team==="enemy"){u.asleep=true;u._asleep0=true;} if(opts.hostage&&team==="neutral")u.hostage=true;
     if(opts.hvt&&team==="enemy")u.hvt=true;   // high-value target ("assassination" objective)
+    if(opts.runner&&team==="enemy"){u.runner=true;u.asleep=false;u._asleep0=false;}   // fuyard ("interception") : court vers la sortie, ne combat pas
     if(opts.guard&&team==="neutral")u.civ=false;   // NPC to defend: targeted by the enemy AND counted in the defeat (≠ ambient civilian)
     if(t.abil)u.abil=t.abil.slice();   // abilities built into the class (e.g. enemy mage) — players get them via perks
     return u; }
@@ -1190,6 +1201,14 @@
     if(obj==="assassinate"){ if(!units.some(u=>u.team==="enemy"&&u.hvt&&u.hp>0))return end("Victory — target eliminated!"); return; }
     if(obj==="survive"||obj==="defend"){ const N=(curMission&&curMission.surviveTurns)||6; if(turnNum>N)return end("Victory — position held!"); if(noEnemies)return end("Victory!"); return; }
     if(obj==="extract"){ const need=(curMission&&curMission.extractCount)||1; const ez=exitCells(); if(units.filter(u=>u.team==="player"&&u.hp>0&&ez.has(u.cell)).length>=need)return end("Victory — extraction successful!"); return; }
+    if(obj==="harvest"){ const need=(curMission&&curMission.harvestTurns)||2;
+      const nodes=cells.filter(c=>c.ore);
+      if(nodes.length&&nodes.every(c=>(c.oreP||0)>=need))return end("Victory — gisements épuisés !");
+      return; }
+    if(obj==="intercept"){ const tot=(curMission&&curMission.interceptTotal)||0;
+      if((curMission.escaped||0)>0)return end("Defeat — un fuyard est passé…");
+      if(tot&&!units.some(u=>u.team==="enemy"&&u.runner&&u.hp>0))return end("Victory — aucun fuyard n'est passé !");
+      return; }
     if(obj==="rescue"){ if(noEnemies)return end("Victory — hostage freed!"); return; }   // freeing = neutralize all the jailers (the hostage must survive, handled above)
     if(noEnemies)end("Victory!");   // eliminate
   }
@@ -1302,9 +1321,39 @@
     if(e.abil.includes("charge")&&!onCd(e,"charge")){ const far=tgts.filter(p=>{const h=hops(e.cell,p.cell);return h>=2&&h<=CHARGE_RANGE&&los(e.cell,p.cell);}).sort((a,b)=>hops(e.cell,a.cell)-hops(e.cell,b.cell))[0]; if(far&&execCharge(e,far))return true; }
     if(e.abil.includes("shove")&&!onCd(e,"shove")){ const adj=tgts.find(p=>adjacent(e.cell,p.cell)&&(cells[p.cell].elev>cells[e.cell].elev||cells[p.cell].terr==="cover")); if(adj&&execShove(e,adj))return true; }
     return false; }
-  function endTurn(){turn="enemy";turnActions=0;sel=null;amode=null;aimTarget=null;for(const u of units)if(u.team==="enemy"){u.ap=u.slowed?Math.max(0,AP_MAX-1):AP_MAX;u.slowed=false;u.freeAvail=true;u.overwatch=false;u.reacted=false;u.bracing=false;if(u.stunned){u.ap=0;u.freeAvail=false;u.stunned=false;}}banner("Enemy turn","enemy");refresh();const foes=units.filter(u=>u.team==="enemy"&&u.hp>0);let i=0;
+  // RÉCOLTE : chaque gisement occupé par un des nôtres progresse d'un cran à la fin du tour.
+  function harvestTick(){ if(!curMission||curMission.objective!=="harvest")return;
+    const need=curMission.harvestTurns||2;
+    for(const c of cells){ if(!c.ore||c.oreP>=need)continue;
+      if(units.some(u=>u.team==="player"&&u.hp>0&&u.cell===c.id)){ c.oreP=(c.oreP||0)+1;
+        log(c.oreP>=need?`⛏ gisement épuisé (${c.oreP}/${need})`:`⛏ extraction en cours (${c.oreP}/${need})`,"player"); } } }
+  // INTERCEPTION : un fuyard court vers la sortie et ne combat pas.
+  const RUNNER_STEPS=3;   // cases parcourues par un fuyard à chaque tour
+  function runnerStep(e){
+    const ez=exitCells(); if(!ez.size)return;
+    // Carte de distance depuis la SORTIE, sur tout le terrain praticable. On n'utilise pas reach()
+    // volontairement : reach() restreint les ennemis aux cases vues par leur camp, or un fuyard
+    // hors pod alerté n'en a aucune — il resterait planté. Lui, il sait où il va.
+    const D={}; const q=[...ez]; for(const id of q) D[id]=0;
+    for(let i=0;i<q.length;i++){ const u=q[i];
+      for(const v of cells[u].nb){ if(D[v]!==undefined)continue; if(!passable(v)||wallBetween(u,v))continue; D[v]=D[u]+1; q.push(v); } }
+    if(D[e.cell]===undefined)return;                       // sortie inatteignable : il ne bouge pas
+    const occu=occ(); occu.delete(e.cell);
+    let cur=e.cell, steps=RUNNER_STEPS;
+    while(steps-->0 && !ez.has(cur)){
+      let nxt=null, best=D[cur];
+      for(const v of cells[cur].nb){ if(occu.has(v)||wallBetween(cur,v)||!passable(v))continue;
+        if(D[v]!==undefined&&D[v]<best){ best=D[v]; nxt=v; } }
+      if(nxt===null)break; cur=nxt;
+    }
+    if(cur!==e.cell){ e.cell=cur; e.facing=0; }
+    if(ez.has(e.cell)){ e.hp=0; e.escaped=true; curMission.escaped=(curMission.escaped||0)+1;
+      log(`⇢ ${e.name} s'est échappé !`,"enemy"); } }
+  function endTurn(){harvestTick();turn="enemy";turnActions=0;sel=null;amode=null;aimTarget=null;for(const u of units)if(u.team==="enemy"){u.ap=u.slowed?Math.max(0,AP_MAX-1):AP_MAX;u.slowed=false;u.freeAvail=true;u.overwatch=false;u.reacted=false;u.bracing=false;if(u.stunned){u.ap=0;u.freeAvail=false;u.stunned=false;}}banner("Enemy turn","enemy");refresh();const foes=units.filter(u=>u.team==="enemy"&&u.hp>0);let i=0;
     (function step(){if(over)return;if(i>=foes.length){for(const u of units)if(u.team==="player"){u.ap=AP_MAX;u.freeAvail=true;u.overwatch=false;u.reacted=false;u.bracing=false;u.taunt=false;u.hidden=false;u.wallStance=false;if(u.stunned){u.ap=0;u.freeAvail=false;u.stunned=false;}}tickCd("player");for(const[k,v]of smoke){if(v-1<=0)smoke.delete(k);else smoke.set(k,v-1);}turn="player";turnNum++;turnActions=0;setMsg("");checkEnd();if(over)return;banner("Player turn","player");refresh();emit("turn",{turn:turnNum});return;}
-      const e=foes[i++];if(e.hp<=0){step();return;} e.overwatch=false; if(!enemyActive(e)){ try{patrolStep(e);}catch(err){} e.ap=0; step(); return; }   // not alerted = patrols in its zone
+      const e=foes[i++];if(e.hp<=0){step();return;} e.overwatch=false;
+      if(e.runner){ try{runnerStep(e);}catch(err){} e.ap=0; refresh(); checkEnd(); if(over)return; setTimeout(step,220); return; }
+      if(!enemyActive(e)){ try{patrolStep(e);}catch(err){} e.ap=0; step(); return; }   // not alerted = patrols in its zone
       const next=()=>setTimeout(step,200);
       const tgts=units.filter(p=>p.hp>0&&hostile(e,p)&&enemySeesP(e,p));   // only what this enemy actually sees
       if(!tgts.length){ searchAct(e,()=>{ holdWatch(e); refresh(); next(); }); return; }   // no one in sight: pursue the last known position
@@ -1470,6 +1519,14 @@
         const seg=3+Math.floor(L*4); for(let s=0;s<seg;s++){ x+=(r()-0.5)*W*0.22; y+=(r()-0.5)*H*0.22; ctx.lineTo(x,y);} ctx.stroke(); }
       ctx.restore(); }
     if(mode==="play")for(const c of cells)if(c.bonusLoot&&visible.has(c.id)){ ctx.save(); poly(c); ctx.fillStyle="rgba(255,212,121,.18)"; ctx.fill(); ctx.font="18px sans-serif"; ctx.textAlign="center"; ctx.textBaseline="middle"; ctx.fillText("💰",c.cx,c.cy); ctx.restore(); }   // loot tile of the bonus objective
+    // RÉCOLTE : gisements, avec leur progression (épuisé = éteint)
+    for(const c of cells)if(c.ore){ const need=(curMission&&curMission.harvestTurns)||2, done=(c.oreP||0)>=need;
+      ctx.save(); poly(c); ctx.fillStyle=done?"rgba(120,120,130,.20)":"rgba(120,220,255,.20)"; ctx.fill();
+      ctx.lineWidth=2; ctx.strokeStyle=done?"#6c6f78":"#7ad8ff"; ctx.stroke();
+      ctx.font="17px sans-serif"; ctx.textAlign="center"; ctx.textBaseline="middle";
+      ctx.globalAlpha=done?0.45:1; ctx.fillText("⛏",c.cx,c.cy-3);
+      ctx.globalAlpha=1; ctx.font="bold 10px system-ui"; ctx.fillStyle=done?"#9aa0aa":"#cdefff";
+      ctx.fillText(`${c.oreP||0}/${need}`,c.cx,c.cy+11); ctx.restore(); }
     if(mode==="edit"){ for(const c of cells)if(c.deploy){ poly(c); ctx.fillStyle="rgba(90,200,150,.28)"; ctx.fill(); ctx.strokeStyle="rgba(120,240,180,.7)"; ctx.lineWidth=2; ctx.stroke(); }   // squad deployment zone
       for(const c of cells)if(c.podAnchor){ const slp=c.podAnchor==="asleep"; poly(c); ctx.fillStyle=slp?"rgba(95,140,216,.26)":"rgba(216,99,95,.26)"; ctx.fill(); ctx.strokeStyle=slp?"rgba(120,170,255,.85)":"rgba(255,120,110,.85)"; ctx.lineWidth=2; ctx.stroke(); ctx.save(); ctx.font="bold 13px system-ui"; ctx.textAlign="center"; ctx.textBaseline="middle"; ctx.fillText(slp?"💤":"🎯",c.cx,c.cy); ctx.restore(); }   // enemy pod anchor (red = awake, blue/💤 = asleep)
       ctx.textAlign="center"; ctx.textBaseline="middle"; ctx.font="bold 11px system-ui";   // trigger zones: visible only in the editor
@@ -1565,7 +1622,7 @@
 
   // re-meshes while keeping terrain, elevation, low walls and units via geometric projection
   function snapBoard(){ return {
-    cells:cells.map(c=>({cx:c.cx,cy:c.cy,terr:c.terr,elev:c.elev,zone:c.zone})),
+    cells:cells.map(c=>({cx:c.cx,cy:c.cy,terr:c.terr,elev:c.elev,zone:c.zone,ore:c.ore})),
     walls:[...walls].map(k=>wallSeg.get(k)).filter(Boolean).map(s=>[(s[0][0]+s[1][0])/2,(s[0][1]+s[1][1])/2]),
     units:units.map(u=>({team:u.team,cls:u.cls,name:u.name,pod:u.pod,asleep:u._asleep0,hostage:u.hostage,facing:u.facing,cx:cells[u.cell]?cells[u.cell].cx:0,cy:cells[u.cell]?cells[u.cell].cy:0})) }; }
   function restoreBoard(s){ if(!s||!s.cells.length)return;
@@ -1790,7 +1847,7 @@
     if(document.getElementById("m-protect"))document.getElementById("m-protect").value="";
     // ===== mission objective / archetype =====
     const archetype=P.archetype||(document.getElementById("gen-arch")?document.getElementById("gen-arch").value:"eliminate")||"eliminate";
-    let surviveTurns, extractCount, exitZone, hostageName;
+    let surviveTurns, extractCount, exitZone, hostageName, harvestNeed, harvestTurns, interceptTotal;
     const deepId=reachIds.reduce((a,b)=>dist[b]>dist[a]?b:a, reachIds[0]);   // deepest pocket (corner opposite the deployment)
     const freeBall=(center,r)=>{ const b=bfsBall(center,r); return Object.keys(b).map(Number).sort((a,c)=>b[a]-b[c]).filter(id=>passable(id)&&!occSet.has(id)&&!slots.includes(id)); };
     if(archetype==="assassinate"){
@@ -1807,12 +1864,30 @@
       surviveTurns=P.surviveTurns||6;
     } else if(archetype==="survive"){
       surviveTurns=P.surviveTurns||6;
+    } else if(archetype==="harvest"){
+      // RÉCOLTE : 3 gisements espacés, loin du déploiement. Une unité doit rester dessus
+      // plusieurs tours → l'escouade est obligée de se FRAGMENTER (aucun autre archétype ne l'impose).
+      const cand=reachIds.filter(id=>passable(id)&&!occSet.has(id)&&!slots.includes(id)&&dist[id]>maxD*0.3)
+        .sort((a,b)=>dist[b]-dist[a]);
+      const nodes=[];
+      for(const id of cand){ if(nodes.every(nd=>hops(nd,id)>=4)){ nodes.push(id); if(nodes.length>=3)break; } }
+      nodes.forEach(id=>{ cells[id].ore=true; cells[id].oreP=0; });
+      harvestNeed=nodes.length; harvestTurns=P.harvestTurns||2;
+    } else if(archetype==="intercept"){
+      // INTERCEPTION : deux fuyards courent vers une sortie et ne se battent pas. Le tempo s'inverse :
+      // c'est l'ennemi qui a l'objectif, le joueur est en retard.
+      exitZone="exit";
+      const ez=[deepId,...cells[deepId].nb.filter(passable)]; ez.forEach(id=>{ if(cells[id])cells[id].zone="exit"; });
+      const foes=units.filter(u=>u.team==="enemy"&&u.hp>0).sort((a,b)=>hops(a.cell,deepId)-hops(b.cell,deepId));
+      const runners=foes.slice(0,Math.min(2,Math.max(1,foes.length-1)));
+      runners.forEach(r=>{ r.runner=true; r.asleep=false; r._asleep0=false; r.name="⇢ "+r.name; });
+      interceptTotal=runners.length;
     } else if(archetype==="extract"){
       exitZone="exit";   // extraction zone = deep pocket
       const ez=[deepId,...cells[deepId].nb.filter(passable)]; ez.forEach(id=>{ if(cells[id])cells[id].zone="exit"; });
       extractCount=P.extractCount||Math.max(1, slots.length-1);
     }
-    curMission={ objective:archetype, surviveTurns, extractCount, exitZone, bonus:bonusFromDom() };
+    curMission={ objective:archetype, surviveTurns, extractCount, exitZone, harvestNeed, harvestTurns, interceptTotal, escaped:0, bonus:bonusFromDom() };
     triggers=[]; renderTrigList(); refresh();
     return { cells:cells.length, podCount:podAnchors.length, enemies:units.filter(u=>u.team==="enemy").length, deploy:anchor.id, podAnchors:podAnchors.slice(), maxD, cover, slots:slots.length, objective:archetype, surviveTurns, extractCount }; }
   // lays out random zones (Voronoi patches of types), keeping the placed terrain
@@ -1843,7 +1918,7 @@
     podAnchors:cells.filter(c=>c.podAnchor).map(c=>({cell:c.id,sleep:c.podAnchor==="asleep"})),   // enemy pod anchors (awake/asleep) populated by the engine each game
     podSize:(document.getElementById("m-podsize")&&+document.getElementById("m-podsize").value)||2,
     enemyWeights:missionEWeights(),   // class weights to populate the anchor pods
-    units:units.filter(u=>!u.test&&!u.fromAnchor).map(u=>{const o={team:u.team,cls:u.cls,cell:u.cell};if(u.name!==CLASSES[u.cls].name)o.name=u.name;if(u.pod!==undefined)o.pod=u.pod;if(u.asleep)o.asleep=true;if(u.hostage)o.hostage=true;if(u.hvt)o.hvt=true;if(u.team==="neutral"&&u.civ===false)o.guard=true;if(u.facing!=null)o.facing=u.facing;return o;}),
+    units:units.filter(u=>!u.test&&!u.fromAnchor).map(u=>{const o={team:u.team,cls:u.cls,cell:u.cell};if(u.name!==CLASSES[u.cls].name)o.name=u.name;if(u.pod!==undefined)o.pod=u.pod;if(u.asleep)o.asleep=true;if(u.hostage)o.hostage=true;if(u.hvt)o.hvt=true;if(u.runner)o.runner=true;if(u.team==="neutral"&&u.civ===false)o.guard=true;if(u.facing!=null)o.facing=u.facing;return o;}),
     triggers:triggers,
     protect:(document.getElementById("m-protect")&&document.getElementById("m-protect").value!=="")?+document.getElementById("m-protect").value:undefined,
     objective:(curMission&&curMission.objective&&curMission.objective!=="eliminate")?curMission.objective:undefined,   // archetype + objective parameters
@@ -1860,12 +1935,12 @@
     if(k.value==="mission"&&mref)b.mission=mref; return b; }
   function applyMissionObj(m,noDraw){ resetView(); curMission=m;
     if(!m||!Array.isArray(m.cells))throw new Error("invalid format");
-    cells=m.cells.map((c,i)=>{const ct=polyCentroid(c.poly);return {id:i,poly:c.poly,cx:ct[0],cy:ct[1],nb:[],terr:c.terr||"plain",elev:c.elev||0,zone:c.zone,sup:c.sup};});
+    cells=m.cells.map((c,i)=>{const ct=polyCentroid(c.poly);return {id:i,poly:c.poly,cx:ct[0],cy:ct[1],nb:[],terr:c.terr||"plain",elev:c.elev||0,zone:c.zone,ore:c.ore,sup:c.sup};});
     { const dz=new Set(Array.isArray(m.deployZone)?m.deployZone:[]); cells.forEach(c=>{ if(dz.has(c.id))c.deploy=true; }); }   // squad deployment zone
     { (Array.isArray(m.podAnchors)?m.podAnchors:[]).forEach(a=>{ const id=(a&&typeof a==="object")?a.cell:a; const sleep=(a&&typeof a==="object")&&a.sleep; if(cells[id])cells[id].podAnchor=sleep?"asleep":"awake"; }); const ps=document.getElementById("m-podsize"); if(ps)ps.value=m.podSize||2; setMissionEWeights(m.enemyWeights); }   // pod anchors (compat. old format = list of awake ids)
     buildAdj();
     walls=new Set((Array.isArray(m.walls)?m.walls:[]).filter(k=>wallSeg.has(k)));
-    units=(m.units||[]).map(u=>U(u.team,u.cls,u.cell,{name:u.name,pod:u.pod,asleep:u.asleep,hostage:u.hostage,hvt:u.hvt,guard:u.guard,facing:u.facing})).filter(u=>cells[u.cell]);
+    units=(m.units||[]).map(u=>U(u.team,u.cls,u.cell,{name:u.name,pod:u.pod,asleep:u.asleep,hostage:u.hostage,hvt:u.hvt,runner:u.runner,guard:u.guard,facing:u.facing})).filter(u=>cells[u.cell]);
     triggers=Array.isArray(m.triggers)?m.triggers:[]; renderTrigList();
     { const mp=document.getElementById("m-protect"),mf=document.getElementById("m-fullheal"),ml=document.getElementById("m-loot"); if(mp)mp.value=m.protect!=null?m.protect:""; if(mf)mf.checked=!!m.fullheal; if(ml)ml.value=m.loot||0; }
     { const bk=document.getElementById("m-bonus-kind"); if(bk){ const b=m.bonus||{},r=b.reward||{}; bk.value=b.kind||"";
