@@ -898,8 +898,15 @@
     return { cellules:n, couvertPct:+(100*cov/n).toFixed(1), murPct:+(100*wall/n).toFixed(1),
              groupement:+(100*joint).toFixed(1), amas:sizes.length, plusGrosAmas:sizes[0]||0,
              amasMoyen:+(sizes.length?sizes.reduce((a,b)=>a+b,0)/sizes.length:0).toFixed(1),
-             plusGrandeZoneDegagee:openMax, goulots:arts, relievePct:+(100*hi/n).toFixed(1),
-             abris:(function(){ // POCHES : petite zone dégagée (<=6 cellules) entièrement ceinte de couvert = un lieu défendable
+             plusGrandeZoneDegagee:openMax, goulots:arts,
+             visibiliteMoy:(function(){ // nb moyen de cellules en ligne de vue : c'est ça qui rend une carte
+               const pass=cells.filter(c=>passable(c.id));   // ouverte ou serrée, pas la connexité
+               if(pass.length<5)return 0; let tot=0,k=0;
+               for(let i=0;i<Math.min(30,pass.length);i++){ const a=pass[(i*7919)%pass.length];
+                 let v=0; for(const b of pass) if(b!==a&&los(a.id,b.id))v++;
+                 tot+=v; k++; }
+               return +(tot/k).toFixed(1); })(), relievePct:+(100*hi/n).toFixed(1),
+             abris:(function(){ // POCHES : zone dégagée (<=10 cellules) entièrement ceinte de couvert = un lieu défendable
                const vu=new Set(); let k=0;
                for(const c of cells){ if(isCov(c)||vu.has(c.id))continue;
                  const grp=[c.id]; vu.add(c.id); let i=0, ouvert=false;
@@ -907,8 +914,8 @@
                    if(cells[u].nb.length<3)ouvert=true;                       // touche le bord de l'île
                    for(const v of cells[u].nb){ if(isCov(cells[v]))continue;
                      if(!vu.has(v)){ vu.add(v); grp.push(v); } }
-                   if(grp.length>6){ ouvert=true; break; } }
-                 if(!ouvert&&grp.length<=6)k++; }
+                   if(grp.length>10){ ouvert=true; break; } }
+                 if(!ouvert&&grp.length<=10)k++; }
                return k; })(),
              barriereCellules:cells.filter(c=>c._barrier).length,
              barriereMurs:cells.filter(c=>c._barrier&&c.terr==="wall").length,
@@ -1630,17 +1637,16 @@
       const ax=B.cx-A.cx, ay=B.cy-A.cy, L=Math.hypot(ax,ay)||1, ux=ax/L, uy=ay/L;
       const proj=c=>((c.cx-A.cx)*ux+(c.cy-A.cy)*uy)/L;
       const onRoute=new Set(ROUTE.path);
-      const at=(rnd()<0.5)?[0.45+rnd()*0.12]:[0.34+rnd()*0.08,0.66+rnd()*0.08];
+      const at=(rnd()<0.3)?[0.45+rnd()*0.12]:[0.34+rnd()*0.08,0.66+rnd()*0.08];   // 2 barrières le plus souvent
       for(const t of at){
-        const band=cells.filter(c=>Math.abs(proj(c)-t)<0.033&&c.elev===0);
+        const band=cells.filter(c=>Math.abs(proj(c)-t)<0.045&&c.elev===0);   // plus épaisse = coupe vraiment les lignes de vue
         if(band.length<4)continue;
         for(const c of band){ c.terr="wall"; c._barrier=true; }
         const gaps=band.filter(c=>onRoute.has(c.id));
         const others=band.filter(c=>!onRoute.has(c.id));
-        for(let k=0;k<1+Math.floor(rnd()*2)&&others.length;k++)
-          gaps.push(others.splice(Math.floor(rnd()*others.length),1)[0]);
-        for(const g of gaps){ g.terr="plain"; g._barrier=false;
-          for(const v of g.nb) if(cells[v]._barrier&&rnd()<0.45){ cells[v].terr="plain"; cells[v]._barrier=false; } }
+        if(others.length) gaps.push(others.splice(Math.floor(rnd()*others.length),1)[0]);   // un seul passage en plus de la route
+        for(const g of gaps){ if(!g)continue; g.terr="plain"; g._barrier=false;
+          for(const v of g.nb) if(cells[v]._barrier&&rnd()<0.22){ cells[v].terr="plain"; cells[v]._barrier=false; } }   // passages étroits
       }
     })();
 
@@ -1650,8 +1656,9 @@
     // C'est l'équivalent bon marché des « parcels » de Firaxis : de la donnée, pas des assets.
     STRUCT&&(function dioramas(){
       const MOTIFS=[
-        { nom:"redoute",  poids:5, pose:(c,r1)=>{ c.terr="plain";               // pièce défendable : anneau fermé, UNE entrée
-            r1.forEach((v,i)=>{ v.terr = (i===0) ? "plain" : "wall"; }); } },
+        { nom:"redoute",  poids:5, anneau2:true, pose:(c,r1,r2)=>{ // vraie PIÈCE : cour dégagée, mur au 2e anneau, une entrée
+            c.terr="plain"; r1.forEach(v=>{ v.terr="plain"; v.elev=c.elev; });
+            (r2||[]).forEach((v,i)=>{ v.terr = (i===0) ? "plain" : "wall"; }); } },
         { nom:"ruine",    poids:3, pose:(c,r1)=>{ c.terr="rough";               // un L de murs : couvert directionnel
             r1.forEach((v,i)=>{ if(i<Math.ceil(r1.length/2)) v.terr="wall"; }); } },
         { nom:"bosquet",  poids:4, pose:(c,r1)=>{ c.terr="rough";               // couvert doux et large
@@ -1667,15 +1674,20 @@
       for(let k=0;k<n;k++){
         // un emplacement à l'écart de la route, des barrières et des dioramas déjà posés
         const cand=cells.filter(c=>!c._route&&!c._barrier&&c.nb.length>=4
-          && used.every(u=>Math.hypot(c.cx-u.cx,c.cy-u.cy)>W*0.16));
+          && used.every(u=>Math.hypot(c.cx-u.cx,c.cy-u.cy)>W*0.22));
         if(!cand.length)break;
         const c=cand[Math.floor(rnd()*cand.length)];
         const r1=c.nb.map(id=>cells[id]).filter(v=>!v._route&&!v._barrier);
         if(r1.length<3)continue;
         const f=forces.shift();
         const motif=f?MOTIFS.find(m=>m.nom===f):pick();
-        motif.pose(c,r1); used.push(c);
-        c._dio=true; r1.forEach(v=>v._dio=true);
+        let r2=null;
+        if(motif.anneau2){ const in1=new Set([c.id,...r1.map(v=>v.id)]); const seen=new Set(in1); r2=[];
+          for(const v of r1) for(const w of v.nb) if(!seen.has(w)){ seen.add(w); const cw=cells[w];
+            if(!cw._route&&!cw._barrier&&!cw._dio) r2.push(cw); }
+          if(r2.length<5){ r2=null; if(!f)continue; } }
+        motif.pose(c,r1,r2); used.push(c);
+        c._dio=true; r1.forEach(v=>v._dio=true); (r2||[]).forEach(v=>v._dio=true);
       }
     })();
 
