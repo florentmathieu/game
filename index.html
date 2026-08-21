@@ -143,7 +143,7 @@
 </style>
 </head>
 <body>
-<canvas id="board" width="720" height="560"></canvas>
+<canvas id="board" width="1440" height="1152"></canvas>
 <div class="panel">
   <h1>Mesh core</h1>
   <div class="row" id="nav"><a href="?edit" id="nav-m">🗺 Mission</a><a href="?campaign" id="nav-c">🎬 Campaign</a><a href="?geoscape" id="nav-g">🌍 Geoscape</a><a href="?play" id="nav-p">▶ Play</a></div>
@@ -153,8 +153,8 @@
     <div id="tab-mission">
     <div id="me-left">
     <h2>1 · Shape (zones + distortion)</h2>
-    <div class="row"><label>Width <input id="bw" type="number" min="4" max="24" value="10" style="width:52px"></label>
-      <label>Height <input id="bh" type="number" min="3" max="20" value="8" style="width:52px"></label>
+    <div class="row"><label>Width <input id="bw" type="number" min="4" max="28" value="20" style="width:52px"></label>
+      <label>Height <input id="bh" type="number" min="3" max="24" value="16" style="width:52px"></label>
       <button id="zauto" title="Lay out random zones (squares, hexagons, pentagons)">🎲 Auto zones</button></div>
     <div class="row" id="zones"></div>
     <div class="row"><label style="flex:1">Distortion <input id="dist" type="range" min="0" max="100" value="28"></label><span id="distv">28%</span></div>
@@ -950,6 +950,11 @@
                for(const c of cells){ const i=Math.min(G-1,Math.floor(c.cy/H*G)), j=Math.min(G-1,Math.floor(c.cx/W*G)); g[i][j]++; }
                const mx=Math.max(...g.flat())||1;
                return g.map(r=>r.map(v=>v===0?".":(v/mx>0.6?"#":(v/mx>0.25?"+":"-"))).join("")).join("/"); })(),
+             distanceAuxEnnemis:(function(){ // en cases : dit si la carte est traversable dans un temps raisonnable
+               const P=units.filter(u=>u.team==="player"&&u.hp>0), E=units.filter(u=>u.team==="enemy"&&u.hp>0);
+               if(!P.length||!E.length)return "—";
+               const ds=E.map(e=>Math.min(...P.map(pl=>{const h=hops(pl.cell,e.cell); return (h==null||h===Infinity)?999:h;})));
+               return Math.min(...ds)+"-"+Math.max(...ds); })(),
              ennemisVisiblesT1:(function(){ const P=units.filter(u=>u.team==="player"&&u.hp>0);
                if(!P.length)return "—";
                return units.filter(u=>u.team==="enemy"&&u.hp>0&&P.some(p=>hops(p.cell,u.cell)<=8&&los(p.cell,u.cell))).length; })(),
