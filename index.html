@@ -247,6 +247,20 @@
       <div id="cdetail" class="hint">Click a node in the graph to edit it here.</div>
     </div>
     <select id="cmsel" style="display:none"></select>
+    <h2>Générer un acte</h2>
+    <div class="hint">Tout se pilote <b>avant</b> : on décrit l'acte, on le regarde, on le construit. À paramètres et graine identiques, on retombe sur le <b>même acte</b> — change la graine pour en tirer un autre du même caractère. Les missions sont <b>générées</b> (aucun fichier), donc la recette suffit à les reproduire.</div>
+    <div class="row"><label>nom <input id="ra-nom" type="text" value="Acte" style="width:110px"></label>
+      <label>missions <input id="ra-n" type="number" min="1" max="20" value="6" style="width:52px"></label>
+      <label>graine <input id="ra-graine" type="number" min="1" max="999999" value="1" style="width:70px"></label>
+      <button id="ra-degraine" title="Tire une nouvelle graine">🎲</button></div>
+    <div class="row"><label>difficulté du début <select id="ra-d0"><option value="facile" selected>facile</option><option value="moyen">moyen</option><option value="difficile">difficile</option></select></label>
+      <label>→ fin <select id="ra-d1"><option value="facile">facile</option><option value="moyen">moyen</option><option value="difficile" selected>difficile</option></select></label>
+      <label><input type="checkbox" id="ra-textes" checked> un texte avant chaque mission</label></div>
+    <div class="row" style="flex-wrap:wrap;gap:8px"><span style="font-size:.82rem">formes autorisées :</span><span id="ra-formes" style="display:flex;flex-wrap:wrap;gap:8px"></span></div>
+    <div class="row" style="flex-wrap:wrap;gap:8px"><span style="font-size:.82rem">objectifs tirés :</span><span id="ra-objs" style="display:flex;flex-wrap:wrap;gap:8px"></span></div>
+    <div id="ra-plan" class="hint" style="white-space:pre;font-family:Menlo,Consolas,monospace;font-size:.72rem;line-height:1.5"></div>
+    <div class="row"><button id="ra-go">🏗 Construire l'acte</button><span class="hint" id="ra-etat"></span></div>
+
     <h2>Terrain de l'acte (macro)</h2>
     <div class="hint">Géométrie de <b>départ</b> et d'<b>arrivée</b> de l'acte : chaque mission interpole entre les deux selon son rang. C'est ici que la grille régulière cède à l'organique. Les poids sont relatifs (des taches de zones sont tirées selon eux) ; « mix » panache les trois à l'intérieur d'une même tache.</div>
     <div class="row"><label><input type="checkbox" id="ta-on"> piloter la géométrie depuis l'acte</label>
@@ -269,6 +283,10 @@
           <td><input id="ta-f-dist" type="number" min="0" max="100" value="55" style="width:48px"></td>
           <td><input id="ta-f-dens" type="number" min="30" max="64" value="38" style="width:48px"></td></tr>
       </table>
+      <div class="row"><span style="font-size:.82rem" title="Distorsion ajoutée selon la difficulté de la mission, EN PLUS de celle due au rang. Nul par défaut : sans ça, deux effets se croiseraient sans qu'on puisse les démêler.">+ distorsion selon la difficulté :</span>
+        <label style="font-size:.8rem">facile <input id="ta-b-facile" type="number" min="-40" max="40" value="0" style="width:48px"></label>
+        <label style="font-size:.8rem">moyen <input id="ta-b-moyen" type="number" min="-40" max="40" value="0" style="width:48px"></label>
+        <label style="font-size:.8rem">difficile <input id="ta-b-difficile" type="number" min="-40" max="40" value="0" style="width:48px"></label></div>
       <div class="row"><label style="flex:1">Aperçu — avancement dans l'acte <input id="ta-t" type="range" min="0" max="100" value="0"></label><span id="ta-tv">0 %</span>
         <button id="ta-preview" title="Applique la géométrie interpolée au plateau de l'onglet Mission, pour la voir">👁 Voir</button></div>
       <div class="hint" id="ta-resume"></div>
@@ -1946,21 +1964,25 @@
   // et la déformation se voit à chaque case au lieu d'être une intention dans un document.
   const TERRAIN_ACTE_DEFAUT={
     missions:8,                                                              // longueur de référence de l'acte
+    bonusDiff:{facile:0,moyen:0,difficile:0},   // second axe : distorsion ajoutée selon la difficulté (nul par défaut)
     debut:{ zones:{square:100,hex:0,pentagon:0,mix:0},   distorsion:0,  densite:46 },   // mesuré : à 0 %, 72 % des cases ont exactement 4 voisins — une vraie grille
     fin:  { zones:{square:20,hex:35,pentagon:30,mix:15}, distorsion:55, densite:38 } };
   const ZTYPES=["square","hex","pentagon","mix"];
   const lerpN=(a,b,t)=>a+(b-a)*t;
-  function terrainInterpole(prof,t){
+  function terrainInterpole(prof,t,diff){
     prof=prof||TERRAIN_ACTE_DEFAUT; t=Math.max(0,Math.min(1,t||0));
     const d=prof.debut||TERRAIN_ACTE_DEFAUT.debut, f=prof.fin||TERRAIN_ACTE_DEFAUT.fin;
     const zones={}; for(const k of ZTYPES) zones[k]=lerpN((d.zones&&d.zones[k])||0,(f.zones&&f.zones[k])||0,t);
+    // SECOND AXE, facultatif : la difficulté peut ajouter (ou retirer) de la distorsion, indépendamment
+    // du rang. Nul par défaut — sans quoi on croiserait deux effets sans pouvoir les démêler.
+    const bonus=(prof.bonusDiff&&diff&&prof.bonusDiff[diff])||0;
     return { zones,
-      distorsion:Math.round(lerpN(d.distorsion!=null?d.distorsion:0, f.distorsion!=null?f.distorsion:55, t)),
+      distorsion:Math.max(0,Math.min(100,Math.round(lerpN(d.distorsion!=null?d.distorsion:0, f.distorsion!=null?f.distorsion:55, t)+bonus))),
       densite:Math.round(lerpN(d.densite!=null?d.densite:46, f.densite!=null?f.densite:38, t)) }; }
   // Applique le profil AVANT la construction du maillage — il décide la GÉOMÉTRIE, pas le décor.
   // À appeler APRÈS tout redimensionnement : setBoardSize() réécrit la grille de zones.
-  function appliquerTerrain(prof,t,graine){
-    const p=terrainInterpole(prof,t);
+  function appliquerTerrain(prof,t,graine,diff){
+    const p=terrainInterpole(prof,t,diff);
     const rnd=mk(((graine==null?seed:graine)^0x2545f491)>>>0);
     const tot=ZTYPES.reduce((a,k)=>a+p.zones[k],0)||1;
     const tirer=()=>{ let r=rnd()*tot; for(const k of ZTYPES){ r-=p.zones[k]; if(r<=0)return k; } return "square"; };
@@ -2038,12 +2060,12 @@
     // setBoardSize() réécrit la grille de zones, et le maillage se construit à partir d'elle.
     const profil=P.terrain!==undefined?P.terrain:((campRun&&campRun.camp&&campRun.camp.terrain)||null);
     const avanceP=P.avancement!=null?P.avancement:avancementActe(profil);
-    const profilActif=(profil&&avanceP!=null)?terrainInterpole(profil,avanceP):null;
+    const profilActif=(profil&&avanceP!=null)?terrainInterpole(profil,avanceP,diff):null;
     if(auto){ const t=tailleAuto(forme,podsVoulus,profilActif?profilActif.densite:(+document.getElementById("dens").value||DENSITE_REF));
       setBoardSize(t.bw,t.bh);   // c'est COLS/ROWS qui font foi, pas les champs : les écrire ne suffit pas
       const eW=document.getElementById("bw"), eH=document.getElementById("bh");
       if(eW)eW.value=COLS; if(eH)eH.value=ROWS; }
-    if(profilActif) appliquerTerrain(profil,avanceP,seed);
+    if(profilActif) appliquerTerrain(profil,avanceP,seed,diff);
     seed=(seed*1103515245+12345)&0x7fffffff; rebuildShape();   // fresh island shape, clears units/low walls
     if(!cells.length)return null; const rnd=mk((seed^0x51ed2701)>>>0);
     // elevation (2-3 hills) + cover based on density
@@ -2608,13 +2630,14 @@
   // ===== node-based campaign (texts / missions / choices) + HP persistence =====
   let campRun=null, campNodes=[], campStart="", nodeSeq=0, repoTexts=[], campSel=null, repoGeoscapes=[], campRoster=[], campDialogs=[];
   let campTerrain=null;   // profil de terrain de l'acte en cours d'édition (null = géométrie laissée telle quelle)
+  let campRecette=null;   // recette qui a produit l'acte : conservée pour pouvoir le REGÉNÉRER
   const cname=document.getElementById("cname"),cloadsel=document.getElementById("cloadsel"),cstatus=document.getElementById("cstatus");
   const esc=s=>(s||"").replace(/"/g,"&quot;");
   const newId=()=>{ let id; do{ id="n"+(++nodeSeq); }while(campNodes.some(n=>n.id===id)); return id; };   // never an already-used id (otherwise collision after loading)
   function dedupeNodes(){ const used=new Set(); for(const n of campNodes){ if(used.has(n.id)){ let id; do{id="n"+(++nodeSeq);}while(used.has(id)||campNodes.some(x=>x.id===id)); n.id=id; } used.add(n.id); } }   // repairs duplicate ids from old collisions
   const campNode=id=>campNodes.find(n=>n.id===id);
   const fileName=f=>(f||"").split("/").pop().replace(/\.txt$/,"");
-  function nodeLabel(n){ return n.type==="mission"?("🗺 "+(n.mission||"mission")):n.type==="choice"?("🔀 "+(n.title||"choice")):n.type==="geoscape"?("🌍 "+(n.map||"territory").replace(/\.json$/,"")):("📝 "+(n.file?fileName(n.file):((n.text||"").slice(0,14)||"text"))); }
+  function nodeLabel(n){ return n.type==="mission"?("🗺 "+(n.gen?("généré · "+(n.gen.diff||"moyen")+" · "+(n.gen.forme||"rect")):(n.mission||"mission"))):n.type==="choice"?("🔀 "+(n.title||"choice")):n.type==="geoscape"?("🌍 "+(n.map||"territory").replace(/\.json$/,"")):("📝 "+(n.file?fileName(n.file):((n.text||"").slice(0,14)||"text"))); }
   const geoMapOpts=sel=>repoGeoscapes.length?repoGeoscapes.map(g=>`<option value="${g.file}" ${g.file===sel?"selected":""}>${esc(g.name)}</option>`).join(""):`<option value="">(no territory)</option>`;
   const idOpts=(sel,allowNull)=>(allowNull?`<option value="">—</option>`:"")+campNodes.map(n=>`<option value="${n.id}" ${n.id===sel?"selected":""}>${nodeLabel(n)}</option>`).join("");
   const missOpts=sel=>repoMissionList.length?repoMissionList.map(m=>`<option value="${m.file}" ${m.file===sel?"selected":""}>${m.name}</option>`).join(""):`<option value="">(none)</option>`;
@@ -2689,17 +2712,113 @@
       saveCampDraft(); drawGraph(); }; (inp.tagName==="SELECT"||inp.type==="checkbox")?inp.onchange=set:inp.oninput=set; });
     el.querySelector("[data-del]").onclick=()=>{campNodes=campNodes.filter(x=>x.id!==n.id);if(campStart===n.id)campStart=campNodes[0]?campNodes[0].id:"";campSel=campNodes[0]?campNodes[0].id:null;renderNodes();};
     el.querySelector("[data-setstart]").onclick=()=>{campStart=n.id;renderNodes();};
-    el.querySelector("[data-testhere]").onclick=()=>{ if(!campNodes.length)return; startCampaign({name:cname.value,start:campStart,roster:campRoster,dialogs:campDialogs,nodes:campNodes,terrain:campTerrain},"campaign",n.id); };
+    el.querySelector("[data-testhere]").onclick=()=>{ if(!campNodes.length)return; startCampaign({name:cname.value,start:campStart,roster:campRoster,dialogs:campDialogs,nodes:campNodes,terrain:campTerrain,recette:campRecette},"campaign",n.id); };
     const ao=el.querySelector("[data-addopt]"); if(ao)ao.onclick=()=>{n.options=n.options||[];n.options.push(campNodes[0]?campNodes[0].id:"");renderDetail();drawGraph();saveCampDraft();};
     el.querySelectorAll("[data-optsel]").forEach(s=>s.onchange=()=>{n.options[+s.dataset.optsel]=s.value;drawGraph();saveCampDraft();});
     el.querySelectorAll("[data-optdel]").forEach(b=>b.onclick=()=>{n.options.splice(+b.dataset.optdel,1);renderDetail();drawGraph();saveCampDraft();}); }
-  function saveCampDraft(){ try{ localStorage.setItem("mgf_camp_draft_mesh", JSON.stringify({name:cname.value,start:campStart,roster:campRoster,dialogs:campDialogs,nodes:campNodes,terrain:campTerrain})); }catch(e){} }
+  function saveCampDraft(){ try{ localStorage.setItem("mgf_camp_draft_mesh", JSON.stringify({name:cname.value,start:campStart,roster:campRoster,dialogs:campDialogs,nodes:campNodes,terrain:campTerrain,recette:campRecette})); }catch(e){} }
+  // ===== RECETTE D'ACTE — tout se pilote AVANT, et se rejoue à l'identique =====
+  // Un acte n'est plus assemblé nœud par nœud : on décrit ce qu'on veut — longueur, courbe de
+  // difficulté, formes autorisées, objectifs, profil de terrain — et le générateur en produit un.
+  // À paramètres ET graine identiques on retombe sur le MÊME acte ; on change la graine pour en
+  // tirer un autre du même caractère. La recette est stockée avec l'acte, donc regénérable.
+  const RECETTE_ACTE_DEFAUT={
+    graine:1, nom:"Acte", missions:6,
+    difficulte:{debut:"facile", fin:"difficile"},
+    formes:["rect","L","S","croix","sablier","anneau","diag"],
+    objectifs:["eliminate","eliminate","assassinate","rescue","extract","harvest"],
+    textes:true };
+  const DIFFS=["facile","moyen","difficile"];
+  // courbe de difficulté : interpolée sur le RANG de la mission dans l'acte
+  function difficulteAuRang(courbe,r){
+    const a=Math.max(0,DIFFS.indexOf((courbe&&courbe.debut)||"facile"));
+    const b=Math.max(0,DIFFS.indexOf((courbe&&courbe.fin)||"difficile"));
+    return DIFFS[Math.max(0,Math.min(2,Math.round(a+(b-a)*Math.max(0,Math.min(1,r)))))]; }
+  // Aperçu complet de l'acte SANS rien construire : c'est ce tableau qui répond à « qu'est-ce que
+  // cette recette va produire ? », mission par mission.
+  function apercuActe(rec,profil){
+    rec=Object.assign({},RECETTE_ACTE_DEFAUT,rec||{});
+    const rnd=mk((rec.graine>>>0)||1), N=Math.max(1,rec.missions|0), out=[];
+    const formes=(rec.formes&&rec.formes.length)?rec.formes:RECETTE_ACTE_DEFAUT.formes;
+    const objs=(rec.objectifs&&rec.objectifs.length)?rec.objectifs:RECETTE_ACTE_DEFAUT.objectifs;
+    for(let i=0;i<N;i++){
+      const r=N>1?i/(N-1):0;
+      const diff=difficulteAuRang(rec.difficulte,r);
+      const forme=formes[Math.floor(rnd()*formes.length)];
+      const objectif=objs[Math.floor(rnd()*objs.length)];
+      const pods=podsPourDiff(diff);
+      const geo=terrainInterpole(profil,r,diff);
+      const t=tailleAuto(forme,pods,geo.densite);
+      out.push({rang:i+1, avancement:+r.toFixed(3), diff, forme, objectif, pods,
+                bw:t.bw, bh:t.bh, distorsion:geo.distorsion, densite:geo.densite,
+                graine:((rec.graine>>>0)||1)+i*7919}); }
+    return out; }
+  function genererActe(rec,profil){
+    rec=Object.assign({},RECETTE_ACTE_DEFAUT,rec||{});
+    const plan=apercuActe(rec,profil), noeuds=[];
+    let seq=0; const id=()=>"a"+(++seq);
+    for(const m of plan){
+      // le texte précède sa mission : on l'identifie AUSSI en premier, pour que le graphe se lise
+      // de haut en bas (a1 texte, a2 mission, a3 texte…)
+      const nt=rec.textes?{id:id(), type:"text", text:"", file:"", next:null}:null;
+      const nm={id:id(), type:"mission", gen:{diff:m.diff, forme:m.forme, objectif:m.objectif,
+                 avancement:m.avancement, graine:m.graine},
+                intro:"", outro:"", win:null, lose:null};
+      if(nt){ nt.next=nm.id; noeuds.push(nt); }
+      noeuds.push(nm); }
+    // chaînage : chaque mission gagnée mène au bloc suivant, chaque défaite aussi (l'échec fait
+    // avancer, cf. DIRECTION.md — il ne renvoie pas en arrière)
+    const blocs=[]; for(let i=0;i<noeuds.length;i++) if(noeuds[i].type==="mission")blocs.push(i);
+    for(let b=0;b<blocs.length;b++){
+      const m=noeuds[blocs[b]];
+      const suivantIdx=(b+1<blocs.length)?(rec.textes?blocs[b+1]-1:blocs[b+1]):-1;
+      const suivant=suivantIdx>=0?noeuds[suivantIdx].id:null;
+      m.win=suivant; m.lose=suivant; }
+    return {nom:rec.nom, noeuds, plan}; }
+  window.ACTE={recette:RECETTE_ACTE_DEFAUT, apercu:apercuActe, generer:genererActe};
+
+  // --- interface de la recette d'acte ---
+  const OBJ_ACTE=["eliminate","assassinate","rescue","defend","survive","extract","harvest","intercept"];
+  function recetteDepuisUI(){
+    const q=id=>document.getElementById(id);
+    const coches=(sel)=>Array.from(document.querySelectorAll(sel)).filter(e=>e.checked).map(e=>e.value);
+    return { nom:(q("ra-nom").value||"Acte"), missions:Math.max(1,+q("ra-n").value||6),
+      graine:Math.max(1,+q("ra-graine").value||1),
+      difficulte:{debut:q("ra-d0").value, fin:q("ra-d1").value},
+      formes:coches("#ra-formes input"), objectifs:coches("#ra-objs input"),
+      textes:q("ra-textes").checked }; }
+  function renderPlanActe(){
+    const el=document.getElementById("ra-plan"); if(!el)return;
+    const plan=apercuActe(recetteDepuisUI(),campTerrain);
+    el.textContent="rang  difficulté  forme     objectif      pods  plateau   distorsion\n"+
+      plan.map(m=>` ${String(m.rang).padStart(2)}   ${m.diff.padEnd(10)} ${m.forme.padEnd(9)} ${m.objectif.padEnd(13)} ${String(m.pods).padStart(2)}   ${(m.bw+"x"+m.bh).padStart(6)}    ${String(m.distorsion).padStart(3)} %`).join("\n"); }
+  { const zf=document.getElementById("ra-formes"), zo=document.getElementById("ra-objs");
+    if(zf){ zf.innerHTML=RECETTE_ACTE_DEFAUT.formes.map(f=>`<label style="font-size:.8rem"><input type="checkbox" value="${f}" checked> ${f}</label>`).join(""); }
+    if(zo){ zo.innerHTML=OBJ_ACTE.map(o=>`<label style="font-size:.8rem"><input type="checkbox" value="${o}"${RECETTE_ACTE_DEFAUT.objectifs.indexOf(o)>=0?" checked":""}> ${o}</label>`).join(""); }
+    const maj=()=>renderPlanActe();
+    for(const id of ["ra-nom","ra-n","ra-graine","ra-d0","ra-d1","ra-textes"]){ const e=document.getElementById(id); if(e){e.oninput=maj;e.onchange=maj;} }
+    document.querySelectorAll("#ra-formes input,#ra-objs input").forEach(e=>e.onchange=maj);
+    const dg=document.getElementById("ra-degraine");
+    if(dg)dg.onclick=()=>{ document.getElementById("ra-graine").value=1+Math.floor(Math.random()*999998); maj(); };
+    const go=document.getElementById("ra-go");
+    if(go)go.onclick=()=>{
+      const rec=recetteDepuisUI();
+      const a=genererActe(rec,campTerrain);
+      campNodes=a.noeuds; campStart=campNodes[0]?campNodes[0].id:""; campSel=campStart;
+      document.getElementById("cname").value=rec.nom;
+      campRecette=rec;                       // la recette voyage AVEC l'acte : il reste regénérable
+      const e=document.getElementById("ra-etat");
+      if(e)e.textContent=`${a.plan.length} missions · ${campNodes.length} nœuds · graine ${rec.graine}`;
+      renderNodes(); };
+    maj(); }
+
   // --- édition du profil de terrain de l'acte ---
   const taEl=id=>document.getElementById("ta-"+id);
   function terrainDepuisUI(){
     const lire=(pre)=>{ const z={}; for(const k of ZTYPES) z[k]=Math.max(0,+taEl(pre+"-"+k).value||0);
       return { zones:z, distorsion:+taEl(pre+"-dist").value||0, densite:+taEl(pre+"-dens").value||46 }; };
-    return { missions:Math.max(1,+taEl("missions").value||8), debut:lire("d"), fin:lire("f") }; }
+    const bd={}; for(const d of DIFFS) bd[d]=+taEl("b-"+d).value||0;
+    return { missions:Math.max(1,+taEl("missions").value||8), bonusDiff:bd, debut:lire("d"), fin:lire("f") }; }
   function renderTerrainActe(){
     const on=taEl("on"); if(!on)return;
     on.checked=!!campTerrain;
@@ -2709,6 +2828,7 @@
     const poser=(pre,src)=>{ for(const k of ZTYPES) taEl(pre+"-"+k).value=Math.round((src.zones&&src.zones[k])||0);
       taEl(pre+"-dist").value=src.distorsion!=null?src.distorsion:0; taEl(pre+"-dens").value=src.densite!=null?src.densite:46; };
     poser("d",p.debut||TERRAIN_ACTE_DEFAUT.debut); poser("f",p.fin||TERRAIN_ACTE_DEFAUT.fin);
+    for(const d of DIFFS) taEl("b-"+d).value=(p.bonusDiff&&p.bonusDiff[d])||0;
     majResumeTerrain(); }
   function majResumeTerrain(){
     const r=document.getElementById("ta-resume"); if(!r)return;
@@ -2724,7 +2844,7 @@
         majResumeTerrain(); saveCampDraft(); };
       on.onchange=()=>{ if(on.checked&&!campTerrain)campTerrain=JSON.parse(JSON.stringify(TERRAIN_ACTE_DEFAUT));
         renderTerrainActe(); majDepuisUI(); };
-      const champs=["missions","d-dist","d-dens","f-dist","f-dens"].concat(ZTYPES.flatMap(k=>["d-"+k,"f-"+k]));
+      const champs=["missions","d-dist","d-dens","f-dist","f-dens"].concat(ZTYPES.flatMap(k=>["d-"+k,"f-"+k])).concat(DIFFS.map(d=>"b-"+d));
       for(const c of champs){ const e=taEl(c); if(e)e.oninput=majDepuisUI; }
       const t=taEl("t"); if(t)t.oninput=majResumeTerrain;
       const pv=document.getElementById("ta-preview");
@@ -2738,7 +2858,7 @@
   // visual campaign graph (draggable nodes, colored links)
   const cg=document.getElementById("cgraph"),cgx=cg?cg.getContext("2d"):null; let cgDrag=null,cgOff=[0,0],cgMoved=false; const NW=92,NH=34;
   function roundRect(x,y,w,h,r){cgx.beginPath();cgx.moveTo(x+r,y);cgx.arcTo(x+w,y,x+w,y+h,r);cgx.arcTo(x+w,y+h,x,y+h,r);cgx.arcTo(x,y+h,x,y,r);cgx.arcTo(x,y,x+w,y,r);cgx.closePath();}
-  function shortLabel(n){ const base=n.type==="mission"?(n.mission||"mission").replace(/\.json$/,""):n.type==="choice"?(n.title||"choice"):n.type==="geoscape"?(n.map||"territory").replace(/\.json$/,""):(n.file?fileName(n.file):(n.text||"text")); return (n.type==="mission"?"🗺 ":n.type==="choice"?"🔀 ":n.type==="geoscape"?"🌍 ":"📝 ")+base.slice(0,11); }
+  function shortLabel(n){ const base=n.type==="mission"?(n.gen?((n.gen.diff||"moyen").slice(0,4)+" "+(n.gen.forme||"rect")):(n.mission||"mission").replace(/\.json$/,"")):n.type==="choice"?(n.title||"choice"):n.type==="geoscape"?(n.map||"territory").replace(/\.json$/,""):(n.file?fileName(n.file):(n.text||"text")); return (n.type==="mission"?"🗺 ":n.type==="choice"?"🔀 ":n.type==="geoscape"?"🌍 ":"📝 ")+base.slice(0,11); }
   function drawGraph(){ if(!cgx)return; const wrap=document.getElementById("cgwrap");
     const vw=Math.max(60,(wrap&&wrap.clientWidth)||cg.width), vh=Math.max(60,(wrap&&wrap.clientHeight)||cg.height);
     const ncol=Math.max(2,Math.floor((vw-30)/(NW+24)));
@@ -2776,10 +2896,10 @@
   document.getElementById("cadd-geo").onclick=()=>{const n={id:newId(),type:"geoscape",map:(repoGeoscapes[0]?repoGeoscapes[0].file:""),endWhen:{kind:"all",name:""},next:null};campNodes.push(n);if(!campStart)campStart=n.id;campSel=n.id;renderNodes();};
   function fillCampLoad(list){ cloadsel.innerHTML=list.length?list.map(x=>`<option value="${x.file}">${x.name}</option>`).join(""):`<option value="">(none)</option>`; }
   async function fetchCampaigns(){ const t=await fetchText("campaigns-mesh/list.json",ghCfg()); let list=[];if(t){try{const p=JSON.parse(t);if(Array.isArray(p))list=p;}catch(e){}} fillCampLoad(list); }
-  async function campLoad(){ const f=cloadsel.value; if(!f)return; const t=await fetchText("campaigns-mesh/"+f,ghCfg()); if(!t){cstatus.textContent="Not found.";return;} try{const c=JSON.parse(t);cname.value=c.name||"";campNodes=c.nodes||[];campStart=c.start||(campNodes[0]&&campNodes[0].id)||"";campRoster=c.roster||[];campDialogs=c.dialogs||[];campTerrain=c.terrain||null;renderTerrainActe();renderNodes();cstatus.textContent="Loaded: "+f;}catch(e){cstatus.textContent="Invalid JSON.";} }
+  async function campLoad(){ const f=cloadsel.value; if(!f)return; const t=await fetchText("campaigns-mesh/"+f,ghCfg()); if(!t){cstatus.textContent="Not found.";return;} try{const c=JSON.parse(t);cname.value=c.name||"";campNodes=c.nodes||[];campStart=c.start||(campNodes[0]&&campNodes[0].id)||"";campRoster=c.roster||[];campDialogs=c.dialogs||[];campTerrain=c.terrain||null;campRecette=c.recette||null;renderTerrainActe();renderNodes();cstatus.textContent="Loaded: "+f;}catch(e){cstatus.textContent="Invalid JSON.";} }
   document.getElementById("cload").onclick=campLoad;
   async function campSave(){ const cfg=ghCfg(),name=(cname.value||"").trim(); if(!name){cstatus.textContent="Campaign name required.";return;} if(!cfg.token){cstatus.textContent="Token required.";return;}
-    const file=(name.toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/(^-|-$)/g,"")||"camp")+".json"; const camp={name,start:campStart,roster:campRoster,dialogs:campDialogs,nodes:campNodes,terrain:campTerrain};
+    const file=(name.toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/(^-|-$)/g,"")||"camp")+".json"; const camp={name,start:campStart,roster:campRoster,dialogs:campDialogs,nodes:campNodes,terrain:campTerrain,recette:campRecette};
     try{ cstatus.textContent="Publishing…"; await ghPut("campaigns-mesh/"+file,JSON.stringify(camp),"Mesh campaign: "+name,cfg);
       const cur=await ghGet("campaigns-mesh/list.json",cfg.branch,cfg);let list=[];if(cur){try{const p=JSON.parse(cur.text);if(Array.isArray(p))list=p;}catch(e){}}
       if(list.some(x=>x.file===file))list=list.map(x=>x.file===file?{file,name}:x);else list.push({file,name});
@@ -2800,7 +2920,7 @@
       const nmiss=nodesOut.filter(n=>n.type==="mission").length;
       cstatus.textContent="✓ Campaign published (+ Godot port: graph, "+nmiss+" mission(s))."; }catch(e){cstatus.textContent="Failed: "+e.message;} }
   document.getElementById("csave").onclick=campSave;
-  document.getElementById("cplay").onclick=()=>{ if(!campNodes.length){cstatus.textContent="Add at least one node.";return;} if(!campNode(campStart)){cstatus.textContent="Choose a starting node.";return;} startCampaign({name:cname.value,start:campStart,roster:campRoster,dialogs:campDialogs,nodes:campNodes,terrain:campTerrain},"campaign"); };
+  document.getElementById("cplay").onclick=()=>{ if(!campNodes.length){cstatus.textContent="Add at least one node.";return;} if(!campNode(campStart)){cstatus.textContent="Choose a starting node.";return;} startCampaign({name:cname.value,start:campStart,roster:campRoster,dialogs:campDialogs,nodes:campNodes,terrain:campTerrain,recette:campRecette},"campaign"); };
   // paginated text reader: pages separated by a "_" line, "Name: …" in gold, "…" button to advance.
   const escTxt=s=>(s||"").replace(/[&<>]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;"}[c]));
   function fmtPage(s){ return s.split("\n").map(l=>l.replace(/\s+$/,"")).filter(l=>l.length).map(l=>{ const m=l.match(/^([\wÀ-ÿ '.\-]{1,18}):\s(.*)$/); return m?`<span class="sp-who">${escTxt(m[1])}</span> ${escTxt(m[2])}`:escTxt(l); }).join("<br>"); }
@@ -3090,7 +3210,7 @@
     document.body.classList.remove("testing"); setView("play"); runNode(fromNode||camp.start); }
   async function startPlay(){ let camp=loadCampDraft();
     if(!camp){ const t=await fetchText("campaigns-mesh/principale.json",ghCfg()); if(t){try{camp=JSON.parse(t);}catch(e){}} }
-    if(camp&&Array.isArray(camp.nodes)&&camp.nodes.length){ const C={name:camp.name||"",start:camp.start||(camp.nodes[0]&&camp.nodes[0].id),roster:camp.roster||[],dialogs:camp.dialogs||[],nodes:camp.nodes,terrain:camp.terrain||null};
+    if(camp&&Array.isArray(camp.nodes)&&camp.nodes.length){ const C={name:camp.name||"",start:camp.start||(camp.nodes[0]&&camp.nodes[0].id),roster:camp.roster||[],dialogs:camp.dialogs||[],nodes:camp.nodes,terrain:camp.terrain||null,recette:camp.recette||null};
       const save=loadCampRunSave(C.name);
       if(save&&Array.isArray(save.roster)&&save.roster.length){   // an act is in progress: offer to resume
         askPush("An act is in progress — "+(save.winCount||0)+" mission(s) won. Resume where you left off, or start over?",
@@ -3106,7 +3226,24 @@
     if(n.type==="choice"){ showChoice(n); playMusic("interludes"); return;}
     if(n.type==="geoscape"){ enterGeoPlay(n); return; }
     loadMissionNode(n,false); }
-  async function loadMissionNode(n,retry){ const t=await fetchText("missions-mesh/"+n.mission,ghCfg()); if(!t){showCampText("Mission not found: "+n.mission,()=>endCampaignRun("End."));return;}
+  async function loadMissionNode(n,retry){
+    // MISSION GÉNÉRÉE : un nœud peut porter une recette (n.gen) au lieu d'un fichier. C'est ce qui
+    // permet à un acte entier d'être produit depuis un jeu de paramètres, et regénéré à l'identique.
+    if(n.gen){ const g=n.gen;
+      const prof=(campRun&&campRun.camp&&campRun.camp.terrain)||null;
+      if(g.graine!=null)seed=(g.graine>>>0)||1;   // même graine = même carte, à paramètres égaux
+      genMission({diff:g.diff, forme:g.forme, terrain:prof,
+                  avancement:(g.avancement!=null?g.avancement:avancementActe(prof)),
+                  archetype:g.objectif, squad:g.squad});
+      const begin0=()=>{ deployRoster(); startGame(); if(!(curMission&&curMission.fullheal))applyCarry(); refresh(); };
+      begin0();
+      const startB=()=>playPartyDialog("start",()=>{});
+      const introB=()=>{ const vu=campRun&&campRun.seen&&campRun.seen.has(n.id+":intro");
+        if(!retry&&!vu&&(n.intro||n.introFile)){ if(campRun&&campRun.seen)campRun.seen.add(n.id+":intro"); introBlocking=true;
+          resolveText(n.intro,n.introFile).then(txt=>{ if(txt)playText(txt,true,()=>{introBlocking=false;hideStory();setMsg("");startB();}); else {introBlocking=false;startB();} }); }
+        else startB(); };
+      playPartyDialog("before",introB); return; }
+    const t=await fetchText("missions-mesh/"+n.mission,ghCfg()); if(!t){showCampText("Mission not found: "+n.mission,()=>endCampaignRun("End."));return;}
     try{applyMissionObj(JSON.parse(t),true);}catch(e){showCampText("Unreadable mission.",()=>endCampaignRun("End."));return;}
     distortTerrain(corruptLevel());   // progressive distortion (node missions before the geoscape stay intact: missionN=0)
     const begin=()=>{ deployRoster(); startGame(); if(!(curMission&&curMission.fullheal))applyCarry(); refresh(); };   // deploys the roster, then full heal: keep startGame's full HP
@@ -3134,7 +3271,7 @@
     geoPlay=null; document.body.classList.remove("geomap"); showCampText(msg,()=>{ campRun=null;
     if(from==="play"){ setView("play"); const t=document.getElementById("title"); if(t)t.style.display="flex"; }
     else { setView("campaign"); refresh(); } }); }
-  { const cd=loadCampDraft(); if(cd){ cname.value=cd.name||""; campNodes=cd.nodes||[]; campStart=cd.start||(campNodes[0]&&campNodes[0].id)||""; campRoster=cd.roster||[];campDialogs=cd.dialogs||[];campTerrain=cd.terrain||null; } }  // restore the draft BEFORE the 1st render (otherwise saveCampDraft overwrites it)
+  { const cd=loadCampDraft(); if(cd){ cname.value=cd.name||""; campNodes=cd.nodes||[]; campStart=cd.start||(campNodes[0]&&campNodes[0].id)||""; campRoster=cd.roster||[];campDialogs=cd.dialogs||[];campTerrain=cd.terrain||null;campRecette=cd.recette||null; } }  // restore the draft BEFORE the 1st render (otherwise saveCampDraft overwrites it)
   renderNodes(); fetchCampaigns(); fetchTexts();
 
   // ===== game =====
@@ -3679,7 +3816,7 @@
     if(draft&&draft.cells&&draft.cells.length){ try{ applyMissionObj(draft); }catch(e){ defaultBoard(); } }
     else defaultBoard();
     // restore the campaign draft in the editor
-    const cd=loadCampDraft(); if(cd){ cname.value=cd.name||""; campNodes=cd.nodes||[]; campStart=cd.start||(campNodes[0]&&campNodes[0].id)||""; campRoster=cd.roster||[];campDialogs=cd.dialogs||[];campTerrain=cd.terrain||null; renderTerrainActe(); renderNodes(); }
+    const cd=loadCampDraft(); if(cd){ cname.value=cd.name||""; campNodes=cd.nodes||[]; campStart=cd.start||(campNodes[0]&&campNodes[0].id)||""; campRoster=cd.roster||[];campDialogs=cd.dialogs||[];campTerrain=cd.terrain||null;campRecette=cd.recette||null; renderTerrainActe(); renderNodes(); }
     // URL routing: ?edit = mission editor, ?campaign = campaign editor, default = game page
     const params=new URLSearchParams(location.search);
     const view=params.has("edit")?"mission":params.has("campaign")?"campaign":params.has("geoscape")?"geoscape":"play";

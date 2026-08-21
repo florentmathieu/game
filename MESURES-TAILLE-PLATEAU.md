@@ -167,3 +167,65 @@ L'ordre d'exécution compte, et il est contre-intuitif :
 Vérifié sur les 7 formes × 3 moments de l'acte : **51 à 66 cellules par pod** pour une cible de 60,
 pendant que la géométrie passe de 3,4 à 5,4 voisins de moyenne. Aucune anomalie — un seul secteur
 fortement connexe, plateformes accessibles, aucun ennemi visible au tour 1, tous joignables.
+
+---
+
+# Recette d'acte : tout se pilote avant
+
+Un acte se décrit au lieu de s'assembler : longueur, courbe de difficulté, formes autorisées,
+objectifs tirés, profil de terrain, **graine**. À paramètres et graine identiques on retombe sur le
+**même acte** ; on change la graine pour en tirer un autre du même caractère. La recette voyage avec
+l'acte (champ `recette` du JSON de campagne), donc il reste regénérable.
+
+Les missions sont **générées** — un nœud de campagne peut porter une recette (`gen`) au lieu de
+pointer vers un fichier. C'est ce qui rend l'acte reproductible sans traîner des fichiers de mission.
+
+Exemple de plan (graine 1, 6 missions, facile → difficile) :
+
+| rang | difficulté | forme | objectif | pods | plateau | distorsion |
+|---|---|---|---|---|---|---|
+| 1 | facile | sablier | eliminate | 2 | 11x9 | 0 % |
+| 2 | facile | croix | harvest | 2 | 11x9 | 11 % |
+| 3 | moyen | diagonale | eliminate | 3 | 12x10 | 22 % |
+| 4 | moyen | sablier | extract | 3 | 12x10 | 33 % |
+| 5 | difficile | S | harvest | 4 | 12x10 | 44 % |
+| 6 | difficile | croix | assassinate | 4 | 14x11 | 55 % |
+
+## Distorsion et difficulté : deux axes, pas un
+
+**La distorsion suit le rang de la mission dans l'acte, pas sa difficulté.** Dans un acte dont la
+difficulté monte avec le rang, les deux paraissent liés — le tableau ci-dessus le montre — mais c'est
+une corrélation, pas une cause : un acte à difficulté constante aurait la même courbe de distorsion.
+
+Un **second axe** existe désormais, `bonusDiff`, qui ajoute (ou retire) de la distorsion selon la
+difficulté de la mission, indépendamment du rang. **Nul par défaut**, pour que les deux effets restent
+démêlables. Exemple avec facile −10, moyen 0, difficile +25 sur le même acte :
+
+| rang | difficulté | distorsion sans | avec |
+|---|---|---|---|
+| 1 | facile | 0 % | 0 % |
+| 2 | facile | 11 % | 1 % |
+| 3 | moyen | 22 % | 22 % |
+| 4 | moyen | 33 % | 33 % |
+| 5 | difficile | 44 % | 69 % |
+| 6 | difficile | 55 % | 80 % |
+
+## Vérification du bout en bout
+
+63 parties jouées (21 par difficulté, 7 formes, escouade blindée) sur des missions produites par la
+recette :
+
+| difficulté | cellules | par pod | tours (méd.) | marche à vide (méd.) | non nettoyées |
+|---|---|---|---|---|---|
+| facile | 106 | 53 | 10 | 26 % | 0/21 |
+| moyen | 178 | 59 | 19 | 33 % | 2/21 |
+| difficile | 248 | 62 | 23 | 24 % | 3/21 |
+
+La marche à vide reste sur la cible des 30 % aux trois difficultés, et les cellules par pod entre 53
+et 62 pour un seuil de 60.
+
+> **Réserve.** Les 5/63 missions non nettoyées en 80 tours ne sont pas un défaut de dimensionnement :
+> c'est le pilote automatique qui perd la dernière poche et tourne en rond. Un premier relevé à n=10
+> laissait croire que « facile » était systématiquement la plus creuse (45 % de marche à vide) ; avec
+> 21 tirages, cette valeur tombe à 26 % — les deux parties bloquées tiraient la moyenne. **Se méfier
+> des moyennes sur cette mesure : sa distribution a une queue épaisse, la médiane est plus honnête.**
