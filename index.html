@@ -267,26 +267,30 @@
       <label>longueur de référence <input id="ta-missions" type="number" min="1" max="30" value="8" style="width:52px"> missions</label></div>
     <div id="ta-body" style="display:none">
       <table id="ta-table" style="width:100%;border-collapse:collapse;font-size:.82rem">
-        <tr><th style="text-align:left"></th><th>carrés</th><th>hexa</th><th>pentagones</th><th>mixte</th><th>distorsion</th><th>densité</th></tr>
+        <tr><th style="text-align:left"></th><th>carrés</th><th>hexa</th><th>pentagones</th><th>mixte</th><th>densité</th></tr>
         <tr><td><b>début</b></td>
           <td><input id="ta-d-square" type="number" min="0" max="100" value="100" style="width:48px"></td>
           <td><input id="ta-d-hex" type="number" min="0" max="100" value="0" style="width:48px"></td>
           <td><input id="ta-d-pentagon" type="number" min="0" max="100" value="0" style="width:48px"></td>
           <td><input id="ta-d-mix" type="number" min="0" max="100" value="0" style="width:48px"></td>
-          <td><input id="ta-d-dist" type="number" min="0" max="100" value="0" style="width:48px"></td>
           <td><input id="ta-d-dens" type="number" min="30" max="64" value="46" style="width:48px"></td></tr>
         <tr><td><b>fin</b></td>
           <td><input id="ta-f-square" type="number" min="0" max="100" value="20" style="width:48px"></td>
           <td><input id="ta-f-hex" type="number" min="0" max="100" value="35" style="width:48px"></td>
           <td><input id="ta-f-pentagon" type="number" min="0" max="100" value="30" style="width:48px"></td>
           <td><input id="ta-f-mix" type="number" min="0" max="100" value="15" style="width:48px"></td>
-          <td><input id="ta-f-dist" type="number" min="0" max="100" value="55" style="width:48px"></td>
           <td><input id="ta-f-dens" type="number" min="30" max="64" value="38" style="width:48px"></td></tr>
       </table>
-      <div class="row"><span style="font-size:.82rem" title="Distorsion ajoutée selon la difficulté de la mission, EN PLUS de celle due au rang. Nul par défaut : sans ça, deux effets se croiseraient sans qu'on puisse les démêler.">+ distorsion selon la difficulté :</span>
-        <label style="font-size:.8rem">facile <input id="ta-b-facile" type="number" min="-40" max="40" value="0" style="width:48px"></label>
-        <label style="font-size:.8rem">moyen <input id="ta-b-moyen" type="number" min="-40" max="40" value="0" style="width:48px"></label>
-        <label style="font-size:.8rem">difficile <input id="ta-b-difficile" type="number" min="-40" max="40" value="0" style="width:48px"></label></div>
+      <div class="hint" style="margin-top:8px">Distorsion : chaque difficulté a sa <b>plage</b>, et le rang de la mission situe la mission dedans — <code>min + (max − min) × avancement</code>.<br>
+        <b>Attention, l'échelle sature.</b> Nombre moyen de voisins mesuré (un carré en a 4, un hexagone 6) :
+        <code>0 % → 3,7</code> · <code>4 % → 4,4</code> · <code>8 % → 4,7</code> · <code>16 % → 5,2</code> · <code>32 % → 5,2</code> · <code>55 % → 5,3</code> · <code>80 % → 5,3</code>.
+        Tout se joue <b>entre 0 et 16 %</b> ; au-delà l'œil ne distingue plus rien. À 0 %, 72 % des cases ont exactement 4 voisins — une vraie grille.</div>
+      <table style="width:100%;border-collapse:collapse;font-size:.82rem">
+        <tr><th style="text-align:left">distorsion</th><th>min</th><th>max</th></tr>
+        <tr><td>facile</td><td><input id="ta-x-facile-min" type="number" min="0" max="100" value="0" style="width:48px"></td><td><input id="ta-x-facile-max" type="number" min="0" max="100" value="15" style="width:48px"></td></tr>
+        <tr><td>moyen</td><td><input id="ta-x-moyen-min" type="number" min="0" max="100" value="15" style="width:48px"></td><td><input id="ta-x-moyen-max" type="number" min="0" max="100" value="40" style="width:48px"></td></tr>
+        <tr><td>difficile</td><td><input id="ta-x-difficile-min" type="number" min="0" max="100" value="40" style="width:48px"></td><td><input id="ta-x-difficile-max" type="number" min="0" max="100" value="70" style="width:48px"></td></tr>
+      </table>
       <div class="row"><label style="flex:1">Aperçu — avancement dans l'acte <input id="ta-t" type="range" min="0" max="100" value="0"></label><span id="ta-tv">0 %</span>
         <button id="ta-preview" title="Applique la géométrie interpolée au plateau de l'onglet Mission, pour la voir">👁 Voir</button></div>
       <div class="hint" id="ta-resume"></div>
@@ -1964,20 +1968,26 @@
   // et la déformation se voit à chaque case au lieu d'être une intention dans un document.
   const TERRAIN_ACTE_DEFAUT={
     missions:8,                                                              // longueur de référence de l'acte
-    bonusDiff:{facile:0,moyen:0,difficile:0},   // second axe : distorsion ajoutée selon la difficulté (nul par défaut)
-    debut:{ zones:{square:100,hex:0,pentagon:0,mix:0},   distorsion:0,  densite:46 },   // mesuré : à 0 %, 72 % des cases ont exactement 4 voisins — une vraie grille
-    fin:  { zones:{square:20,hex:35,pentagon:30,mix:15}, distorsion:55, densite:38 } };
+    // DISTORSION : une PLAGE par difficulté, et le rang situe la mission dedans.
+    //     distorsion = min[difficulté] + (max − min) × avancement
+    // La difficulté choisit la bande, le rang la position dans la bande — deux réglages lisibles
+    // au lieu d'un décalage global qu'on ne savait pas démêler du rang.
+    // Repère mesuré : à 0 %, 72 % des cases ont exactement 4 voisins (une vraie grille) ; à 55 %,
+    // 5,3 voisins de moyenne (organique).
+    distorsionDiff:{ facile:{min:0,max:15}, moyen:{min:15,max:40}, difficile:{min:40,max:70} },
+    debut:{ zones:{square:100,hex:0,pentagon:0,mix:0},   densite:46 },
+    fin:  { zones:{square:20,hex:35,pentagon:30,mix:15}, densite:38 } };
   const ZTYPES=["square","hex","pentagon","mix"];
   const lerpN=(a,b,t)=>a+(b-a)*t;
   function terrainInterpole(prof,t,diff){
     prof=prof||TERRAIN_ACTE_DEFAUT; t=Math.max(0,Math.min(1,t||0));
     const d=prof.debut||TERRAIN_ACTE_DEFAUT.debut, f=prof.fin||TERRAIN_ACTE_DEFAUT.fin;
     const zones={}; for(const k of ZTYPES) zones[k]=lerpN((d.zones&&d.zones[k])||0,(f.zones&&f.zones[k])||0,t);
-    // SECOND AXE, facultatif : la difficulté peut ajouter (ou retirer) de la distorsion, indépendamment
-    // du rang. Nul par défaut — sans quoi on croiserait deux effets sans pouvoir les démêler.
-    const bonus=(prof.bonusDiff&&diff&&prof.bonusDiff[diff])||0;
+    // plage de distorsion de la difficulté (à défaut : celle de « moyen »)
+    const dd=prof.distorsionDiff||TERRAIN_ACTE_DEFAUT.distorsionDiff;
+    const pl=dd[diff]||dd.moyen||TERRAIN_ACTE_DEFAUT.distorsionDiff.moyen;
     return { zones,
-      distorsion:Math.max(0,Math.min(100,Math.round(lerpN(d.distorsion!=null?d.distorsion:0, f.distorsion!=null?f.distorsion:55, t)+bonus))),
+      distorsion:Math.max(0,Math.min(100,Math.round(lerpN(pl.min||0, pl.max!=null?pl.max:55, t)))),
       densite:Math.round(lerpN(d.densite!=null?d.densite:46, f.densite!=null?f.densite:38, t)) }; }
   // Applique le profil AVANT la construction du maillage — il décide la GÉOMÉTRIE, pas le décor.
   // À appeler APRÈS tout redimensionnement : setBoardSize() réécrit la grille de zones.
@@ -2695,7 +2705,18 @@
     if(!n){ el.innerHTML='<div class="hint">No node. Add a Text, a Mission or a Choice, then click it in the graph.</div>'; return; }
     let h=`<h3>${n.type==="mission"?"🗺 Mission":n.type==="choice"?"🔀 Choice":"📝 Text"} <code style="font-size:.7rem;color:#9a8a74">${n.id}</code></h3>`;
     if(n.type==="text") h+=`<div class="row">📄 file <select data-f="file">${txtOpts(n.file,"— text entered below —")}</select></div><input data-f="text" type="text" placeholder="…or full-screen text" value="${esc(n.text)}"><input data-f="mortal" type="text" placeholder="✝ makes mortal (names, commas) — &quot;their role is done&quot;" value="${esc(Array.isArray(n.mortal)?n.mortal.join(', '):(n.mortal||''))}"><input data-f="recruit" type="text" placeholder="➕ recruits (Name:class, … ; * = ★ special)" value="${esc(Array.isArray(n.recruit)?n.recruit.join(', '):(n.recruit||''))}"><div class="row">next → <select data-f="next">${idOpts(n.next,true)}</select></div>`;
-    else if(n.type==="mission") h+=`<div class="row">mission <select data-f="mission">${missOpts(n.mission)}</select></div><div class="row">📄 intro <select data-f="introFile">${txtOpts(n.introFile)}</select></div><input data-f="intro" type="text" placeholder="…or entered intro" value="${esc(n.intro)}"><div class="row">📄 outro <select data-f="outroFile">${txtOpts(n.outroFile)}</select></div><input data-f="outro" type="text" placeholder="…or entered outro" value="${esc(n.outro)}"><div class="row">✓ win → <select data-f="win">${idOpts(n.win,true)}</select></div><div class="row">✕ loss → <select data-f="lose">${idOpts(n.lose,true)}</select></div>`;
+    else if(n.type==="mission"&&n.gen) h+=
+       `<div class="row"><b style="font-size:.8rem">carte générée</b>`
+      +`<button data-genoff title="Repasser sur un fichier de mission">↩ fichier</button>`
+      +`<button data-genseed title="Nouvelle graine : autre carte, mêmes paramètres">🎲 autre carte</button></div>`
+      +`<div class="row"><label>difficulté <select data-g="diff">${DIFFS.map(d=>`<option value="${d}"${n.gen.diff===d?" selected":""}>${d}</option>`).join("")}</select></label>`
+      +`<label>forme <select data-g="forme">${RECETTE_ACTE_DEFAUT.formes.map(f=>`<option value="${f}"${n.gen.forme===f?" selected":""}>${f}</option>`).join("")}</select></label></div>`
+      +`<div class="row"><label>objectif <select data-g="objectif">${OBJ_ACTE.map(o=>`<option value="${o}"${n.gen.objectif===o?" selected":""}>${o}</option>`).join("")}</select></label>`
+      +`<label title="Position dans l'acte, de 0 (début) à 100 % (fin) : c'est elle qui décide la géométrie">avancement <input data-g="avancement" type="number" min="0" max="100" step="5" value="${Math.round((n.gen.avancement||0)*100)}" style="width:56px">&nbsp;%</label>`
+      +`<label>graine <input data-g="graine" type="number" min="1" max="999999" value="${n.gen.graine||1}" style="width:74px"></label></div>`
+      +`<div class="hint" data-genapercu></div>`
+      +`<div class="row">📄 intro <select data-f="introFile">${txtOpts(n.introFile)}</select></div><input data-f="intro" type="text" placeholder="…or entered intro" value="${esc(n.intro)}"><div class="row">📄 outro <select data-f="outroFile">${txtOpts(n.outroFile)}</select></div><input data-f="outro" type="text" placeholder="…or entered outro" value="${esc(n.outro)}"><div class="row">✓ win → <select data-f="win">${idOpts(n.win,true)}</select></div><div class="row">✕ loss → <select data-f="lose">${idOpts(n.lose,true)}</select></div>`;
+    else if(n.type==="mission") h+=`<div class="row">mission <select data-f="mission">${missOpts(n.mission)}</select> <button data-genon title="Remplacer par une carte générée">🎲 générer</button></div><div class="row">📄 intro <select data-f="introFile">${txtOpts(n.introFile)}</select></div><input data-f="intro" type="text" placeholder="…or entered intro" value="${esc(n.intro)}"><div class="row">📄 outro <select data-f="outroFile">${txtOpts(n.outroFile)}</select></div><input data-f="outro" type="text" placeholder="…or entered outro" value="${esc(n.outro)}"><div class="row">✓ win → <select data-f="win">${idOpts(n.win,true)}</select></div><div class="row">✕ loss → <select data-f="lose">${idOpts(n.lose,true)}</select></div>`;
     else if(n.type==="choice") h+=`<input data-f="title" type="text" placeholder="choice title…" value="${esc(n.title)}"><div id="cdopts" style="margin:6px 0"></div><button data-addopt="1">+ option</button>`;
     else if(n.type==="geoscape"){ const ew=n.endWhen||{kind:"all"}; h+=`<div class="row">🌍 territory <select data-gf="map">${geoMapOpts(n.map)}</select></div>
       <div class="row"><label style="display:inline-flex;align-items:center;gap:4px" title="The shape/layout is regenerated each game; the territory's names, missions, difficulties, unlocks and events are kept."><input type="checkbox" data-gf="procshape" ${n.proc?"checked":""}> procedural shape (changes each game)</label></div>
@@ -2707,6 +2728,22 @@
     el.innerHTML=h;
     if(n.type==="choice"){ const od=el.querySelector("#cdopts"); (n.options||[]).forEach((opt,oi)=>{ const r=document.createElement("div"); r.className="opt-row"; r.innerHTML=`→ <select data-optsel="${oi}" style="flex:1">${idOpts(opt,false)}</select><button data-optdel="${oi}">✕</button>`; od.appendChild(r); }); }
     el.querySelectorAll("input[data-f],select[data-f]").forEach(inp=>{const set=()=>{const f=inp.dataset.f;n[f]=(inp.value===""&&(f==="next"||f==="win"||f==="lose"))?null:inp.value;saveCampDraft();drawGraph();};inp.tagName==="SELECT"?inp.onchange=set:inp.oninput=set;});
+    // --- carte générée : réglages du nœud, et bascule fichier <-> généré ---
+    el.querySelectorAll("[data-g]").forEach(inp=>{ const f=inp.dataset.g;
+      const set=()=>{ n.gen=n.gen||{};
+        n.gen[f]=(f==="avancement")?Math.max(0,Math.min(1,(+inp.value||0)/100)):(f==="graine")?Math.max(1,+inp.value||1):inp.value;
+        majApercuGen(); saveCampDraft(); drawGraph(); };
+      inp.tagName==="SELECT"?inp.onchange=set:inp.oninput=set; });
+    function majApercuGen(){ const z=el.querySelector("[data-genapercu]"); if(!z||!n.gen)return;
+      const prof=campTerrain, g=terrainInterpole(prof,n.gen.avancement||0,n.gen.diff);
+      const pods=podsPourDiff(n.gen.diff), t=tailleAuto(n.gen.forme,pods,g.densite);
+      z.textContent=`→ ${pods} pods · plateau ${t.bw}x${t.bh} · distorsion ${g.distorsion} % · densité ${g.densite}`; }
+    majApercuGen();
+    { const off=el.querySelector("[data-genoff]"); if(off)off.onclick=()=>{ delete n.gen; renderNodes(); }; }
+    { const on=el.querySelector("[data-genon]"); if(on)on.onclick=()=>{
+        n.gen={diff:"moyen",forme:"rect",objectif:"eliminate",avancement:0,graine:1+Math.floor(Math.random()*999998)}; renderNodes(); }; }
+    { const sd=el.querySelector("[data-genseed]"); if(sd)sd.onclick=()=>{
+        n.gen.graine=1+Math.floor(Math.random()*999998); renderNodes(); }; }
     el.querySelectorAll("[data-gf]").forEach(inp=>{ const f=inp.dataset.gf; const set=()=>{ n.endWhen=n.endWhen||{kind:"all",name:""};
       if(f==="map")n.map=inp.value; else if(f==="procshape"){ if(inp.checked)n.proc=n.proc||{act:1}; else delete n.proc; } else if(f==="endkind"){ n.endWhen.kind=inp.value; const kr=el.querySelector("#cd-keyrow"); if(kr)kr.style.display=(inp.value==="key")?"":"none"; } else if(f==="endname")n.endWhen.name=inp.value;   // procshape: regenerates the shape each game (names + content kept)
       saveCampDraft(); drawGraph(); }; (inp.tagName==="SELECT"||inp.type==="checkbox")?inp.onchange=set:inp.oninput=set; });
@@ -2816,9 +2853,9 @@
   const taEl=id=>document.getElementById("ta-"+id);
   function terrainDepuisUI(){
     const lire=(pre)=>{ const z={}; for(const k of ZTYPES) z[k]=Math.max(0,+taEl(pre+"-"+k).value||0);
-      return { zones:z, distorsion:+taEl(pre+"-dist").value||0, densite:+taEl(pre+"-dens").value||46 }; };
-    const bd={}; for(const d of DIFFS) bd[d]=+taEl("b-"+d).value||0;
-    return { missions:Math.max(1,+taEl("missions").value||8), bonusDiff:bd, debut:lire("d"), fin:lire("f") }; }
+      return { zones:z, densite:+taEl(pre+"-dens").value||46 }; };
+    const dd={}; for(const d of DIFFS) dd[d]={min:+taEl("x-"+d+"-min").value||0, max:+taEl("x-"+d+"-max").value||0};
+    return { missions:Math.max(1,+taEl("missions").value||8), distorsionDiff:dd, debut:lire("d"), fin:lire("f") }; }
   function renderTerrainActe(){
     const on=taEl("on"); if(!on)return;
     on.checked=!!campTerrain;
@@ -2826,17 +2863,21 @@
     const p=campTerrain||TERRAIN_ACTE_DEFAUT;
     taEl("missions").value=p.missions||8;
     const poser=(pre,src)=>{ for(const k of ZTYPES) taEl(pre+"-"+k).value=Math.round((src.zones&&src.zones[k])||0);
-      taEl(pre+"-dist").value=src.distorsion!=null?src.distorsion:0; taEl(pre+"-dens").value=src.densite!=null?src.densite:46; };
+      taEl(pre+"-dens").value=src.densite!=null?src.densite:46; };
     poser("d",p.debut||TERRAIN_ACTE_DEFAUT.debut); poser("f",p.fin||TERRAIN_ACTE_DEFAUT.fin);
-    for(const d of DIFFS) taEl("b-"+d).value=(p.bonusDiff&&p.bonusDiff[d])||0;
+    const dd=p.distorsionDiff||TERRAIN_ACTE_DEFAUT.distorsionDiff;
+    for(const d of DIFFS){ const pl=dd[d]||TERRAIN_ACTE_DEFAUT.distorsionDiff[d];
+      taEl("x-"+d+"-min").value=pl.min; taEl("x-"+d+"-max").value=pl.max; }
     majResumeTerrain(); }
   function majResumeTerrain(){
     const r=document.getElementById("ta-resume"); if(!r)return;
-    const t=(+taEl("t").value||0)/100, i=terrainInterpole(campTerrain||terrainDepuisUI(),t);
+    const t=(+taEl("t").value||0)/100, i=terrainInterpole(campTerrain||terrainDepuisUI(),t,"moyen");
     const tot=ZTYPES.reduce((a,k)=>a+i.zones[k],0)||1;
     const part=ZTYPES.filter(k=>i.zones[k]>0.5).map(k=>`${k} ${Math.round(100*i.zones[k]/tot)} %`).join(" · ");
     const tv=document.getElementById("ta-tv"); if(tv)tv.textContent=Math.round(t*100)+" %";
-    r.textContent=`à ${Math.round(t*100)} % de l'acte : ${part} — distorsion ${i.distorsion} %, densité ${i.densite}`; }
+    const prof=campTerrain||terrainDepuisUI();
+    const parDiff=DIFFS.map(d=>d+" "+terrainInterpole(prof,t,d).distorsion+" %").join(" · ");
+    r.textContent=`à ${Math.round(t*100)} % de l'acte : ${part} — densité ${i.densite} · distorsion selon la difficulté : ${parDiff}`; }
   { const on=taEl("on");
     if(on){
       const majDepuisUI=()=>{ if(!on.checked){campTerrain=null;} else {campTerrain=terrainDepuisUI();}
@@ -2844,12 +2885,13 @@
         majResumeTerrain(); saveCampDraft(); };
       on.onchange=()=>{ if(on.checked&&!campTerrain)campTerrain=JSON.parse(JSON.stringify(TERRAIN_ACTE_DEFAUT));
         renderTerrainActe(); majDepuisUI(); };
-      const champs=["missions","d-dist","d-dens","f-dist","f-dens"].concat(ZTYPES.flatMap(k=>["d-"+k,"f-"+k])).concat(DIFFS.map(d=>"b-"+d));
+      const champs=["missions","d-dens","f-dens"].concat(ZTYPES.flatMap(k=>["d-"+k,"f-"+k]))
+        .concat(DIFFS.flatMap(d=>["x-"+d+"-min","x-"+d+"-max"]));
       for(const c of champs){ const e=taEl(c); if(e)e.oninput=majDepuisUI; }
       const t=taEl("t"); if(t)t.oninput=majResumeTerrain;
       const pv=document.getElementById("ta-preview");
       if(pv)pv.onclick=()=>{ const prof=campTerrain||terrainDepuisUI();
-        appliquerTerrain(prof,(+taEl("t").value||0)/100,seed);
+        appliquerTerrain(prof,(+taEl("t").value||0)/100,seed,"moyen");
         seed=(seed*1103515245+12345)&0x7fffffff; rebuildShape(); setView("mission");
         const r=document.getElementById("ta-resume"); if(r)r.textContent+=` — aperçu : ${cells.length} cellules`; };
       renderTerrainActe(); } }

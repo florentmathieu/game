@@ -229,3 +229,49 @@ et 62 pour un seuil de 60.
 > laissait croire que « facile » était systématiquement la plus creuse (45 % de marche à vide) ; avec
 > 21 tirages, cette valeur tombe à 26 % — les deux parties bloquées tiraient la moyenne. **Se méfier
 > des moyennes sur cette mesure : sa distribution a une queue épaisse, la médiane est plus honnête.**
+
+---
+
+# Distorsion : une plage par difficulté
+
+Remplace le décalage global `bonusDiff`, qu'on ne savait pas démêler du rang. Chaque difficulté porte
+sa **plage**, et le rang situe la mission dedans :
+
+```
+distorsion = min[difficulté] + (max[difficulté] − min[difficulté]) × avancement
+```
+
+La difficulté choisit la bande, le rang la position dans la bande. Défauts :
+
+| difficulté | min | max | avancement 0 % | 50 % | 100 % |
+|---|---|---|---|---|---|
+| facile | 0 | 15 | 0 | 8 | 15 |
+| moyen | 15 | 40 | 15 | 28 | 40 |
+| difficile | 40 | 70 | 40 | 55 | 70 |
+
+Conséquence utile : un acte à **difficulté constante** garde une progression de distorsion (la plage
+de sa difficulté), au lieu d'être figé. Un acte facile → difficile parcourt 0 → 70 %.
+
+## L'échelle sature — à savoir avant de régler
+
+Nombre moyen de voisins mesuré (un carré en a 4, un pentagone 5, un hexagone 6) :
+
+| distorsion | 0 % | 4 % | 8 % | 16 % | 32 % | 55 % | 80 % |
+|---|---|---|---|---|---|---|---|
+| voisins | 3,70 | 4,44 | 4,72 | 5,15 | 5,16 | 5,28 | 5,34 |
+
+**Tout se joue entre 0 et 16 %.** Au-delà, l'écart n'est plus perceptible : passer de 40 à 70 % ne
+change presque rien à l'œil. Si tu veux que la déformation se *voie* le long de l'acte, resserre les
+plages vers le bas (par exemple 0–4 / 4–9 / 9–16) plutôt que d'étaler jusqu'à 70.
+
+Vérification : les six missions d'un acte facile → difficile donnent 3,40 · 3,51 · 5,01 · 5,23 ·
+5,38 · 5,20 voisins, un seul secteur fortement connexe, aucun ennemi visible au tour 1, tous les
+ennemis joignables.
+
+## Réglage par mission
+
+Le panneau de détail d'un nœud généré affichait encore le sélecteur de fichier de mission — un
+contrôle **sans effet**, puisque `n.gen` a la priorité. Il propose désormais difficulté, forme,
+objectif, avancement et graine, avec un aperçu du résultat (pods, taille de plateau, distorsion,
+densité), un bouton **🎲 autre carte** (nouvelle graine, mêmes paramètres) et une bascule
+**↩ fichier / 🎲 générer** dans les deux sens.
