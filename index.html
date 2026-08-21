@@ -175,6 +175,7 @@
     <div class="row" id="relief"></div>
     <h2>Auto-generation (mission)</h2>
     <div class="row"><label>Difficulty <select id="gen-diff"><option value="facile">easy</option><option value="moyen" selected>medium</option><option value="difficile">hard</option></select></label>
+      <label title="Board size derived from the pod count, using the law measured over 560 games (see MESURES-TAILLE-PLATEAU.md). Uncheck to keep Width/Height as typed."><input type="checkbox" id="gen-autosize" checked> 📐 auto size</label>
       <label>Objective <select id="gen-arch"><option value="eliminate" selected>elimination</option><option value="assassinate">assassination (target)</option><option value="rescue">rescue (hostage)</option><option value="defend">defense (VIP, N turns)</option><option value="survive">survival (N turns)</option><option value="harvest">récolte (gisements)</option><option value="intercept">interception (fuyards)</option><option value="extract">extraction (zone)</option></select></label></div>
     <div class="row"><label>Enemies <input id="gen-enemies" type="number" min="1" max="16" placeholder="auto" style="width:54px"></label>
       <label>Pods <input id="gen-pods" type="number" min="1" max="6" placeholder="auto" style="width:54px"></label>
@@ -314,7 +315,7 @@
   function resetView(){ zoom=1;panX=0;panY=0; }
   let FREE_MP=2,AP_MAX=2,MOB=3;   // movement (tunable: balancing / generation parameter)
   let HEIGHT_BONUS=6,COVER_PEN=30,DEF_BRACE=20; const PB={1:30,2:15};   // tunable via the balancing panel
-  let ENEMY_COUNT={facile:4,moyen:5,difficile:7};   // target enemy count per difficulty (main dial)
+  let ENEMY_COUNT={facile:4,moyen:5,difficile:7}, ENNEMIS_PAR_POD=2;   // target enemy count per difficulty (main dial)
   const sword=(a,l,h)=>({type:"melee",aim:a,dmgMin:l,dmgMax:h});
   const bow=(a,l,h,r,c)=>({type:"ranged",aim:a,dmgMin:l,dmgMax:h,range:r,clip:c});
   const dagger=(a,l,h,b,s)=>({type:"melee",aim:a,dmgMin:l,dmgMax:h,flank:{back:b,side:s}});
@@ -1906,11 +1907,50 @@
     refresh(); }
   // ===== procedural mission generation (P1: density scatter + graph placement) =====
   function bfsFrom(start){ const d={}; d[start]=0; const q=[start]; while(q.length){const id=q.shift(); for(const n of cells[id].nb){ if(!passable(n))continue; if(d[n]===undefined){d[n]=d[id]+1;q.push(n);} }} return d; }
+  // ===== DIMENSIONNEMENT DU PLATEAU — mesuré, pas estimé =====
+  // 560 parties jouées (voir MESURES-TAILLE-PLATEAU.md et tools/balayage-taille.ndjson) donnent une
+  // loi unique : la part de tours passés à MARCHER SANS PERSONNE EN VUE ne dépend ni de la forme ni
+  // du nombre de pods pris séparément, mais de la SURFACE PAR POD. La même courbe vaut à 2, 3, 4 et
+  // 5 pods :
+  //     <=60 cellules/pod : 17 %      130-200 : 46 %
+  //     60-90             : 27 %      200+    : 59 %
+  //     90-130            : 38 %
+  // On retient le seuil des 30 %, franchi vers 80 cellules par pod.
+  let CEL_PAR_POD=80;
+  // Les formes n'ont pas la même surface à réglages égaux : une croix à 20x16 fait 389 cellules là
+  // où un rectangle en fait 806. Mesuré sur les mêmes 560 parties, cellules ~ k x largeur².
+  const FORME_K={rect:1.98,L:1.25,S:1.41,croix:0.96,sablier:1.14,anneau:1.40,diag:1.15};
+  // La difficulté commande le nombre de POCHES D'ENNEMIS, donc le nombre d'engagements ; la taille
+  // du plateau en découle. C'est le seul réglage à toucher pour rendre une mission plus dure.
+  let PODS_DIFF={facile:2,moyen:3,difficile:4};
+  const podsPourDiff=d=>PODS_DIFF[d]!=null?PODS_DIFF[d]:PODS_DIFF.moyen;
+  // largeur = racine de (cellules visées / k), hauteur = 0,8 x largeur (proportion du canevas)
+  function tailleAuto(forme,pods){
+    const k=FORME_K[forme]||FORME_K.rect;
+    const bw=Math.max(8,Math.min(28,Math.round(Math.sqrt(CEL_PAR_POD*Math.max(1,pods)/k))));
+    return {bw,bh:Math.max(6,Math.min(24,Math.round(bw*0.8)))}; }
+  window.TAILLE_AUTO=(forme,pods)=>tailleAuto(forme,pods);
+
   // P (optional) = generation parameters: cover, diff, squad, podCount, podSpacing, podMinDist, podSize[min,max], classes
   function genMission(P){ P=P||{};
     const cover=P.cover!=null?P.cover:((+(document.getElementById("gen-cover").value)||28)/100);
     const diff=P.diff||(document.getElementById("gen-diff")?document.getElementById("gen-diff").value:"moyen");
     const podSize=P.podSize||[2,3];
+    // --- TAILLE DU PLATEAU, décidée AVANT le maillage (elle le construit) ---
+    // Le nombre de pods vient de la difficulté ; la taille en découle par la loi mesurée. En mode
+    // manuel on ne touche à rien : les champs Width/Height et Pods restent souverains.
+    const selForme=document.getElementById("board-shape");
+    if(P.forme!=null&&selForme){ selForme.value=P.forme; }
+    const forme=selForme?selForme.value:"rect";
+    const caseAuto=document.getElementById("gen-autosize");
+    const auto=P.autoTaille!=null?P.autoTaille:(caseAuto?caseAuto.checked:true);
+    const domPods=(()=>{ if(P.diff!=null)return null;   // appel de campagne : l'éditeur ne doit pas déteindre dessus
+      const e=document.getElementById("gen-pods"); return e&&e.value!==""?+e.value:null; })();
+    const podsVoulus=P.podCount!=null?P.podCount:(domPods!=null?domPods:podsPourDiff(diff));
+    if(auto){ const t=tailleAuto(forme,podsVoulus);
+      setBoardSize(t.bw,t.bh);   // c'est COLS/ROWS qui font foi, pas les champs : les écrire ne suffit pas
+      const eW=document.getElementById("bw"), eH=document.getElementById("bh");
+      if(eW)eW.value=COLS; if(eH)eH.value=ROWS; }
     seed=(seed*1103515245+12345)&0x7fffffff; rebuildShape();   // fresh island shape, clears units/low walls
     if(!cells.length)return null; const rnd=mk((seed^0x51ed2701)>>>0);
     // elevation (2-3 hills) + cover based on density
@@ -2211,7 +2251,7 @@
     const echelle=(v,plafond)=>Math.min(plafond,Math.max(v,Math.round(v*densite)));
     // l'escouade grossit plus doucement que l'opposition : couvrir plus de terrain, sans
     // transformer chaque tour du joueur en gestion de foule
-    const S=P.squad!=null?P.squad:Math.min(6,(diff==="facile"?3:4)+Math.round((densite-1)*1.5));
+    const S=P.squad!=null?P.squad:(auto?(diff==="facile"?3:4):Math.min(6,(diff==="facile"?3:4)+Math.round((densite-1)*1.5)));
     // spread-out deployment: take tiles near the anchor BUT spaced (≥2 hops) so
     // each unit keeps free neighbors and isn't walled in by its teammates
     const sortedSlots=reachIds.slice().sort((a,b)=>dist[a]-dist[b]); const slots=[];
@@ -2219,7 +2259,9 @@
     for(const id of sortedSlots){ if(slots.length>=S)break; if(!slots.includes(id))slots.push(id); }
     units=[]; const pcls=P.squadClasses||["soldat","sapeur","assassin","garde"]; slots.forEach((id,i)=>units.push(U("player",pcls[i%pcls.length],id)));
     const genPods=document.getElementById("gen-pods"); const podsFromDom=genPods&&genPods.value!==""?+genPods.value:null;
-    const podCount=P.podCount!=null?P.podCount:(podsFromDom!=null?podsFromDom:echelle(diff==="facile"?1:diff==="moyen"?2:3,6));   // pods = activation groups (mis à l'échelle du plateau)
+    // En mode auto la surface a été DÉDUITE des pods : la remettre à l'échelle de la surface serait
+    // circulaire. En mode manuel, la mise à l'échelle garde son sens (le joueur a fixé la taille).
+    const podCount=auto?podsVoulus:(P.podCount!=null?P.podCount:(podsFromDom!=null?podsFromDom:echelle(diff==="facile"?1:diff==="moyen"?2:3,6)));
     const podSpacing=P.podSpacing!=null?P.podSpacing:4;                              // MIN distance between pods (hops) — ≥4 = sequential activation
     // MIN deployment→pod distance : proportionnelle sur un petit plateau, mais PLAFONNÉE en
     // cases. Sans ce plafond, un plateau deux fois plus grand repousse TOUS les pods dans sa
@@ -2248,7 +2290,9 @@
     // TARGET ENEMY COUNT = the real difficulty dial (the sim shows the total dominates the pod count).
     // Distribute it deterministically across the pods (low variance) instead of random sizes.
     const genEn=document.getElementById("gen-enemies"); const enFromDom=genEn&&genEn.value!==""?+genEn.value:null;
-    const enemyCount=P.enemyCount!=null?P.enemyCount:(enFromDom!=null?enFromDom:echelle(ENEMY_COUNT[diff]!=null?ENEMY_COUNT[diff]:5,16));
+    const baseEn=ENEMY_COUNT[diff]!=null?ENEMY_COUNT[diff]:5;
+    const enemyCount=P.enemyCount!=null?P.enemyCount:(enFromDom!=null?enFromDom
+      :(auto?Math.max(baseEn,Math.round(podCount*ENNEMIS_PAR_POD)):echelle(baseEn,16)));   // auto : au moins 2 par poche, sinon un pod isolé ne pèse rien
     const PN=Math.max(1,podAnchors.length);
     const sizes=Array.from({length:PN},(_,i)=>Math.floor(enemyCount/PN)+(i<(enemyCount%PN)?1:0));   // distributed as evenly as possible
     podAnchors.forEach((anc,pi)=>{ const ball=bfsBall(anc,2);   // pool around the anchor (radius 2) rather than only the immediate neighbors
@@ -3524,6 +3568,12 @@
       {k:"PRIME_XP_MULT",label:"Bounty XP = ★ ×",get:()=>PRIME_XP_MULT,set:v=>PRIME_XP_MULT=v,min:1,max:8,step:1},
       {k:"PRIME_XP_STEP",label:"XP decay / mission",get:()=>PRIME_XP_STEP,set:v=>PRIME_XP_STEP=v,min:0,max:6,step:1},
       {k:"PRIME_MORALE_STEP",label:"Morale decay / mission",get:()=>PRIME_MORALE_STEP,set:v=>PRIME_MORALE_STEP=v,min:0,max:15,step:1} ]},
+    {name:"Board size (measured — see MESURES-TAILLE-PLATEAU.md)", items:[
+      {k:"CEL_PAR_POD",label:"Cells per pod (30% idle walking = 80)",get:()=>CEL_PAR_POD,set:v=>CEL_PAR_POD=v,min:30,max:220,step:5},
+      {k:"ENNEMIS_PAR_POD",label:"Enemies per pod (floor)",get:()=>ENNEMIS_PAR_POD,set:v=>ENNEMIS_PAR_POD=v,min:1,max:5,step:1},
+      {k:"PODS_facile",label:"Pods — easy",get:()=>PODS_DIFF.facile,set:v=>PODS_DIFF.facile=v,min:1,max:8,step:1},
+      {k:"PODS_moyen",label:"Pods — medium",get:()=>PODS_DIFF.moyen,set:v=>PODS_DIFF.moyen=v,min:1,max:8,step:1},
+      {k:"PODS_difficile",label:"Pods — hard",get:()=>PODS_DIFF.difficile,set:v=>PODS_DIFF.difficile=v,min:1,max:8,step:1} ]},
     {name:"Enemies per difficulty", items:[
       {k:"EN_facile",label:"Easy",get:()=>ENEMY_COUNT.facile,set:v=>ENEMY_COUNT.facile=v,min:1,max:12,step:1},
       {k:"EN_moyen",label:"Medium",get:()=>ENEMY_COUNT.moyen,set:v=>ENEMY_COUNT.moyen=v,min:1,max:12,step:1},
@@ -3651,7 +3701,14 @@
     try{
       const pose=(id,v)=>{ const e=document.getElementById(id); if(e&&v!=null){ e.value=v; e.dispatchEvent(new Event("change",{bubbles:true})); } };
       if(opt.forme!=null)pose("board-shape",opt.forme);
-      pose("bw",opt.bw); pose("bh",opt.bh); pose("gen-pods",opt.pods); pose("gen-enemies",opt.ennemis);
+      pose("bw",opt.bw); pose("bh",opt.bh); pose("gen-diff",opt.diff);
+      // champs laissés VIDES quand l'appelant ne les fixe pas : sinon une valeur résiduelle de
+      // l'éditeur piloterait la simulation à la place du dimensionnement automatique.
+      const vider=id=>{ const e=document.getElementById(id); if(e)e.value=""; };
+      if(opt.pods!=null)pose("gen-pods",opt.pods); else vider("gen-pods");
+      if(opt.ennemis!=null)pose("gen-enemies",opt.ennemis); else vider("gen-enemies");
+      const ca=document.getElementById("gen-autosize"); if(ca)ca.checked=(opt.autoTaille!=null?!!opt.autoTaille:(opt.bw==null));
+      if(opt.celParPod!=null)CEL_PAR_POD=opt.celParPod;   // pour calibrer le seuil lui-même par simulation
       document.getElementById("gen-mission").click();
       const carte={cellules:cells.length, forme:opt.forme, bw:opt.bw, bh:opt.bh};
       document.body.classList.add("testing"); setView("play"); startGame();
