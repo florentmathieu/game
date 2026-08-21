@@ -905,6 +905,18 @@
   // ===== Instrument de mesure des cartes generees (tools/) — aucune incidence sur le jeu =====
   // Sert a juger la STRUCTURE d'une carte, pas sa difficulte : une carte semee au hasard
   // et une carte structuree ont la meme densite de couvert mais pas le meme groupement.
+  // ÉCHAFAUDAGE DE TEST — creuse une cuvette à sens unique autour d'un ennemi (voisins remontés de
+  // deux niveaux) : il peut y sauter, plus en ressortir. Sert à vérifier que accesEnnemis DÉTECTE
+  // l'enfermement, au lieu de se contenter de dire que tout va bien.
+  window.PIEGE=function(){
+    const e=units.find(u=>u.team==="enemy"&&u.hp>0); if(!e)return "aucun ennemi";
+    const nb=cells[e.cell].nb.filter(v=>passable(v)); if(!nb.length)return "déjà muré";
+    // on ne touche QU'À la case de l'ennemi : elle descend deux niveaux sous sa voisine la plus basse.
+    // On y tombe (descendre est permis), on n'en remonte pas. Aucune autre relation n'est modifiée,
+    // donc l'ancienne lecture non orientée continuera de voir un seul bloc.
+    cells[e.cell].elev=Math.min(...nb.map(v=>cells[v].elev))-2;
+    return "cuvette creusée en case "+e.cell+" (elev "+cells[e.cell].elev+")";
+  };
   window.MAPSTATS=function(){
     if(!cells||!cells.length)return null;
     const n=cells.length, isCov=c=>c.terr==="wall"||c.terr==="rough";
@@ -966,6 +978,23 @@
                  if(f.ferme&&f.vu.size<60)poches.push(f.vu.size);
                  if(!cells[e.cell].nb.some(n=>passable(n)&&enterCost(e.cell,n)!==null))sansIssue.push(e.cell); }
                return injoignables+" injoignables · "+sansIssue.length+" murés · poches<60: ["+poches.join(",")+"]"; })(),
+             accesEnnemis:(function(){ // LA question : chaque ennemi est-il joignable, à n'importe quelle
+               // distance ? On la pose dans les deux sens, parce qu'une falaise ne se franchit que
+               // vers le bas : « l'escouade peut l'atteindre » et « il peut atteindre l'escouade » ne
+               // sont pas la même chose, et un pod qui ne peut ni l'un ni l'autre est hors du jeu.
+               const E=units.filter(u=>u.team==="enemy"&&u.hp>0), P=units.filter(u=>u.team==="player"&&u.hp>0);
+               if(!E.length||!P.length)return "—";
+               const {comp}=secteursForts();
+               const secteursJoueur=new Set(P.map(u=>comp[u.cell]));
+               const ko=E.filter(e=>!secteursJoueur.has(comp[e.cell]));
+               if(!ko.length)return E.length+"/"+E.length+" joignables";
+               const detail=ko.slice(0,4).map(e=>{ const c=cells[e.cell];
+                 const sortie=c.nb.filter(v=>passable(v)&&enterCost(e.cell,v)!==null).length;
+                 const entree=c.nb.filter(v=>passable(v)&&enterCost(v,e.cell)!==null).length;
+                 const cause=sortie===0?(entree>0?"cuvette : on y tombe, on n'en sort pas":"muré")
+                   :(entree===0?"perchoir : il en sort, personne n'y monte":"secteur séparé");
+                 return "case "+e.cell+" elev"+c.elev+" ("+cause+")"; });
+               return (E.length-ko.length)+"/"+E.length+" joignables · "+ko.length+" HORS JEU : "+detail.join(" ; "); })(),
              detourEnnemis:(function(){ // "composantes" dit seulement que tout est RELIÉ. Un pod coincé
                // derrière un champ de rochers reste relié, mais il lui faut dix tours pour contourner :
                // on mesure donc le DÉTOUR = chemin réel / distance à vol d'oiseau, et la taille de la
@@ -977,7 +1006,7 @@
                const pas=sn?sp/sn:1;
                const r=E.map(e=>{ const c=cells[e.cell];
                  const cible=P.reduce((a,b)=>Math.hypot(cells[b.cell].cx-c.cx,cells[b.cell].cy-c.cy)<Math.hypot(cells[a.cell].cx-c.cx,cells[a.cell].cy-c.cy)?b:a);
-                 const h=hops(e.cell,cible.cell), vol=Math.hypot(cells[cible.cell].cx-c.cx,cells[cible.cell].cy-c.cy)/pas;
+                 const h=pasReels(e.cell,cible.cell), vol=Math.hypot(cells[cible.cell].cx-c.cx,cells[cible.cell].cy-c.cy)/pas;
                  const vu=new Set([e.cell]); let front=[e.cell];
                  for(let k=0;k<6&&front.length;k++){ const nx=[];
                    for(const u of front) for(const v of cells[u].nb){ if(vu.has(v)||!passable(v))continue; if(enterCost(u,v)===null)continue; vu.add(v); nx.push(v); }
@@ -991,7 +1020,7 @@
              distanceAuxEnnemis:(function(){ // en cases : dit si la carte est traversable dans un temps raisonnable
                const P=units.filter(u=>u.team==="player"&&u.hp>0), E=units.filter(u=>u.team==="enemy"&&u.hp>0);
                if(!P.length||!E.length)return "—";
-               const ds=E.map(e=>Math.min(...P.map(pl=>{const h=hops(pl.cell,e.cell); return (h==null||h===Infinity)?999:h;})));
+               const ds=E.map(e=>Math.min(...P.map(pl=>{const h=pasReels(pl.cell,e.cell); return (h==null||h===Infinity)?999:h;})));
                return Math.min(...ds)+"-"+Math.max(...ds); })(),
              ennemisVisiblesT1:(function(){ const P=units.filter(u=>u.team==="player"&&u.hp>0);
                if(!P.length)return "—";
@@ -999,8 +1028,9 @@
              cellules:n, couvertPct:+(100*cov/n).toFixed(1), murPct:+(100*wall/n).toFixed(1),
              groupement:+(100*joint).toFixed(1), amas:sizes.length, plusGrosAmas:sizes[0]||0,
              amasMoyen:+(sizes.length?sizes.reduce((a,b)=>a+b,0)/sizes.length:0).toFixed(1),
-             composantes:(function(){ // secteurs réellement atteignables les uns depuis les autres (règles de déplacement)
-               const vu=new Set(); let n=0;
+             composantes:secteursForts().nb,   // secteurs FORTS : aller ET revenir (cf. secteursForts)
+             secteursFaibles:(function(){ // l'ANCIENNE lecture, gardée pour l'écart : quand elle dit moins
+               const vu=new Set(); let n=0;   // que "composantes", c'est qu'un secteur est à sens unique.
                for(const c of cells){ if(vu.has(c.id)||!passable(c.id))continue; n++; const st=[c.id]; vu.add(c.id);
                  while(st.length){ const u=st.pop();
                    for(const v of cells[u].nb){ if(vu.has(v)||!passable(v))continue; if(enterCost(u,v)===null)continue; vu.add(v); st.push(v); } } }
@@ -1069,6 +1099,41 @@
     if(dz>=2)return null;                                    // une falaise de 2 niveaux ne se grimpe pas
     if(dz!==0&&wallBetween(from,to))return null;             // PARAPET : un muret en dénivelé se contourne, il ne s'escalade pas
     return (cells[to].terr==="rough"?2:1)+Math.max(0,dz); };  // (sur terrain plat, un muret reste franchissable : c'est du couvert)
+
+  // SECTEURS FORTEMENT CONNEXES du graphe praticable — la seule notion d'« atteignable » qui vaille.
+  // enterCost est ASYMÉTRIQUE : on saute d'une falaise de deux niveaux, on ne la remonte pas. Un
+  // parcours non orienté compte donc des composantes FAIBLES : il entre dans une cuvette par le haut,
+  // la déclare reliée, et ne voit pas qu'on n'en ressort jamais. C'est l'erreur qui laissait passer
+  // des pods emmurés avec une mesure à 1,00 composante. Kosaraju : deux passes, la seconde sur le
+  // graphe inverse. Deux cellules sont dans le même secteur si, et seulement si, on peut aller de
+  // l'une à l'autre ET revenir — quelle que soit la distance.
+  function secteursForts(){
+    const n=cells.length, ordre=[], vu=new Uint8Array(n);
+    for(let s=0;s<n;s++){ if(vu[s]||!passable(s))continue;
+      const st=[[s,0]]; vu[s]=1;
+      while(st.length){ const t=st[st.length-1], u=t[0], nb=cells[u].nb;
+        if(t[1]<nb.length){ const v=nb[t[1]++];
+          if(!vu[v]&&passable(v)&&enterCost(u,v)!==null){ vu[v]=1; st.push([v,0]); } }
+        else { ordre.push(u); st.pop(); } } }
+    const comp=new Int32Array(n).fill(-1), tailles=[]; let k=0;
+    for(let i=ordre.length-1;i>=0;i--){ const s=ordre[i]; if(comp[s]!==-1)continue;
+      const st=[s]; comp[s]=k; let taille=0;
+      while(st.length){ const u=st.pop(); taille++;
+        for(const v of cells[u].nb){ if(comp[v]!==-1||!passable(v))continue;
+          if(enterCost(v,u)===null)continue;   // arête INVERSE : v peut-il entrer dans u ?
+          comp[v]=k; st.push(v); } }
+      tailles.push(taille); k++; }
+    let principal=-1, max=-1;
+    for(let i=0;i<k;i++) if(tailles[i]>max){ max=tailles[i]; principal=i; }
+    return {comp, nb:k, tailles, principal, taillePrincipal:max};
+  }
+  // distance en CASES qui respecte les règles de déplacement (parapets, falaises), contrairement à
+  // hops() qui ne teste que la roche. hops() reste juste pour la VUE — on voit par-dessus un muret.
+  function pasReels(a,b){ if(!cells[a]||!cells[b])return Infinity;
+    const d={}; d[a]=0; const q=[a];
+    while(q.length){ const u=q.shift(); if(u===b)return d[u];
+      for(const v of cells[u].nb){ if(d[v]!==undefined||!passable(v))continue; if(enterCost(u,v)===null)continue; d[v]=d[u]+1; q.push(v); } }
+    return Infinity; }
 
   // ===== units =====
   let units=[], podAlerted=new Set(), neutralSeen=new Set(), lastSeen=new Map(), curMission=null;
@@ -2025,14 +2090,11 @@
     // parapets. Falaises et parapets peuvent isoler des secteurs entiers : une plateforme enfermée
     // n'était qu'un symptôme. On raccroche chaque secteur au principal en ouvrant le strict minimum.
     (function garantirCirculation(){
-      const secteurs=()=>{ const vu=new Set(), groupes=[];
-        for(const c of cells){ if(vu.has(c.id)||!passable(c.id))continue;
-          const g=[c.id], st=[c.id]; vu.add(c.id);
-          while(st.length){ const u=st.pop();
-            for(const v of cells[u].nb){ if(vu.has(v)||!passable(v))continue; if(enterCost(u,v)===null)continue; vu.add(v); g.push(v); st.push(v); } }
-          groupes.push(g); }
-        groupes.sort((a,b)=>b.length-a.length); return groupes; };
-      for(let tour=0; tour<25; tour++){
+      // secteurs FORTEMENT connexes : on veut des lieux dont on ressort, pas seulement où l'on tombe.
+      const secteurs=()=>{ const {comp,nb}=secteursForts(); const groupes=Array.from({length:nb},()=>[]);
+        for(const c of cells) if(passable(c.id)&&comp[c.id]>=0) groupes[comp[c.id]].push(c.id);
+        groupes.sort((a,b)=>b.length-a.length); return groupes.filter(g=>g.length); };
+      for(let tour=0; tour<60; tour++){
         const g=secteurs(); if(g.length<=1)return;
         let ouvert=false;
         for(let i=1;i<g.length&&!ouvert;i++){
