@@ -2778,8 +2778,13 @@
         n.gen.graine=1+Math.floor(Math.random()*999998); renderNodes(); }; }
     function majMarche(){ const z=el.querySelector("[data-marcheapercu]"); if(!z||!n.proc)return;
       const c=n.proc.cols||6, r=n.proc.rows||4;
-      const paliers=[]; for(let k=1;k<=c;k++) paliers.push("★"+Math.max(1,Math.min(5,1+Math.round((c>1?(k-1)/(c-1):0)*4))));
-      z.textContent=`→ ${c*r} régions, ${c*r-1} missions + le Bastion · rampe ${paliers.join(" ")}`; }
+      // on GÉNÈRE un exemplaire pour montrer le vrai compte, plutôt que de le recalculer à côté
+      const ex=genGeoMarche({act:n.proc.act||1,cols:c,rows:r,seed:1,
+        objectifs:n.proc.objectifs||null, imposees:n.proc.imposees||null});
+      const q={1:0,2:0,3:0,4:0}; ex.cells.filter(x=>x.content&&x.content.kind==="mission"&&!x.boss).forEach(x=>q[x.diff]++);
+      const dec=(ex.imposees||[]).filter(x=>x.decale);
+      z.innerHTML=`→ ${c*r} régions · ★1×${q[1]} ★2×${q[2]} ★3×${q[3]} ★4×${q[4]} + le Bastion ★5`
+        +(dec.length?` <b style="color:#e0b341">— ${dec.length} imposée(s) déplacée(s) faute de place à leur palier : ${dec.map(x=>esc(x.nom)+" ★"+x.demande+"→★"+x.etoiles).join(", ")}</b>`:""); }
     function majPool(){ const z=el.querySelector("[data-poolbox]"); if(!z||!n.proc)return;
       const cur=n.proc.objectifs||["eliminate","eliminate","harvest","extract","assassinate","intercept"];
       z.innerHTML=OBJ_ACTE.map(o=>`<label style="font-size:.8rem"><input type="checkbox" data-pool="${o}"${cur.indexOf(o)>=0?" checked":""}> ${o}</label>`).join("");
@@ -2806,7 +2811,7 @@
           if(!(et>=1&&et<=5)||!m[1]){ ko.push(l); continue; }
           const o=m[2]||""; if(o&&OBJ_ACTE.indexOf(o)<0){ ko.push(l+"  (objectif inconnu)"); continue; }
           ok.push({etoiles:et,nom:m[1],objectif:o,forme:m[3]||""}); }
-        n.proc.imposees=ok;
+        n.proc.imposees=ok; majMarche();
         const z=el.querySelector("[data-imposapercu]");
         if(z)z.innerHTML=(ok.length?`${ok.length} imposée(s) : `+ok.map(x=>`★${x.etoiles} « ${esc(x.nom)} »${x.objectif?" → "+x.objectif:""}`).join(" · "):"")
           +(ko.length?`<br><b style="color:#e0635f">non lues :</b> ${ko.map(esc).join(" ; ")} — format attendu <code>★ | nom | objectif</code>, objectifs : ${OBJ_ACTE.join(", ")}`:"");
@@ -3783,6 +3788,27 @@
     const colForge=Math.max(2,Math.min(cols-1,Math.round(cols*0.62)));
     const rangForge=rows>1?((milieu+1)%rows):milieu;
     const out={ name:opts.nom||("Act "+act+" — The March"), camp:idx(1,milieu), act, seed, cells:[], events:[] };
+    // QUOTAS DE DIFFICULTÉ. Une rampe purement colonnaire faisait disparaître des paliers : à trois
+    // colonnes elle donnait ★1 ★3 ★5, sans aucune ★2 ni ★4. On répartit donc ★1 à ★4 en parts
+    // ÉGALES À UNE PRÈS sur les régions jouables, le Bastion gardant ★5 pour lui seul. Le compte ne
+    // dépend que du NOMBRE de régions : à surface égale, même distribution, toujours.
+    // Les quotas fixent COMBIEN, la géographie décide OÙ — l'attribution se fait colonne par
+    // colonne, de gauche à droite, donc la marche continue de monter en difficulté.
+    const jouablesPos=[];
+    for(let c=1;c<=cols;c++) for(let r=0;r<rows;r++){
+      if(c===1&&r===milieu)continue;            // le camp
+      if(c===cols&&r===milieu)continue;         // le Bastion
+      jouablesPos.push({c,r}); }
+    const NJ=jouablesPos.length, socle=Math.floor(NJ/4), reste=NJ%4;
+    const quota=[0,1,2,3].map(k=>socle+(k<reste?1:0));   // le surplus va aux paliers les plus bas
+    const niveau=new Map(); { let k=0, pris=0;
+      for(const q of jouablesPos){ while(k<3&&pris>=quota[k]){ k++; pris=0; } niveau.set(q.c+","+q.r,k+1); pris++; } }
+    // la forge se place parmi les régions déjà notées ★3 ou ★4, au plus près des 62 % du chemin et
+    // hors de l'axe camp → Bastion : y aller doit rester un détour qui se paie
+    let forgePos=null, meilleur=1e9;
+    for(const q of jouablesPos){ if((niveau.get(q.c+","+q.r)||1)<3)continue;
+      const sc=Math.abs(q.c-colForge)*2+(q.r===milieu?3:0)+Math.abs(q.r-rangForge);
+      if(sc<meilleur){ meilleur=sc; forgePos=q; } }
     for(let r=0;r<rows;r++) for(let c=0;c<NC;c++){
       const i=idx(c,r), poly=polys[i];
       if(c===0||c===NC-1){   // bandes de bord : décor nommé, jamais jouable
@@ -3791,20 +3817,12 @@
         continue; }
       if(c===1&&r===milieu){ out.cells[i]={poly, name:(opts.nomCamp||"The Camp"), type:"camp",
           content:{kind:"empty",ref:null}, state:"available", unlockedBy:[]}; continue; }
-      // ÉTOILES : la rampe couvre 1 à 5 quel que soit le nombre de colonnes — avec trois colonnes
-      // on fait ★1, ★3, ★5. La rangée médiane, celle de l'axe camp → Bastion, garde la rampe
-      // exacte ; les autres reçoivent un écart de ±1, pour que deux régions voisines ne se
-      // ressemblent pas sans casser la lecture de la progression.
-      const t=(cols>1)?(c-1)/(cols-1):0;
-      let d=Math.max(1,Math.min(5,1+Math.round(t*4)));
-      // Pas d'écart aléatoire sur la difficulté : la colonne SEULE la décide, pour que la rampe se
-      // lise d'un coup d'œil. La variété passe par la graine de chaque région et par les objectifs
-      // tirés — deux régions de même difficulté donnent deux cartes différentes, pas deux notes
-      // différentes.
+      // La difficulté vient du QUOTA, pas d'un calcul local : voir plus haut.
+      const d=niveau.get(c+","+r)||1;
       if(c===cols&&r===milieu){   // LE BASTION, tout à droite, sur l'axe d'entrée
         out.cells[i]={poly, name:BOSS_NAME[act], type:"region", content:contenu(5,c,r), state:"locked",
           unlockedBy:[], diff:5, boss:true}; continue; }
-      if(c===colForge&&r===rangForge){ d=Math.min(4,Math.max(3,d));
+      if(forgePos&&c===forgePos.c&&r===forgePos.r){
         out.cells[i]={poly, name:FORGE_NAME[act], type:"region", content:contenu(d,c,r), state:"available",
           unlockedBy:[], diff:d, forge:true}; continue; }
       out.cells[i]={poly, name:noms[(iNom++)%noms.length], type:"region", content:contenu(d,c,r),
@@ -3818,14 +3836,19 @@
       const libres=out.cells.map((c,i)=>({c,i}))
         .filter(o=>o.c.content&&o.c.content.kind==="mission"&&!o.c.boss&&!o.c.forge&&!o.c.impose);
       if(!libres.length)break;
+      // On cherche une région DÉJÀ notée au palier demandé : forcer sa difficulté casserait les
+      // quotas. Ce n'est qu'à défaut — palier saturé — qu'on prend la plus proche et qu'on la
+      // renote, et l'appelant en est informé par le champ « decale ».
       libres.sort((a,b)=>Math.abs((a.c.diff||1)-et)-Math.abs((b.c.diff||1)-et));
-      const exacts=libres.filter(o=>Math.abs((o.c.diff||1)-et)===Math.abs((libres[0].c.diff||1)-et));
+      const ecart=Math.abs((libres[0].c.diff||1)-et);
+      const exacts=libres.filter(o=>Math.abs((o.c.diff||1)-et)===ecart);
       const cible=exacts[Math.floor(rnd()*exacts.length)];
-      cible.c.name=im.nom||cible.c.name; cible.c.diff=et; cible.c.impose=true;
+      const decale=(ecart!==0);
+      cible.c.name=im.nom||cible.c.name; if(decale)cible.c.diff=et; cible.c.impose=true;
       if(cible.c.content.gen){ if(im.objectif)cible.c.content.gen.objectif=im.objectif;
                                if(im.forme)cible.c.content.gen.forme=im.forme; }
       else if(im.objectif)cible.c.content.ref=refPour(et);
-      out.imposees.push({nom:cible.c.name,etoiles:et,objectif:im.objectif||"",case:cible.i}); }
+      out.imposees.push({nom:cible.c.name,etoiles:cible.c.diff,demande:et,decale,objectif:im.objectif||"",case:cible.i}); }
     const jouables=out.cells.filter(c=>c.content&&c.content.kind==="mission").length;
     out.events.push({when:{kind:"wins",value:Math.max(3,Math.round(jouables*0.5))},reveal:BOSS_NAME[act],text:""});
     const aArr=gtx("acts."+act+".arrive"); if(aArr)out.events.push({when:{kind:"arrive"},text:aArr});
