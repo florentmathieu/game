@@ -3597,6 +3597,7 @@
   function geoBuildCells(){ const m=geoPlay.map, st=campRun.geoStates[geoPlay.node.id];
     cells=m.cells.map((c,i)=>{ const ct=polyCentroid(c.poly); return {id:i,poly:c.poly,cx:ct[0],cy:ct[1],nb:[],terr:"plain",elev:0,
       gname:c.name||"",gtype:c.type||"region",gkind:(c.content&&c.content.kind)||"empty",gref:(c.content&&c.content.ref)||null,
+      gproc:(c.content&&c.content.gen)||null,   // recette de carte générée : sans ça, la région n'a rien à générer en jeu
       gunlock:Array.isArray(c.unlockedBy)?c.unlockedBy:[],gstate:st[i]||"locked",gdiff:c.diff||0,gforge:!!c.forge,gboss:!!c.boss}; });
     buildAdj(); geoCampId=(m.camp!=null)?m.camp:null;
     if(campRun){ campRun.geoAdj=campRun.geoAdj||{}; campRun.geoAdj[geoPlay.node.id]=cells.map(c=>c.nb.slice()); } }   // frozen adjacency (reusable even during a mission, where `cells` = the mission)
@@ -3791,7 +3792,7 @@
     if(geoCampId!=null&&cells[geoCampId]){ poly(cells[geoCampId]); ctx.lineWidth=3; ctx.strokeStyle="#e0b341"; ctx.stroke(); } }
   function geoPlayClick(X,Y){ const c=cellAtXY(X,Y); if(!c)return; const es=geoEffState(c,geoAccessibleSet());
     if(es!=="available"&&es!=="lost"&&es!=="attacked"){ geoBanner(es==="locked"?gtx("messages.clickLocked"):(es==="cleared"?gtx("messages.clickCleared"):gtx("messages.clickNA"))); return; }
-    if(c.gkind!=="mission"||!c.gref){ geoBanner("nothing to do here for now"); return; }
+    if(c.gkind!=="mission"||(!c.gref&&!c.gproc)){ geoBanner("nothing to do here for now"); return; }   // fichier OU recette
     geoLaunchMission(c.id,c.gref); }
   // squad selection screen before setting out: choose up to N READY soldiers (neither exhausted nor dead)
   function showSquadSelect(maxN,regionName,onConfirm){ const el=document.getElementById("squad"); if(!el||!campRun){ onConfirm(null); return; }
