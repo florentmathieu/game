@@ -153,8 +153,8 @@
     <div id="tab-mission">
     <div id="me-left">
     <h2>1 · Shape (zones + distortion)</h2>
-    <div class="row"><label>Width <input id="bw" type="number" min="4" max="20" value="10" style="width:52px"></label>
-      <label>Height <input id="bh" type="number" min="3" max="16" value="8" style="width:52px"></label>
+    <div class="row"><label>Width <input id="bw" type="number" min="4" max="24" value="10" style="width:52px"></label>
+      <label>Height <input id="bh" type="number" min="3" max="20" value="8" style="width:52px"></label>
       <button id="zauto" title="Lay out random zones (squares, hexagons, pentagons)">🎲 Auto zones</button></div>
     <div class="row" id="zones"></div>
     <div class="row"><label style="flex:1">Distortion <input id="dist" type="range" min="0" max="100" value="28"></label><span id="distv">28%</span></div>
@@ -950,6 +950,9 @@
                for(const c of cells){ const i=Math.min(G-1,Math.floor(c.cy/H*G)), j=Math.min(G-1,Math.floor(c.cx/W*G)); g[i][j]++; }
                const mx=Math.max(...g.flat())||1;
                return g.map(r=>r.map(v=>v===0?".":(v/mx>0.6?"#":(v/mx>0.25?"+":"-"))).join("")).join("/"); })(),
+             ennemisVisiblesT1:(function(){ const P=units.filter(u=>u.team==="player"&&u.hp>0);
+               if(!P.length)return "—";
+               return units.filter(u=>u.team==="enemy"&&u.hp>0&&P.some(p=>hops(p.cell,u.cell)<=8&&los(p.cell,u.cell))).length; })(),
              cellules:n, couvertPct:+(100*cov/n).toFixed(1), murPct:+(100*wall/n).toFixed(1),
              groupement:+(100*joint).toFixed(1), amas:sizes.length, plusGrosAmas:sizes[0]||0,
              amasMoyen:+(sizes.length?sizes.reduce((a,b)=>a+b,0)/sizes.length:0).toFixed(1),
@@ -2045,6 +2048,25 @@
       // the leader (awake) = the most open tile, so it can always engage
       chosen.sort((a,b)=>cells[b].nb.filter(x=>passable(x)).length-cells[a].nb.filter(x=>passable(x)).length);
       chosen.forEach((id,j)=>{ units.push(U("enemy",ecls[(pi+j)%ecls.length],id,{pod:pi,asleep:j>0})); occSet.add(id); }); });
+    // CONTRAINTE DE DÉPART : aucun ennemi ne doit être visible par l'escouade au début du tour 1.
+    // La visibilité du joueur = distance <= 8 ET ligne de vue ; le filtre de placement ne testait
+    // qu'une seule cellule de déploiement et ignorait la portée. On déplace les fautifs.
+    (function cacherLesEnnemis(){
+      const persos=units.filter(u=>u.team==="player");
+      if(!persos.length)return;
+      const vu=id=>persos.some(u=>hops(u.cell,id)<=8&&los(u.cell,id));
+      const occupe=new Set(units.map(u=>u.cell));
+      for(const e of units.filter(u=>u.team==="enemy")){
+        if(!vu(e.cell))continue;
+        // on cherche le refuge le plus PROCHE de sa position d'origine, pour ne pas disloquer le pod
+        let best=null,bd=Infinity;
+        for(const c of cells){ const id=c.id;
+          if(!passable(id)||occupe.has(id)||vu(id))continue;
+          const d=hops(e.cell,id); if(d==null||d===Infinity)continue;
+          if(d<bd){ bd=d; best=id; } }
+        if(best!=null){ occupe.delete(e.cell); e.cell=best; occupe.add(best); }
+      }
+    })();
     if(!units.some(u=>u.team==="enemy")){ const f=reachIds.filter(id=>!slots.includes(id)).sort((a,b)=>dist[b]-dist[a]); for(let j=0;j<2&&j<f.length;j++)units.push(U("enemy",ecls[j%ecls.length],f[j],{pod:0,asleep:j>0})); }
     if(document.getElementById("m-protect"))document.getElementById("m-protect").value="";
     // ===== mission objective / archetype =====
