@@ -950,6 +950,44 @@
                for(const c of cells){ const i=Math.min(G-1,Math.floor(c.cy/H*G)), j=Math.min(G-1,Math.floor(c.cx/W*G)); g[i][j]++; }
                const mx=Math.max(...g.flat())||1;
                return g.map(r=>r.map(v=>v===0?".":(v/mx>0.6?"#":(v/mx>0.25?"+":"-"))).join("")).join("/"); })(),
+             pochesEnnemies:(function(){ // un pod EMMURÉ ne se voit pas dans "composantes" (la poche reste
+               // reliée par un goulot) : on regarde, pour chaque ennemi, la taille de sa zone de manœuvre
+               // et le nombre de cases par lesquelles il peut en sortir.
+               const E=units.filter(u=>u.team==="enemy"&&u.hp>0), P=units.filter(u=>u.team==="player"&&u.hp>0);
+               if(!E.length||!P.length)return "—";
+               const flood=(src,max)=>{ const vu=new Set([src]), st=[src];
+                 while(st.length&&vu.size<max){ const u=st.pop();
+                   for(const v of cells[u].nb){ if(vu.has(v)||!passable(v))continue; if(enterCost(u,v)===null)continue; vu.add(v); st.push(v); } }
+                 return {vu, ferme:st.length===0}; };
+               const joignable=flood(P[0].cell,1e9).vu;
+               const injoignables=E.filter(e=>!joignable.has(e.cell)).length;
+               const poches=[], sansIssue=[];
+               for(const e of E){ const f=flood(e.cell,60);
+                 if(f.ferme&&f.vu.size<60)poches.push(f.vu.size);
+                 if(!cells[e.cell].nb.some(n=>passable(n)&&enterCost(e.cell,n)!==null))sansIssue.push(e.cell); }
+               return injoignables+" injoignables · "+sansIssue.length+" murés · poches<60: ["+poches.join(",")+"]"; })(),
+             detourEnnemis:(function(){ // "composantes" dit seulement que tout est RELIÉ. Un pod coincé
+               // derrière un champ de rochers reste relié, mais il lui faut dix tours pour contourner :
+               // on mesure donc le DÉTOUR = chemin réel / distance à vol d'oiseau, et la taille de la
+               // zone de manœuvre atteignable en 6 pas.
+               const E=units.filter(u=>u.team==="enemy"&&u.hp>0), P=units.filter(u=>u.team==="player"&&u.hp>0);
+               if(!E.length||!P.length)return "—";
+               // pas du maillage = distance moyenne entre centres voisins (pas de dépendance à bw/bh)
+               let sp=0,sn=0; for(const c of cells) for(const n of c.nb){ if(n<=c.id)continue; sp+=Math.hypot(cells[n].cx-c.cx,cells[n].cy-c.cy); sn++; }
+               const pas=sn?sp/sn:1;
+               const r=E.map(e=>{ const c=cells[e.cell];
+                 const cible=P.reduce((a,b)=>Math.hypot(cells[b.cell].cx-c.cx,cells[b.cell].cy-c.cy)<Math.hypot(cells[a.cell].cx-c.cx,cells[a.cell].cy-c.cy)?b:a);
+                 const h=hops(e.cell,cible.cell), vol=Math.hypot(cells[cible.cell].cx-c.cx,cells[cible.cell].cy-c.cy)/pas;
+                 const vu=new Set([e.cell]); let front=[e.cell];
+                 for(let k=0;k<6&&front.length;k++){ const nx=[];
+                   for(const u of front) for(const v of cells[u].nb){ if(vu.has(v)||!passable(v))continue; if(enterCost(u,v)===null)continue; vu.add(v); nx.push(v); }
+                   front=nx; }
+                 return {det:(h==null||h===Infinity)?99:+(h/Math.max(1,vol)).toFixed(2), manoeuvre:vu.size}; });
+               const det=r.map(x=>x.det), man=r.map(x=>x.manoeuvre);
+               return "détour "+Math.min(...det)+"-"+Math.max(...det)+" · manœuvre 6 pas "+Math.min(...man)+"-"+Math.max(...man)
+                 +" · étouffés(<12) "+man.filter(v=>v<12).length+"/"+E.length; })(),
+             effectifs:(function(){ const P=units.filter(u=>u.team==="player"), E=units.filter(u=>u.team==="enemy");
+               return P.length+" vs "+E.length+" ("+new Set(E.map(u=>u.pod)).size+" pods)"; })(),
              distanceAuxEnnemis:(function(){ // en cases : dit si la carte est traversable dans un temps raisonnable
                const P=units.filter(u=>u.team==="player"&&u.hp>0), E=units.filter(u=>u.team==="enemy"&&u.hp>0);
                if(!P.length||!E.length)return "—";
@@ -1760,7 +1798,14 @@
     const nz=(x,y,sc)=>{ const gx=x/sc,gy=y/sc,xi=Math.floor(gx),yi=Math.floor(gy),xf=gx-xi,yf=gy-yi;
       const h=(a,b)=>ngrid[(((a*73856093)^(b*19349663))>>>0)&255], sm=t=>t*t*(3-2*t), lp=(a,b,t)=>a+(b-a)*sm(t);
       return lp(lp(h(xi,yi),h(xi+1,yi),xf),lp(h(xi,yi+1),h(xi+1,yi+1),xf),yf); };
-    const SC=W*0.17;
+    // ÉCHELLE DU BRUIT — exprimée en CELLULES, pas en pixels. Elle valait W*0.17 : en doublant le
+    // plateau (W de 720 à 1440) la longueur d'onde doublait aussi en nombre de cases, et les fourrés
+    // de roche passaient d'une dizaine de cellules à des massifs de cent, infranchissables. On
+    // l'indexe donc sur le PAS DU MAILLAGE, qui, lui, ne bouge pas avec la taille du plateau.
+    const pasMaillage=(function(){ let s=0,n=0;
+      for(const c of cells) for(const v of c.nb){ if(v<=c.id)continue; s+=Math.hypot(cells[v].cx-c.cx,cells[v].cy-c.cy); n++; }
+      return n?s/n:W*0.1; })();
+    const SC=pasMaillage*1.7;   // = la valeur calibrée sur le plateau d'origine (122 px pour un pas de 72)
     cells.forEach(c=>{ c._route=false; c._barrier=false; c._dio=false; });
     const STRUCT=(window.GENSTRUCT!==false);   // false => ancien comportement (semis pur), pour comparer
 
@@ -1792,12 +1837,24 @@
       const onRoute=new Set(ROUTE.path);
       const at=(rnd()<0.3)?[0.45+rnd()*0.12]:[0.34+rnd()*0.08,0.66+rnd()*0.08];   // 2 barrières le plus souvent
       for(const t of at){
-        const band=cells.filter(c=>Math.abs(proj(c)-t)<0.045&&c.elev===0);   // plus épaisse = coupe vraiment les lignes de vue
+        // ÉPAISSEUR EN CELLULES, pas en fraction de la route. La demi-bande valait 0,045 × longueur
+        // de route : elle s'épaississait donc avec le plateau — 1,3 cellule sur le 10x8, 2,5 sur le
+        // 20x16 — et la barrière devenait un rempart de soixante cases au lieu d'un mur de goulot.
+        const band=cells.filter(c=>Math.abs(proj(c)-t)*L<pasMaillage*0.8&&c.elev===0);
         if(band.length<4)continue;
         for(const c of band){ c.terr="wall"; c._barrier=true; }
+        // NOMBRE DE PASSAGES proportionnel à la LONGUEUR du mur. Deux ouvertures suffisaient sur une
+        // barrière de dix cases ; sur une de vingt-cinq, elles imposent un détour de bout de carte —
+        // c'est ce qui donnait des pods coincés derrière la roche. Un passage toutes les ~9 cellules,
+        // répartis régulièrement le long du mur plutôt que tirés au hasard (deux trous côte à côte
+        // ne valent pas mieux qu'un seul).
         const gaps=band.filter(c=>onRoute.has(c.id));
-        const others=band.filter(c=>!onRoute.has(c.id));
-        if(others.length) gaps.push(others.splice(Math.floor(rnd()*others.length),1)[0]);   // un seul passage en plus de la route
+        const others=band.filter(c=>!onRoute.has(c.id))
+          .sort((a,b)=>((a.cx-A.cx)*-uy+(a.cy-A.cy)*ux)-((b.cx-A.cx)*-uy+(b.cy-A.cy)*ux));   // le long du mur
+        const nPass=Math.max(2,Math.round(band.length/9));
+        for(let k=0;k<nPass-gaps.length&&others.length;k++){
+          const idx=Math.min(others.length-1,Math.floor((k+0.5)/Math.max(1,nPass-1)*others.length));
+          gaps.push(others.splice(idx,1)[0]); }
         for(const g of gaps){ if(!g)continue; g.terr="plain"; g._barrier=false;
           for(const v of g.nb) if(cells[v]._barrier&&rnd()<0.22){ cells[v].terr="plain"; cells[v]._barrier=false; } }   // passages étroits
       }
@@ -1924,6 +1981,18 @@
       let ecart=flat.filter(c=>c.terr==="wall"||c.terr==="rough").length-cible;
       if(ecart>0) for(let i=scored.length-1;i>=0&&ecart>0;i--){
         const c=scored[i].c; if(c.terr==="rough"){ c.terr="plain"; ecart--; } }
+      // ÉQUILIBRE ROCHE / ÉBOULIS. La correction ci-dessus ne sait retirer QUE de l'éboulis : dès que
+      // les barrières débordaient du budget, elle le mangeait en entier et il ne restait que de la
+      // roche pleine — 94 % du couvert mesuré, là où le semis en vise 35 %. On rétablit la proportion
+      // en rétrogradant en éboulis les murs les moins marqués, c'est-à-dire le POURTOUR des massifs :
+      // le cœur reste infranchissable, la lisière devient traversable à coût 2 et laisse passer la vue.
+      (function equilibrerRoche(){
+        const couvert=cells.filter(c=>c.terr==="wall"||c.terr==="rough");
+        const cibleMurs=Math.round(couvert.length*0.35);
+        let murs=couvert.filter(c=>c.terr==="wall").length;
+        for(let i=scored.length-1;i>=0&&murs>cibleMurs;i--){ const c=scored[i].c;
+          if(c.terr==="wall"){ c.terr="rough"; murs--; } }
+      })();
     })();
 
     // garde-fou : murs agrégés + barrières peuvent isoler un morceau de carte.
@@ -2008,7 +2077,18 @@
     const anchor=pass.reduce((a,b)=>(b.cx+b.cy)<(a.cx+a.cy)?b:a);   // corner of the island = deployment zone
     const dist=bfsFrom(anchor.id); const reachIds=pass.map(c=>c.id).filter(id=>dist[id]!==undefined);
     const maxD=Math.max(1,...reachIds.map(id=>dist[id]));
-    const S=P.squad!=null?P.squad:(diff==="facile"?3:4);
+    // DENSITÉ D'EFFECTIFS — indexée sur la surface réellement praticable.
+    // Le plateau par défaut est passé de 10x8 à 20x16 : la surface a quadruplé alors que les
+    // effectifs restaient à 4 contre 5, soit quatre tours de marche avant le premier contact.
+    // On met donc à l'échelle en RACINE de la surface : ce qu'on subit, c'est la distance
+    // à traverser, pas l'aire. Les valeurs saisies à la main (champs Enemies / Pods, ou P.*)
+    // restent prioritaires : cette échelle ne touche QUE les valeurs déduites de la difficulté.
+    const REF_PRATICABLE=150;   // surface praticable du plateau 10x8, notre étalon de calibrage
+    const densite=Math.max(1,Math.min(2.6,Math.sqrt(reachIds.length/REF_PRATICABLE)));
+    const echelle=(v,plafond)=>Math.min(plafond,Math.max(v,Math.round(v*densite)));
+    // l'escouade grossit plus doucement que l'opposition : couvrir plus de terrain, sans
+    // transformer chaque tour du joueur en gestion de foule
+    const S=P.squad!=null?P.squad:Math.min(6,(diff==="facile"?3:4)+Math.round((densite-1)*1.5));
     // spread-out deployment: take tiles near the anchor BUT spaced (≥2 hops) so
     // each unit keeps free neighbors and isn't walled in by its teammates
     const sortedSlots=reachIds.slice().sort((a,b)=>dist[a]-dist[b]); const slots=[];
@@ -2016,9 +2096,13 @@
     for(const id of sortedSlots){ if(slots.length>=S)break; if(!slots.includes(id))slots.push(id); }
     units=[]; const pcls=P.squadClasses||["soldat","sapeur","assassin","garde"]; slots.forEach((id,i)=>units.push(U("player",pcls[i%pcls.length],id)));
     const genPods=document.getElementById("gen-pods"); const podsFromDom=genPods&&genPods.value!==""?+genPods.value:null;
-    const podCount=P.podCount!=null?P.podCount:(podsFromDom!=null?podsFromDom:(diff==="facile"?1:diff==="moyen"?2:3));   // pods = activation groups
+    const podCount=P.podCount!=null?P.podCount:(podsFromDom!=null?podsFromDom:echelle(diff==="facile"?1:diff==="moyen"?2:3,6));   // pods = activation groups (mis à l'échelle du plateau)
     const podSpacing=P.podSpacing!=null?P.podSpacing:4;                              // MIN distance between pods (hops) — ≥4 = sequential activation
-    const podMinDist=P.podMinDist!=null?P.podMinDist:Math.max(3,Math.floor(maxD*0.45));   // MIN deployment→pod distance
+    // MIN deployment→pod distance : proportionnelle sur un petit plateau, mais PLAFONNÉE en
+    // cases. Sans ce plafond, un plateau deux fois plus grand repousse TOUS les pods dans sa
+    // moitié lointaine ; avec, ils se répartissent du proche au lointain et la carte se joue
+    // en entier au lieu de commencer par trois tours de marche à vide.
+    const podMinDist=P.podMinDist!=null?P.podMinDist:Math.max(3,Math.min(Math.floor(maxD*0.45),14));
     let far=reachIds.filter(id=>!slots.includes(id)&&dist[id]>=podMinDist&&!los(anchor.id,id));
     if(far.length<podCount)far=reachIds.filter(id=>!slots.includes(id)&&dist[id]>=Math.min(podMinDist,3));
     if(!far.length)far=reachIds.filter(id=>!slots.includes(id)&&id!==anchor.id);
@@ -2041,7 +2125,7 @@
     // TARGET ENEMY COUNT = the real difficulty dial (the sim shows the total dominates the pod count).
     // Distribute it deterministically across the pods (low variance) instead of random sizes.
     const genEn=document.getElementById("gen-enemies"); const enFromDom=genEn&&genEn.value!==""?+genEn.value:null;
-    const enemyCount=P.enemyCount!=null?P.enemyCount:(enFromDom!=null?enFromDom:(ENEMY_COUNT[diff]!=null?ENEMY_COUNT[diff]:5));
+    const enemyCount=P.enemyCount!=null?P.enemyCount:(enFromDom!=null?enFromDom:echelle(ENEMY_COUNT[diff]!=null?ENEMY_COUNT[diff]:5,16));
     const PN=Math.max(1,podAnchors.length);
     const sizes=Array.from({length:PN},(_,i)=>Math.floor(enemyCount/PN)+(i<(enemyCount%PN)?1:0));   // distributed as evenly as possible
     podAnchors.forEach((anc,pi)=>{ const ball=bfsBall(anc,2);   // pool around the anchor (radius 2) rather than only the immediate neighbors
