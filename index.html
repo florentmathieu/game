@@ -522,10 +522,10 @@
     rect:   ()=>true,
     L:      (x,y)=>!(x>0.42&&y<0.58),                                   // un coin évidé
     S:      (x,y)=>!((y<0.38&&x>0.62)||(y>0.62&&x<0.38)),               // deux coins opposés évidés
-    croix:  (x,y)=>(x>0.30&&x<0.70)||(y>0.30&&y<0.70),
-    sablier:(x,y)=>{ const t=Math.abs(y-0.5)*2; return Math.abs(x-0.5) < 0.16+0.34*t; },   // étranglement central
-    anneau: (x,y)=>Math.hypot(x-0.5,y-0.5)>0.20,                        // cour centrale infranchissable
-    diag:   (x,y)=>Math.abs((x-0.5)+(y-0.5))<0.52,                      // bande en diagonale
+    croix:  (x,y)=>(x>0.36&&x<0.64)||(y>0.36&&y<0.64),                  // bras étroits, sinon ça reste un carré grignoté
+    sablier:(x,y)=>{ const t=Math.abs(y-0.5)*2; return Math.abs(x-0.5) < 0.10+0.40*t; },   // étranglement franc au centre
+    anneau: (x,y)=>Math.hypot(x-0.5,y-0.5)>0.30,                        // cour centrale : assez large pour se voir
+    diag:   (x,y)=>Math.abs((x-0.5)+(y-0.5))<0.34,                      // bande diagonale nette
   };
   const boardShapeEl=()=>document.getElementById("board-shape");
   function applyBoardShape(){
@@ -945,6 +945,11 @@
                return rs.map(u=>Math.min(...ez.map(x=>hops(u.cell,x)))).join("/"); })(),
              echappes:(curMission&&curMission.escaped)||0,
              zoneSortie:cells.filter(c=>c.zone==="exit").length,
+             silhouette:(function(){ // occupation par bandes 5x5 : dit si la forme se LIT (0 = zone vide)
+               const G=5, g=Array.from({length:G},()=>new Array(G).fill(0));
+               for(const c of cells){ const i=Math.min(G-1,Math.floor(c.cy/H*G)), j=Math.min(G-1,Math.floor(c.cx/W*G)); g[i][j]++; }
+               const mx=Math.max(...g.flat())||1;
+               return g.map(r=>r.map(v=>v===0?".":(v/mx>0.6?"#":(v/mx>0.25?"+":"-"))).join("")).join("/"); })(),
              cellules:n, couvertPct:+(100*cov/n).toFixed(1), murPct:+(100*wall/n).toFixed(1),
              groupement:+(100*joint).toFixed(1), amas:sizes.length, plusGrosAmas:sizes[0]||0,
              amasMoyen:+(sizes.length?sizes.reduce((a,b)=>a+b,0)/sizes.length:0).toFixed(1),
