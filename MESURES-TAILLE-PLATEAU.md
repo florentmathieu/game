@@ -89,3 +89,53 @@ Deux sorties, et une seule est raisonnable :
 
 La croix est le seul cas où 20x16 se tient — parce qu'elle n'a que 389 cellules — et seulement à
 5 pods.
+
+---
+
+# Recalibration : 60 cellules par pod, pas 80
+
+_Ajouté après le câblage. 252 parties supplémentaires._
+
+Les 80 cellules par pod ci-dessus ont été mesurées **dans les conditions du balayage**, qui mettait
+**3 ennemis par poche**. Le jeu, lui, en met 2 (`ENNEMIS_PAR_POD`), pour ne pas gonfler une
+difficulté déjà réglée par ailleurs. Moins d'ennemis à trouver sur la même surface, donc plus de
+marche : câblé à 80, le taux réel remontait à 39 %.
+
+Le seuil a donc été recalibré **aux conditions réelles du jeu**, en rejouant 252 parties à trois
+valeurs :
+
+| `CEL_PAR_POD` | cellules/pod obtenues | marche à vide (médiane) | tours (médiane) | missions terminées |
+|---|---|---|---|---|
+| 45 | 43 | 22 % | 14 | 92 % |
+| **60** | **57** | **30 %** | **17** | 94 % |
+| 80 | 79 | 39 % | 20 | 94 % |
+
+**Retenu : 60.** C'est la valeur qui tient la cible des 30 %, pour des missions de 17 tours de
+médiane. Les deux chiffres — 80 et 60 — sont justes chacun dans ses conditions ; c'est le nombre
+d'ennemis par poche qui les sépare. Si tu remontes `ENNEMIS_PAR_POD` à 3, remonte `CEL_PAR_POD` à 80.
+
+## Ce que ça donne en jeu
+
+`largeur = √(60 × pods / k)`, hauteur = 0,8 × largeur :
+
+| forme | facile (2 pods) | moyen (3 pods) | difficile (4 pods) |
+|---|---|---|---|
+| rect | 8x6 · 104 cel | 10x8 · 185 cel | 11x9 · 238 cel |
+| croix | 11x9 · 109 cel | 14x11 · 185 cel | 16x13 · 247 cel |
+| anneau | 9x7 · 87 cel | 11x9 · 160 cel | 13x10 · 215 cel |
+
+Mesuré à la génération, toutes formes confondues : **44 à 62 cellules par pod**, un seul secteur
+fortement connexe, toutes les plateformes accessibles, aucun ennemi visible au tour 1, tous les
+ennemis joignables.
+
+## Réglages
+
+Panneau d'équilibrage, groupe « Board size » :
+
+- **`CEL_PAR_POD`** — le seuil. Le baisser resserre les cartes, le monter les aère.
+- **`PODS_DIFF`** — poches par difficulté (2 / 3 / 4). **C'est le seul réglage à toucher pour durcir
+  une mission** : il ajoute un engagement, et le plateau s'agrandit juste assez pour l'accueillir.
+- **`ENNEMIS_PAR_POD`** — plancher d'ennemis par poche (2).
+
+Case **« 📐 auto size »** dans l'éditeur de mission pour revenir au dimensionnement manuel : les
+champs Width/Height et Pods redeviennent souverains.

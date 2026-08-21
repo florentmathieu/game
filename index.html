@@ -1915,8 +1915,14 @@
   //     <=60 cellules/pod : 17 %      130-200 : 46 %
   //     60-90             : 27 %      200+    : 59 %
   //     90-130            : 38 %
-  // On retient le seuil des 30 %, franchi vers 80 cellules par pod.
-  let CEL_PAR_POD=80;
+  // Le seuil des 30 % est franchi vers 80 cellules par pod DANS LES CONDITIONS DU BALAYAGE, qui
+  // mettait 3 ennemis par poche. Le jeu en met 2 (ENNEMIS_PAR_POD, pour ne pas gonfler la difficulté
+  // déjà réglée) : moins d'ennemis pour la même surface, donc plus de marche. Recalibré en jouant
+  // 252 parties supplémentaires aux conditions réelles — 45 / 60 / 80 cellules par pod :
+  //     45 -> 22 % de marche à vide, missions de 14 tours
+  //     60 -> 30 %                              17 tours   <- la cible
+  //     80 -> 39 %                              20 tours
+  let CEL_PAR_POD=60;
   // Les formes n'ont pas la même surface à réglages égaux : une croix à 20x16 fait 389 cellules là
   // où un rectangle en fait 806. Mesuré sur les mêmes 560 parties, cellules ~ k x largeur².
   const FORME_K={rect:1.98,L:1.25,S:1.41,croix:0.96,sablier:1.14,anneau:1.40,diag:1.15};
@@ -3569,7 +3575,7 @@
       {k:"PRIME_XP_STEP",label:"XP decay / mission",get:()=>PRIME_XP_STEP,set:v=>PRIME_XP_STEP=v,min:0,max:6,step:1},
       {k:"PRIME_MORALE_STEP",label:"Morale decay / mission",get:()=>PRIME_MORALE_STEP,set:v=>PRIME_MORALE_STEP=v,min:0,max:15,step:1} ]},
     {name:"Board size (measured — see MESURES-TAILLE-PLATEAU.md)", items:[
-      {k:"CEL_PAR_POD",label:"Cells per pod (30% idle walking = 80)",get:()=>CEL_PAR_POD,set:v=>CEL_PAR_POD=v,min:30,max:220,step:5},
+      {k:"CEL_PAR_POD",label:"Cells per pod (30% idle walking = 60)",get:()=>CEL_PAR_POD,set:v=>CEL_PAR_POD=v,min:30,max:220,step:5},
       {k:"ENNEMIS_PAR_POD",label:"Enemies per pod (floor)",get:()=>ENNEMIS_PAR_POD,set:v=>ENNEMIS_PAR_POD=v,min:1,max:5,step:1},
       {k:"PODS_facile",label:"Pods — easy",get:()=>PODS_DIFF.facile,set:v=>PODS_DIFF.facile=v,min:1,max:8,step:1},
       {k:"PODS_moyen",label:"Pods — medium",get:()=>PODS_DIFF.moyen,set:v=>PODS_DIFF.moyen=v,min:1,max:8,step:1},
