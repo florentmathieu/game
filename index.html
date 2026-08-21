@@ -2736,6 +2736,15 @@
     else if(n.type==="choice") h+=`<input data-f="title" type="text" placeholder="choice title…" value="${esc(n.title)}"><div id="cdopts" style="margin:6px 0"></div><button data-addopt="1">+ option</button>`;
     else if(n.type==="geoscape"){ const ew=n.endWhen||{kind:"all"}; h+=`<div class="row">🌍 territory <select data-gf="map">${geoMapOpts(n.map)}</select></div>
       <div class="row"><label style="display:inline-flex;align-items:center;gap:4px" title="The shape/layout is regenerated each game; the territory's names, missions, difficulties, unlocks and events are kept."><input type="checkbox" data-gf="procshape" ${n.proc?"checked":""}> procedural shape (changes each game)</label></div>
+      <div class="row" id="cd-procrow" style="${n.proc?"":"display:none"}">
+        <label>acte <input data-gf="procact" type="number" min="1" max="3" value="${(n.proc&&n.proc.act)||1}" style="width:44px"></label>
+        <label title="« marche » : grille rectangulaire, on entre par la gauche, le Bastion est à droite, la nation d'un côté et l'inconnu de l'autre. « libre » : Voronoï, camp au centre.">disposition
+          <select data-gf="proclayout"><option value="marche"${(!n.proc||!n.proc.layout||n.proc.layout==="marche")?" selected":""}>marche (grille, gauche → droite)</option><option value="libre"${(n.proc&&n.proc.layout==="libre")?" selected":""}>libre (Voronoï, camp au centre)</option></select></label></div>
+      <div class="row" id="cd-marcherow" style="${(n.proc&&(!n.proc.layout||n.proc.layout==="marche"))?"":"display:none"}">
+        <label>colonnes <input data-gf="proccols" type="number" min="3" max="12" value="${(n.proc&&n.proc.cols)||6}" style="width:48px"></label>
+        <label>rangées <input data-gf="procrows" type="number" min="2" max="8" value="${(n.proc&&n.proc.rows)||4}" style="width:48px"></label>
+        <label>missions <select data-gf="procmissions"><option value="generees"${(!n.proc||n.proc.missions!=="fichiers")?" selected":""}>générées</option><option value="fichiers"${(n.proc&&n.proc.missions==="fichiers")?" selected":""}>fichiers</option></select></label>
+        <span class="hint" data-marcheapercu style="flex:1"></span></div>
       <div class="row">act end <select data-gf="endkind"><option value="all" ${ew.kind!=="key"?"selected":""}>all regions resolved</option><option value="key" ${ew.kind==="key"?"selected":""}>key region cleared</option></select></div>
       <div class="row" id="cd-keyrow" style="${ew.kind==="key"?"":"display:none"}">key region (name) <input data-gf="endname" type="text" value="${esc(ew.name)}" placeholder="exact region name" style="flex:1"></div>
       <div class="row">next → <select data-f="next">${idOpts(n.next,true)}</select></div>`; }
@@ -2760,8 +2769,18 @@
         n.gen={diff:"moyen",forme:"rect",objectif:"eliminate",avancement:0,graine:1+Math.floor(Math.random()*999998)}; renderNodes(); }; }
     { const sd=el.querySelector("[data-genseed]"); if(sd)sd.onclick=()=>{
         n.gen.graine=1+Math.floor(Math.random()*999998); renderNodes(); }; }
+    function majMarche(){ const z=el.querySelector("[data-marcheapercu]"); if(!z||!n.proc)return;
+      const c=n.proc.cols||6, r=n.proc.rows||4;
+      z.textContent=`→ ${c*r} régions jouables, ${c*r-1} missions + le Bastion, difficulté ★1 à gauche → ★5 à droite`; }
+    majMarche();
     el.querySelectorAll("[data-gf]").forEach(inp=>{ const f=inp.dataset.gf; const set=()=>{ n.endWhen=n.endWhen||{kind:"all",name:""};
-      if(f==="map")n.map=inp.value; else if(f==="procshape"){ if(inp.checked)n.proc=n.proc||{act:1}; else delete n.proc; } else if(f==="endkind"){ n.endWhen.kind=inp.value; const kr=el.querySelector("#cd-keyrow"); if(kr)kr.style.display=(inp.value==="key")?"":"none"; } else if(f==="endname")n.endWhen.name=inp.value;   // procshape: regenerates the shape each game (names + content kept)
+      if(f==="map")n.map=inp.value;
+      else if(f==="procshape"){ if(inp.checked)n.proc=n.proc||{act:1,layout:"marche",cols:6,rows:4,missions:"generees"}; else delete n.proc; renderDetail(); return; }
+      else if(f==="procact"){ n.proc.act=Math.max(1,Math.min(3,+inp.value||1)); }
+      else if(f==="proclayout"){ n.proc.layout=inp.value; renderDetail(); return; }
+      else if(f==="proccols"){ n.proc.cols=Math.max(3,Math.min(12,+inp.value||6)); majMarche(); }
+      else if(f==="procrows"){ n.proc.rows=Math.max(2,Math.min(8,+inp.value||4)); majMarche(); }
+      else if(f==="procmissions"){ n.proc.missions=inp.value; } else if(f==="endkind"){ n.endWhen.kind=inp.value; const kr=el.querySelector("#cd-keyrow"); if(kr)kr.style.display=(inp.value==="key")?"":"none"; } else if(f==="endname")n.endWhen.name=inp.value;   // procshape: regenerates the shape each game (names + content kept)
       saveCampDraft(); drawGraph(); }; (inp.tagName==="SELECT"||inp.type==="checkbox")?inp.onchange=set:inp.oninput=set; });
     el.querySelector("[data-del]").onclick=()=>{campNodes=campNodes.filter(x=>x.id!==n.id);if(campStart===n.id)campStart=campNodes[0]?campNodes[0].id:"";campSel=campNodes[0]?campNodes[0].id:null;renderNodes();};
     el.querySelector("[data-setstart]").onclick=()=>{campStart=n.id;renderNodes();};
@@ -3695,6 +3714,65 @@
     const aForge=gtx("acts."+act+".forge"); if(aForge)out.events.push({when:{kind:"before",value:FORGE_NAME[act]},text:aForge});
     const aBoss=gtx("acts."+act+".boss"); if(aBoss)out.events.push({when:{kind:"before",value:BOSS_NAME[act]},text:aBoss});
     return out; }
+  // ===== ACTE 1 — LA MARCHE : une disposition imposée, pas un tirage =====
+  // Grille rectangulaire n x m. On ENTRE PAR LA GAUCHE — le camp y est adossé — et le Bastion est
+  // à DROITE. Deux bandes encadrent la grille : à gauche la nation d'où l'on vient, à droite
+  // l'inconnu, c'est-à-dire l'acte suivant. Le front avance donc de gauche à droite, et la
+  // difficulté monte avec la colonne : la carte raconte la progression avant qu'un texte le fasse.
+  // (genGeoMap reste disponible pour les actes en territoire libre : Voronoï, camp au centre.)
+  function genGeoMarche(opts){
+    opts=opts||{};
+    const act=opts.act||1;
+    const cols=Math.max(3,Math.min(12,opts.cols||6)), rows=Math.max(2,Math.min(8,opts.rows||4));
+    const seed=(opts.seed>>>0)||12345, rnd=mk(seed^0x7f4a7c15);
+    const bande=Math.round(GEO_W*0.11);                       // largeur des deux bandes de bord
+    const gx0=bande, gw=(GEO_W-2*bande)/cols, gh=GEO_H/rows;
+    const NC=cols+2, idx=(c,r)=>r*NC+c;                       // colonne 0 = nation, cols+1 = inconnu
+    const rect=(x0,y0,x1,y1)=>[[Math.round(x0),Math.round(y0)],[Math.round(x1),Math.round(y0)],
+                               [Math.round(x1),Math.round(y1)],[Math.round(x0),Math.round(y1)]];
+    const polys=[];
+    for(let r=0;r<rows;r++) for(let c=0;c<NC;c++){
+      const y0=r*gh, y1=(r+1)*gh;
+      const x0=(c===0)?0:((c===NC-1)?GEO_W-bande:gx0+(c-1)*gw);
+      const x1=(c===0)?bande:((c===NC-1)?GEO_W:gx0+c*gw);
+      polys.push(rect(x0,y0,x1,y1)); }
+    const milieu=Math.floor(rows/2);
+    const noms=GEO_NAMES[act].slice(); for(let i=noms.length-1;i>0;i--){const j=Math.floor(rnd()*(i+1));[noms[i],noms[j]]=[noms[j],noms[i]];}
+    let iNom=0;
+    const parFichier=(opts.missions==="fichiers");
+    const refPour=d=>{ const l=(ACT_MISSIONS[act]&&ACT_MISSIONS[act][d])||(ACT_MISSIONS[act]&&ACT_MISSIONS[act][4])||["mission-1.json"]; return l[Math.floor(rnd()*l.length)]; };
+    const contenu=d=>parFichier?{kind:"mission",ref:refPour(d),gen:null}
+                               :{kind:"mission",ref:null,gen:{forme:opts.forme||"",objectif:opts.objectif||""}};
+    // la forge à ~62 % du chemin, sur une autre rangée que l'axe camp→bastion : on doit s'écarter
+    const colForge=Math.max(2,Math.min(cols-1,Math.round(cols*0.62)));
+    const rangForge=rows>1?((milieu+1)%rows):milieu;
+    const out={ name:opts.nom||("Act "+act+" — The March"), camp:idx(1,milieu), act, seed, cells:[], events:[] };
+    for(let r=0;r<rows;r++) for(let c=0;c<NC;c++){
+      const i=idx(c,r), poly=polys[i];
+      if(c===0||c===NC-1){   // bandes de bord : décor nommé, jamais jouable
+        out.cells[i]={poly, name:(r===milieu?(c===0?(opts.nomGauche||"La Nation"):(opts.nomDroite||"L\u2019Inconnu")):""),
+          type:"region", content:{kind:"empty",ref:null}, state:"available", unlockedBy:[], edge:(c===0?"nation":"inconnu")};
+        continue; }
+      if(c===1&&r===milieu){ out.cells[i]={poly, name:(opts.nomCamp||"The Camp"), type:"camp",
+          content:{kind:"empty",ref:null}, state:"available", unlockedBy:[]}; continue; }
+      const t=(cols>1)?(c-1)/(cols-1):0;
+      let d=Math.max(1,Math.min(4,1+Math.round(t*3)));
+      if(c===cols&&r===milieu){   // LE BASTION, tout à droite, sur l'axe d'entrée
+        out.cells[i]={poly, name:BOSS_NAME[act], type:"region", content:contenu(5), state:"locked",
+          unlockedBy:[], diff:5, boss:true}; continue; }
+      if(c===colForge&&r===rangForge){ d=Math.min(4,Math.max(3,d));
+        out.cells[i]={poly, name:FORGE_NAME[act], type:"region", content:contenu(d), state:"available",
+          unlockedBy:[], diff:d, forge:true}; continue; }
+      out.cells[i]={poly, name:noms[(iNom++)%noms.length], type:"region", content:contenu(d),
+        state:"available", unlockedBy:[], diff:d}; }
+    const jouables=out.cells.filter(c=>c.content&&c.content.kind==="mission").length;
+    out.events.push({when:{kind:"wins",value:Math.max(3,Math.round(jouables*0.5))},reveal:BOSS_NAME[act],text:""});
+    const aArr=gtx("acts."+act+".arrive"); if(aArr)out.events.push({when:{kind:"arrive"},text:aArr});
+    const aForge=gtx("acts."+act+".forge"); if(aForge)out.events.push({when:{kind:"before",value:FORGE_NAME[act]},text:aForge});
+    const aBoss=gtx("acts."+act+".boss"); if(aBoss)out.events.push({when:{kind:"before",value:BOSS_NAME[act]},text:aBoss});
+    return out; }
+  window.GEO_MARCHE=o=>genGeoMarche(o);
+
   // "adjusted" enemies after a forge opens: +1 enemy per freed forge (offsets the stat gain)
   function addForgeEnemies(){ if(!campRun)return; const n=campRun.forge||0; if(n<=0)return;
     const enemies=units.filter(u=>u.team==="enemy"); const ecls=[...new Set(enemies.map(u=>u.cls))]; if(!ecls.length||!enemies.length)return;
@@ -3728,7 +3806,13 @@
       let authored; try{ authored=JSON.parse(t); }catch(e){ showCampText("Unreadable territory.",()=>endCampaignRun("End.")); return; }
       m=node.proc?reshapeAuthored(authored,seedOf()):authored;   // proc = regenerated shape (names + content + events kept); otherwise the drawn territory as-is
     }
-    else if(node.proc){ m=genGeoMap({act:node.proc.act||1,regions:node.proc.regions||10,seed:seedOf()}); }   // purely procedural (no drawn territory)
+    else if(node.proc){ const act=node.proc.act||1;
+      // « toujours un acte 1 comme ceci » : la marche est la disposition PAR DÉFAUT de l'acte 1.
+      const disp=node.proc.layout||(act===1?"marche":"libre");
+      m=(disp==="marche")
+        ? genGeoMarche({act, cols:node.proc.cols||6, rows:node.proc.rows||4, seed:seedOf(),
+                        missions:node.proc.missions||"generees"})
+        : genGeoMap({act, regions:node.proc.regions||10, seed:seedOf()}); }   // purely procedural (no drawn territory)
     else { showCampText("No territory defined for this node.",()=>{ if(node.next)runNode(node.next); else endCampaignRun("End."); }); return; }
     campRun.geoStates=campRun.geoStates||{}; if(!campRun.geoStates[node.id])campRun.geoStates[node.id]=m.cells.map(c=>c.state||"locked");
     geoPlay={node,map:m,inMission:false}; { const tt=document.getElementById("title"); if(tt)tt.style.display="none"; }
