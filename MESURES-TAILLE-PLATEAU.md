@@ -139,3 +139,31 @@ Panneau d'équilibrage, groupe « Board size » :
 
 Case **« 📐 auto size »** dans l'éditeur de mission pour revenir au dimensionnement manuel : les
 champs Width/Height et Pods redeviennent souverains.
+
+---
+
+# Interaction avec le profil de terrain de l'acte
+
+Le profil de terrain fait varier la **densité** du maillage au fil de l'acte (46 au début, 38 à la
+fin) : à taille de plateau égale, cela change le nombre de cellules — mesuré **180 à densité 46,
+211 à 42, 233 à 38**. Sans correction, les cellules par pod dérivaient de 30 % le long de l'acte et
+la calibration ci-dessus ne tenait plus.
+
+L'exposant n'est pas 2 mais **1,35** (le rognage des bords amortit), et `k` a été mesuré à la densité
+de référence **44**. Le dimensionnement corrige donc :
+
+```
+k_effectif = k_forme × (44 / densité)^1,35
+largeur    = √(CEL_PAR_POD × pods / k_effectif)
+```
+
+L'ordre d'exécution compte, et il est contre-intuitif :
+
+1. **calculer** le profil interpolé — il donne la densité, dont dépend la taille ;
+2. **redimensionner** — `setBoardSize()` réécrit la grille de zones ;
+3. **appliquer** le profil — il remplit la grille aux dimensions finales ;
+4. **mailler**.
+
+Vérifié sur les 7 formes × 3 moments de l'acte : **51 à 66 cellules par pod** pour une cible de 60,
+pendant que la géométrie passe de 3,4 à 5,4 voisins de moyenne. Aucune anomalie — un seul secteur
+fortement connexe, plateformes accessibles, aucun ennemi visible au tour 1, tous joignables.

@@ -74,8 +74,8 @@ Travail **autonome, phase par phase** : à chaque phase, implémentation → vé
 
 Le passage à **La Foreuse** (cf. `DIRECTION.md` / `VISION-DU-JEU.md`) ouvre trois chantiers qui ne figuraient pas dans le plan d'origine :
 
-- **G — Inversion de la géométrie.** Démarrer en **grille régulière** (la carte du Consortium) et la faire **reconquérir par l'organique** au fil de la campagne, jusqu'à **bloquer le passage**. Le moteur produit déjà les deux extrêmes (grille ↔ maillages fractals conformes et connexes) ; il reste à **piloter la bascule par la progression** et à revoir la palette (le voile violacé appartenait à l'ancien univers).
+- **G — Inversion de la géométrie.** ✅ **câblée.** Chaque acte porte un **profil de terrain** — géométrie de départ et d'arrivée — et chaque mission **interpole entre les deux selon son rang dans l'acte**. Le défaut part d'une vraie grille (mesuré : distorsion 0 %, **72 % des cases ont exactement 4 voisins**) et finit en organique (**5,4 voisins de moyenne**, hexagones et pentagones majoritaires). Édition dans l'onglet Campagne, « Terrain de l'acte », avec aperçu. *Reste :* revoir la palette (le voile violacé appartenait à l'ancien univers), et faire que ce qui repousse **bloque** vraiment le passage plutôt que de seulement changer de forme.
 - **H — Brancher le retournement.** `revealTruth()` bascule déjà tout le vocabulaire du jeu vers les vrais noms ; reste à le **déclencher depuis un nœud de campagne** et à le **persister dans la sauvegarde**, pour que les rapports archivés se relisent après coup.
 - **I — Réécrire les textes.** Les textes narratifs (`texts/`) portent encore l'ancien thème de la réalité distordue. *(Écriture — hors périmètre technique.)*
 
-> **Prochaine étape suggérée : G (inversion de la géométrie)** — c'est le levier qui rend le thème visible à chaque case, et le moteur est déjà prêt des deux côtés.
+> **Prochaine étape suggérée : H (brancher le retournement)** — G est câblée, et H est le second endroit où le thème devient jouable plutôt qu'écrit.

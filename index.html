@@ -153,8 +153,8 @@
     <div id="tab-mission">
     <div id="me-left">
     <h2>1 · Shape (zones + distortion)</h2>
-    <div class="row"><label>Width <input id="bw" type="number" min="4" max="28" value="20" style="width:52px"></label>
-      <label>Height <input id="bh" type="number" min="3" max="24" value="16" style="width:52px"></label>
+    <div class="row"><label>Width <input id="bw" type="number" min="4" max="20" value="12" style="width:52px"></label>
+      <label>Height <input id="bh" type="number" min="3" max="16" value="10" style="width:52px"></label>
       <button id="zauto" title="Lay out random zones (squares, hexagons, pentagons)">🎲 Auto zones</button></div>
     <div class="row" id="zones"></div>
     <div class="row"><label style="flex:1">Distortion <input id="dist" type="range" min="0" max="100" value="28"></label><span id="distv">28%</span></div>
@@ -247,6 +247,32 @@
       <div id="cdetail" class="hint">Click a node in the graph to edit it here.</div>
     </div>
     <select id="cmsel" style="display:none"></select>
+    <h2>Terrain de l'acte (macro)</h2>
+    <div class="hint">Géométrie de <b>départ</b> et d'<b>arrivée</b> de l'acte : chaque mission interpole entre les deux selon son rang. C'est ici que la grille régulière cède à l'organique. Les poids sont relatifs (des taches de zones sont tirées selon eux) ; « mix » panache les trois à l'intérieur d'une même tache.</div>
+    <div class="row"><label><input type="checkbox" id="ta-on"> piloter la géométrie depuis l'acte</label>
+      <label>longueur de référence <input id="ta-missions" type="number" min="1" max="30" value="8" style="width:52px"> missions</label></div>
+    <div id="ta-body" style="display:none">
+      <table id="ta-table" style="width:100%;border-collapse:collapse;font-size:.82rem">
+        <tr><th style="text-align:left"></th><th>carrés</th><th>hexa</th><th>pentagones</th><th>mixte</th><th>distorsion</th><th>densité</th></tr>
+        <tr><td><b>début</b></td>
+          <td><input id="ta-d-square" type="number" min="0" max="100" value="100" style="width:48px"></td>
+          <td><input id="ta-d-hex" type="number" min="0" max="100" value="0" style="width:48px"></td>
+          <td><input id="ta-d-pentagon" type="number" min="0" max="100" value="0" style="width:48px"></td>
+          <td><input id="ta-d-mix" type="number" min="0" max="100" value="0" style="width:48px"></td>
+          <td><input id="ta-d-dist" type="number" min="0" max="100" value="0" style="width:48px"></td>
+          <td><input id="ta-d-dens" type="number" min="30" max="64" value="46" style="width:48px"></td></tr>
+        <tr><td><b>fin</b></td>
+          <td><input id="ta-f-square" type="number" min="0" max="100" value="20" style="width:48px"></td>
+          <td><input id="ta-f-hex" type="number" min="0" max="100" value="35" style="width:48px"></td>
+          <td><input id="ta-f-pentagon" type="number" min="0" max="100" value="30" style="width:48px"></td>
+          <td><input id="ta-f-mix" type="number" min="0" max="100" value="15" style="width:48px"></td>
+          <td><input id="ta-f-dist" type="number" min="0" max="100" value="55" style="width:48px"></td>
+          <td><input id="ta-f-dens" type="number" min="30" max="64" value="38" style="width:48px"></td></tr>
+      </table>
+      <div class="row"><label style="flex:1">Aperçu — avancement dans l'acte <input id="ta-t" type="range" min="0" max="100" value="0"></label><span id="ta-tv">0 %</span>
+        <button id="ta-preview" title="Applique la géométrie interpolée au plateau de l'onglet Mission, pour la voir">👁 Voir</button></div>
+      <div class="hint" id="ta-resume"></div>
+    </div>
     <h2>Roster (campaign squad)</h2>
     <div class="hint">The characters deployed in this campaign's missions (persistent HP). A mission's player tiles serve as deployment slots.</div>
     <div id="rosterlist"></div>
@@ -1049,6 +1075,12 @@
                const det=r.map(x=>x.det), man=r.map(x=>x.manoeuvre);
                return "détour "+Math.min(...det)+"-"+Math.max(...det)+" · manœuvre 6 pas "+Math.min(...man)+"-"+Math.max(...man)
                  +" · étouffés(<12) "+man.filter(v=>v<12).length+"/"+E.length; })(),
+             geometrie:(function(){ // ce que vaut réellement le maillage : un carré a ~4 voisins,
+               // un pentagone ~5, un hexagone ~6. Sans ça, « piloter la géométrie » n'est pas vérifiable.
+               const d={}; let tot=0;
+               for(const c of cells){ const k=Math.min(8,c.nb.length); d[k]=(d[k]||0)+1; tot+=c.nb.length; }
+               const parts=Object.keys(d).sort().map(k=>k+"v:"+Math.round(100*d[k]/n)+"%").join(" ");
+               return (tot/n).toFixed(2)+" voisins ("+parts+")"; })(),
              effectifs:(function(){ const P=units.filter(u=>u.team==="player"), E=units.filter(u=>u.team==="enemy");
                return P.length+" vs "+E.length+" ("+new Set(E.map(u=>u.pod)).size+" pods)"; })(),
              distanceAuxEnnemis:(function(){ // en cases : dit si la carte est traversable dans un temps raisonnable
@@ -1907,6 +1939,49 @@
     refresh(); }
   // ===== procedural mission generation (P1: density scatter + graph placement) =====
   function bfsFrom(start){ const d={}; d[start]=0; const q=[start]; while(q.length){const id=q.shift(); for(const n of cells[id].nb){ if(!passable(n))continue; if(d[n]===undefined){d[n]=d[id]+1;q.push(n);} }} return d; }
+  // ===== PROFIL DE TERRAIN PAR ACTE (contrôle macro) =====
+  // Un acte décrit sa géométrie de DÉPART et d'ARRIVÉE ; chaque mission interpole entre les deux
+  // selon son rang dans l'acte. C'est le levier du thème (DIRECTION.md, chantier G) : la grille
+  // régulière que le Consortium a tracée cède, mission après mission, à une géométrie organique —
+  // et la déformation se voit à chaque case au lieu d'être une intention dans un document.
+  const TERRAIN_ACTE_DEFAUT={
+    missions:8,                                                              // longueur de référence de l'acte
+    debut:{ zones:{square:100,hex:0,pentagon:0,mix:0},   distorsion:0,  densite:46 },   // mesuré : à 0 %, 72 % des cases ont exactement 4 voisins — une vraie grille
+    fin:  { zones:{square:20,hex:35,pentagon:30,mix:15}, distorsion:55, densite:38 } };
+  const ZTYPES=["square","hex","pentagon","mix"];
+  const lerpN=(a,b,t)=>a+(b-a)*t;
+  function terrainInterpole(prof,t){
+    prof=prof||TERRAIN_ACTE_DEFAUT; t=Math.max(0,Math.min(1,t||0));
+    const d=prof.debut||TERRAIN_ACTE_DEFAUT.debut, f=prof.fin||TERRAIN_ACTE_DEFAUT.fin;
+    const zones={}; for(const k of ZTYPES) zones[k]=lerpN((d.zones&&d.zones[k])||0,(f.zones&&f.zones[k])||0,t);
+    return { zones,
+      distorsion:Math.round(lerpN(d.distorsion!=null?d.distorsion:0, f.distorsion!=null?f.distorsion:55, t)),
+      densite:Math.round(lerpN(d.densite!=null?d.densite:46, f.densite!=null?f.densite:38, t)) }; }
+  // Applique le profil AVANT la construction du maillage — il décide la GÉOMÉTRIE, pas le décor.
+  // À appeler APRÈS tout redimensionnement : setBoardSize() réécrit la grille de zones.
+  function appliquerTerrain(prof,t,graine){
+    const p=terrainInterpole(prof,t);
+    const rnd=mk(((graine==null?seed:graine)^0x2545f491)>>>0);
+    const tot=ZTYPES.reduce((a,k)=>a+p.zones[k],0)||1;
+    const tirer=()=>{ let r=rnd()*tot; for(const k of ZTYPES){ r-=p.zones[k]; if(r<=0)return k; } return "square"; };
+    // taches de Voronoï, comme « Auto zones », mais tirées selon les POIDS de l'acte
+    const nC=3+Math.floor(rnd()*4), cs=[];
+    for(let k=0;k<nC;k++)cs.push({x:rnd()*COLS,y:rnd()*ROWS,t:tirer()});
+    for(let r=0;r<ROWS;r++)for(let c=0;c<COLS;c++){ let bi=0,bd=1e9;
+      for(let i=0;i<cs.length;i++){ const dd=(cs[i].x-c)**2+(cs[i].y-r)**2; if(dd<bd){bd=dd;bi=i;} }
+      infl[r][c]=cs[bi].t; }
+    const de=document.getElementById("dist"), dn=document.getElementById("dens");
+    if(de){ de.value=p.distorsion; const dv=document.getElementById("distv"); if(dv)dv.textContent=p.distorsion+"%"; }
+    if(dn){ dn.value=p.densite; const nv=document.getElementById("densv"); if(nv)nv.textContent=p.densite; }
+    return p; }
+  // avancement dans l'acte : rang de la mission sur la longueur de référence
+  function avancementActe(prof){
+    if(!campRun)return null;
+    const n=(campRun.missionN||0), L=Math.max(1,(prof&&prof.missions)||TERRAIN_ACTE_DEFAUT.missions);
+    return Math.max(0,Math.min(1,n/L)); }
+  window.TERRAIN_ACTE={interpole:terrainInterpole, appliquer:appliquerTerrain, defaut:TERRAIN_ACTE_DEFAUT};
+  window.GENERER=P=>genMission(P||{});   // génère une carte sans la jouer (outillage de vérification)
+
   // ===== DIMENSIONNEMENT DU PLATEAU — mesuré, pas estimé =====
   // 560 parties jouées (voir MESURES-TAILLE-PLATEAU.md et tools/balayage-taille.ndjson) donnent une
   // loi unique : la part de tours passés à MARCHER SANS PERSONNE EN VUE ne dépend ni de la forme ni
@@ -1931,11 +2006,16 @@
   let PODS_DIFF={facile:2,moyen:3,difficile:4};
   const podsPourDiff=d=>PODS_DIFF[d]!=null?PODS_DIFF[d]:PODS_DIFF.moyen;
   // largeur = racine de (cellules visées / k), hauteur = 0,8 x largeur (proportion du canevas)
-  function tailleAuto(forme,pods){
-    const k=FORME_K[forme]||FORME_K.rect;
-    const bw=Math.max(8,Math.min(28,Math.round(Math.sqrt(CEL_PAR_POD*Math.max(1,pods)/k))));
-    return {bw,bh:Math.max(6,Math.min(24,Math.round(bw*0.8)))}; }
-  window.TAILLE_AUTO=(forme,pods)=>tailleAuto(forme,pods);
+  // k a été mesuré à la DENSITÉ de référence 44. Un acte qui resserre la densité produit plus de
+  // cellules à taille égale (mesuré : 180 à 46, 211 à 42, 233 à 38, soit un exposant de 1,35 et non
+  // 2 — le rognage des bords amortit) et ferait donc dériver les cellules par pod qu'on vient de
+  // calibrer. On corrige k par la densité effective.
+  const DENSITE_REF=44;
+  function tailleAuto(forme,pods,densite){
+    const k=(FORME_K[forme]||FORME_K.rect)*Math.pow(DENSITE_REF/(densite||DENSITE_REF),1.35);
+    const bw=Math.max(8,Math.min(20,Math.round(Math.sqrt(CEL_PAR_POD*Math.max(1,pods)/k))));
+    return {bw,bh:Math.max(6,Math.min(16,Math.round(bw*0.8)))}; }
+  window.TAILLE_AUTO=(forme,pods,densite)=>tailleAuto(forme,pods,densite);
 
   // P (optional) = generation parameters: cover, diff, squad, podCount, podSpacing, podMinDist, podSize[min,max], classes
   function genMission(P){ P=P||{};
@@ -1953,10 +2033,17 @@
     const domPods=(()=>{ if(P.diff!=null)return null;   // appel de campagne : l'éditeur ne doit pas déteindre dessus
       const e=document.getElementById("gen-pods"); return e&&e.value!==""?+e.value:null; })();
     const podsVoulus=P.podCount!=null?P.podCount:(domPods!=null?domPods:podsPourDiff(diff));
-    if(auto){ const t=tailleAuto(forme,podsVoulus);
+    // --- GÉOMÉTRIE DE L'ACTE. L'ordre importe : on CALCULE le profil d'abord (il donne la densité,
+    // dont dépend le dimensionnement), on redimensionne ensuite, et on APPLIQUE en dernier — car
+    // setBoardSize() réécrit la grille de zones, et le maillage se construit à partir d'elle.
+    const profil=P.terrain!==undefined?P.terrain:((campRun&&campRun.camp&&campRun.camp.terrain)||null);
+    const avanceP=P.avancement!=null?P.avancement:avancementActe(profil);
+    const profilActif=(profil&&avanceP!=null)?terrainInterpole(profil,avanceP):null;
+    if(auto){ const t=tailleAuto(forme,podsVoulus,profilActif?profilActif.densite:(+document.getElementById("dens").value||DENSITE_REF));
       setBoardSize(t.bw,t.bh);   // c'est COLS/ROWS qui font foi, pas les champs : les écrire ne suffit pas
       const eW=document.getElementById("bw"), eH=document.getElementById("bh");
       if(eW)eW.value=COLS; if(eH)eH.value=ROWS; }
+    if(profilActif) appliquerTerrain(profil,avanceP,seed);
     seed=(seed*1103515245+12345)&0x7fffffff; rebuildShape();   // fresh island shape, clears units/low walls
     if(!cells.length)return null; const rnd=mk((seed^0x51ed2701)>>>0);
     // elevation (2-3 hills) + cover based on density
@@ -2238,8 +2325,17 @@
               for(const w of cells[best].nb){ const kk=wkey(best,w); if(walls.has(kk))walls.delete(kk); }
               ouvert=true; } }
         }
-        if(!ouvert)return;   // plus rien d'ouvrable : on laisse la carte telle quelle plutôt que de la casser
+        if(!ouvert){ murerLesRestes(secteurs()); return; }
       }
+      murerLesRestes(secteurs());   // la boucle a épuisé ses tours : on solde ce qui reste
+      // DERNIER RECOURS. Un secteur qu'aucune réparation n'atteint est INATTEIGNABLE — parfois il
+      // n'a même aucune arête (le maillage produit des cellules orphelines à forte distorsion, et
+      // on ne peut pas ouvrir un passage là où il n'existe aucun voisin). Le laisser praticable,
+      // c'est laisser le générateur y poser des ennemis qu'on ne rejoindra jamais : exactement le
+      // défaut que « composantes » ne savait pas voir. On le rend donc infranchissable — un lieu
+      // où l'on ne va pas n'est pas du sol, c'est du décor. Ainsi composantes vaut 1 PAR CONSTRUCTION.
+      function murerLesRestes(g){ if(!g||g.length<=1)return;
+        for(let i=1;i<g.length;i++) for(const id of g[i]){ cells[id].terr="wall"; cells[id]._barrier=false; } }
     })();
     // graph placement
     const pass=cells.filter(c=>passable(c.id)); if(!pass.length){ triggers=[]; renderTrigList(); refresh(); return null; }
@@ -2511,6 +2607,7 @@
 
   // ===== node-based campaign (texts / missions / choices) + HP persistence =====
   let campRun=null, campNodes=[], campStart="", nodeSeq=0, repoTexts=[], campSel=null, repoGeoscapes=[], campRoster=[], campDialogs=[];
+  let campTerrain=null;   // profil de terrain de l'acte en cours d'édition (null = géométrie laissée telle quelle)
   const cname=document.getElementById("cname"),cloadsel=document.getElementById("cloadsel"),cstatus=document.getElementById("cstatus");
   const esc=s=>(s||"").replace(/"/g,"&quot;");
   const newId=()=>{ let id; do{ id="n"+(++nodeSeq); }while(campNodes.some(n=>n.id===id)); return id; };   // never an already-used id (otherwise collision after loading)
@@ -2592,11 +2689,51 @@
       saveCampDraft(); drawGraph(); }; (inp.tagName==="SELECT"||inp.type==="checkbox")?inp.onchange=set:inp.oninput=set; });
     el.querySelector("[data-del]").onclick=()=>{campNodes=campNodes.filter(x=>x.id!==n.id);if(campStart===n.id)campStart=campNodes[0]?campNodes[0].id:"";campSel=campNodes[0]?campNodes[0].id:null;renderNodes();};
     el.querySelector("[data-setstart]").onclick=()=>{campStart=n.id;renderNodes();};
-    el.querySelector("[data-testhere]").onclick=()=>{ if(!campNodes.length)return; startCampaign({name:cname.value,start:campStart,roster:campRoster,dialogs:campDialogs,nodes:campNodes},"campaign",n.id); };
+    el.querySelector("[data-testhere]").onclick=()=>{ if(!campNodes.length)return; startCampaign({name:cname.value,start:campStart,roster:campRoster,dialogs:campDialogs,nodes:campNodes,terrain:campTerrain},"campaign",n.id); };
     const ao=el.querySelector("[data-addopt]"); if(ao)ao.onclick=()=>{n.options=n.options||[];n.options.push(campNodes[0]?campNodes[0].id:"");renderDetail();drawGraph();saveCampDraft();};
     el.querySelectorAll("[data-optsel]").forEach(s=>s.onchange=()=>{n.options[+s.dataset.optsel]=s.value;drawGraph();saveCampDraft();});
     el.querySelectorAll("[data-optdel]").forEach(b=>b.onclick=()=>{n.options.splice(+b.dataset.optdel,1);renderDetail();drawGraph();saveCampDraft();}); }
-  function saveCampDraft(){ try{ localStorage.setItem("mgf_camp_draft_mesh", JSON.stringify({name:cname.value,start:campStart,roster:campRoster,dialogs:campDialogs,nodes:campNodes})); }catch(e){} }
+  function saveCampDraft(){ try{ localStorage.setItem("mgf_camp_draft_mesh", JSON.stringify({name:cname.value,start:campStart,roster:campRoster,dialogs:campDialogs,nodes:campNodes,terrain:campTerrain})); }catch(e){} }
+  // --- édition du profil de terrain de l'acte ---
+  const taEl=id=>document.getElementById("ta-"+id);
+  function terrainDepuisUI(){
+    const lire=(pre)=>{ const z={}; for(const k of ZTYPES) z[k]=Math.max(0,+taEl(pre+"-"+k).value||0);
+      return { zones:z, distorsion:+taEl(pre+"-dist").value||0, densite:+taEl(pre+"-dens").value||46 }; };
+    return { missions:Math.max(1,+taEl("missions").value||8), debut:lire("d"), fin:lire("f") }; }
+  function renderTerrainActe(){
+    const on=taEl("on"); if(!on)return;
+    on.checked=!!campTerrain;
+    const corps=document.getElementById("ta-body"); if(corps)corps.style.display=campTerrain?"":"none";
+    const p=campTerrain||TERRAIN_ACTE_DEFAUT;
+    taEl("missions").value=p.missions||8;
+    const poser=(pre,src)=>{ for(const k of ZTYPES) taEl(pre+"-"+k).value=Math.round((src.zones&&src.zones[k])||0);
+      taEl(pre+"-dist").value=src.distorsion!=null?src.distorsion:0; taEl(pre+"-dens").value=src.densite!=null?src.densite:46; };
+    poser("d",p.debut||TERRAIN_ACTE_DEFAUT.debut); poser("f",p.fin||TERRAIN_ACTE_DEFAUT.fin);
+    majResumeTerrain(); }
+  function majResumeTerrain(){
+    const r=document.getElementById("ta-resume"); if(!r)return;
+    const t=(+taEl("t").value||0)/100, i=terrainInterpole(campTerrain||terrainDepuisUI(),t);
+    const tot=ZTYPES.reduce((a,k)=>a+i.zones[k],0)||1;
+    const part=ZTYPES.filter(k=>i.zones[k]>0.5).map(k=>`${k} ${Math.round(100*i.zones[k]/tot)} %`).join(" · ");
+    const tv=document.getElementById("ta-tv"); if(tv)tv.textContent=Math.round(t*100)+" %";
+    r.textContent=`à ${Math.round(t*100)} % de l'acte : ${part} — distorsion ${i.distorsion} %, densité ${i.densite}`; }
+  { const on=taEl("on");
+    if(on){
+      const majDepuisUI=()=>{ if(!on.checked){campTerrain=null;} else {campTerrain=terrainDepuisUI();}
+        const corps=document.getElementById("ta-body"); if(corps)corps.style.display=on.checked?"":"none";
+        majResumeTerrain(); saveCampDraft(); };
+      on.onchange=()=>{ if(on.checked&&!campTerrain)campTerrain=JSON.parse(JSON.stringify(TERRAIN_ACTE_DEFAUT));
+        renderTerrainActe(); majDepuisUI(); };
+      const champs=["missions","d-dist","d-dens","f-dist","f-dens"].concat(ZTYPES.flatMap(k=>["d-"+k,"f-"+k]));
+      for(const c of champs){ const e=taEl(c); if(e)e.oninput=majDepuisUI; }
+      const t=taEl("t"); if(t)t.oninput=majResumeTerrain;
+      const pv=document.getElementById("ta-preview");
+      if(pv)pv.onclick=()=>{ const prof=campTerrain||terrainDepuisUI();
+        appliquerTerrain(prof,(+taEl("t").value||0)/100,seed);
+        seed=(seed*1103515245+12345)&0x7fffffff; rebuildShape(); setView("mission");
+        const r=document.getElementById("ta-resume"); if(r)r.textContent+=` — aperçu : ${cells.length} cellules`; };
+      renderTerrainActe(); } }
+
   function loadCampDraft(){ try{ const d=JSON.parse(localStorage.getItem("mgf_camp_draft_mesh")||"null"); if(d&&Array.isArray(d.nodes)&&d.nodes.length) return d; }catch(e){} return null; }
   // visual campaign graph (draggable nodes, colored links)
   const cg=document.getElementById("cgraph"),cgx=cg?cg.getContext("2d"):null; let cgDrag=null,cgOff=[0,0],cgMoved=false; const NW=92,NH=34;
@@ -2639,10 +2776,10 @@
   document.getElementById("cadd-geo").onclick=()=>{const n={id:newId(),type:"geoscape",map:(repoGeoscapes[0]?repoGeoscapes[0].file:""),endWhen:{kind:"all",name:""},next:null};campNodes.push(n);if(!campStart)campStart=n.id;campSel=n.id;renderNodes();};
   function fillCampLoad(list){ cloadsel.innerHTML=list.length?list.map(x=>`<option value="${x.file}">${x.name}</option>`).join(""):`<option value="">(none)</option>`; }
   async function fetchCampaigns(){ const t=await fetchText("campaigns-mesh/list.json",ghCfg()); let list=[];if(t){try{const p=JSON.parse(t);if(Array.isArray(p))list=p;}catch(e){}} fillCampLoad(list); }
-  async function campLoad(){ const f=cloadsel.value; if(!f)return; const t=await fetchText("campaigns-mesh/"+f,ghCfg()); if(!t){cstatus.textContent="Not found.";return;} try{const c=JSON.parse(t);cname.value=c.name||"";campNodes=c.nodes||[];campStart=c.start||(campNodes[0]&&campNodes[0].id)||"";campRoster=c.roster||[];campDialogs=c.dialogs||[];renderNodes();cstatus.textContent="Loaded: "+f;}catch(e){cstatus.textContent="Invalid JSON.";} }
+  async function campLoad(){ const f=cloadsel.value; if(!f)return; const t=await fetchText("campaigns-mesh/"+f,ghCfg()); if(!t){cstatus.textContent="Not found.";return;} try{const c=JSON.parse(t);cname.value=c.name||"";campNodes=c.nodes||[];campStart=c.start||(campNodes[0]&&campNodes[0].id)||"";campRoster=c.roster||[];campDialogs=c.dialogs||[];campTerrain=c.terrain||null;renderTerrainActe();renderNodes();cstatus.textContent="Loaded: "+f;}catch(e){cstatus.textContent="Invalid JSON.";} }
   document.getElementById("cload").onclick=campLoad;
   async function campSave(){ const cfg=ghCfg(),name=(cname.value||"").trim(); if(!name){cstatus.textContent="Campaign name required.";return;} if(!cfg.token){cstatus.textContent="Token required.";return;}
-    const file=(name.toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/(^-|-$)/g,"")||"camp")+".json"; const camp={name,start:campStart,roster:campRoster,dialogs:campDialogs,nodes:campNodes};
+    const file=(name.toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/(^-|-$)/g,"")||"camp")+".json"; const camp={name,start:campStart,roster:campRoster,dialogs:campDialogs,nodes:campNodes,terrain:campTerrain};
     try{ cstatus.textContent="Publishing…"; await ghPut("campaigns-mesh/"+file,JSON.stringify(camp),"Mesh campaign: "+name,cfg);
       const cur=await ghGet("campaigns-mesh/list.json",cfg.branch,cfg);let list=[];if(cur){try{const p=JSON.parse(cur.text);if(Array.isArray(p))list=p;}catch(e){}}
       if(list.some(x=>x.file===file))list=list.map(x=>x.file===file?{file,name}:x);else list.push({file,name});
@@ -2663,7 +2800,7 @@
       const nmiss=nodesOut.filter(n=>n.type==="mission").length;
       cstatus.textContent="✓ Campaign published (+ Godot port: graph, "+nmiss+" mission(s))."; }catch(e){cstatus.textContent="Failed: "+e.message;} }
   document.getElementById("csave").onclick=campSave;
-  document.getElementById("cplay").onclick=()=>{ if(!campNodes.length){cstatus.textContent="Add at least one node.";return;} if(!campNode(campStart)){cstatus.textContent="Choose a starting node.";return;} startCampaign({name:cname.value,start:campStart,roster:campRoster,dialogs:campDialogs,nodes:campNodes},"campaign"); };
+  document.getElementById("cplay").onclick=()=>{ if(!campNodes.length){cstatus.textContent="Add at least one node.";return;} if(!campNode(campStart)){cstatus.textContent="Choose a starting node.";return;} startCampaign({name:cname.value,start:campStart,roster:campRoster,dialogs:campDialogs,nodes:campNodes,terrain:campTerrain},"campaign"); };
   // paginated text reader: pages separated by a "_" line, "Name: …" in gold, "…" button to advance.
   const escTxt=s=>(s||"").replace(/[&<>]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;"}[c]));
   function fmtPage(s){ return s.split("\n").map(l=>l.replace(/\s+$/,"")).filter(l=>l.length).map(l=>{ const m=l.match(/^([\wÀ-ÿ '.\-]{1,18}):\s(.*)$/); return m?`<span class="sp-who">${escTxt(m[1])}</span> ${escTxt(m[2])}`:escTxt(l); }).join("<br>"); }
@@ -2953,7 +3090,7 @@
     document.body.classList.remove("testing"); setView("play"); runNode(fromNode||camp.start); }
   async function startPlay(){ let camp=loadCampDraft();
     if(!camp){ const t=await fetchText("campaigns-mesh/principale.json",ghCfg()); if(t){try{camp=JSON.parse(t);}catch(e){}} }
-    if(camp&&Array.isArray(camp.nodes)&&camp.nodes.length){ const C={name:camp.name||"",start:camp.start||(camp.nodes[0]&&camp.nodes[0].id),roster:camp.roster||[],dialogs:camp.dialogs||[],nodes:camp.nodes};
+    if(camp&&Array.isArray(camp.nodes)&&camp.nodes.length){ const C={name:camp.name||"",start:camp.start||(camp.nodes[0]&&camp.nodes[0].id),roster:camp.roster||[],dialogs:camp.dialogs||[],nodes:camp.nodes,terrain:camp.terrain||null};
       const save=loadCampRunSave(C.name);
       if(save&&Array.isArray(save.roster)&&save.roster.length){   // an act is in progress: offer to resume
         askPush("An act is in progress — "+(save.winCount||0)+" mission(s) won. Resume where you left off, or start over?",
@@ -2997,7 +3134,7 @@
     geoPlay=null; document.body.classList.remove("geomap"); showCampText(msg,()=>{ campRun=null;
     if(from==="play"){ setView("play"); const t=document.getElementById("title"); if(t)t.style.display="flex"; }
     else { setView("campaign"); refresh(); } }); }
-  { const cd=loadCampDraft(); if(cd){ cname.value=cd.name||""; campNodes=cd.nodes||[]; campStart=cd.start||(campNodes[0]&&campNodes[0].id)||""; campRoster=cd.roster||[];campDialogs=cd.dialogs||[]; } }  // restore the draft BEFORE the 1st render (otherwise saveCampDraft overwrites it)
+  { const cd=loadCampDraft(); if(cd){ cname.value=cd.name||""; campNodes=cd.nodes||[]; campStart=cd.start||(campNodes[0]&&campNodes[0].id)||""; campRoster=cd.roster||[];campDialogs=cd.dialogs||[];campTerrain=cd.terrain||null; } }  // restore the draft BEFORE the 1st render (otherwise saveCampDraft overwrites it)
   renderNodes(); fetchCampaigns(); fetchTexts();
 
   // ===== game =====
@@ -3542,7 +3679,7 @@
     if(draft&&draft.cells&&draft.cells.length){ try{ applyMissionObj(draft); }catch(e){ defaultBoard(); } }
     else defaultBoard();
     // restore the campaign draft in the editor
-    const cd=loadCampDraft(); if(cd){ cname.value=cd.name||""; campNodes=cd.nodes||[]; campStart=cd.start||(campNodes[0]&&campNodes[0].id)||""; campRoster=cd.roster||[];campDialogs=cd.dialogs||[]; renderNodes(); }
+    const cd=loadCampDraft(); if(cd){ cname.value=cd.name||""; campNodes=cd.nodes||[]; campStart=cd.start||(campNodes[0]&&campNodes[0].id)||""; campRoster=cd.roster||[];campDialogs=cd.dialogs||[];campTerrain=cd.terrain||null; renderTerrainActe(); renderNodes(); }
     // URL routing: ?edit = mission editor, ?campaign = campaign editor, default = game page
     const params=new URLSearchParams(location.search);
     const view=params.has("edit")?"mission":params.has("campaign")?"campaign":params.has("geoscape")?"geoscape":"play";
@@ -3715,7 +3852,10 @@
       if(opt.ennemis!=null)pose("gen-enemies",opt.ennemis); else vider("gen-enemies");
       const ca=document.getElementById("gen-autosize"); if(ca)ca.checked=(opt.autoTaille!=null?!!opt.autoTaille:(opt.bw==null));
       if(opt.celParPod!=null)CEL_PAR_POD=opt.celParPod;   // pour calibrer le seuil lui-même par simulation
-      document.getElementById("gen-mission").click();
+      // on appelle le générateur DIRECTEMENT quand la simulation porte des paramètres d'acte :
+      // le bouton, lui, appelle genMission() sans arguments et les perdrait en route.
+      const Pgen={}; if(opt.terrain!==undefined)Pgen.terrain=opt.terrain; if(opt.avancement!=null)Pgen.avancement=opt.avancement;
+      genMission(Pgen);
       const carte={cellules:cells.length, forme:opt.forme, bw:opt.bw, bh:opt.bh};
       document.body.classList.add("testing"); setView("play"); startGame();
       // ESCOUADE BLINDÉE (opt.blindes) — pour mesurer le RYTHME et non la tactique. Une mission qui
