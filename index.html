@@ -2745,6 +2745,13 @@
         <label>rangées <input data-gf="procrows" type="number" min="2" max="8" value="${(n.proc&&n.proc.rows)||4}" style="width:48px"></label>
         <label>missions <select data-gf="procmissions"><option value="generees"${(!n.proc||n.proc.missions!=="fichiers")?" selected":""}>générées</option><option value="fichiers"${(n.proc&&n.proc.missions==="fichiers")?" selected":""}>fichiers</option></select></label>
         <span class="hint" data-marcheapercu style="flex:1"></span></div>
+      <div class="row" id="cd-poolrow" style="${(n.proc&&(!n.proc.layout||n.proc.layout==="marche"))?"flex-wrap:wrap;gap:8px":"display:none"}">
+        <span style="font-size:.82rem">objectifs tirés pour les autres régions :</span>
+        <span data-poolbox style="display:flex;flex-wrap:wrap;gap:8px"></span></div>
+      <div class="row" id="cd-imposrow" style="${(n.proc&&(!n.proc.layout||n.proc.layout==="marche"))?"":"display:none"}">
+        <label style="flex:1;font-size:.82rem">missions imposées — une par ligne : <code>★ | nom | objectif</code>
+          <textarea data-gf="procimposees" rows="3" placeholder="2 | Sauvetage du mage | rescue&#10;4 | Mining | harvest" style="width:100%;font-family:Menlo,Consolas,monospace;font-size:.78rem">${esc(((n.proc&&n.proc.imposees)||[]).map(x=>[x.etoiles,x.nom,x.objectif].join(" | ")).join("\n"))}</textarea></label></div>
+      <div class="hint" data-imposapercu></div>
       <div class="row">act end <select data-gf="endkind"><option value="all" ${ew.kind!=="key"?"selected":""}>all regions resolved</option><option value="key" ${ew.kind==="key"?"selected":""}>key region cleared</option></select></div>
       <div class="row" id="cd-keyrow" style="${ew.kind==="key"?"":"display:none"}">key region (name) <input data-gf="endname" type="text" value="${esc(ew.name)}" placeholder="exact region name" style="flex:1"></div>
       <div class="row">next → <select data-f="next">${idOpts(n.next,true)}</select></div>`; }
@@ -2771,8 +2778,16 @@
         n.gen.graine=1+Math.floor(Math.random()*999998); renderNodes(); }; }
     function majMarche(){ const z=el.querySelector("[data-marcheapercu]"); if(!z||!n.proc)return;
       const c=n.proc.cols||6, r=n.proc.rows||4;
-      z.textContent=`→ ${c*r} régions jouables, ${c*r-1} missions + le Bastion, difficulté ★1 à gauche → ★5 à droite`; }
-    majMarche();
+      const paliers=[]; for(let k=1;k<=c;k++) paliers.push("★"+Math.max(1,Math.min(5,1+Math.round((c>1?(k-1)/(c-1):0)*4))));
+      z.textContent=`→ ${c*r} régions, ${c*r-1} missions + le Bastion · rampe ${paliers.join(" ")}`; }
+    function majPool(){ const z=el.querySelector("[data-poolbox]"); if(!z||!n.proc)return;
+      const cur=n.proc.objectifs||["eliminate","eliminate","harvest","extract","assassinate","intercept"];
+      z.innerHTML=OBJ_ACTE.map(o=>`<label style="font-size:.8rem"><input type="checkbox" data-pool="${o}"${cur.indexOf(o)>=0?" checked":""}> ${o}</label>`).join("");
+      z.querySelectorAll("[data-pool]").forEach(cb=>cb.onchange=()=>{
+        n.proc.objectifs=Array.from(z.querySelectorAll("[data-pool]")).filter(x=>x.checked).map(x=>x.getAttribute("data-pool"));
+        saveCampDraft(); }); }
+    majMarche(); majPool();
+    { const ta=el.querySelector('[data-gf="procimposees"]'); if(ta&&ta.value.trim())ta.dispatchEvent(new Event("input",{bubbles:true})); }
     el.querySelectorAll("[data-gf]").forEach(inp=>{ const f=inp.dataset.gf; const set=()=>{ n.endWhen=n.endWhen||{kind:"all",name:""};
       if(f==="map")n.map=inp.value;
       else if(f==="procshape"){ if(inp.checked)n.proc=n.proc||{act:1,layout:"marche",cols:6,rows:4,missions:"generees"}; else delete n.proc; renderDetail(); return; }
@@ -2780,7 +2795,22 @@
       else if(f==="proclayout"){ n.proc.layout=inp.value; renderDetail(); return; }
       else if(f==="proccols"){ n.proc.cols=Math.max(3,Math.min(12,+inp.value||6)); majMarche(); }
       else if(f==="procrows"){ n.proc.rows=Math.max(2,Math.min(8,+inp.value||4)); majMarche(); }
-      else if(f==="procmissions"){ n.proc.missions=inp.value; } else if(f==="endkind"){ n.endWhen.kind=inp.value; const kr=el.querySelector("#cd-keyrow"); if(kr)kr.style.display=(inp.value==="key")?"":"none"; } else if(f==="endname")n.endWhen.name=inp.value;   // procshape: regenerates the shape each game (names + content kept)
+      else if(f==="procmissions"){ n.proc.missions=inp.value; }
+      else if(f==="procimposees"){
+        // « ★ | nom | objectif [| forme] », une par ligne. On tolère les lignes vides et le
+        // désordre : ce qui n'est pas lisible est signalé, pas avalé en silence.
+        const lignes=inp.value.split("\n").map(l=>l.trim()).filter(Boolean);
+        const ok=[], ko=[];
+        for(const l of lignes){ const m=l.split("|").map(x=>x.trim());
+          const et=parseInt(m[0],10);
+          if(!(et>=1&&et<=5)||!m[1]){ ko.push(l); continue; }
+          const o=m[2]||""; if(o&&OBJ_ACTE.indexOf(o)<0){ ko.push(l+"  (objectif inconnu)"); continue; }
+          ok.push({etoiles:et,nom:m[1],objectif:o,forme:m[3]||""}); }
+        n.proc.imposees=ok;
+        const z=el.querySelector("[data-imposapercu]");
+        if(z)z.innerHTML=(ok.length?`${ok.length} imposée(s) : `+ok.map(x=>`★${x.etoiles} « ${esc(x.nom)} »${x.objectif?" → "+x.objectif:""}`).join(" · "):"")
+          +(ko.length?`<br><b style="color:#e0635f">non lues :</b> ${ko.map(esc).join(" ; ")} — format attendu <code>★ | nom | objectif</code>, objectifs : ${OBJ_ACTE.join(", ")}`:"");
+      } else if(f==="endkind"){ n.endWhen.kind=inp.value; const kr=el.querySelector("#cd-keyrow"); if(kr)kr.style.display=(inp.value==="key")?"":"none"; } else if(f==="endname")n.endWhen.name=inp.value;   // procshape: regenerates the shape each game (names + content kept)
       saveCampDraft(); drawGraph(); }; (inp.tagName==="SELECT"||inp.type==="checkbox")?inp.onchange=set:inp.oninput=set; });
     el.querySelector("[data-del]").onclick=()=>{campNodes=campNodes.filter(x=>x.id!==n.id);if(campStart===n.id)campStart=campNodes[0]?campNodes[0].id:"";campSel=campNodes[0]?campNodes[0].id:null;renderNodes();};
     el.querySelector("[data-setstart]").onclick=()=>{campStart=n.id;renderNodes();};
@@ -3741,8 +3771,14 @@
     let iNom=0;
     const parFichier=(opts.missions==="fichiers");
     const refPour=d=>{ const l=(ACT_MISSIONS[act]&&ACT_MISSIONS[act][d])||(ACT_MISSIONS[act]&&ACT_MISSIONS[act][4])||["mission-1.json"]; return l[Math.floor(rnd()*l.length)]; };
-    const contenu=d=>parFichier?{kind:"mission",ref:refPour(d),gen:null}
-                               :{kind:"mission",ref:null,gen:{forme:opts.forme||"",objectif:opts.objectif||""}};
+    // objectifs tirés pour les régions non imposées
+    const pool=(opts.objectifs&&opts.objectifs.length)?opts.objectifs:["eliminate","eliminate","harvest","extract","assassinate","intercept"];
+    // GRAINE PROPRE À CHAQUE RÉGION : deux régions de même difficulté ne doivent pas produire deux
+    // fois la même carte. Dérivée de la graine du territoire et de la position — donc aléatoire à
+    // l'œil, mais reproductible : le même territoire redonne les mêmes cartes.
+    const graineDe=(c,r)=>((seed^((c*73856093)^(r*19349663)))>>>0)%999983+1;
+    const contenu=(d,c,r)=>parFichier?{kind:"mission",ref:refPour(d),gen:null}
+      :{kind:"mission",ref:null,gen:{forme:opts.forme||"",objectif:pool[Math.floor(rnd()*pool.length)],graine:graineDe(c,r)}};
     // la forge à ~62 % du chemin, sur une autre rangée que l'axe camp→bastion : on doit s'écarter
     const colForge=Math.max(2,Math.min(cols-1,Math.round(cols*0.62)));
     const rangForge=rows>1?((milieu+1)%rows):milieu;
@@ -3755,16 +3791,41 @@
         continue; }
       if(c===1&&r===milieu){ out.cells[i]={poly, name:(opts.nomCamp||"The Camp"), type:"camp",
           content:{kind:"empty",ref:null}, state:"available", unlockedBy:[]}; continue; }
+      // ÉTOILES : la rampe couvre 1 à 5 quel que soit le nombre de colonnes — avec trois colonnes
+      // on fait ★1, ★3, ★5. La rangée médiane, celle de l'axe camp → Bastion, garde la rampe
+      // exacte ; les autres reçoivent un écart de ±1, pour que deux régions voisines ne se
+      // ressemblent pas sans casser la lecture de la progression.
       const t=(cols>1)?(c-1)/(cols-1):0;
-      let d=Math.max(1,Math.min(4,1+Math.round(t*3)));
+      let d=Math.max(1,Math.min(5,1+Math.round(t*4)));
+      // Pas d'écart aléatoire sur la difficulté : la colonne SEULE la décide, pour que la rampe se
+      // lise d'un coup d'œil. La variété passe par la graine de chaque région et par les objectifs
+      // tirés — deux régions de même difficulté donnent deux cartes différentes, pas deux notes
+      // différentes.
       if(c===cols&&r===milieu){   // LE BASTION, tout à droite, sur l'axe d'entrée
-        out.cells[i]={poly, name:BOSS_NAME[act], type:"region", content:contenu(5), state:"locked",
+        out.cells[i]={poly, name:BOSS_NAME[act], type:"region", content:contenu(5,c,r), state:"locked",
           unlockedBy:[], diff:5, boss:true}; continue; }
       if(c===colForge&&r===rangForge){ d=Math.min(4,Math.max(3,d));
-        out.cells[i]={poly, name:FORGE_NAME[act], type:"region", content:contenu(d), state:"available",
+        out.cells[i]={poly, name:FORGE_NAME[act], type:"region", content:contenu(d,c,r), state:"available",
           unlockedBy:[], diff:d, forge:true}; continue; }
-      out.cells[i]={poly, name:noms[(iNom++)%noms.length], type:"region", content:contenu(d),
+      out.cells[i]={poly, name:noms[(iNom++)%noms.length], type:"region", content:contenu(d,c,r),
         state:"available", unlockedBy:[], diff:d}; }
+    // MISSIONS IMPOSÉES. On place les missions écrites à la main sur une région de la difficulté
+    // demandée ; à défaut, sur la plus proche encore libre. Le reste du territoire garde ses
+    // objectifs tirés. Une imposée ne remplace jamais le Bastion ni la forge — ce sont des lieux.
+    out.imposees=[];
+    for(const im of (opts.imposees||[])){
+      const et=Math.max(1,Math.min(5,im.etoiles|0||1));
+      const libres=out.cells.map((c,i)=>({c,i}))
+        .filter(o=>o.c.content&&o.c.content.kind==="mission"&&!o.c.boss&&!o.c.forge&&!o.c.impose);
+      if(!libres.length)break;
+      libres.sort((a,b)=>Math.abs((a.c.diff||1)-et)-Math.abs((b.c.diff||1)-et));
+      const exacts=libres.filter(o=>Math.abs((o.c.diff||1)-et)===Math.abs((libres[0].c.diff||1)-et));
+      const cible=exacts[Math.floor(rnd()*exacts.length)];
+      cible.c.name=im.nom||cible.c.name; cible.c.diff=et; cible.c.impose=true;
+      if(cible.c.content.gen){ if(im.objectif)cible.c.content.gen.objectif=im.objectif;
+                               if(im.forme)cible.c.content.gen.forme=im.forme; }
+      else if(im.objectif)cible.c.content.ref=refPour(et);
+      out.imposees.push({nom:cible.c.name,etoiles:et,objectif:im.objectif||"",case:cible.i}); }
     const jouables=out.cells.filter(c=>c.content&&c.content.kind==="mission").length;
     out.events.push({when:{kind:"wins",value:Math.max(3,Math.round(jouables*0.5))},reveal:BOSS_NAME[act],text:""});
     const aArr=gtx("acts."+act+".arrive"); if(aArr)out.events.push({when:{kind:"arrive"},text:aArr});
@@ -3811,7 +3872,8 @@
       const disp=node.proc.layout||(act===1?"marche":"libre");
       m=(disp==="marche")
         ? genGeoMarche({act, cols:node.proc.cols||6, rows:node.proc.rows||4, seed:seedOf(),
-                        missions:node.proc.missions||"generees"})
+                        missions:node.proc.missions||"generees",
+                        objectifs:node.proc.objectifs||null, imposees:node.proc.imposees||null})
         : genGeoMap({act, regions:node.proc.regions||10, seed:seedOf()}); }   // purely procedural (no drawn territory)
     else { showCampText("No territory defined for this node.",()=>{ if(node.next)runNode(node.next); else endCampaignRun("End."); }); return; }
     campRun.geoStates=campRun.geoStates||{}; if(!campRun.geoStates[node.id])campRun.geoStates[node.id]=m.cells.map(c=>c.state||"locked");
@@ -3911,6 +3973,7 @@
       campRun.deploySel=chosen; campRun.geoReturn={nodeId:geoPlay.node.id,cellId}; campRun.missionN=(campRun.missionN||0)+1; geoPlay.inMission=true; document.body.classList.remove("geomap");
       if(gen){
         const prof=(campRun&&campRun.camp&&campRun.camp.terrain)||null;
+        if(gen.graine!=null)seed=(gen.graine>>>0)||1;   // graine propre à la région : la carte est reproductible
         genMission({etoiles, forme:gen.forme||null, archetype:gen.objectif||null, terrain:prof,
                     avancement:avancementActe(prof), squad:slots});
       } else {
