@@ -2033,10 +2033,20 @@
   // Les formes n'ont pas la même surface à réglages égaux : une croix à 20x16 fait 389 cellules là
   // où un rectangle en fait 806. Mesuré sur les mêmes 560 parties, cellules ~ k x largeur².
   const FORME_K={rect:1.98,L:1.25,S:1.41,croix:0.96,sablier:1.14,anneau:1.40,diag:1.15};
-  // La difficulté commande le nombre de POCHES D'ENNEMIS, donc le nombre d'engagements ; la taille
-  // du plateau en découle. C'est le seul réglage à toucher pour rendre une mission plus dure.
-  let PODS_DIFF={facile:2,moyen:3,difficile:4};
-  const podsPourDiff=d=>PODS_DIFF[d]!=null?PODS_DIFF[d]:PODS_DIFF.moyen;
+  // ÉCHELLE UNIQUE : LES ÉTOILES. Le geoscape notait ses régions de 1 à 5 étoiles, mais ces étoiles
+  // ne faisaient que teinter la case et payer une prime — elles n'avaient AUCUN effet sur la carte.
+  // À côté, facile/moyen/difficile pilotait vraiment la génération. Deux systèmes de difficulté
+  // côte à côte, dont un décoratif. On les fusionne : l'étoile EST la difficulté, et elle commande
+  // le nombre de POCHES D'ENNEMIS — donc d'engagements — dont découle la taille du plateau.
+  //     ★1 = 1 poche … ★5 = 5 poches
+  // facile / moyen / difficile ne sont plus que des raccourcis d'éditeur vers 2, 3 et 4 étoiles.
+  let ETOILES_DIFF={facile:2,moyen:3,difficile:4};
+  const etoilesPourDiff=d=>ETOILES_DIFF[d]!=null?ETOILES_DIFF[d]:ETOILES_DIFF.moyen;
+  const podsPourEtoiles=e=>Math.max(1,Math.min(6,Math.round(e)||1));
+  const podsPourDiff=d=>podsPourEtoiles(etoilesPourDiff(d));
+  // ... et l'inverse, pour retrouver la BANDE de distorsion d'un nombre d'étoiles : les trois
+  // plages réglables restent les trois paliers nommés, on y range les cinq étoiles.
+  const diffPourEtoiles=e=>e<=2?"facile":(e>=4?"difficile":"moyen");
   // largeur = racine de (cellules visées / k), hauteur = 0,8 x largeur (proportion du canevas)
   // k a été mesuré à la DENSITÉ de référence 44. Un acte qui resserre la densité produit plus de
   // cellules à taille égale (mesuré : 180 à 46, 211 à 42, 233 à 38, soit un exposant de 1,35 et non
@@ -2045,14 +2055,19 @@
   const DENSITE_REF=44;
   function tailleAuto(forme,pods,densite){
     const k=(FORME_K[forme]||FORME_K.rect)*Math.pow(DENSITE_REF/(densite||DENSITE_REF),1.35);
-    const bw=Math.max(8,Math.min(20,Math.round(Math.sqrt(CEL_PAR_POD*Math.max(1,pods)/k))));
-    return {bw,bh:Math.max(6,Math.min(16,Math.round(bw*0.8)))}; }
+    // plancher à 6 et non 8 : à une seule poche la formule demande 5,5, et un plancher trop haut
+    // rendait ★1 plus creuse que ★2 (132 cellules par poche au lieu de 60)
+    const bw=Math.max(6,Math.min(20,Math.round(Math.sqrt(CEL_PAR_POD*Math.max(1,pods)/k))));
+    return {bw,bh:Math.max(5,Math.min(16,Math.round(bw*0.8)))}; }
   window.TAILLE_AUTO=(forme,pods,densite)=>tailleAuto(forme,pods,densite);
 
   // P (optional) = generation parameters: cover, diff, squad, podCount, podSpacing, podMinDist, podSize[min,max], classes
   function genMission(P){ P=P||{};
     const cover=P.cover!=null?P.cover:((+(document.getElementById("gen-cover").value)||28)/100);
-    const diff=P.diff||(document.getElementById("gen-diff")?document.getElementById("gen-diff").value:"moyen");
+    // les étoiles priment sur le raccourci nommé quand l'appelant en fournit
+    const etoiles=P.etoiles!=null?Math.max(1,Math.min(6,P.etoiles|0)):null;
+    const diff=etoiles!=null?diffPourEtoiles(etoiles)
+      :(P.diff||(document.getElementById("gen-diff")?document.getElementById("gen-diff").value:"moyen"));
     const podSize=P.podSize||[2,3];
     // --- TAILLE DU PLATEAU, décidée AVANT le maillage (elle le construit) ---
     // Le nombre de pods vient de la difficulté ; la taille en découle par la loi mesurée. En mode
@@ -2064,7 +2079,7 @@
     const auto=P.autoTaille!=null?P.autoTaille:(caseAuto?caseAuto.checked:true);
     const domPods=(()=>{ if(P.diff!=null)return null;   // appel de campagne : l'éditeur ne doit pas déteindre dessus
       const e=document.getElementById("gen-pods"); return e&&e.value!==""?+e.value:null; })();
-    const podsVoulus=P.podCount!=null?P.podCount:(domPods!=null?domPods:podsPourDiff(diff));
+    const podsVoulus=P.podCount!=null?P.podCount:(etoiles!=null?podsPourEtoiles(etoiles):(domPods!=null?domPods:podsPourDiff(diff)));
     // --- GÉOMÉTRIE DE L'ACTE. L'ordre importe : on CALCULE le profil d'abord (il donne la densité,
     // dont dépend le dimensionnement), on redimensionne ensuite, et on APPLIQUE en dernier — car
     // setBoardSize() réécrit la grille de zones, et le maillage se construit à partir d'elle.
@@ -2385,7 +2400,8 @@
     const echelle=(v,plafond)=>Math.min(plafond,Math.max(v,Math.round(v*densite)));
     // l'escouade grossit plus doucement que l'opposition : couvrir plus de terrain, sans
     // transformer chaque tour du joueur en gestion de foule
-    const S=P.squad!=null?P.squad:(auto?(diff==="facile"?3:4):Math.min(6,(diff==="facile"?3:4)+Math.round((densite-1)*1.5)));
+    const base3=(etoiles!=null?etoiles<=2:diff==="facile")?3:4;
+    const S=P.squad!=null?P.squad:(auto?base3:Math.min(6,base3+Math.round((densite-1)*1.5)));
     // spread-out deployment: take tiles near the anchor BUT spaced (≥2 hops) so
     // each unit keeps free neighbors and isn't walled in by its teammates
     const sortedSlots=reachIds.slice().sort((a,b)=>dist[a]-dist[b]); const slots=[];
@@ -3420,7 +3436,7 @@
     if(s==="cleared")return GEO_FILL.cleared; if(s==="lost")return GEO_FILL.lost; if(s==="locked")return GEO_FILL.locked;
     if(c.gkind==="mission"&&c.gdiff>0)return DIFF_FILL[Math.min(5,c.gdiff)]||GEO_FILL.available; return GEO_FILL.available; }
   function geoFillFor(c){ return geoFillForState(c,c.gstate); }   // editor: raw state
-  function geoInitCells(){ cells.forEach(c=>{ c.gname=c.gname||""; c.gtype="region"; c.gkind="empty"; c.gref=null; c.gstate="locked"; c.gunlock=[]; c.gdiff=0; }); geoCampId=null; geoSel=null; }
+  function geoInitCells(){ cells.forEach(c=>{ c.gname=c.gname||""; c.gtype="region"; c.gkind="empty"; c.gref=null; c.gproc=null; c.gstate="locked"; c.gunlock=[]; c.gdiff=0; }); geoCampId=null; geoSel=null; }
   function geoGenerate(){ const tgt=Math.max(4,Math.min(40,+(document.getElementById("geo-n").value)||12));
     resetView(); seed=(seed*1103515245+12345)&0x7fffffff;
     // generate wider (the border cells will be removed), then adjust until close to
@@ -3493,17 +3509,36 @@
         <button id="gd-camp">⛺ Set as camp</button></div>
       <div class="row"><label>State <select id="gd-state">${GEO_STATES.map(([v,l])=>`<option value="${v}"${c.gstate===v?" selected":""}>${l}</option>`).join("")}</select></label></div>
       <div class="row"><label>Content <select id="gd-kind"><option value="empty"${c.gkind==="empty"?" selected":""}>empty</option><option value="mission"${c.gkind==="mission"?" selected":""}>mission</option><option value="event"${c.gkind==="event"?" selected":""}>event</option></select></label></div>
-      <div class="row" id="gd-refrow" style="${c.gkind==="mission"?"":"display:none"}"><label style="flex:1">Mission <select id="gd-ref" style="flex:1">${geoMissionOpts(c.gref)}</select></label>
+      <div class="row" id="gd-refrow" style="${c.gkind==="mission"?"":"display:none"}"><label style="flex:1">Mission <select id="gd-ref" style="flex:1"${c.gproc?" disabled":""}>${geoMissionOpts(c.gref)}</select></label>
         <label>Difficulty <select id="gd-diff"><option value="0"${!c.gdiff?" selected":""}>—</option>${[1,2,3,4,5].map(n=>`<option value="${n}"${c.gdiff===n?" selected":""}>${"★".repeat(n)}</option>`).join("")}</select></label></div>
+      <div class="row" id="gd-procrow" style="${c.gkind==="mission"?"":"display:none"}">
+        <label title="La carte est produite par le générateur : les ÉTOILES commandent le nombre de poches, donc la taille du plateau et la bande de distorsion."><input type="checkbox" id="gd-proc"${c.gproc?" checked":""}> 🎲 carte générée</label>
+        <span id="gd-procopts" style="${c.gproc?"display:flex;gap:8px":"display:none"}">
+          <label>forme <select id="gd-proc-forme"><option value="">au hasard</option>${RECETTE_ACTE_DEFAUT.formes.map(f=>`<option value="${f}"${c.gproc&&c.gproc.forme===f?" selected":""}>${f}</option>`).join("")}</select></label>
+          <label>objectif <select id="gd-proc-obj"><option value="">au hasard</option>${OBJ_ACTE.map(o=>`<option value="${o}"${c.gproc&&c.gproc.objectif===o?" selected":""}>${o}</option>`).join("")}</select></label>
+        </span></div>
+      <div class="hint" id="gd-procapercu" style="${c.gproc?"":"display:none"}"></div>
       <div style="margin-top:6px"><b style="font-size:.82rem">Unlocked by:</b><br>${others||"(no other cell)"}</div>`;
     const g=id=>document.getElementById(id);
     g("gd-name").oninput=e=>{ c.gname=e.target.value; draw(); };
     g("gd-type").onchange=e=>{ c.gtype=e.target.value; if(e.target.value==="camp")geoCampId=c.id; else if(geoCampId===c.id)geoCampId=null; draw(); };
     g("gd-camp").onclick=()=>{ geoCampId=c.id; c.gtype="camp"; c.gstate="available"; geoRenderDetail(); draw(); };
     g("gd-state").onchange=e=>{ c.gstate=e.target.value; draw(); };
-    g("gd-kind").onchange=e=>{ c.gkind=e.target.value; const rr=g("gd-refrow"); if(rr)rr.style.display=(e.target.value==="mission")?"":"none"; draw(); };
+    g("gd-kind").onchange=e=>{ c.gkind=e.target.value; const vis=(e.target.value==="mission")?"":"none";
+      for(const id of ["gd-refrow","gd-procrow"]){ const r=g(id); if(r)r.style.display=vis; }
+      const a=g("gd-procapercu"); if(a)a.style.display=(vis===""&&c.gproc)?"":"none"; draw(); };
     const ref=g("gd-ref"); if(ref)ref.onchange=e=>{ c.gref=e.target.value||null; };
-    const gdf=g("gd-diff"); if(gdf)gdf.onchange=e=>{ c.gdiff=+e.target.value||0; draw(); };
+    function majProcApercu(){ const z=g("gd-procapercu"); if(!z)return;
+      if(!c.gproc){ z.style.display="none"; return; }
+      const et=Math.max(1,Math.min(6,c.gdiff||3)), pods=podsPourEtoiles(et), pal=diffPourEtoiles(et);
+      const geo=terrainInterpole(campTerrain,0.5,pal), t=tailleAuto(c.gproc.forme||"rect",pods,geo.densite);
+      z.style.display=""; z.textContent=`★${et} → ${pods} poches · plateau ${t.bw}x${t.bh} · bande « ${pal} » · distorsion ${geo.distorsion} % à mi-acte`; }
+    const gdf=g("gd-diff"); if(gdf)gdf.onchange=e=>{ c.gdiff=+e.target.value||0; majProcApercu(); draw(); };
+    { const pc=g("gd-proc");
+      if(pc)pc.onchange=e=>{ if(e.target.checked)c.gproc=c.gproc||{forme:"",objectif:""}; else delete c.gproc; geoRenderDetail(); draw(); };
+      const pf=g("gd-proc-forme"); if(pf)pf.onchange=e=>{ c.gproc.forme=e.target.value||""; majProcApercu(); };
+      const po=g("gd-proc-obj"); if(po)po.onchange=e=>{ c.gproc.objectif=e.target.value||""; };
+      majProcApercu(); }
     el.querySelectorAll("[data-unlock]").forEach(cb=>cb.onchange=e=>{ const id=+e.target.getAttribute("data-unlock"); c.gunlock=c.gunlock||[]; if(e.target.checked){ if(!c.gunlock.includes(id))c.gunlock.push(id); } else c.gunlock=c.gunlock.filter(x=>x!==id); draw(); }); }
 
   // geoscape serialization (polygons + annotations + mesh parameters)
@@ -3511,7 +3546,7 @@
       mesh:{ infl, seed, g:geoG, cols:COLS, rows:ROWS },
       camp:geoCampId,
       cells:cells.map(c=>({ poly:c.poly.map(p=>[Math.round(p[0]),Math.round(p[1])]), name:c.gname||"", type:c.gtype||"region",
-        content:{kind:c.gkind||"empty", ref:c.gref||null}, state:c.gstate||"locked", unlockedBy:(c.gunlock||[]).slice(), diff:c.gdiff||0 })),
+        content:{kind:c.gkind||"empty", ref:c.gref||null, gen:c.gproc||null}, state:c.gstate||"locked", unlockedBy:(c.gunlock||[]).slice(), diff:c.gdiff||0 })),
       events:(geoEventsDraft||[]).map(e=>{ const o={when:{kind:(e.when&&e.when.kind)||"arrive"}}; if(o.when.kind!=="arrive")o.when.value=e.when&&e.when.value;
         if(e.file)o.file=e.file; if(e.text)o.text=e.text; if(e.recruit)o.recruit=e.recruit; if(e.reveal)o.reveal=e.reveal; if(e.mode==="over")o.mode="over"; if(e.priority)o.priority=e.priority; return o; }).filter(e=>e.text||e.file||e.recruit||e.reveal) }; }
   function geoApply(o){ resetView();
@@ -3520,7 +3555,7 @@
     document.getElementById("geo-name").value=o.name||"";
     if(Array.isArray(o.cells)&&o.cells.length&&o.cells[0].poly){
       cells=o.cells.map((c,i)=>{ const ct=polyCentroid(c.poly); return {id:i,poly:c.poly,cx:ct[0],cy:ct[1],nb:[],terr:"plain",elev:0,
-        gname:c.name||"",gtype:c.type||"region",gkind:(c.content&&c.content.kind)||"empty",gref:(c.content&&c.content.ref)||null,
+        gname:c.name||"",gtype:c.type||"region",gkind:(c.content&&c.content.kind)||"empty",gref:(c.content&&c.content.ref)||null,gproc:(c.content&&c.content.gen)||null,
         gstate:c.state||"locked",gunlock:Array.isArray(c.unlockedBy)?c.unlockedBy.slice():[],gdiff:c.diff||0}; });
       buildAdj();
     } else { genMesh(geoG,true); geoInitCells(); }
@@ -3775,16 +3810,28 @@
     draw(); uiOpened("squad",()=>el.classList.add("show"));
     document.getElementById("squad-go").onclick=()=>{ if(sel.size<1)return; el.classList.remove("show"); onConfirm([...sel]); };
     document.getElementById("squad-cancel").onclick=()=>{ el.classList.remove("show"); onConfirm(null); }; }
-  async function geoLaunchMission(cellId,ref){ const t=await fetchText("missions-mesh/"+ref,ghCfg());
-    if(!t){ geoBanner("mission not found: "+ref); return; }
-    let m; try{ m=JSON.parse(t); }catch(e){ geoBanner("unreadable mission"); return; }
-    const slots=(m.units||[]).filter(u=>u.team==="player").length||1;
-    const regionName=(cells[cellId]&&cells[cellId].gname)||"Mission";
+  async function geoLaunchMission(cellId,ref){
+    const cel=cells[cellId], gen=cel&&cel.gproc;
+    // RÉGION GÉNÉRÉE : la case porte une recette au lieu d'un fichier, et ses ÉTOILES commandent la
+    // carte — nombre de poches, donc taille du plateau et bande de distorsion. Jusqu'ici les étoiles
+    // ne faisaient que teinter la case et payer une prime.
+    let m=null;
+    if(!gen){ const t=await fetchText("missions-mesh/"+ref,ghCfg());
+      if(!t){ geoBanner("mission not found: "+ref); return; }
+      try{ m=JSON.parse(t); }catch(e){ geoBanner("unreadable mission"); return; } }
+    const etoiles=Math.max(1,Math.min(6,(cel&&cel.gdiff)||3));
+    const slots=gen?(etoiles<=2?3:4):((m.units||[]).filter(u=>u.team==="player").length||1);
+    const regionName=(cel&&cel.gname)||"Mission";
     showSquadSelect(slots, regionName, (chosen)=>{ if(!chosen){ geoBanner("departure cancelled"); return; }   // Cancel = stay at camp
       campRun.deploySel=chosen; campRun.geoReturn={nodeId:geoPlay.node.id,cellId}; campRun.missionN=(campRun.missionN||0)+1; geoPlay.inMission=true; document.body.classList.remove("geomap");
-      try{ applyMissionObj(m,true); }catch(e){ geoBanner("unreadable mission"); geoPlay.inMission=false; document.body.classList.add("geomap"); return; }
-      addForgeEnemies();   // enemies adjusted after the freed forges
-      distortTerrain(corruptLevel());   // the terrain warps more as you advance
+      if(gen){
+        const prof=(campRun&&campRun.camp&&campRun.camp.terrain)||null;
+        genMission({etoiles, forme:gen.forme||null, archetype:gen.objectif||null, terrain:prof,
+                    avancement:avancementActe(prof), squad:slots});
+      } else {
+        try{ applyMissionObj(m,true); }catch(e){ geoBanner("unreadable mission"); geoPlay.inMission=false; document.body.classList.add("geomap"); return; }
+        addForgeEnemies();   // enemies adjusted after the freed forges
+        distortTerrain(corruptLevel()); }   // the terrain warps more as you advance
       deployRoster(); startGame(); if(!(curMission&&curMission.fullheal))applyCarry(); refresh();
       // squad dialogue "before" → territory "before" events → squad dialogue "start"
       playPartyDialog("before",()=>runGeoEvents("before",{region:regionName,missionN:campRun.missionN},()=>playPartyDialog("start",()=>{}))); }); }
@@ -3893,9 +3940,9 @@
     {name:"Board size (measured — see MESURES-TAILLE-PLATEAU.md)", items:[
       {k:"CEL_PAR_POD",label:"Cells per pod (30% idle walking = 60)",get:()=>CEL_PAR_POD,set:v=>CEL_PAR_POD=v,min:30,max:220,step:5},
       {k:"ENNEMIS_PAR_POD",label:"Enemies per pod (floor)",get:()=>ENNEMIS_PAR_POD,set:v=>ENNEMIS_PAR_POD=v,min:1,max:5,step:1},
-      {k:"PODS_facile",label:"Pods — easy",get:()=>PODS_DIFF.facile,set:v=>PODS_DIFF.facile=v,min:1,max:8,step:1},
-      {k:"PODS_moyen",label:"Pods — medium",get:()=>PODS_DIFF.moyen,set:v=>PODS_DIFF.moyen=v,min:1,max:8,step:1},
-      {k:"PODS_difficile",label:"Pods — hard",get:()=>PODS_DIFF.difficile,set:v=>PODS_DIFF.difficile=v,min:1,max:8,step:1} ]},
+      {k:"ET_facile",label:"★ — easy",get:()=>ETOILES_DIFF.facile,set:v=>ETOILES_DIFF.facile=v,min:1,max:5,step:1},
+      {k:"ET_moyen",label:"★ — medium",get:()=>ETOILES_DIFF.moyen,set:v=>ETOILES_DIFF.moyen=v,min:1,max:5,step:1},
+      {k:"ET_difficile",label:"★ — hard",get:()=>ETOILES_DIFF.difficile,set:v=>ETOILES_DIFF.difficile=v,min:1,max:5,step:1} ]},
     {name:"Enemies per difficulty", items:[
       {k:"EN_facile",label:"Easy",get:()=>ENEMY_COUNT.facile,set:v=>ENEMY_COUNT.facile=v,min:1,max:12,step:1},
       {k:"EN_moyen",label:"Medium",get:()=>ENEMY_COUNT.moyen,set:v=>ENEMY_COUNT.moyen=v,min:1,max:12,step:1},
@@ -4034,6 +4081,7 @@
       // on appelle le générateur DIRECTEMENT quand la simulation porte des paramètres d'acte :
       // le bouton, lui, appelle genMission() sans arguments et les perdrait en route.
       const Pgen={}; if(opt.terrain!==undefined)Pgen.terrain=opt.terrain; if(opt.avancement!=null)Pgen.avancement=opt.avancement;
+      if(opt.etoiles!=null)Pgen.etoiles=opt.etoiles;
       genMission(Pgen);
       const carte={cellules:cells.length, forme:opt.forme, bw:opt.bw, bh:opt.bh};
       document.body.classList.add("testing"); setView("play"); startGame();

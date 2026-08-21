@@ -275,3 +275,53 @@ contrôle **sans effet**, puisque `n.gen` a la priorité. Il propose désormais 
 objectif, avancement et graine, avec un aperçu du résultat (pods, taille de plateau, distorsion,
 densité), un bouton **🎲 autre carte** (nouvelle graine, mêmes paramètres) et une bascule
 **↩ fichier / 🎲 générer** dans les deux sens.
+
+---
+
+# Les étoiles comme échelle unique
+
+Il y avait **deux systèmes de difficulté côte à côte**, dont un décoratif :
+
+- `facile` / `moyen` / `difficile` pilotait vraiment la génération (poches, taille, effectifs) ;
+- les **étoiles** du geoscape (0 à 5) ne faisaient que **teinter la case** et **payer la prime
+  express** — aucun effet sur la carte (`index.html`, coloration, affichage, `PRIME_DIFF_MIN`).
+
+La raison était structurelle : `geoLaunchMission()` chargeait un **fichier** de mission et ne passait
+jamais par le générateur. Tout le dimensionnement mesuré ne s'appliquait donc qu'aux actes.
+
+## Ce qui change
+
+**L'étoile est la difficulté**, et elle commande le nombre de poches — donc le nombre
+d'engagements, dont découle la taille du plateau :
+
+```
+★1 = 1 poche   …   ★5 = 5 poches
+```
+
+`facile` / `moyen` / `difficile` ne sont plus que des raccourcis d'éditeur vers **★2, ★3, ★4**
+(réglables : `ETOILES_DIFF`). Les trois plages de distorsion restent les trois paliers nommés, et
+les cinq étoiles s'y rangent : **★1-2 → facile, ★3 → moyen, ★4-5 → difficile**.
+
+**Une région du geoscape peut porter une recette** au lieu d'un fichier (case *🎲 carte générée*,
+avec forme et objectif au choix ou au hasard). Ses étoiles pilotent alors réellement la carte, et
+l'éditeur affiche ce qu'elles produiront.
+
+## Mesuré, 50 parties
+
+| ★ | cellules | par pod | ennemis | tours (médiane) | marche à vide (méd.) | nettoyées |
+|---|---|---|---|---|---|---|
+| 1 | 62 | 62 | 4 | 12 | 13 % | 100 % |
+| 2 | 112 | 56 | 4 | 12 | 25 % | 100 % |
+| 3 | 173 | 58 | 6 | 19 | 26 % | 100 % |
+| 4 | 235 | 59 | 8 | 31 | 37 % | 90 % |
+| 5 | 302 | 60 | 10 | 27 | 28 % | 90 % |
+
+Les cellules par pod tiennent entre 56 et 62 pour une cible de 60, et la durée d'une mission passe
+de 12 à une trentaine de tours. Un secteur fortement connexe partout, aucun ennemi visible au tour 1,
+tous les ennemis joignables.
+
+> **Deux réserves.** ★1 et ★2 ont le même nombre d'ennemis (4) : le plancher `ENEMY_COUNT.facile`
+> l'emporte sur `pods × 2`, si bien que ★1 est une seule grosse poche là où ★2 en fait deux petites.
+> Baisser `ENEMY_COUNT.facile` à 2 si tu veux que ★1 soit vraiment léger.
+> Et le plancher de largeur a dû descendre de 8 à 6 : à une seule poche la formule demande 5,5, et
+> un plancher trop haut rendait **★1 plus creuse que ★2** (132 cellules par poche au lieu de 60).
