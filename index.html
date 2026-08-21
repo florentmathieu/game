@@ -860,7 +860,9 @@
   // area centroid of a polygon (better centered than a vertex average for irregular cells)
   function polyCentroid(p){ let A=0,cx=0,cy=0; for(let i=0;i<p.length;i++){const a=p[i],b=p[(i+1)%p.length];const cr=a[0]*b[1]-b[0]*a[1];A+=cr;cx+=(a[0]+b[0])*cr;cy+=(a[1]+b[1])*cr;} A*=0.5;
     if(Math.abs(A)<1e-6){let sx=0,sy=0;for(const v of p){sx+=v[0];sy+=v[1];}return [sx/p.length,sy/p.length];} return [cx/(6*A),cy/(6*A)]; }
-  function buildAdj(){ const map=new Map(),segOf=new Map(); cells.forEach(c=>{c.nb=[];c.edgeNb=[];}); const edgeKeys=[];
+  // INDEX SPATIAL pour cellAtXY (voir plus bas). Invalidé à chaque reconstruction du maillage.
+  let _grille=null, _meshV=0;
+  function buildAdj(){ _meshV++; _grille=null; const map=new Map(),segOf=new Map(); cells.forEach(c=>{c.nb=[];c.edgeNb=[];}); const edgeKeys=[];
     cells.forEach((c,i)=>{const p=c.poly;for(let k=0;k<p.length;k++){const a=p[k],b=p[(k+1)%p.length];const key=Math.round((a[0]+b[0])/5)+","+Math.round((a[1]+b[1])/5);if(!map.has(key)){map.set(key,[]);segOf.set(key,[a,b]);}map.get(key).push(i);edgeKeys.push([i,k,key]);}});
     wallSeg=new Map();
     for(const [key,arr] of map.entries())for(let a=0;a<arr.length;a++)for(let b=a+1;b<arr.length;b++){const x=arr[a],y=arr[b];if(x!==y&&!cells[x].nb.includes(y)){cells[x].nb.push(y);cells[y].nb.push(x);wallSeg.set(wkey(x,y),segOf.get(key));}}
@@ -898,7 +900,37 @@
 
   // ===== geometry utilities =====
   function pointIn(poly,x,y){let c=false;for(let i=0,j=poly.length-1;i<poly.length;j=i++){const xi=poly[i][0],yi=poly[i][1],xj=poly[j][0],yj=poly[j][1];if(((yi>y)!=(yj>y))&&(x<(xj-xi)*(y-yi)/(yj-yi)+xi))c=!c;}return c;}
-  const cellAtXY=(x,y)=>{for(const c of cells)if(pointIn(c.poly,x,y))return c;return null;};
+  // cellAtXY balayait les cellules une à une en testant chaque polygone. Une ligne de vue
+  // échantillonne un point tous les 8 pixels — jusqu'à 200 points sur le grand plateau — soit
+  // 160 000 tests point-dans-polygone par appel de los(), que le moteur fait pour chaque paire à
+  // chaque tour. On range donc les cellules dans une grille régulière, par boîte englobante, et
+  // on ne teste plus que les quelques candidates de la case visée.
+  function grilleSpatiale(){
+    if(_grille&&_grille.v===_meshV)return _grille;
+    const T=Math.max(12,Math.hypot(W,H)/Math.max(4,Math.sqrt(cells.length)*1.3));
+    const nx=Math.max(1,Math.ceil(W/T)+2), ny=Math.max(1,Math.ceil(H/T)+2);
+    const cases=Array.from({length:nx*ny},()=>[]);
+    for(const c of cells){ if(!c.poly||!c.poly.length)continue;
+      let x0=1e9,y0=1e9,x1=-1e9,y1=-1e9;
+      for(const p of c.poly){ if(p[0]<x0)x0=p[0]; if(p[0]>x1)x1=p[0]; if(p[1]<y0)y0=p[1]; if(p[1]>y1)y1=p[1]; }
+      const i0=Math.max(0,Math.floor(x0/T)), i1=Math.min(nx-1,Math.floor(x1/T));
+      const j0=Math.max(0,Math.floor(y0/T)), j1=Math.min(ny-1,Math.floor(y1/T));
+      for(let j=j0;j<=j1;j++) for(let i=i0;i<=i1;i++) cases[j*nx+i].push(c.id); }
+    return (_grille={v:_meshV,T,nx,ny,cases});
+  }
+  const cellAtXY=(x,y)=>{ const g=grilleSpatiale();
+    const i=Math.floor(x/g.T), j=Math.floor(y/g.T);
+    if(i<0||j<0||i>=g.nx||j>=g.ny)return null;
+    const b=g.cases[j*g.nx+i];
+    for(let k=0;k<b.length;k++){ const c=cells[b[k]]; if(c&&pointIn(c.poly,x,y))return c; }
+    return null; };
+  // vérification de l'index : il doit rendre EXACTEMENT ce que rendait le balayage linéaire.
+  window.VERIFINDEX=function(n){ n=n||2000; let ko=0;
+    for(let k=0;k<n;k++){ const x=Math.random()*W, y=Math.random()*H;
+      let lin=null; for(const c of cells) if(pointIn(c.poly,x,y)){ lin=c; break; }
+      const idx=cellAtXY(x,y);
+      if((lin&&lin.id)!==(idx&&idx.id) && !(lin===null&&idx===null)) ko++; }
+    return ko+" écarts sur "+n+" points"; };
   const norm=a=>{while(a<=-Math.PI)a+=TWO;while(a>Math.PI)a-=TWO;return a;};
   const ang=(a,b)=>Math.atan2(cells[b].cy-cells[a].cy,cells[b].cx-cells[a].cx);
   const passable=id=>cells[id].terr!=="wall";
@@ -1004,9 +1036,10 @@
                // pas du maillage = distance moyenne entre centres voisins (pas de dépendance à bw/bh)
                let sp=0,sn=0; for(const c of cells) for(const n of c.nb){ if(n<=c.id)continue; sp+=Math.hypot(cells[n].cx-c.cx,cells[n].cy-c.cy); sn++; }
                const pas=sn?sp/sn:1;
+               const champJoueur=champPasReels(P.map(u=>u.cell));   // un seul parcours pour tous les alliés
                const r=E.map(e=>{ const c=cells[e.cell];
                  const cible=P.reduce((a,b)=>Math.hypot(cells[b.cell].cx-c.cx,cells[b.cell].cy-c.cy)<Math.hypot(cells[a.cell].cx-c.cx,cells[a.cell].cy-c.cy)?b:a);
-                 const h=pasReels(e.cell,cible.cell), vol=Math.hypot(cells[cible.cell].cx-c.cx,cells[cible.cell].cy-c.cy)/pas;
+                 const h=champJoueur[e.cell]===undefined?Infinity:champJoueur[e.cell], vol=Math.hypot(cells[cible.cell].cx-c.cx,cells[cible.cell].cy-c.cy)/pas;
                  const vu=new Set([e.cell]); let front=[e.cell];
                  for(let k=0;k<6&&front.length;k++){ const nx=[];
                    for(const u of front) for(const v of cells[u].nb){ if(vu.has(v)||!passable(v))continue; if(enterCost(u,v)===null)continue; vu.add(v); nx.push(v); }
@@ -1020,7 +1053,8 @@
              distanceAuxEnnemis:(function(){ // en cases : dit si la carte est traversable dans un temps raisonnable
                const P=units.filter(u=>u.team==="player"&&u.hp>0), E=units.filter(u=>u.team==="enemy"&&u.hp>0);
                if(!P.length||!E.length)return "—";
-               const ds=E.map(e=>Math.min(...P.map(pl=>{const h=pasReels(pl.cell,e.cell); return (h==null||h===Infinity)?999:h;})));
+               const champ=champPasReels(P.map(u=>u.cell));
+               const ds=E.map(e=>champ[e.cell]===undefined?999:champ[e.cell]);
                return Math.min(...ds)+"-"+Math.max(...ds); })(),
              ennemisVisiblesT1:(function(){ const P=units.filter(u=>u.team==="player"&&u.hp>0);
                if(!P.length)return "—";
@@ -1129,11 +1163,14 @@
   }
   // distance en CASES qui respecte les règles de déplacement (parapets, falaises), contrairement à
   // hops() qui ne teste que la roche. hops() reste juste pour la VUE — on voit par-dessus un muret.
-  function pasReels(a,b){ if(!cells[a]||!cells[b])return Infinity;
-    const d={}; d[a]=0; const q=[a];
-    while(q.length){ const u=q.shift(); if(u===b)return d[u];
-      for(const v of cells[u].nb){ if(d[v]!==undefined||!passable(v))continue; if(enterCost(u,v)===null)continue; d[v]=d[u]+1; q.push(v); } }
-    return Infinity; }
+  function pasReels(a,b){ const d=champPasReels([a]); const v=d[b]; return v===undefined?Infinity:v; }
+  // champ de distance depuis PLUSIEURS sources en un seul parcours : mesurer la distance de six
+  // alliés à onze ennemis relançait soixante-six BFS complets, soit neuf secondes de MAPSTATS.
+  function champPasReels(sources){ const d=new Int32Array(cells.length).fill(-1), q=[]; let h=0;
+    for(const s of sources){ if(cells[s]&&d[s]<0){ d[s]=0; q.push(s); } }
+    while(h<q.length){ const u=q[h++];
+      for(const v of cells[u].nb){ if(d[v]>=0||!passable(v))continue; if(enterCost(u,v)===null)continue; d[v]=d[u]+1; q.push(v); } }
+    const o={}; for(let i=0;i<d.length;i++) if(d[i]>=0)o[i]=d[i]; return o; }
 
   // ===== units =====
   let units=[], podAlerted=new Set(), neutralSeen=new Set(), lastSeen=new Map(), curMission=null;
@@ -1177,7 +1214,10 @@
     while(pq.length){let bi=0;for(let i=1;i<pq.length;i++)if(pq[i][0]<pq[bi][0])bi=i;const[d,id]=pq.splice(bi,1)[0];if(d>dist[id])continue;
       for(const n of cells[id].nb){if(occu.has(n)&&n!==goal)continue;const c=enterCost(id,n);if(c===null)continue;const nd=d+c;if(dist[n]===undefined||nd<dist[n]){dist[n]=nd;prev[n]=id;pq.push([nd,n]);}}}
     if(dist[goal]===undefined)return null;const p=[goal];let c=goal;while(prev[c]!==undefined){c=prev[c];p.unshift(c);}return p;}
-  function hops(a,b){if(!cells[a]||!cells[b])return Infinity;const s={};s[a]=0;const q=[a];while(q.length){const id=q.shift();if(id===b)return s[id];for(const n of cells[id].nb){if(!passable(n))continue;if(s[n]===undefined){s[n]=s[id]+1;q.push(n);}}}return Infinity;}
+  // BFS à tête de file. q.shift() est O(n) sur un tableau : la file entière était recopiée à chaque
+  // sortie, ce qui rendait hops() quadratique — or l'IA l'appelle pour chaque cible à chaque tour.
+  function hops(a,b){if(!cells[a]||!cells[b])return Infinity;const s={};s[a]=0;const q=[a];let h=0;
+    while(h<q.length){const id=q[h++];if(id===b)return s[id];for(const n of cells[id].nb){if(!passable(n))continue;if(s[n]===undefined){s[n]=s[id]+1;q.push(n);}}}return Infinity;}
   function los(a,b){const A=cells[a],B=cells[b],N=Math.max(2,Math.round(Math.hypot(B.cx-A.cx,B.cy-A.cy)/8));
     for(let k=1;k<N;k++){const t=k/N,x=A.cx+(B.cx-A.cx)*t,y=A.cy+(B.cy-A.cy)*t;const c=cellAtXY(x,y);if(c&&c.id!==a&&c.id!==b&&opaque(c.id))return false;}return true;}
   // reliable geometric adjacency: two cells sharing an edge (≥2 common vertices) — catches an edge missed by buildAdj
