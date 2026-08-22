@@ -3881,8 +3881,6 @@
       <div class="row" id="cd-marcherow" style="${(n.proc&&(!n.proc.layout||n.proc.layout==="marche"))?"":"display:none"}">
         <label>columns <input data-gf="proccols" type="number" min="3" max="12" value="${(n.proc&&n.proc.cols)||6}" style="width:48px"></label>
         <label>rows <input data-gf="procrows" type="number" min="2" max="8" value="${(n.proc&&n.proc.rows)||4}" style="width:48px"></label>
-        <label title="Arrival, the forge, the bastion and the track choice — written in texts/geoscape.json and added by the generator, not by you.">
-          <input type="checkbox" data-gf="procnarration" ${(!n.proc||n.proc.narration!==false)?"checked":""}> act narration</label>
         <label>missions <select data-gf="procmissions"><option value="generees"${(!n.proc||n.proc.missions!=="fichiers")?" selected":""}>generated</option><option value="fichiers"${(n.proc&&n.proc.missions==="fichiers")?" selected":""}>files</option></select></label>
         <span class="hint" data-marcheapercu style="flex:1"></span></div>
       <div class="row" id="cd-grainerow" style="${(n.proc&&(!n.proc.layout||n.proc.layout==="marche"))?"":"display:none"}">
@@ -3968,7 +3966,6 @@
       else if(f==="procrows"){ n.proc.rows=Math.max(2,Math.min(8,+inp.value||4)); majMarche(); }
       else if(f==="procmissions"){ n.proc.missions=inp.value; }
       else if(f==="procgraine"){ n.proc.graine=Math.max(0,Math.min(999999,+inp.value||0)); }
-      else if(f==="procnarration"){ n.proc.narration=inp.checked; }
       else if(f==="procimposees"){
         // « ★ | nom | objectif [| forme] », une par ligne. On tolère les lignes vides et le
         // désordre : ce qui n'est pas lisible est signalé, pas avalé en silence.
@@ -4013,9 +4010,9 @@
     let m;
     try{ m=(disp==="marche")
       ? genGeoMarche({act, cols:n.proc.cols||6, rows:n.proc.rows||4, seed:graine,
-          missions:n.proc.missions||"generees", formes:n.proc.formes||null, narration:n.proc.narration!==false,
+          missions:n.proc.missions||"generees", formes:n.proc.formes||null,
           objectifs:n.proc.objectifs||null, imposees:n.proc.imposees||null})
-      : genGeoMap({act, regions:n.proc.regions||10, seed:graine, narration:n.proc.narration!==false}); }
+      : genGeoMap({act, regions:n.proc.regions||10, seed:graine}); }
     catch(e){ m=null; }
     if(!m){ return; }
     const g=cv.getContext("2d");
@@ -4957,14 +4954,9 @@
       else { cell.name=names[rank%names.length]; cell.state="available"; cell.content={kind:"mission",ref:pickRef(d)}; }
       cell.diff=d; });
     out.events.push({when:{kind:"wins",value:Math.max(3,Math.round(maxR*0.5))},reveal:BOSS_NAME[act],text:""});   // the boss reveals itself at the midpoint
-    // per-act narrative texts (editable in texts/geoscape.json): arrival, before the forge, before the boss
-    // NARRATION D'ACTE. Ces trois textes (arrivée, forge, bastion) viennent de texts/geoscape.json
-    // et sont posés par le GÉNÉRATEUR, sans qu'on ait rien programmé : c'est le récit de l'acte, pas
-    // un déclencheur de l'auteur. On peut les couper, mais il faut d'abord savoir qu'ils existent.
-    if(opts.narration!==false){
-      const aArr=gtx("acts."+act+".arrive"); if(aArr)out.events.push({when:{kind:"arrive"},text:aArr});
-      const aForge=gtx("acts."+act+".forge"); if(aForge)out.events.push({when:{kind:"before",value:FORGE_NAME[act]},text:aForge});
-      const aBoss=gtx("acts."+act+".boss"); if(aBoss)out.events.push({when:{kind:"before",value:BOSS_NAME[act]},text:aBoss}); }
+    // Le générateur ne pose AUCUN texte : le récit appartient à l'auteur, pas à la fabrique de
+    // cartes. (Il posait l'arrivée, la forge et le bastion depuis texts/geoscape.json ; ces clés
+    // existent toujours dans le fichier, plus personne ne les lit.)
     return out; }
   // ===== ACTE 1 — LA MARCHE : une disposition imposée, pas un tirage =====
   // Grille rectangulaire n x m. On ENTRE PAR LA GAUCHE — le camp y est adossé — et le Bastion est
@@ -5075,13 +5067,8 @@
       out.imposees.push({nom:cible.c.name,etoiles:cible.c.diff,demande:et,decale,objectif:im.objectif||"",case:cible.i}); }
     const jouables=out.cells.filter(c=>c.content&&c.content.kind==="mission").length;
     out.events.push({when:{kind:"wins",value:Math.max(3,Math.round(jouables*0.5))},reveal:BOSS_NAME[act],text:""});
-    // Mêmes textes d'acte que ci-dessus, plus l'explication du choix de voie — posés par le
-    // générateur, pas par l'auteur. « narration:false » laisse le territoire muet.
-    if(opts.narration!==false){
-      const aArr=gtx("acts."+act+".arrive"); if(aArr)out.events.push({when:{kind:"arrive"},text:aArr});
-      const aForge=gtx("acts."+act+".forge"); if(aForge)out.events.push({when:{kind:"before",value:FORGE_NAME[act]},text:aForge});
-      const aBoss=gtx("acts."+act+".boss"); if(aBoss)out.events.push({when:{kind:"before",value:BOSS_NAME[act]},text:aBoss});
-      const aVoie=gtx("acts."+act+".voie"); if(aVoie)out.events.push({when:{kind:"grade",value:TRACK_LEVELS[0]},text:aVoie}); }   // le choix de voie, expliqué à la première unité qui y arrive
+    // Idem : aucun texte imposé. Le seul évènement que le générateur pose encore est la RÉVÉLATION
+    // du bastion à mi-parcours, qui n'est pas du récit mais une règle de progression.
     return out; }
   window.GEO_MARCHE=o=>genGeoMarche(o);
 
@@ -5125,9 +5112,9 @@
         ? genGeoMarche({act, cols:node.proc.cols||6, rows:node.proc.rows||4,
                         seed:node.proc.graine?(node.proc.graine>>>0):seedOf(),   // graine fixée dans la recette = territoire reproductible ; 0 = une autre à chaque partie
                         missions:node.proc.missions||"generees",
-                        formes:node.proc.formes||null, narration:node.proc.narration!==false,
+                        formes:node.proc.formes||null,
                         objectifs:node.proc.objectifs||null, imposees:node.proc.imposees||null})
-        : genGeoMap({act, regions:node.proc.regions||10, seed:seedOf(), narration:node.proc.narration!==false}); }   // purely procedural (no drawn territory)
+        : genGeoMap({act, regions:node.proc.regions||10, seed:seedOf()}); }   // purely procedural (no drawn territory)
     else { showCampText("No territory defined for this node.",()=>{ if(node.next)runNode(node.next); else endCampaignRun("End."); }); return; }
     campRun.geoStates=campRun.geoStates||{}; if(!campRun.geoStates[node.id])campRun.geoStates[node.id]=m.cells.map(c=>c.state||"locked");
     geoPlay={node,map:m,inMission:false}; { const tt=document.getElementById("title"); if(tt)tt.style.display="none"; }
