@@ -75,6 +75,15 @@
   #export{ width:100%; height:70px; background:#0b0906;color:#9fd3ec;border:1px solid #3a2c1c;border-radius:6px;font-size:.66rem;display:none }
   #log{ max-height:120px; overflow:auto; font-size:.74rem; border-top:1px solid #3a2c1c; margin-top:6px; padding-top:5px } #log div{margin:1px 0} .pl{color:#9fd3ec}.en{color:#e8a39f}
   #over{ position:fixed; inset:0; background:rgba(0,0,0,.72); display:none; align-items:center; justify-content:center; flex-direction:column; gap:14px; z-index:9 } #over.show{display:flex} #over h2{font-size:2rem;margin:0}
+  /* ===== FENÊTRE DES DÉCLENCHEURS — la colonne de l'éditeur était trop étroite pour en poser
+     beaucoup : le formulaire s'y empilait sur douze lignes. ===== */
+  #trigwin{ position:fixed; inset:0; background:rgba(8,6,4,.88); display:none; align-items:center; justify-content:center; z-index:15; padding:24px }
+  #trigwin.show{ display:flex }
+  #trigwin-card{ width:min(920px,96vw); max-height:90vh; display:flex; flex-direction:column; background:#14100a; border:1px solid #5a4530; border-radius:12px; box-shadow:0 12px 40px rgba(0,0,0,.55) }
+  #trigwin-hd{ display:flex; align-items:center; gap:10px; padding:13px 16px; border-bottom:1px solid #3a2c1c; font-size:1.05rem; color:#e0b341 }
+  #trigwin-hd #trigwin-x{ margin-left:auto; cursor:pointer }
+  #trigwin-body{ overflow-y:auto; padding:12px 16px 16px }
+  #trigwin-body .row{ margin:5px 0 }
   #promote{ position:fixed; inset:0; background:rgba(8,10,14,.86); display:none; align-items:center; justify-content:center; z-index:11 } #promote.show{display:flex}
   #promote-card{ width:min(760px,96vw); max-height:92vh; overflow-y:auto; background:#171a22; border:1px solid #2c2f3a; border-radius:12px; padding:22px 24px; box-shadow:0 12px 40px rgba(0,0,0,.5) }
   #promote-hd{ font-size:1.15rem; color:#e0b341; margin-bottom:14px } #promote-hd .who{ font-weight:bold; color:#fff } #promote-hd .gr{ color:#9fd0a8 }
@@ -282,19 +291,8 @@
     <div class="row"><input id="tzname" type="text" value="A" maxlength="10" placeholder="zone name" style="width:90px"><button id="tzpaint" data-tool="tzone">🎯 Paint</button><button id="tzerase" data-tool="tzone-erase">🧹 Erase</button></div>
     <div class="hint">Paint some tiles then create a "Zone entry" event: it fires when a unit steps into it.</div>
     <h2>Events (dialogues)</h2>
-    <div id="triglist" class="hint"></div>
-    <div class="row"><select id="t-on"><option value="start">Start</option><option value="turn">Turn start</option><option value="enter">Zone entry</option><option value="attack">Attack</option><option value="kill">Kill</option><option value="wounded">Wounded</option><option value="cracker">Cracker (explosion)</option><option value="move">Move</option><option value="spotted">Pod spotted</option><option value="discovered">Pod discovered</option><option value="friendlyfire">Friendly fire</option><option value="win">Victory</option><option value="lose">Defeat</option></select></div>
-    <div class="row"><input id="t-actor" type="text" placeholder="actor (name/class)" style="flex:1"><input id="t-zone" type="text" placeholder="zone (e.g. A)" style="flex:1"></div>
-    <div class="row"><input id="t-target" type="text" placeholder="target (name/class)" style="flex:1"></div>
-    <div class="row"><select id="t-result"><option value="">result —</option><option>hit</option><option>miss</option><option>blocked</option></select><select id="t-killed"><option value="">kills? —</option><option value="true">yes</option><option value="false">no</option></select></div>
-    <div class="row" id="t-cracker-row" style="display:none"><label style="font-size:.85rem;display:flex;align-items:center;gap:5px">💥 enemies hit <input id="t-ehmin" type="number" min="0" placeholder="min" style="width:56px"> to <input id="t-ehmax" type="number" min="0" placeholder="max" style="width:56px"></label></div>
-    <div class="row"><label style="display:flex;align-items:center;gap:5px;font-size:.85rem"><input type="checkbox" id="t-once" checked> once only</label><label style="display:flex;align-items:center;gap:5px;font-size:.85rem"><input type="checkbox" id="t-first"> 1st action of the turn</label></div>
-    <div class="row"><input id="t-id" type="text" placeholder="id (optional)" style="flex:1"><input id="t-requires" type="text" placeholder="requires id…" style="flex:1"></div>
-    <div class="row"><input id="t-wake" type="text" placeholder="wake pod N / all" style="flex:1"><select id="t-passmode"><option value="">passage —</option><option value="open">open zone</option><option value="close">close zone</option></select><input id="t-passzone" type="text" placeholder="zone" style="width:64px"></div>
-    <div class="hint">Actions: wake a pod, or open/close a painted zone (makes it passable / blocked).</div>
-    <div class="row"><input id="t-who" type="text" placeholder="who speaks" style="flex:1"><input id="t-text" type="text" placeholder="line…" style="flex:2"><button id="t-addline" title="Stack one more line">＋</button></div>
-    <div id="t-lines" class="hint"></div>
-    <div class="row"><button id="t-add">+ Add the event</button></div>
+    <div class="hint">Lines and actions triggered during the fight. They now live in a dedicated window — there is room for many.</div>
+    <div class="row"><button id="trig-open">🎬 Edit the triggers</button><span class="hint" id="trig-count"></span></div>
     </div>
     </div>
     <div id="tab-camp">
@@ -320,6 +318,10 @@
     <div class="row" style="flex-wrap:wrap;gap:8px"><span style="font-size:.82rem">objectives drawn:</span><span id="ra-objs" style="display:flex;flex-wrap:wrap;gap:8px"></span></div>
     <div id="ra-plan" class="hint" style="white-space:pre;font-family:Menlo,Consolas,monospace;font-size:.72rem;line-height:1.5"></div>
     <div class="row"><button id="ra-go">🏗 Build the act</button><span class="hint" id="ra-etat"></span></div>
+
+    <h2>Act triggers</h2>
+    <div class="hint">Lines and actions written <b>once for the whole act</b>, and replayed on every generated mission whose <b>scope</b> matches — by rank, stars, shape, objective or region. Missions have no file to attach them to, so this is where they live.</div>
+    <div class="row"><button id="ctrig-open">🎬 Edit the act triggers</button><span class="hint" id="ctrig-count"></span></div>
 
     <h2>Act terrain (macro)</h2>
     <div class="hint">The act's <b>starting</b> and <b>ending</b> geometry: each mission interpolates between the two according to its rank. This is where the regular grid gives way to the organic. Weights are relative (zone patches are drawn from them); “mix” blends all three inside a single patch.</div>
@@ -412,6 +414,31 @@
 <div id="sheet"><div id="sheet-card"><div id="sheet-hd">📖 Squad — grades & perks <button id="sheet-x">✕ Close</button></div><div id="sheet-body"></div></div></div>
 <div id="storybox"><div id="storybox-body"></div><button id="storybox-btn">…</button></div>
 <div id="over"><h2 id="overtxt"></h2><button id="overbtn">Play again</button></div>
+<div id="trigwin"><div id="trigwin-card">
+  <div id="trigwin-hd"><span id="trigwin-t">🎬 Triggers</span><span id="trigwin-sub" class="hint"></span><span id="trigwin-x">✕</span></div>
+  <div id="trigwin-body">
+    <div id="trigwin-scope" class="row" style="display:none;flex-wrap:wrap;gap:8px;border:1px solid #3a3428;border-radius:8px;padding:8px;margin-bottom:10px">
+      <span style="font-size:.8rem;color:#e0b341;width:100%">Applies to which generated missions? <span class="hint" style="font-weight:normal">(empty = all)</span></span>
+      <label style="font-size:.8rem">rank <input id="t-sc-rang" type="text" placeholder="3 · 2-4 · 1,5" style="width:78px"></label>
+      <label style="font-size:.8rem">★ <input id="t-sc-etoiles" type="text" placeholder="4 · 3-5" style="width:64px"></label>
+      <label style="font-size:.8rem">shape <input id="t-sc-forme" type="text" placeholder="croix" style="width:84px"></label>
+      <label style="font-size:.8rem">objective <input id="t-sc-objectif" type="text" placeholder="harvest" style="width:90px"></label>
+      <label style="font-size:.8rem">region <input id="t-sc-region" type="text" placeholder="Bastion" style="width:96px"></label>
+    </div>
+    <div id="triglist" class="hint"></div>
+    <div class="row"><select id="t-on"><option value="start">Start</option><option value="turn">Turn start</option><option value="enter">Zone entry</option><option value="attack">Attack</option><option value="kill">Kill</option><option value="wounded">Wounded</option><option value="cracker">Cracker (explosion)</option><option value="move">Move</option><option value="spotted">Pod spotted</option><option value="discovered">Pod discovered</option><option value="friendlyfire">Friendly fire</option><option value="win">Victory</option><option value="lose">Defeat</option></select></div>
+    <div class="row"><input id="t-actor" type="text" placeholder="actor (name/class)" style="flex:1"><input id="t-zone" type="text" placeholder="zone (e.g. A)" style="flex:1"></div>
+    <div class="row"><input id="t-target" type="text" placeholder="target (name/class)" style="flex:1"></div>
+    <div class="row"><select id="t-result"><option value="">result —</option><option>hit</option><option>miss</option><option>blocked</option></select><select id="t-killed"><option value="">kills? —</option><option value="true">yes</option><option value="false">no</option></select></div>
+    <div class="row" id="t-cracker-row" style="display:none"><label style="font-size:.85rem;display:flex;align-items:center;gap:5px">💥 enemies hit <input id="t-ehmin" type="number" min="0" placeholder="min" style="width:56px"> to <input id="t-ehmax" type="number" min="0" placeholder="max" style="width:56px"></label></div>
+    <div class="row"><label style="display:flex;align-items:center;gap:5px;font-size:.85rem"><input type="checkbox" id="t-once" checked> once only</label><label style="display:flex;align-items:center;gap:5px;font-size:.85rem"><input type="checkbox" id="t-first"> 1st action of the turn</label></div>
+    <div class="row"><input id="t-id" type="text" placeholder="id (optional)" style="flex:1"><input id="t-requires" type="text" placeholder="requires id…" style="flex:1"></div>
+    <div class="row"><input id="t-wake" type="text" placeholder="wake pod N / all" style="flex:1"><select id="t-passmode"><option value="">passage —</option><option value="open">open zone</option><option value="close">close zone</option></select><input id="t-passzone" type="text" placeholder="zone" style="width:64px"></div>
+    <div class="hint">Actions: wake a pod, or open/close a painted zone (makes it passable / blocked).</div>
+    <div class="row"><input id="t-who" type="text" placeholder="who speaks" style="flex:1"><input id="t-text" type="text" placeholder="line…" style="flex:2"><button id="t-addline" title="Stack one more line">＋</button></div>
+    <div id="t-lines" class="hint"></div>
+    <div class="row"><button id="t-add">+ Add the event</button></div>
+  </div></div></div>
 <div id="promote"><div id="promote-card"><div id="promote-hd"></div><div id="promote-opts"></div></div></div>
 <div id="squad"><div id="squad-card"><div id="squad-hd"></div><div id="squad-list"></div><div id="squad-foot"><button id="squad-cancel">Cancel</button><button id="squad-go">Start the mission</button></div></div></div>
 <script>
@@ -1163,6 +1190,10 @@
                for(const c of cells){ const k=Math.min(8,c.nb.length); d[k]=(d[k]||0)+1; tot+=c.nb.length; }
                const parts=Object.keys(d).sort().map(k=>k+"v:"+Math.round(100*d[k]/n)+"%").join(" ");
                return (tot/n).toFixed(2)+" voisins ("+parts+")"; })(),
+             triggersActifs:(function(){ // ce que la mission a réellement reçu : les siens + ceux de l'acte
+               if(!triggers.length)return "0";
+               const par={}; for(const t of triggers)par[t.on]=(par[t.on]||0)+1;
+               return triggers.length+" ("+Object.keys(par).map(k=>k+"×"+par[k]).join(" ")+")"; })(),
              effectifs:(function(){ const P=units.filter(u=>u.team==="player"), E=units.filter(u=>u.team==="enemy");
                return P.length+" vs "+E.length+" ("+new Set(E.map(u=>u.pod)).size+" pods)"; })(),
              distanceAuxEnnemis:(function(){ // en cases : dit si la carte est traversable dans un temps raisonnable
@@ -1381,6 +1412,13 @@
 
   // ===== scripted events (triggers) + dialogues =====
   let triggers=[], fired=new Set(), turnNum=1, turnActions=0, speechQ=[], speechT=null, speaking=false;
+  // ÉTAT DE CAMPAGNE, déclaré ICI et non plus dans la section campagne : plusieurs fonctions le
+  // touchent pendant l'initialisation (fillRepoMenu -> renderNodes -> dedupeNodes, et le compteur
+  // de déclencheurs), ce qui levait « Cannot access ... before initialization » au chargement.
+  let campRun=null, campNodes=[], campStart="", nodeSeq=0, repoTexts=[], campSel=null, repoGeoscapes=[], campRoster=[], campDialogs=[];
+  let campTriggers=[];    // déclencheurs de l'ACTE, à portée : ils s'ajoutent aux missions générées
+  let campTerrain=null;   // profil de terrain de l'acte en cours d'édition (null = géométrie laissée telle quelle)
+  let campRecette=null;   // recette qui a produit l'acte : conservée pour pouvoir le REGÉNÉRER
   function trigMatch(t,ctx){const M=t.match||{};for(const k in M){const want=M[k];
       if(k==="actor"||k==="target"){if(want!==ctx[k+"Name"]&&want!==ctx[k+"Cls"])return false;}
       else if(want&&typeof want==="object"){const v=ctx[k]; if(typeof v!=="number")return false; if(want.min!=null&&v<want.min)return false; if(want.max!=null&&v>want.max)return false;}   // {min,max} bound
@@ -2691,9 +2729,26 @@
   function syncTrigFields(){ const r=document.getElementById("t-cracker-row"); if(r)r.style.display=(tOn.value==="cracker")?"":"none"; }
   tOn.addEventListener("change",syncTrigFields); syncTrigFields();
   const fmtMatch=v=>(v&&typeof v==="object")?[v.min!=null?"≥"+v.min:null,v.max!=null?"≤"+v.max:null].filter(Boolean).join(" "):v;
+  // La MÊME fenêtre édite deux listes : celle de la mission ouverte dans l'éditeur, et celle de
+  // l'ACTE. Les déclencheurs d'acte portent en plus une PORTÉE, qui dit à quelles missions générées
+  // ils s'appliquent — sans elle il n'y aurait aucun moyen d'écrire pour une carte qui n'existe pas
+  // encore au moment où on écrit.
+  let trigMode="mission";
+  const trigArr=()=>trigMode==="camp"?(campTriggers=campTriggers||[]):triggers;
+  const trigSave=()=>{ if(trigMode==="camp")saveCampDraft(); else saveDraft(); };
+  function fmtPortee(p){ if(!p)return "";
+    const bouts=[]; for(const [k,lbl] of [["rang","rank"],["etoiles","★"],["forme","shape"],["objectif","obj"],["region","region"]])
+      if(p[k])bouts.push(lbl+":"+p[k]);
+    return bouts.length?" ⟨"+bouts.join(" ")+"⟩":" ⟨all missions⟩"; }
   function renderTrigList(){const el=document.getElementById("triglist");if(!el)return;
-    el.innerHTML=triggers.length?triggers.map((t,i)=>{const mm=Object.entries(t.match||{}).map(([k,v])=>k+":"+fmtMatch(v)).join(" ");const flags=(t.id?" #"+t.id:"")+(t.once===false?"":" ⟲1×")+(t.firstAction?" ⚑1st":"")+(t.requires?" ⊳"+t.requires:"")+(t.wake?" ⏰"+t.wake:"")+(t.open?" ⛩"+t.open:"")+(t.close?" ⛔"+t.close:"");const say=t.say?`${t.say[0]||"?"}: "${t.say[1]}"`:(t.lines?t.lines.length+" lines":(t.wake||t.open||t.close?"(action)":""));return `<div><button class="tdel" data-i="${i}">✕</button> <b>${t.on}</b> ${mm}${flags} → 💬 ${say}</div>`;}).join(""):"(no events)";
-    el.querySelectorAll(".tdel").forEach(b=>b.onclick=()=>{triggers.splice(+b.dataset.i,1);renderTrigList();saveDraft();});}
+    const src=trigArr();
+    el.innerHTML=src.length?src.map((t,i)=>{const mm=Object.entries(t.match||{}).map(([k,v])=>k+":"+fmtMatch(v)).join(" ");const flags=(trigMode==="camp"?fmtPortee(t.portee):"")+(t.id?" #"+t.id:"")+(t.once===false?"":" ⟲1×")+(t.firstAction?" ⚑1st":"")+(t.requires?" ⊳"+t.requires:"")+(t.wake?" ⏰"+t.wake:"")+(t.open?" ⛩"+t.open:"")+(t.close?" ⛔"+t.close:"");const say=t.say?`${t.say[0]||"?"}: "${t.say[1]}"`:(t.lines?t.lines.length+" lines":(t.wake||t.open||t.close?"(action)":""));return `<div><button class="tdel" data-i="${i}">✕</button> <b>${t.on}</b> ${mm}${flags} → 💬 ${say}</div>`;}).join(""):"(no events)";
+    el.querySelectorAll(".tdel").forEach(b=>b.onclick=()=>{trigArr().splice(+b.dataset.i,1);renderTrigList();trigSave();majTrigCount();});
+    majTrigCount(); }
+  function majTrigCount(){ const c=document.getElementById("trig-count");
+    if(c)c.textContent=triggers.length?`${triggers.length} on this mission`:"none on this mission";
+    const cc=document.getElementById("ctrig-count");
+    if(cc)cc.textContent=(campTriggers&&campTriggers.length)?`${campTriggers.length} for the act`:"none for the act"; }
   let trigLines=[];   // lines stacked for the next event
   function renderTrigLines(){const el=document.getElementById("t-lines");if(!el)return;
     el.innerHTML=trigLines.map((l,i)=>`<div><button class="tldel" data-i="${i}">✕</button> <b>${l.who||"—"}</b>: ${l.text}</div>`).join("");
@@ -2708,15 +2763,28 @@
     const wk=(tWake.value||"").trim();if(wk)t.wake=wk; if(tPassmode.value&&(tPasszone.value||"").trim())t[tPassmode.value]=tPasszone.value.trim();
     if(!lines.length&&!(t.wake||t.open||t.close)){alert("Write a line or choose an action (wake / passage).");return;}
     if(lines.length===1)t.say=[lines[0].who,lines[0].text];else if(lines.length)t.lines=lines.map(l=>[l.who,l.text]);
-    triggers.push(t);tText.value="";tId.value="";tRequires.value="";tWake.value="";tPasszone.value="";tPassmode.value="";tActor.value="";tZone.value="";tTarget.value="";tResult.value="";tKilled.value="";tEhMin.value="";tEhMax.value="";trigLines=[];renderTrigLines();renderTrigList();saveDraft();}
+    if(trigMode==="camp"){ const P={}; for(const k of ["rang","etoiles","forme","objectif","region"]){
+        const e=document.getElementById("t-sc-"+k), v=e?(e.value||"").trim():""; if(v)P[k]=v; }
+      if(Object.keys(P).length)t.portee=P; }
+    trigArr().push(t);tText.value="";tId.value="";tRequires.value="";tWake.value="";tPasszone.value="";tPassmode.value="";tActor.value="";tZone.value="";tTarget.value="";tResult.value="";tKilled.value="";tEhMin.value="";tEhMax.value="";trigLines=[];renderTrigLines();renderTrigList();saveDraft();}
   document.getElementById("t-addline").onclick=addLine;
   document.getElementById("t-add").onclick=addTrig;
+  function ouvrirTriggers(mode){ trigMode=mode||"mission";
+    const w=document.getElementById("trigwin"); if(!w)return;
+    const sc=document.getElementById("trigwin-scope"); if(sc)sc.style.display=(trigMode==="camp")?"":"none";
+    const t=document.getElementById("trigwin-t"), sub=document.getElementById("trigwin-sub");
+    if(t)t.textContent=(trigMode==="camp")?"🎬 Act triggers":"🎬 Mission triggers";
+    if(sub)sub.textContent=(trigMode==="camp")
+      ? "written once, replayed on every generated mission that matches the scope"
+      : "attached to the mission open in the editor";
+    renderTrigList(); w.classList.add("show"); }
+  { const o=document.getElementById("trig-open"); if(o)o.onclick=()=>ouvrirTriggers("mission");
+    const oc=document.getElementById("ctrig-open"); if(oc)oc.onclick=()=>ouvrirTriggers("camp");
+    const x=document.getElementById("trigwin-x"); if(x)x.onclick=()=>document.getElementById("trigwin").classList.remove("show");
+    const w=document.getElementById("trigwin"); if(w)w.onclick=e=>{ if(e.target===w)w.classList.remove("show"); }; }
   renderTrigList();
 
   // ===== node-based campaign (texts / missions / choices) + HP persistence =====
-  let campRun=null, campNodes=[], campStart="", nodeSeq=0, repoTexts=[], campSel=null, repoGeoscapes=[], campRoster=[], campDialogs=[];
-  let campTerrain=null;   // profil de terrain de l'acte en cours d'édition (null = géométrie laissée telle quelle)
-  let campRecette=null;   // recette qui a produit l'acte : conservée pour pouvoir le REGÉNÉRER
   const cname=document.getElementById("cname"),cloadsel=document.getElementById("cloadsel"),cstatus=document.getElementById("cstatus");
   const esc=s=>(s||"").replace(/"/g,"&quot;");
   const newId=()=>{ let id; do{ id="n"+(++nodeSeq); }while(campNodes.some(n=>n.id===id)); return id; };   // never an already-used id (otherwise collision after loading)
@@ -2884,11 +2952,11 @@
       saveCampDraft(); drawGraph(); }; (inp.tagName==="SELECT"||inp.type==="checkbox")?inp.onchange=set:inp.oninput=set; });
     el.querySelector("[data-del]").onclick=()=>{campNodes=campNodes.filter(x=>x.id!==n.id);if(campStart===n.id)campStart=campNodes[0]?campNodes[0].id:"";campSel=campNodes[0]?campNodes[0].id:null;renderNodes();};
     el.querySelector("[data-setstart]").onclick=()=>{campStart=n.id;renderNodes();};
-    el.querySelector("[data-testhere]").onclick=()=>{ if(!campNodes.length)return; startCampaign({name:cname.value,start:campStart,roster:campRoster,dialogs:campDialogs,nodes:campNodes,terrain:campTerrain,recette:campRecette},"campaign",n.id); };
+    el.querySelector("[data-testhere]").onclick=()=>{ if(!campNodes.length)return; startCampaign({name:cname.value,start:campStart,roster:campRoster,dialogs:campDialogs,nodes:campNodes,terrain:campTerrain,recette:campRecette,triggers:campTriggers},"campaign",n.id); };
     const ao=el.querySelector("[data-addopt]"); if(ao)ao.onclick=()=>{n.options=n.options||[];n.options.push(campNodes[0]?campNodes[0].id:"");renderDetail();drawGraph();saveCampDraft();};
     el.querySelectorAll("[data-optsel]").forEach(s=>s.onchange=()=>{n.options[+s.dataset.optsel]=s.value;drawGraph();saveCampDraft();});
     el.querySelectorAll("[data-optdel]").forEach(b=>b.onclick=()=>{n.options.splice(+b.dataset.optdel,1);renderDetail();drawGraph();saveCampDraft();}); }
-  function saveCampDraft(){ try{ localStorage.setItem("mgf_camp_draft_mesh", JSON.stringify({name:cname.value,start:campStart,roster:campRoster,dialogs:campDialogs,nodes:campNodes,terrain:campTerrain,recette:campRecette})); }catch(e){} }
+  function saveCampDraft(){ try{ localStorage.setItem("mgf_camp_draft_mesh", JSON.stringify({name:cname.value,start:campStart,roster:campRoster,dialogs:campDialogs,nodes:campNodes,terrain:campTerrain,recette:campRecette,triggers:campTriggers})); }catch(e){} }
   // ===== RECETTE D'ACTE — tout se pilote AVANT, et se rejoue à l'identique =====
   // Un acte n'est plus assemblé nœud par nœud : on décrit ce qu'on veut — longueur, courbe de
   // difficulté, formes autorisées, objectifs, profil de terrain — et le générateur en produit un.
@@ -3073,10 +3141,10 @@
   document.getElementById("cadd-geo").onclick=()=>{const n={id:newId(),type:"geoscape",map:(repoGeoscapes[0]?repoGeoscapes[0].file:""),endWhen:{kind:"all",name:""},next:null};campNodes.push(n);if(!campStart)campStart=n.id;campSel=n.id;renderNodes();};
   function fillCampLoad(list){ cloadsel.innerHTML=list.length?list.map(x=>`<option value="${x.file}">${x.name}</option>`).join(""):`<option value="">(none)</option>`; }
   async function fetchCampaigns(){ const t=await fetchText("campaigns-mesh/list.json",ghCfg()); let list=[];if(t){try{const p=JSON.parse(t);if(Array.isArray(p))list=p;}catch(e){}} fillCampLoad(list); }
-  async function campLoad(){ const f=cloadsel.value; if(!f)return; const t=await fetchText("campaigns-mesh/"+f,ghCfg()); if(!t){cstatus.textContent="Not found.";return;} try{const c=JSON.parse(t);cname.value=c.name||"";campNodes=c.nodes||[];campStart=c.start||(campNodes[0]&&campNodes[0].id)||"";campRoster=c.roster||[];campDialogs=c.dialogs||[];campTerrain=c.terrain||null;campRecette=c.recette||null;renderTerrainActe();renderNodes();cstatus.textContent="Loaded: "+f;}catch(e){cstatus.textContent="Invalid JSON.";} }
+  async function campLoad(){ const f=cloadsel.value; if(!f)return; const t=await fetchText("campaigns-mesh/"+f,ghCfg()); if(!t){cstatus.textContent="Not found.";return;} try{const c=JSON.parse(t);cname.value=c.name||"";campNodes=c.nodes||[];campStart=c.start||(campNodes[0]&&campNodes[0].id)||"";campRoster=c.roster||[];campDialogs=c.dialogs||[];campTerrain=c.terrain||null;campRecette=c.recette||null;campTriggers=c.triggers||[];renderTerrainActe();renderNodes();cstatus.textContent="Loaded: "+f;}catch(e){cstatus.textContent="Invalid JSON.";} }
   document.getElementById("cload").onclick=campLoad;
   async function campSave(){ const cfg=ghCfg(),name=(cname.value||"").trim(); if(!name){cstatus.textContent="Campaign name required.";return;} if(!cfg.token){cstatus.textContent="Token required.";return;}
-    const file=(name.toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/(^-|-$)/g,"")||"camp")+".json"; const camp={name,start:campStart,roster:campRoster,dialogs:campDialogs,nodes:campNodes,terrain:campTerrain,recette:campRecette};
+    const file=(name.toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/(^-|-$)/g,"")||"camp")+".json"; const camp={name,start:campStart,roster:campRoster,dialogs:campDialogs,nodes:campNodes,terrain:campTerrain,recette:campRecette,triggers:campTriggers};
     try{ cstatus.textContent="Publishing…"; await ghPut("campaigns-mesh/"+file,JSON.stringify(camp),"Mesh campaign: "+name,cfg);
       const cur=await ghGet("campaigns-mesh/list.json",cfg.branch,cfg);let list=[];if(cur){try{const p=JSON.parse(cur.text);if(Array.isArray(p))list=p;}catch(e){}}
       if(list.some(x=>x.file===file))list=list.map(x=>x.file===file?{file,name}:x);else list.push({file,name});
@@ -3097,7 +3165,7 @@
       const nmiss=nodesOut.filter(n=>n.type==="mission").length;
       cstatus.textContent="✓ Campaign published (+ Godot port: graph, "+nmiss+" mission(s))."; }catch(e){cstatus.textContent="Failed: "+e.message;} }
   document.getElementById("csave").onclick=campSave;
-  document.getElementById("cplay").onclick=()=>{ if(!campNodes.length){cstatus.textContent="Add at least one node.";return;} if(!campNode(campStart)){cstatus.textContent="Choose a starting node.";return;} startCampaign({name:cname.value,start:campStart,roster:campRoster,dialogs:campDialogs,nodes:campNodes,terrain:campTerrain,recette:campRecette},"campaign"); };
+  document.getElementById("cplay").onclick=()=>{ if(!campNodes.length){cstatus.textContent="Add at least one node.";return;} if(!campNode(campStart)){cstatus.textContent="Choose a starting node.";return;} startCampaign({name:cname.value,start:campStart,roster:campRoster,dialogs:campDialogs,nodes:campNodes,terrain:campTerrain,recette:campRecette,triggers:campTriggers},"campaign"); };
   // paginated text reader: pages separated by a "_" line, "Name: …" in gold, "…" button to advance.
   const escTxt=s=>(s||"").replace(/[&<>]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;"}[c]));
   function fmtPage(s){ return s.split("\n").map(l=>l.replace(/\s+$/,"")).filter(l=>l.length).map(l=>{ const m=l.match(/^([\wÀ-ÿ '.\-]{1,18}):\s(.*)$/); return m?`<span class="sp-who">${escTxt(m[1])}</span> ${escTxt(m[2])}`:escTxt(l); }).join("<br>"); }
@@ -3390,6 +3458,35 @@
       if(lig){ const cel=lig.querySelectorAll(".cel"); ["A","B","C"].forEach((key,k)=>{ const c=cel[k]; if(!c||!offer[key])return;
         c.classList.add("choix"); c.onclick=()=>{ rec(it,offer,key); step(); }; }); }
       el.classList.add("show"); })(); }
+  // ===== DÉCLENCHEURS D'ACTE APPLIQUÉS À UNE MISSION =====
+  // Une mission générée n'a pas de fichier où accrocher ses répliques : on les écrit une fois pour
+  // l'acte, avec une PORTÉE, et on les verse dans la mission au lancement si elle correspond.
+  // La portée accepte une valeur, une liste « 1,5 » ou un intervalle « 2-4 » ; vide = toutes.
+  function portéeMatch(spec,val){
+    if(spec==null||spec==="")return true;
+    if(val==null)return false;
+    const s=String(spec).trim(), v=String(val).trim().toLowerCase();
+    for(const part of s.split(",")){
+      const q=part.trim(); if(!q)continue;
+      const m=/^(\d+)\s*-\s*(\d+)$/.exec(q);
+      if(m){ const n=+val; if(isFinite(n)&&n>=+m[1]&&n<=+m[2])return true; continue; }
+      if(q.toLowerCase()===v)return true;
+    }
+    return false; }
+  function appliquerTriggersActe(ctx){
+    const src=(campRun&&campRun.camp&&campRun.camp.triggers)||[];
+    if(!src.length)return 0;
+    let n=0;
+    for(const t of src){ const P=t.portee||{};
+      if(!portéeMatch(P.rang,ctx.rang))continue;
+      if(!portéeMatch(P.etoiles,ctx.etoiles))continue;
+      if(!portéeMatch(P.forme,ctx.forme))continue;
+      if(!portéeMatch(P.objectif,ctx.objectif))continue;
+      if(!portéeMatch(P.region,ctx.region))continue;
+      const c=JSON.parse(JSON.stringify(t)); delete c.portee;   // copie : l'original de l'acte n'est pas consommé
+      triggers.push(c); n++; }
+    return n; }
+
   // Phase A — in a campaign, replace the mission's pre-placed player units with the persistent ROSTER
   // (the mission's slots serve as deployment slots; HP restored afterward by applyCarry).
   function deployRoster(){ if(!campRun||!campRun.roster||!campRun.roster.length)return;
@@ -3423,7 +3520,7 @@
     document.body.classList.remove("testing"); setView("play"); runNode(fromNode||camp.start); }
   async function startPlay(){ let camp=loadCampDraft();
     if(!camp){ const t=await fetchText("campaigns-mesh/principale.json",ghCfg()); if(t){try{camp=JSON.parse(t);}catch(e){}} }
-    if(camp&&Array.isArray(camp.nodes)&&camp.nodes.length){ const C={name:camp.name||"",start:camp.start||(camp.nodes[0]&&camp.nodes[0].id),roster:camp.roster||[],dialogs:camp.dialogs||[],nodes:camp.nodes,terrain:camp.terrain||null,recette:camp.recette||null};
+    if(camp&&Array.isArray(camp.nodes)&&camp.nodes.length){ const C={name:camp.name||"",start:camp.start||(camp.nodes[0]&&camp.nodes[0].id),roster:camp.roster||[],dialogs:camp.dialogs||[],nodes:camp.nodes,terrain:camp.terrain||null,recette:camp.recette||null,triggers:camp.triggers||[]};
       const save=loadCampRunSave(C.name);
       if(save&&Array.isArray(save.roster)&&save.roster.length){   // an act is in progress: offer to resume
         askPush("An act is in progress — "+(save.winCount||0)+" mission(s) won. Resume where you left off, or start over?",
@@ -3448,6 +3545,8 @@
       genMission({diff:g.diff, forme:g.forme, terrain:prof,
                   avancement:(g.avancement!=null?g.avancement:avancementActe(prof)),
                   archetype:g.objectif, squad:g.squad});
+      appliquerTriggersActe({rang:(campRun.missionN||0)+1, etoiles:etoilesPourDiff(g.diff),
+                             forme:g.forme, objectif:g.objectif, region:null});
       const begin0=()=>{ deployRoster(); startGame(); if(!(curMission&&curMission.fullheal))applyCarry(); refresh(); };
       begin0();
       const startB=()=>playPartyDialog("start",()=>{});
@@ -3484,7 +3583,7 @@
     geoPlay=null; document.body.classList.remove("geomap"); showCampText(msg,()=>{ campRun=null;
     if(from==="play"){ setView("play"); const t=document.getElementById("title"); if(t)t.style.display="flex"; }
     else { setView("campaign"); refresh(); } }); }
-  { const cd=loadCampDraft(); if(cd){ cname.value=cd.name||""; campNodes=cd.nodes||[]; campStart=cd.start||(campNodes[0]&&campNodes[0].id)||""; campRoster=cd.roster||[];campDialogs=cd.dialogs||[];campTerrain=cd.terrain||null;campRecette=cd.recette||null; } }  // restore the draft BEFORE the 1st render (otherwise saveCampDraft overwrites it)
+  { const cd=loadCampDraft(); if(cd){ cname.value=cd.name||""; campNodes=cd.nodes||[]; campStart=cd.start||(campNodes[0]&&campNodes[0].id)||""; campRoster=cd.roster||[];campDialogs=cd.dialogs||[];campTerrain=cd.terrain||null;campRecette=cd.recette||null;campTriggers=cd.triggers||[]; } }  // restore the draft BEFORE the 1st render (otherwise saveCampDraft overwrites it)
   renderNodes(); fetchCampaigns(); fetchTexts();
 
   // ===== game =====
@@ -4174,10 +4273,13 @@
         if(gen.graine!=null)seed=(gen.graine>>>0)||1;   // graine propre à la région : la carte est reproductible
         genMission({etoiles, forme:gen.forme||null, archetype:gen.objectif||null, terrain:prof,
                     avancement:avancementActe(prof), squad:slots});
+        appliquerTriggersActe({rang:campRun.missionN, etoiles, forme:gen.forme||null,
+                               objectif:gen.objectif||null, region:regionName});
       } else {
         try{ applyMissionObj(m,true); }catch(e){ geoBanner("unreadable mission"); geoPlay.inMission=false; document.body.classList.add("geomap"); return; }
         addForgeEnemies();   // enemies adjusted after the freed forges
-        distortTerrain(corruptLevel()); }   // the terrain warps more as you advance
+        distortTerrain(corruptLevel());
+        appliquerTriggersActe({rang:campRun.missionN, etoiles, forme:null, objectif:null, region:regionName}); }
       deployRoster(); startGame(); if(!(curMission&&curMission.fullheal))applyCarry(); refresh();
       // squad dialogue "before" → territory "before" events → squad dialogue "start"
       playPartyDialog("before",()=>runGeoEvents("before",{region:regionName,missionN:campRun.missionN},()=>playPartyDialog("start",()=>{}))); }); }
@@ -4251,7 +4353,7 @@
     if(draft&&draft.cells&&draft.cells.length){ try{ applyMissionObj(draft); }catch(e){ defaultBoard(); } }
     else defaultBoard();
     // restore the campaign draft in the editor
-    const cd=loadCampDraft(); if(cd){ cname.value=cd.name||""; campNodes=cd.nodes||[]; campStart=cd.start||(campNodes[0]&&campNodes[0].id)||""; campRoster=cd.roster||[];campDialogs=cd.dialogs||[];campTerrain=cd.terrain||null;campRecette=cd.recette||null; renderTerrainActe(); renderNodes(); }
+    const cd=loadCampDraft(); if(cd){ cname.value=cd.name||""; campNodes=cd.nodes||[]; campStart=cd.start||(campNodes[0]&&campNodes[0].id)||""; campRoster=cd.roster||[];campDialogs=cd.dialogs||[];campTerrain=cd.terrain||null;campRecette=cd.recette||null;campTriggers=cd.triggers||[]; renderTerrainActe(); renderNodes(); }
     // URL routing: ?edit = mission editor, ?campaign = campaign editor, default = game page
     const params=new URLSearchParams(location.search);
     const view=params.has("edit")?"mission":params.has("campaign")?"campaign":params.has("geoscape")?"geoscape":"play";
