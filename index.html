@@ -104,7 +104,10 @@
     background:rgba(10,8,5,.96); border:1px solid #5a4530; border-radius:8px; padding:14px 16px; color:#e8ddc8; font-family:Georgia,serif; font-size:1.05rem; line-height:1.6; box-shadow:0 6px 24px rgba(0,0,0,.6) }
   #combatline .skip{ float:right; margin-left:14px; color:#caa24a; background:#1c150e; border:1px solid #5a4530; border-radius:6px; padding:3px 13px; font-weight:bold }
   #combatline .who{ color:#ffd479; font-weight:bold; margin-right:6px }
-  #triglist{ max-height:90px; overflow:auto } #triglist .tdel{ padding:0 5px; margin-right:4px }
+  /* La liste était plafonnée à 90 px — hauteur héritée de la colonne étroite où elle vivait. Dans
+     une fenêtre dédiée ce plafond annule ce qu'on venait de gagner : quatre lignes visibles sur
+     treize. C'est la fenêtre qui défile désormais, pas la liste. */
+  #triglist{ max-height:none; overflow:visible } #triglist .tdel{ padding:0 5px; margin-right:4px }
   #cwrap{ display:flex; gap:12px; align-items:stretch; flex-wrap:wrap; margin:6px 0 }
   #cgwrap{ flex:1 1 420px; min-width:300px; height:56vh; min-height:360px; overflow:auto; background:#0b0906; border:1px solid #3a2c1c; border-radius:8px }
   #cgraph{ display:block; cursor:grab }
