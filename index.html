@@ -136,7 +136,13 @@
   .arbre .lig.actif .cel.choix{ cursor:pointer; border-color:#7a6a3a; background:#241f14 }
   .arbre .lig.actif .cel.choix:hover{ background:#332b1a; border-color:#e0b341 }
   .arbre .voie{ grid-column:2/4; display:grid; grid-template-columns:repeat(2,1fr); gap:6px }
-  .arbre .voie .bloc{ border:1px solid #3a3428; border-radius:7px; padding:6px 8px; background:#1b1a17 }
+  .arbre .voie .bloc{ border:1px solid #4a3f24; border-radius:7px; padding:6px 8px; background:#231f16; transition:.12s }
+  /* les deux branches sont cliquables : c'est le geste naturel, les boutons du bas ne sont qu'un repli */
+  .arbre .lig.actif .voie .bloc{ cursor:pointer }
+  .arbre .lig.actif .voie .bloc:hover{ background:#332b1a; border-color:#e0b341; box-shadow:0 0 0 1px rgba(224,179,65,.35) }
+  .arbre .lig.actif .voie .bloc::after{ content:"choisir cette voie"; display:block; margin-top:5px; font-size:.68rem;
+    color:#8a7a45; text-transform:uppercase; letter-spacing:.05em }
+  .arbre .lig.actif .voie .bloc:hover::after{ color:#e0b341 }
   .arbre .voie .bloc h4{ margin:0 0 3px; font-size:.78rem; color:#e0b341 }
   /* les styles .pn/.pd sont attachés à .cel : sans ces règles, la description s'affichait plus
      grosse que le nom du perk à l'intérieur des blocs de voie */
