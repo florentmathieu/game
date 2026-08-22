@@ -88,6 +88,13 @@
      de son côté. */
   #trigwin-body{ flex:1; min-height:0; display:flex; gap:0; padding:12px 16px 16px }
   #trig-left{ flex:1 1 44%; min-width:260px; overflow-y:auto; padding-right:14px; border-right:1px solid #3a2c1c }
+  /* La colonne de gauche, c'est la LISTE et ce qui agit sur elle en bloc ; la droite compose un
+     évènement. Le générateur était du mauvais côté : posé au-dessus du formulaire, il passait pour
+     un réglage de l'évènement en cours. */
+  #trig-bulk{ position:sticky; top:0; z-index:1; background:#14100a; display:flex; align-items:center; gap:8px;
+    padding-bottom:6px; margin-bottom:4px; border-bottom:1px solid #3a2c1c }
+  #trig-bulk span{ font-size:.72rem; text-transform:uppercase; letter-spacing:.07em; color:#e0b341 }
+  #trig-bulk button{ margin-left:auto }
   #trig-right{ flex:1 1 56%; min-width:320px; overflow-y:auto; padding-left:14px }
   #trigwin-body .row{ margin:5px 0 }
   /* Le formulaire était une pile de douze rangées sans hiérarchie : impossible de voir ce qui se
@@ -474,7 +481,11 @@
 <div id="trigwin"><div id="trigwin-card">
   <div id="trigwin-hd"><span id="trigwin-t">🎬 Triggers</span><span id="trigwin-sub" class="hint"></span><span id="trigwin-x">✕</span></div>
   <div id="trigwin-body">
-    <div id="trig-left"><div id="triglist" class="hint"></div></div>
+    <div id="trig-left">
+      <div id="trig-bulk"><span>The list</span><button id="t-foegen" title="Creates one “enemy type first seen” event per class in the sheet, using the “how often” and scope settings currently in the form. Run it again after the sheet changes: what already exists is left untouched.">⚔ One event per enemy type</button></div>
+      <div class="hint" id="t-foenote"></div>
+      <div id="triglist" class="hint"></div>
+    </div>
     <div id="trig-right">
     <div class="row" id="trigsets" style="flex-wrap:wrap;gap:6px;align-items:center;border:1px solid #3a3428;border-radius:8px;padding:8px;margin-bottom:10px">
       <span style="width:100%;font-size:.8rem;color:#e0b341">Saved sets <span class="hint" style="font-weight:normal">keep this list aside, drop it back on the next act</span></span>
@@ -486,7 +497,6 @@
       <button id="ts-save" title="Save the list currently open under this name">💾 Save</button>
       <span class="hint" id="ts-st" style="width:100%"></span>
     </div>
-    <div class="row" style="align-items:center;gap:8px"><button id="t-foegen" title="One event per enemy type, fired the first time that type is seen. Run it again after the classes sheet changes: what already exists is left untouched.">⚔ One event per enemy type</button><span id="t-foenote" class="hint" style="flex:1"></span></div>
     <div class="tsec">1 · When</div>
     <div class="row"><select id="t-on" style="flex:1"></select></div>
     <div class="tsec">2 · Only if <span class="hint">each field left empty = no condition on it</span></div>
@@ -3335,10 +3345,17 @@
     const arr=trigArr(), foes=classesEnnemies(); let ajout=0;
     const cible=t=>t.on==="newfoe"?((t.match&&t.match.target)||""):null;
     const deja=new Set(arr.map(cible).filter(Boolean));
+    // Le générateur n'invente pas les réglages : il reprend le bloc « how often » et la portée tels
+    // qu'ils sont dans le formulaire au moment du clic. C'est là qu'on paramètre once, la priorité
+    // ou « seulement sur les missions ★4 » avant de poser les six d'un coup.
+    const f=composerTrig(), base={};
+    if(f.once===false)base.once=false; if(f.firstAction)base.firstAction=true;
+    if(f.priority)base.priority=f.priority; if(f.requires)base.requires=f.requires;
+    if(f.forbids)base.forbids=f.forbids; if(f.portee)base.portee=f.portee;
     for(const k of foes){ if(deja.has(k))continue;
       const c=CLASSES[k], nom=c.name||k;
-      arr.push({on:"newfoe",match:{target:k},once:true,id:"foe_"+k,
-        say:["Intel",`First contact — ${nom}${c.wname?" ("+c.wname+")":""}. Write the briefing line here.`]});
+      arr.push(Object.assign({on:"newfoe",match:{target:k}},base,{once:base.once===false?false:true,id:"foe_"+k,
+        say:["Intel",`First contact — ${nom}${c.wname?" ("+c.wname+")":""}. Write the briefing line here.`]}));
       ajout++; }
     const orphelins=[...deja].filter(k=>!CLASSES[k]||!CLASSES[k].enemyOnly);
     if(trigEdit!=null)finEdition();
@@ -3346,6 +3363,7 @@
     const n=document.getElementById("t-foenote");
     if(n)n.textContent=[ajout?`${ajout} added`:"nothing to add",
       `${foes.length} enemy types in the sheet`,
+      ajout?`settings taken from the form: ${base.once===false?"every time":"once"}${base.priority?", priority "+base.priority:""}${base.portee?", scoped":""}`:"",
       orphelins.length?`⚠ ${orphelins.join(", ")}: no longer an enemy class — delete by hand`:""].filter(Boolean).join(" · "); }
   { const b=document.getElementById("t-foegen"); if(b)b.onclick=genFoeTriggers; }
 
