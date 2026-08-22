@@ -369,7 +369,7 @@
     <div class="row"><select id="repo-missions" style="flex:1"></select><button id="repo-load">Load</button><button id="repo-del" title="Delete the mission from the repository">🗑</button></div>
     <div class="row"><button id="repo-save">💾 Save to repository</button></div>
     <input id="gh-token" type="password" placeholder="GitHub token (Contents: write)" style="width:100%;margin:2px 0">
-    <div class="row"><input id="gh-repo" type="text" value="florentmathieu/game" style="flex:1"><input id="gh-branch" type="text" placeholder="branch" style="flex:1"></div>
+    <div class="row"><input id="gh-repo" type="text" value="florentmathieu/game" style="flex:1"><input id="gh-branch" type="text" placeholder="branch" style="flex:1"><button id="gh-check" title="Ask GitHub whether this token still works on this repository">✓ Check</button></div>
     <div class="hint" id="gh-status"></div>
     <div class="hint" id="counts"></div>
     </div>
@@ -3172,11 +3172,35 @@
     try{const c=JSON.parse(localStorage.getItem("mgf_gh")||"{}");if(!repo)repo=c.repo||"";if(!branch)branch=c.branch||"";if(!token)token=localStorage.getItem("mgf_gh_token")||"";}catch(e){}
     return {repo,token,branch:branch||"claude/intelligent-hypatia-nojupi"}; }
   async function ghGet(path,ref,cfg){ const r=await fetch(`https://api.github.com/repos/${cfg.repo}/contents/${path}?ref=${encodeURIComponent(ref)}&_=${Date.now()}`,{headers:{Authorization:"Bearer "+cfg.token,Accept:"application/vnd.github+json"},cache:"no-store"}); if(r.status===200){const j=await r.json();return{sha:j.sha,text:b64dec(j.content)};} return null; }
+  // GitHub répond par un code et un pavé JSON ; l'afficher tel quel (« 401 {"message":"Bad
+  // credentials"…} ») ne dit pas quoi faire. On traduit les cas qui arrivent vraiment.
+  function ghErreur(status,texte,cfg){
+    if(status===401)return "GitHub refuses the token (401 Bad credentials) — it has expired or been revoked. Paste a new one in the GitHub field: a fine-grained token expires after at most a year, and often much sooner.";
+    if(status===403)return "GitHub refuses the write (403) — the token lacks the “Contents: write” permission on "+(cfg&&cfg.repo||"this repository")+", or you hit the rate limit.";
+    if(status===404)return "Not found (404) — repository “"+(cfg&&cfg.repo||"?")+"” or branch “"+(cfg&&cfg.branch||"?")+"” does not exist, or this token cannot see it.";
+    if(status===409||status===422)return "Conflict ("+status+") — the file changed on the repository while publishing. Try again.";
+    return status+" "+String(texte||"").slice(0,120); }
   async function ghPut(path,content,msg,cfg){ for(let a=0;a<4;a++){ const prev=await ghGet(path,cfg.branch,cfg); const body={message:msg,content:b64enc(content),branch:cfg.branch}; if(prev)body.sha=prev.sha;
     const r=await fetch(`https://api.github.com/repos/${cfg.repo}/contents/${path}`,{method:"PUT",headers:{Authorization:"Bearer "+cfg.token,Accept:"application/vnd.github+json"},body:JSON.stringify(body)}); if(r.ok)return r.json();
-    if((r.status===409||r.status===422)&&a<3){await new Promise(res=>setTimeout(res,400*(a+1)));continue;} throw new Error(r.status+" "+(await r.text()).slice(0,120)); } }
+    if((r.status===409||r.status===422)&&a<3){await new Promise(res=>setTimeout(res,400*(a+1)));continue;} throw new Error(ghErreur(r.status,await r.text(),cfg)); } }
   async function fetchText(path,cfg){ if(cfg&&cfg.token&&cfg.repo){try{const f=await ghGet(path,cfg.branch,cfg);if(f)return f.text;}catch(e){}} try{const r=await fetch(path+"?_="+Date.now(),{cache:"no-store"});if(r.ok)return await r.text();}catch(e){} return null; }
   function fillRepoMenu(list){ repoMissionList=list; const opts=list.length?list.map(x=>`<option value="${x.file}">${x.name}</option>`).join(""):`<option value="">(no mission)</option>`; repoSel.innerHTML=opts; if(typeof renderNodes==="function")renderNodes(); }
+  // Un jeton mort se remarquait seulement au moment de publier — et les LECTURES retombaient en
+  // silence sur le fetch brut, donc tout avait l'air de marcher. On peut demander avant.
+  async function ghCheck(){
+    const cfg=ghCfg();
+    if(!cfg.token){ ghSt.textContent="No token: reads fall back to the public files, publishing is impossible."; return; }
+    if(!cfg.repo){ ghSt.textContent="Give a repository (owner/name)."; return; }
+    ghSt.textContent="Asking GitHub…";
+    try{
+      const r=await fetch(`https://api.github.com/repos/${cfg.repo}`,{headers:{Authorization:"Bearer "+cfg.token,Accept:"application/vnd.github+json"},cache:"no-store"});
+      if(!r.ok){ ghSt.textContent="✕ "+ghErreur(r.status,await r.text(),cfg); return; }
+      const j=await r.json(), peut=j.permissions&&j.permissions.push;
+      const b=await fetch(`https://api.github.com/repos/${cfg.repo}/branches/${encodeURIComponent(cfg.branch)}`,{headers:{Authorization:"Bearer "+cfg.token,Accept:"application/vnd.github+json"},cache:"no-store"});
+      ghSt.textContent=(peut?"✓ ":"⚠ ")+"Token valid on "+j.full_name+(peut?" (write allowed)":" — READ ONLY: publishing will fail")
+        +(b.ok?" · branch “"+cfg.branch+"” exists":" · ⚠ branch “"+cfg.branch+"” not found");
+    }catch(e){ ghSt.textContent="✕ "+e.message; } }
+  { const b=document.getElementById("gh-check"); if(b)b.onclick=ghCheck; }
   async function fetchRepoMissions(){ const t=await fetchText("missions-mesh/list.json",ghCfg()); let list=[]; if(t){try{const p=JSON.parse(t);if(Array.isArray(p))list=p;}catch(e){}} fillRepoMenu(list); }
   async function publishToRepo(){ const cfg=ghCfg(),name=(mname.value||"").trim();
     if(!name){ghSt.textContent="Give the mission a name.";return;} if(!cfg.token){ghSt.textContent="GitHub token required.";return;} if(!cfg.repo||!cfg.branch){ghSt.textContent="Repository/branch required.";return;}
