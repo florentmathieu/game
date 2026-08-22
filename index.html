@@ -492,10 +492,16 @@
     <div class="row"><select id="t-eff-add" style="flex:1"></select><span class="hint" style="flex:1">Add as many as you need — they all play.</span></div>
     <div class="teff" id="t-eff-dialogue" style="display:none">
       <div class="tefft">💬 Dialogue<button class="teffx" data-eff="dialogue" title="Remove this effect">✕</button></div>
-      <div class="row"><input id="t-who" type="text" placeholder="who speaks (empty = whoever triggered it)" list="dl-noms" style="flex:1"><input id="t-text" type="text" placeholder="line…" style="flex:2"><button id="t-addline" title="Stack one more line">＋</button></div>
-      <div class="row"><span style="font-size:.8rem;white-space:nowrap">📄 written dialogue</span><select id="t-txt" style="flex:1"></select><button id="t-txtload" title="Read the file and stack its lines here — “Name: line” gives the speaker, a lone “_” is skipped">📥 Import the lines</button></div>
-      <div class="hint" id="t-txtnote">A whole dialogue from <b>texts/</b> lands in the stack below, then you edit it like any other line.</div>
-      <div id="t-lines" class="hint"></div>
+      <div class="row"><select id="t-dmode" style="flex:1"><option value="one">💬 a one-liner</option><option value="txt">📄 a written dialogue from texts/</option></select></div>
+      <div id="t-d-one">
+        <div class="row"><select id="t-whomode" style="flex:1"><option value="">🎯 whoever triggered it</option><option value="@top">🎖 the highest-ranked</option><option value="nom">✎ a specific character…</option></select><input id="t-who" type="text" placeholder="name" list="dl-noms" style="flex:1;display:none"></div>
+        <div class="row"><input id="t-text" type="text" placeholder="line…" style="flex:1"></div>
+      </div>
+      <div id="t-d-txt" style="display:none">
+        <div class="row"><select id="t-txt" style="flex:1"></select><button id="t-txtload" title="Read the file and stack its lines here — “Name: line” gives the speaker, a lone “_” is skipped">📥 Import the lines</button></div>
+        <div class="hint" id="t-txtnote">A whole dialogue from <b>texts/</b> lands in the stack below, then you edit it like any other line.</div>
+        <div id="t-lines" class="hint"></div>
+      </div>
     </div>
     <div class="teff" id="t-eff-wake" style="display:none">
       <div class="tefft">😴 Wake a pod<button class="teffx" data-eff="wake" title="Remove this effect">✕</button></div>
@@ -1543,7 +1549,18 @@
       if(t.requires&&![].concat(t.requires).every(r=>fired.has(r)))continue; if(t.forbids&&[].concat(t.forbids).some(r=>fired.has(r)))continue;   // dependencies
       if(!trigMatch(t,ctx))continue;const p=t.priority||0;if(p>bp){bp=p;best=t;bid=id;}}
     if(!best)return;fired.add(bid);applyTrigActions(best);if(best.lines)for(const ln of best.lines)sayLine(ln,ctx);else if(best.say)sayLine(best.say,ctx);}
-  function sayLine(ln,ctx){if(Array.isArray(ln))say(ln[0]||ctx.actorName,ln[1]);else if(typeof ln==="string")say(ctx.actorName,ln);else if(ln)say(ln.who||ctx.actorName,ln.text);}
+  // QUI PARLE. Vide = celui qui a déclenché l'évènement. « @top » = le plus haut gradé encore
+  // debout : une réplique de commandement n'appartient à personne en particulier, elle appartient à
+  // celui qui mène — et l'escouade change d'une mission à l'autre. Le grade se lit comme partout
+  // ailleurs (XP ou perks choisis, le plus élevé des deux) ; à égalité, le plus expérimenté.
+  function plusGradé(){ const cands=units.filter(u=>u.team==="player"&&u.hp>0); if(!cands.length)return null;
+    let best=null,bg=-1,bx=-1;
+    for(const u of cands){ const m=(campRun&&campRun.roster)?campRun.roster.find(r=>r.name===u.name):null;
+      const g=m?Math.max(gradeFromXp(m.xp||0),(m.perks||[]).length):0, x=m?(m.xp||0):0;
+      if(g>bg||(g===bg&&x>bx)){ best=u; bg=g; bx=x; } }
+    return best?best.name:null; }
+  const quiParle=(who,ctx)=>who==="@top"?(plusGradé()||ctx.actorName):(who||ctx.actorName);
+  function sayLine(ln,ctx){if(Array.isArray(ln))say(quiParle(ln[0],ctx),ln[1]);else if(typeof ln==="string")say(ctx.actorName,ln);else if(ln)say(quiParle(ln.who,ctx),ln.text);}
   function say(who,text){const u=units.find(x=>x.name===who);log(`💬 ${who||"—"}: ${text}`,u&&u.team==="enemy"?"enemy":"player");speechQ.push({who:who||"—",text});if(!speaking)nextSpeech();}
   // trigger dialogue: large box (like the intro), one line at a time, click to dismiss and keep playing
   function nextSpeech(){const el=document.getElementById("combatline");if(!speechQ.length){el.style.display="none";speaking=false;if(mode==="play")refresh();return;}const s=speechQ.shift();el.innerHTML=`<span class="skip" title="Skip">…</span><span class="who">${s.who}</span>${s.text}`;el.style.display="block";speaking=true;}
@@ -2931,6 +2948,7 @@
     spotted:"when a pod is spotted",discovered:"when a pod is discovered",
     newfoe:"the first time an enemy type is seen"};
   const nomClasse=k=>(CLASSES[k]&&CLASSES[k].name)||k;
+  const nomQuiParle=w=>w==="@top"?"the highest-ranked":(w||"—");
   const unUne=n=>(/^[aeiouAEIOU]/.test(n)?"an ":"a ")+n;
   const COND={actor:v=>`by ${v}`, target:(v,t)=>t.on==="newfoe"?unUne(nomClasse(v)):`on ${v}`, zone:v=>`in zone ${v}`,
     result:v=>({hit:"if it hits",miss:"if it misses",blocked:"if it is blocked"}[v]||`if ${v}`),
@@ -2957,8 +2975,8 @@
     if(t.spawn)actes.push(`spawns ${t.spawn.count||1} ${nomClasse(t.spawn.cls||"brute")} in ${t.spawn.zone||"?"}`);
     // « 8 lines » ne disait pas LESQUELLES : depuis qu'on importe des dialogues entiers, la
     // première réplique est ce qui permet de reconnaître l'échange dans la liste.
-    const dit=t.say?`<b>${esc(t.say[0]||"—")}</b> ${esc(t.say[1])}`
-      :((t.lines&&t.lines.length)?`<b>${esc(t.lines[0][0]||"—")}</b> ${esc(t.lines[0][1])}`
+    const dit=t.say?`<b>${esc(nomQuiParle(t.say[0]))}</b> ${esc(t.say[1])}`
+      :((t.lines&&t.lines.length)?`<b>${esc(nomQuiParle(t.lines[0][0]))}</b> ${esc(t.lines[0][1])}`
         +(t.lines.length>1?` <i>+${t.lines.length-1} more</i>`:""):"");
     return {quand:QUAND[t.on]||t.on, bouts, corps:[dit,actes.length?`<i>${esc(actes.join(", "))}</i>`:""].filter(Boolean).join(" · ")}; }
   function renderTrigList(){const el=document.getElementById("triglist");if(!el)return;
@@ -2987,9 +3005,9 @@
     if(cc)cc.textContent=(campTriggers&&campTriggers.length)?`${campTriggers.length} for the act`:"none for the act"; }
   let trigLines=[];   // lines stacked for the next event
   function renderTrigLines(){const el=document.getElementById("t-lines");if(!el)return;
-    el.innerHTML=trigLines.map((l,i)=>`<div><button class="tldel" data-i="${i}">✕</button> <b>${l.who||"—"}</b>: ${l.text}</div>`).join("");
-    el.querySelectorAll(".tldel").forEach(b=>b.onclick=()=>{trigLines.splice(+b.dataset.i,1);renderTrigLines();});}
-  function addLine(){const text=(tText.value||"").trim();if(!text){alert("Write a line.");return;}trigLines.push({who:(tWho.value||"").trim(),text});tText.value="";tText.focus();renderTrigLines();}
+    el.innerHTML=trigLines.map((l,i)=>`<div><button class="tldel" data-i="${i}">✕</button> <b>${esc(nomQuiParle(l.who))}</b>: ${esc(l.text)}</div>`).join("");
+    el.querySelectorAll(".tldel").forEach(b=>b.onclick=()=>{trigLines.splice(+b.dataset.i,1);renderTrigLines();majApercu();});}
+  function addLine(){const text=(tText.value||"").trim();if(!text){alert("Write a line.");return;}trigLines.push({who:whoDuForm(),text});tText.value="";tText.focus();renderTrigLines();majApercu();}
   // ===== LES EFFETS SE POSENT UN PAR UN =====
   // Le bloc « ce qui se passe » montrait les quatre effets à la fois, alors qu'un évènement n'en
   // utilise presque jamais plus d'un. On choisit le type dans un menu, la boîte correspondante
@@ -3011,11 +3029,33 @@
     for(const id of (CHAMPS_EFFET[k]||[])){ const e=document.getElementById(id); if(e)e.value=""; }
     if(k==="dialogue"){ trigLines=[]; renderTrigLines();
       const ts=document.getElementById("t-txt"); if(ts)ts.value="";
-      const tn=document.getElementById("t-txtnote"); if(tn)tn.innerHTML=TXTNOTE0; }
+      const tn=document.getElementById("t-txtnote"); if(tn)tn.innerHTML=TXTNOTE0;
+      const dm=document.getElementById("t-dmode"); if(dm)dm.value="one"; majDMode(); poserWho(""); }
     majEffets(); majApercu(); }
   { const sel=document.getElementById("t-eff-add");
     if(sel)sel.onchange=()=>{ const k=sel.value; sel.value=""; poserEffet(k); };
     document.querySelectorAll("#trig-right .teffx").forEach(b=>b.onclick=()=>retirerEffet(b.dataset.eff)); }
+
+  // ===== LE DIALOGUE A DEUX FORMES, PAS LES DEUX À LA FOIS =====
+  // Une brève lancée sur le moment et un échange écrit dans texts/ ne se composent pas pareil, et
+  // afficher les deux jeux de champs laissait croire qu'il fallait remplir l'un ET l'autre.
+  function majDMode(){
+    const m=(document.getElementById("t-dmode")||{}).value||"one";
+    const a=document.getElementById("t-d-one"), b=document.getElementById("t-d-txt");
+    if(a)a.style.display=(m==="one")?"":"none"; if(b)b.style.display=(m==="txt")?"":"none"; }
+  // Qui parle : personne en particulier (celui qui a déclenché), le plus haut gradé, ou un nom.
+  function majWhoMode(){
+    const e=document.getElementById("t-who"), sel=document.getElementById("t-whomode");
+    if(e&&sel){ const nom=(sel.value==="nom"); e.style.display=nom?"":"none"; if(!nom)e.value=""; } }
+  const whoDuForm=()=>{ const sel=document.getElementById("t-whomode"), v=sel?sel.value:"";
+    if(v==="@top")return "@top";
+    if(v==="nom"){ const e=document.getElementById("t-who"); return e?(e.value||"").trim():""; }
+    return ""; };
+  function poserWho(w){ const sel=document.getElementById("t-whomode"), e=document.getElementById("t-who");
+    if(!sel)return; sel.value=(w==="@top")?"@top":(w?"nom":"");
+    if(e)e.value=(w&&w!=="@top")?w:""; majWhoMode(); }
+  { const d=document.getElementById("t-dmode"); if(d)d.onchange=()=>{ majDMode(); majApercu(); };
+    const w=document.getElementById("t-whomode"); if(w)w.onchange=()=>{ majWhoMode(); majApercu(); }; }
 
   // Composer un déclencheur, c'est remplir un objet à partir de quatre blocs qui se CUMULENT :
   // le moment, les conditions, ce qui se passe (répliques ET actions), la fréquence. Rien ici n'est
@@ -3036,8 +3076,11 @@
     if(actif("passage")){ if(v("t-open"))t.open=v("t-open"); if(v("t-close"))t.close=v("t-close"); }
     if(actif("spawn")&&v("t-spzone")){ const sp={zone:v("t-spzone"),cls:v("t-spcls")||"brute",team:v("t-spteam")||"enemy",count:+v("t-spcount")||1};
       if(v("t-sppod")!=="")sp.pod=+v("t-sppod"); t.spawn=sp; }
-    const lignes=actif("dialogue")?trigLines.slice():[], cur=actif("dialogue")?v("t-text"):"";
-    if(cur)lignes.push({who:v("t-who"),text:cur});
+    const dmode=(document.getElementById("t-dmode")||{}).value||"one";
+    let lignes=[];
+    if(actif("dialogue")){
+      if(dmode==="txt")lignes=trigLines.slice();
+      else { const cur=v("t-text"); if(cur)lignes=[{who:whoDuForm(),text:cur}]; } }
     if(lignes.length===1)t.say=[lignes[0].who,lignes[0].text]; else if(lignes.length)t.lines=lignes.map(l=>[l.who,l.text]);
     if(trigMode==="camp"){ const P={}; for(const k of ["rang","etoiles","forme","objectif","region"]){
         const x=v("t-sc-"+k); if(x)P[k]=x; }
@@ -3059,7 +3102,7 @@
     if(t.open&&t.close&&t.open===t.close){ alert("The same zone cannot be opened and closed by one event."); return; }
     if(trigEdit!=null){ trigArr()[trigEdit]=t; finEdition(); } else trigArr().push(t);
     viderForm(); renderTrigList(); trigSave(); majTrigCount(); }
-  document.getElementById("t-addline").onclick=addLine;
+  { const al=document.getElementById("t-addline"); if(al)al.onclick=addLine; }
   document.getElementById("t-add").onclick=addTrig;
   // ÉDITION D'UNE LIGNE. Sans elle, corriger une portée obligeait à supprimer et tout ré-écrire —
   // or la portée est justement ce qu'on ajuste le plus.
@@ -3074,7 +3117,8 @@
     const o=document.getElementById("t-once"); if(o)o.checked=true;
     const f=document.getElementById("t-first"); if(f)f.checked=false;
     for(const k of ["rang","etoiles","forme","objectif","region"]){ const e=document.getElementById("t-sc-"+k); if(e)e.value=""; }
-    { const ts=document.getElementById("t-txt"); if(ts)ts.value=""; const tn=document.getElementById("t-txtnote"); if(tn)tn.innerHTML=TXTNOTE0; }
+    { const ts=document.getElementById("t-txt"); if(ts)ts.value=""; const tn=document.getElementById("t-txtnote"); if(tn)tn.innerHTML=TXTNOTE0;
+      const dm=document.getElementById("t-dmode"); if(dm)dm.value="one"; majDMode(); poserWho(""); }
     effetsActifs=new Set(); majEffets();
     ecrireConds({}); trigMatchInconnu={}; trigLines=[]; renderTrigLines(); majApercu(); }
   function ouvrirEdition(i){
@@ -3093,8 +3137,12 @@
     if(t.spawn){ set("t-spzone",t.spawn.zone); set("t-spcls",t.spawn.cls||"brute"); set("t-spteam",t.spawn.team||"enemy");
       set("t-spcount",t.spawn.count||1); set("t-sppod",t.spawn.pod!=null?t.spawn.pod:""); }
     const P=t.portee||{}; for(const k of ["rang","etoiles","forme","objectif","region"]) set("t-sc-"+k,P[k]||"");
-    trigLines=(t.lines||(t.say?[t.say]:[])).map(l=>Array.isArray(l)?{who:l[0]||"",text:l[1]||""}:{who:"",text:String(l)});
-    renderTrigLines(); majApercu();
+    const rep=(t.lines||(t.say?[t.say]:[])).map(l=>Array.isArray(l)?{who:l[0]||"",text:l[1]||""}:{who:"",text:String(l)});
+    const dm=document.getElementById("t-dmode");
+    if(rep.length>1){ if(dm)dm.value="txt"; trigLines=rep; }   // un échange déjà écrit reste éditable ligne à ligne
+    else { if(dm)dm.value="one"; trigLines=[];
+      if(rep.length){ poserWho(rep[0].who); set("t-text",rep[0].text); } }
+    majDMode(); renderTrigLines(); majApercu();
     trigEdit=i;
     const b=q("t-add"); if(b)b.textContent="✓ Update the event";
     const c=q("t-cancel"); if(c)c.style.display="";
@@ -3123,6 +3171,7 @@
     if(!lignes.length){ dis("<b>"+fileName(f)+"</b> holds no line."); return; }
     for(const l of lignes)trigLines.push({who:l.who||"",text:l.text});
     renderTrigLines();
+    majApercu();
     dis(`${lignes.length} line(s) imported from <b>${fileName(f)}</b> — edit or drop them below, they now belong to the event.`); }
   { const b=document.getElementById("t-txtload"); if(b)b.onclick=importerDialogue; }
 
