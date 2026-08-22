@@ -474,6 +474,8 @@
     <div class="row"><input id="t-wake" type="text" placeholder="wake pod N / all" style="flex:1"><select id="t-passmode"><option value="">passage —</option><option value="open">open zone</option><option value="close">close zone</option></select><input id="t-passzone" type="text" placeholder="zone" style="width:64px"></div>
     <div class="hint">Actions: wake a pod, or open/close a painted zone (makes it passable / blocked).</div>
     <div class="row"><input id="t-who" type="text" placeholder="who speaks" style="flex:1"><input id="t-text" type="text" placeholder="line…" style="flex:2"><button id="t-addline" title="Stack one more line">＋</button></div>
+    <div class="row"><span style="font-size:.8rem;white-space:nowrap">📄 written dialogue</span><select id="t-txt" style="flex:1"></select><button id="t-txtload" title="Read the file and stack its lines here — “Name: line” gives the speaker, a lone “_” is skipped">📥 Import the lines</button></div>
+    <div class="hint" id="t-txtnote">A whole dialogue from <b>texts/</b> lands in the stack below, then you edit it like any other line.</div>
     <div id="t-lines" class="hint"></div>
     <div id="trigwin-scope" class="row" style="display:none;flex-wrap:wrap;gap:8px;border:1px solid #3a3428;border-radius:8px;padding:8px;margin-bottom:10px">
       <span style="font-size:.8rem;color:#e0b341;width:100%">Play this event on which generated missions? <span class="hint" style="font-weight:normal">every field left empty = every mission</span></span>
@@ -2847,8 +2849,11 @@
       if(t.priority)bouts.push(`priority ${t.priority}`);
       const actes=[]; if(t.wake)actes.push(`wakes pod ${t.wake}`);
       if(t.open)actes.push(`opens ${t.open}`); if(t.close)actes.push(`closes ${t.close}`);
+      // « 8 lines » ne disait pas LESQUELLES : depuis qu'on importe des dialogues entiers, la
+      // première réplique est ce qui permet de reconnaître l'échange dans la liste.
       const dit=t.say?`<b>${esc(t.say[0]||"—")}</b> ${esc(t.say[1])}`
-        :(t.lines?`<i>${t.lines.length} lines</i>`:"");
+        :((t.lines&&t.lines.length)?`<b>${esc(t.lines[0][0]||"—")}</b> ${esc(t.lines[0][1])}`
+          +(t.lines.length>1?` <i>+${t.lines.length-1} more</i>`:""):"");
       const corps=[dit,actes.length?`<i>${esc(actes.join(", "))}</i>`:""].filter(Boolean).join(" · ");
       return `<div class="tline"><button class="tedit" data-i="${i}" title="Edit this event">✎</button>`
         +`<button class="tdel" data-i="${i}" title="Delete">✕</button>`
@@ -2907,6 +2912,7 @@
     const o=document.getElementById("t-once"); if(o)o.checked=true;
     const f=document.getElementById("t-first"); if(f)f.checked=false;
     for(const k of ["rang","etoiles","forme","objectif","region"]){ const e=document.getElementById("t-sc-"+k); if(e)e.value=""; }
+    { const ts=document.getElementById("t-txt"); if(ts)ts.value=""; const tn=document.getElementById("t-txtnote"); if(tn)tn.innerHTML=TXTNOTE0; }
     trigLines=[]; renderTrigLines(); }
   function ouvrirEdition(i){
     const t=trigArr()[i]; if(!t)return;
@@ -2928,6 +2934,29 @@
     const b=q("t-add"); if(b)b.textContent="✓ Update the event";
     const c=q("t-cancel"); if(c)c.style.display="";
     const w=document.getElementById("trig-right"); if(w)w.scrollTop=0; }   // le formulaire est en face, à droite : on le remonte plutôt que de descendre la fenêtre
+
+  // ===== DIALOGUE ÉCRIT → PILE DE RÉPLIQUES =====
+  // Le formulaire ne savait composer qu'à la réplique : qui parle, ce qu'il dit, une ligne à la
+  // fois. Or les dialogues sont déjà écrits dans texts/, au format « Nom: réplique » — les
+  // dialogues d'escouade savent en désigner un, pas les déclencheurs.
+  // On IMPORTE plutôt qu'on ne RÉFÉRENCE : un déclencheur parle au milieu du combat, par say(),
+  // sans rien pouvoir attendre. Les répliques atterrissent donc dans la pile, où elles restent
+  // éditables — au prix qu'une retouche du .txt ne les suit pas ; le nom du fichier est rappelé
+  // dans la note pour qu'on puisse ré-importer.
+  const TXTNOTE0='A whole dialogue from <b>texts/</b> lands in the stack below, then you edit it like any other line.';
+  async function importerDialogue(){
+    const sel=document.getElementById("t-txt"), f=sel?sel.value:"", note=document.getElementById("t-txtnote");
+    const dis=t=>{ if(note)note.innerHTML=t; };
+    if(!f){ dis("Pick a dialogue in the list first."); return; }
+    dis("Reading "+fileName(f)+"…");
+    const brut=await fetchText(f,ghCfg());
+    if(brut==null){ dis("<b>"+fileName(f)+"</b> could not be read."); return; }
+    const lignes=parseLines(brut).filter(l=>l.text&&l.text!=="_");   // « _ » sépare les pages du lecteur : sans objet en plein combat
+    if(!lignes.length){ dis("<b>"+fileName(f)+"</b> holds no line."); return; }
+    for(const l of lignes)trigLines.push({who:l.who||"",text:l.text});
+    renderTrigLines();
+    dis(`${lignes.length} line(s) imported from <b>${fileName(f)}</b> — edit or drop them below, they now belong to the event.`); }
+  { const b=document.getElementById("t-txtload"); if(b)b.onclick=importerDialogue; }
 
   // ===== BIBLIOTHÈQUE DE LISTES =====
   // Une liste de déclencheurs est écrite pour un acte, mais elle ne lui appartient pas : « premier
@@ -3042,6 +3071,7 @@
     const sc=document.getElementById("trigwin-scope"); if(sc)sc.style.display=(trigMode==="camp")?"":"none";
     const fn=document.getElementById("t-foenote"); if(fn)fn.textContent="";
     tsSt(""); remplirSets(); listerSetsRepo();   // le dépôt est relu à l'ouverture : une liste publiée ailleurs apparaît
+    { const ts=document.getElementById("t-txt"); if(ts)ts.innerHTML=txtOpts("","— a dialogue written in texts/ —"); }
     const t=document.getElementById("trigwin-t"), sub=document.getElementById("trigwin-sub");
     if(t)t.textContent=(trigMode==="camp")?"🎬 Act triggers":"🎬 Mission triggers";
     if(sub)sub.textContent=(trigMode==="camp")
