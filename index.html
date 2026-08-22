@@ -149,6 +149,22 @@
   .arbre .voie .bloc .pn{ font-size:.8rem; color:#d8d2c4; font-weight:600; margin-top:3px }
   .arbre .voie .bloc .pd{ font-size:.72rem; color:#8f8a7c; line-height:1.25 }
   .arbre .voie .bloc.perdu{ opacity:.4 } .arbre .voie .bloc.suivi{ border-color:#5c8a4a }
+  /* ===== CHOIX DE VOIE — écran dédié : c'est le seul point de non-retour, il ne peut pas se lire
+     comme deux colonnes de plus dans une ligne parmi huit. ===== */
+  .voiechoix{ flex:1 }
+  .vc-intro{ color:#c9c2b0; font-size:.92rem; margin:0 0 14px; text-align:center }
+  .vc-intro b{ color:#e0b341 }
+  .vc-cartes{ display:grid; grid-template-columns:1fr 1fr; gap:16px }
+  .vc{ background:#231f16; border:1px solid #4a3f24; border-radius:12px; padding:16px 18px; cursor:pointer; transition:.14s;
+       display:flex; flex-direction:column }
+  .vc:hover{ background:#332b1a; border-color:#e0b341; box-shadow:0 0 0 1px rgba(224,179,65,.35), 0 8px 22px rgba(0,0,0,.35) }
+  .vc h3{ margin:0; font-size:1.22rem; color:#ffd479; letter-spacing:.01em }
+  .vc .vc-d{ margin:4px 0 12px; color:#a8a08c; font-size:.88rem }
+  .vc-perks{ border-top:1px solid #3a3220; padding-top:10px; flex:1 }
+  .vc-lbl{ display:block; font-size:.68rem; text-transform:uppercase; letter-spacing:.06em; color:#7a7157; margin-bottom:6px }
+  .vc-p{ margin-bottom:7px } .vc-p b{ display:block; color:#e6dfcc; font-size:.94rem } .vc-p span{ color:#8f8a7c; font-size:.8rem }
+  .vc-go{ margin-top:12px; text-align:center; font-size:.72rem; text-transform:uppercase; letter-spacing:.07em; color:#8a7a45 }
+  .vc:hover .vc-go{ color:#e0b341 }
   .arbre-hd{ display:grid; grid-template-columns:78px repeat(3,1fr); gap:6px; font-size:.7rem; color:#6f6a5e; text-transform:uppercase; letter-spacing:.05em; margin-bottom:3px }
   #sheet{ position:fixed; inset:0; background:rgba(8,6,4,.88); display:none; align-items:center; justify-content:center; z-index:14; padding:24px }
   #sheet.show{ display:flex } #sheet-card{ width:min(780px,96vw); max-height:88vh; display:flex; flex-direction:column; background:#14100a; border:1px solid #5a4530; border-radius:12px; box-shadow:0 12px 40px rgba(0,0,0,.7); color:#e8ddc8 }
@@ -3340,10 +3356,20 @@
       // 1) au premier niveau de voie, on choisit d'abord OFFICIER ou VÉTÉRAN — définitif
       if(usesTrack(it.m,it.lvl)&&!it.m.track){
         hd.innerHTML=`<span class="who">${esc(it.m.name)}</span> <span class="gr">→ ${esc(GRADES[it.lvl]||("niveau "+it.lvl))}</span> — choisis une voie (définitive)`;
-        // l'arbre entier reste visible pendant qu'on tranche : la voie engage les niveaux 4, 6 et 8
-        opts.innerHTML=`<div style="flex:1">${arbrePerks(it.m,{lvl:it.lvl})}`
-          +`<div class="row" style="gap:10px;margin-top:12px">`
-          +Object.keys(TRACKS).map(k=>`<button data-voie="${k}" style="flex:1;padding:9px">${esc(TRACKS[k].name)} — ${esc(TRACKS[k].desc)}</button>`).join("")
+        // ÉCRAN DÉDIÉ. Présenté dans l'arbre, ce choix se lisait comme deux colonnes de plus dans une
+        // ligne parmi huit — alors que c'est le seul point de non-retour du système. Il a donc son
+        // propre écran : deux cartes, rien d'autre.
+        opts.innerHTML=`<div class="voiechoix">`
+          +`<div class="vc-intro">Ce choix est <b>définitif</b>. Il décidera de tes niveaux ${TRACK_LEVELS.join(", ")}.</div>`
+          +`<div class="vc-cartes">`
+          +Object.keys(TRACKS).map(k=>{ const t=TRACKS[k], g=(TRACK_PERKS[k]||{})[it.lvl];
+              const perks=[g&&g.A,g&&g.B].filter(Boolean);
+              return `<div class="vc" data-voie="${k}"><h3>${esc(t.name)}</h3>`
+                +`<p class="vc-d">${esc(t.desc)}</p>`
+                +`<div class="vc-perks"><span class="vc-lbl">à ce niveau</span>`
+                +(perks.length?perks.map(x=>`<div class="vc-p"><b>${esc(x.name)}</b><span>${esc(x.desc)}</span></div>`).join("")
+                              :`<div class="vc-p"><span>—</span></div>`)
+                +`</div><div class="vc-go">choisir cette voie</div></div>`; }).join("")
           +`</div></div>`;
         opts.querySelectorAll("[data-voie]").forEach(btn=>btn.onclick=()=>{ it.m.track=btn.getAttribute("data-voie"); saveRosterProgress(); step(); });
         el.classList.add("show"); return; }
