@@ -104,6 +104,9 @@
   #trig-right .teff{ border:1px solid #3a3428; border-radius:8px; padding:6px 9px 8px; margin:6px 0; background:rgba(255,255,255,.018) }
   #trig-right .tefft{ display:flex; align-items:center; gap:6px; font-size:.78rem; color:#e0b341; margin-bottom:2px }
   #trig-right .teffx{ margin-left:auto; padding:0 6px; line-height:1.3 }
+  #t-lines .tlbr{ display:flex; align-items:center; gap:8px; margin:3px 0; color:#7a7157 }
+  #t-lines .tlbr span{ flex:1; border-top:1px dashed #4a4030; font-size:.72rem; text-transform:uppercase;
+    letter-spacing:.06em; padding-top:3px }
   /* La relecture et le bouton restent sous les yeux : avec quatre effets posés, le bas du
      formulaire sortait de l'écran et on validait sans voir ce qu'on validait. */
   #trig-right #t-valider{ position:sticky; bottom:0; background:#14100a; padding-bottom:4px;
@@ -1548,7 +1551,10 @@
     for(let i=0;i<triggers.length;i++){const t=triggers[i],id=t.id!=null?t.id:i;if(t.on!==type)continue;if(t.once!==false&&fired.has(id))continue;if(t.firstAction&&!ctx.firstAction)continue;
       if(t.requires&&![].concat(t.requires).every(r=>fired.has(r)))continue; if(t.forbids&&[].concat(t.forbids).some(r=>fired.has(r)))continue;   // dependencies
       if(!trigMatch(t,ctx))continue;const p=t.priority||0;if(p>bp){bp=p;best=t;bid=id;}}
-    if(!best)return;fired.add(bid);applyTrigActions(best);if(best.lines)for(const ln of best.lines)sayLine(ln,ctx);else if(best.say)sayLine(best.say,ctx);}
+    if(!best)return;fired.add(bid);applyTrigActions(best);
+    if(best.pages)for(const pg of best.pages)sayPage(pg,ctx);   // dialogue importé : une page = une bulle, comme dans le lecteur
+    else if(best.lines)for(const ln of best.lines)sayLine(ln,ctx);
+    else if(best.say)sayLine(best.say,ctx);}
   // QUI PARLE. Vide = celui qui a déclenché l'évènement. « @top » = le plus haut gradé encore
   // debout : une réplique de commandement n'appartient à personne en particulier, elle appartient à
   // celui qui mène — et l'escouade change d'une mission à l'autre. Le grade se lit comme partout
@@ -1559,11 +1565,21 @@
       const g=m?Math.max(gradeFromXp(m.xp||0),(m.perks||[]).length):0, x=m?(m.xp||0):0;
       if(g>bg||(g===bg&&x>bx)){ best=u; bg=g; bx=x; } }
     return best?best.name:null; }
-  const quiParle=(who,ctx)=>who==="@top"?(plusGradé()||ctx.actorName):(who||ctx.actorName);
+  // « @narr » : une ligne sans « Nom: » dans un texte est de la NARRATION. La rattacher à l'auteur
+  // de l'action lui ferait dire ce que personne ne dit.
+  const quiParle=(who,ctx)=>who==="@narr"?"":(who==="@top"?(plusGradé()||ctx.actorName):(who||ctx.actorName));
   function sayLine(ln,ctx){if(Array.isArray(ln))say(quiParle(ln[0],ctx),ln[1]);else if(typeof ln==="string")say(ctx.actorName,ln);else if(ln)say(quiParle(ln.who,ctx),ln.text);}
-  function say(who,text){const u=units.find(x=>x.name===who);log(`💬 ${who||"—"}: ${text}`,u&&u.team==="enemy"?"enemy":"player");speechQ.push({who:who||"—",text});if(!speaking)nextSpeech();}
+  function say(who,text){const u=units.find(x=>x.name===who);log(who?`💬 ${who}: ${text}`:`💬 ${text}`,u&&u.team==="enemy"?"enemy":"player");speechQ.push({who:who||"",text});if(!speaking)nextSpeech();}
+  // UNE PAGE = UNE BULLE. Les « _ » d'un fichier de texts/ découpent l'échange en temps ; les
+  // aplatir en répliques indépendantes faisait perdre exactement ce découpage-là.
+  function sayPage(pg,ctx){ if(!pg||!pg.length)return;
+    const parts=pg.map(ln=>{ const w=quiParle(Array.isArray(ln)?ln[0]:ln.who,ctx), tx=Array.isArray(ln)?ln[1]:ln.text;
+      const u=units.find(x=>x.name===w); log(w?`💬 ${w}: ${tx}`:`💬 ${tx}`,u&&u.team==="enemy"?"enemy":"player");
+      return (w?`<span class="who">${escTxt(w)}</span> `:"")+escTxt(tx); });
+    speechQ.push({page:parts.join("<br>")}); if(!speaking)nextSpeech(); }
   // trigger dialogue: large box (like the intro), one line at a time, click to dismiss and keep playing
-  function nextSpeech(){const el=document.getElementById("combatline");if(!speechQ.length){el.style.display="none";speaking=false;if(mode==="play")refresh();return;}const s=speechQ.shift();el.innerHTML=`<span class="skip" title="Skip">…</span><span class="who">${s.who}</span>${s.text}`;el.style.display="block";speaking=true;}
+  function nextSpeech(){const el=document.getElementById("combatline");if(!speechQ.length){el.style.display="none";speaking=false;if(mode==="play")refresh();return;}const s=speechQ.shift();
+    el.innerHTML=`<span class="skip" title="Skip">…</span>`+(s.page?s.page:`${s.who?`<span class="who">${s.who}</span>`:""}${s.text}`);el.style.display="block";speaking=true;}
   function advanceSpeech(){nextSpeech();}
   document.getElementById("combatline").addEventListener("click",advanceSpeech);
 
@@ -2948,7 +2964,7 @@
     spotted:"when a pod is spotted",discovered:"when a pod is discovered",
     newfoe:"the first time an enemy type is seen"};
   const nomClasse=k=>(CLASSES[k]&&CLASSES[k].name)||k;
-  const nomQuiParle=w=>w==="@top"?"the highest-ranked":(w||"—");
+  const nomQuiParle=w=>w==="@top"?"the highest-ranked":(w==="@narr"?"narration":(w||"—"));
   const unUne=n=>(/^[aeiouAEIOU]/.test(n)?"an ":"a ")+n;
   const COND={actor:v=>`by ${v}`, target:(v,t)=>t.on==="newfoe"?unUne(nomClasse(v)):`on ${v}`, zone:v=>`in zone ${v}`,
     result:v=>({hit:"if it hits",miss:"if it misses",blocked:"if it is blocked"}[v]||`if ${v}`),
@@ -2975,9 +2991,11 @@
     if(t.spawn)actes.push(`spawns ${t.spawn.count||1} ${nomClasse(t.spawn.cls||"brute")} in ${t.spawn.zone||"?"}`);
     // « 8 lines » ne disait pas LESQUELLES : depuis qu'on importe des dialogues entiers, la
     // première réplique est ce qui permet de reconnaître l'échange dans la liste.
+    const plates=t.pages?[].concat.apply([],t.pages):(t.lines||null);
+    const suite=t.pages?` <i>+${plates.length-1} more, ${t.pages.length} pages</i>`
+      :((plates&&plates.length>1)?` <i>+${plates.length-1} more</i>`:"");
     const dit=t.say?`<b>${esc(nomQuiParle(t.say[0]))}</b> ${esc(t.say[1])}`
-      :((t.lines&&t.lines.length)?`<b>${esc(nomQuiParle(t.lines[0][0]))}</b> ${esc(t.lines[0][1])}`
-        +(t.lines.length>1?` <i>+${t.lines.length-1} more</i>`:""):"");
+      :((plates&&plates.length)?`<b>${esc(nomQuiParle(plates[0][0]))}</b> ${esc(plates[0][1])}`+suite:"");
     return {quand:QUAND[t.on]||t.on, bouts, corps:[dit,actes.length?`<i>${esc(actes.join(", "))}</i>`:""].filter(Boolean).join(" · ")}; }
   function renderTrigList(){const el=document.getElementById("triglist");if(!el)return;
     const src=trigArr();
@@ -3005,7 +3023,9 @@
     if(cc)cc.textContent=(campTriggers&&campTriggers.length)?`${campTriggers.length} for the act`:"none for the act"; }
   let trigLines=[];   // lines stacked for the next event
   function renderTrigLines(){const el=document.getElementById("t-lines");if(!el)return;
-    el.innerHTML=trigLines.map((l,i)=>`<div><button class="tldel" data-i="${i}">✕</button> <b>${esc(nomQuiParle(l.who))}</b>: ${esc(l.text)}</div>`).join("");
+    el.innerHTML=trigLines.map((l,i)=>l.br
+      ? `<div class="tlbr"><button class="tldel" data-i="${i}" title="Remove this page break">✕</button> <span>page break</span></div>`
+      : `<div><button class="tldel" data-i="${i}">✕</button> <b>${esc(nomQuiParle(l.who))}</b>: ${esc(l.text)}</div>`).join("");
     el.querySelectorAll(".tldel").forEach(b=>b.onclick=()=>{trigLines.splice(+b.dataset.i,1);renderTrigLines();majApercu();});}
   function addLine(){const text=(tText.value||"").trim();if(!text){alert("Write a line.");return;}trigLines.push({who:whoDuForm(),text});tText.value="";tText.focus();renderTrigLines();majApercu();}
   // ===== LES EFFETS SE POSENT UN PAR UN =====
@@ -3079,14 +3099,20 @@
     const dmode=(document.getElementById("t-dmode")||{}).value||"one";
     let lignes=[];
     if(actif("dialogue")){
-      if(dmode==="txt")lignes=trigLines.slice();
+      if(dmode==="txt")lignes=trigLines.slice();   // peut contenir des sauts de page ({br:true})
       else { const cur=v("t-text"); if(cur)lignes=[{who:whoDuForm(),text:cur}]; } }
-    if(lignes.length===1)t.say=[lignes[0].who,lignes[0].text]; else if(lignes.length)t.lines=lignes.map(l=>[l.who,l.text]);
+    // Une seule page ⇒ on garde la forme la plus simple (say / lines) : rien ne change pour ce qui
+    // existait. Plusieurs pages ⇒ « pages », que le moteur joue une bulle par page.
+    const pages=[[]]; for(const l of lignes){ if(l.br)pages.push([]); else pages[pages.length-1].push([l.who,l.text]); }
+    const pleines=pages.filter(pg=>pg.length);
+    if(pleines.length>1)t.pages=pleines;
+    else if(pleines.length===1){ const pg=pleines[0];
+      if(pg.length===1)t.say=pg[0]; else t.lines=pg; }
     if(trigMode==="camp"){ const P={}; for(const k of ["rang","etoiles","forme","objectif","region"]){
         const x=v("t-sc-"+k); if(x)P[k]=x; }
       if(Object.keys(P).length)t.portee=P; }
     return t; }
-  const trigAgit=t=>!!(t.say||t.lines||t.wake||t.open||t.close||t.spawn);
+  const trigAgit=t=>!!(t.say||t.lines||t.pages||t.wake||t.open||t.close||t.spawn);
   // RELECTURE EN CLAIR. Le formulaire dit ce qu'on remplit, pas ce qu'on obtient : la même phrase
   // que dans la liste, mise à jour à chaque frappe, rend le cumul visible avant de valider.
   function majApercu(){ const el=document.getElementById("t-apercu"); if(!el)return;
@@ -3137,9 +3163,12 @@
     if(t.spawn){ set("t-spzone",t.spawn.zone); set("t-spcls",t.spawn.cls||"brute"); set("t-spteam",t.spawn.team||"enemy");
       set("t-spcount",t.spawn.count||1); set("t-sppod",t.spawn.pod!=null?t.spawn.pod:""); }
     const P=t.portee||{}; for(const k of ["rang","etoiles","forme","objectif","region"]) set("t-sc-"+k,P[k]||"");
-    const rep=(t.lines||(t.say?[t.say]:[])).map(l=>Array.isArray(l)?{who:l[0]||"",text:l[1]||""}:{who:"",text:String(l)});
+    const plat=l=>Array.isArray(l)?{who:l[0]||"",text:l[1]||""}:{who:"",text:String(l)};
+    let rep=[];
+    if(t.pages){ t.pages.forEach((pg,k)=>{ if(k)rep.push({br:true}); for(const l of pg)rep.push(plat(l)); }); }
+    else rep=(t.lines||(t.say?[t.say]:[])).map(plat);
     const dm=document.getElementById("t-dmode");
-    if(rep.length>1){ if(dm)dm.value="txt"; trigLines=rep; }   // un échange déjà écrit reste éditable ligne à ligne
+    if(rep.length>1||t.pages){ if(dm)dm.value="txt"; trigLines=rep; }   // un échange déjà écrit reste éditable ligne à ligne
     else { if(dm)dm.value="one"; trigLines=[];
       if(rep.length){ poserWho(rep[0].who); set("t-text",rep[0].text); } }
     majDMode(); renderTrigLines(); majApercu();
@@ -3167,12 +3196,21 @@
     dis("Reading "+fileName(f)+"…");
     const brut=await fetchText(f,ghCfg());
     if(brut==null){ dis("<b>"+fileName(f)+"</b> could not be read."); return; }
-    const lignes=parseLines(brut).filter(l=>l.text&&l.text!=="_");   // « _ » sépare les pages du lecteur : sans objet en plein combat
+    // La STRUCTURE du fichier est ce qu'on vient chercher : « _ » découpe l'échange en pages, et une
+    // ligne sans « Nom: » est de la narration. Tout aplatir en répliques indépendantes revenait à
+    // importer les mots en jetant le rythme.
+    const brutes=parseLines(brut).filter(l=>l.text);
+    const lignes=[]; let pages=1;
+    for(const l of brutes){
+      if(l.text==="_"){ if(lignes.length&&!lignes[lignes.length-1].br){ lignes.push({br:true}); pages++; } continue; }
+      lignes.push({who:l.who||"@narr",text:l.text}); }
+    while(lignes.length&&lignes[lignes.length-1].br){ lignes.pop(); pages--; }
     if(!lignes.length){ dis("<b>"+fileName(f)+"</b> holds no line."); return; }
-    for(const l of lignes)trigLines.push({who:l.who||"",text:l.text});
+    for(const l of lignes)trigLines.push(l);
     renderTrigLines();
     majApercu();
-    dis(`${lignes.length} line(s) imported from <b>${fileName(f)}</b> — edit or drop them below, they now belong to the event.`); }
+    const nl=lignes.filter(l=>!l.br).length;
+    dis(`${nl} line(s) over ${pages} page(s) imported from <b>${fileName(f)}</b> — the page breaks of the file are kept, one bubble per page.`); }
   { const b=document.getElementById("t-txtload"); if(b)b.onclick=importerDialogue; }
 
   // ===== BIBLIOTHÈQUE DE LISTES =====
