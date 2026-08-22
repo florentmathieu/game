@@ -316,8 +316,8 @@
     <div class="row"><label style="flex:1">Cover <input id="gen-cover" type="range" min="10" max="50" value="30"></label><span id="gen-coverv">30%</span></div>
     <div class="row"><label style="flex:1">Platforms <input id="gen-plats" type="range" min="0" max="4" value="2"></label><span id="gen-platsv">2</span>
       <label style="flex:1">size <input id="gen-platsize" type="range" min="2" max="9" value="2"></label><span id="gen-platsizev">2</span></div>
-    <div class="row"><label style="flex:1" title="Closed masonry: tall full-cover walls, at least one door, a few windows (low walls — half cover, and you can climb through).">Buildings <input id="gen-bats" type="range" min="0" max="4" value="1"></label><span id="gen-batsv">1</span>
-      <label style="flex:1" title="Floor area in tiles. The walls are added around it, so a 6-tile building takes about 16 tiles in all.">size <input id="gen-batsize" type="range" min="3" max="14" value="6"></label><span id="gen-batsizev">6</span></div>
+    <div class="row"><label style="flex:1" title="Closed masonry on the tile edges: full-cover walls that block sight and movement, at least one door, a few windows (low walls — half cover, and you can climb through).">Buildings <input id="gen-bats" type="range" min="0" max="4" value="1"></label><span id="gen-batsv">1</span>
+      <label style="flex:1" title="Floor area in tiles. The walls sit on the edges, so a 6-tile building costs exactly 6 tiles of ground.">size <input id="gen-batsize" type="range" min="3" max="14" value="6"></label><span id="gen-batsizev">6</span></div>
     <div class="row" style="flex-wrap:wrap;gap:8px"><span style="font-size:.85rem">Enemy classes:</span><span id="gen-eclasses" style="display:flex;flex-wrap:wrap;gap:8px"></span></div>
     <div class="row"><button id="gen-mission">🎲 Generate a mission</button></div>
     <div class="hint">Generates shape (island) + elevation/cover + <b>deployment & pods</b> (graph-based placement: pods far from the deployment, spaced out, out of sight). <b>Objective</b> of your choice: elimination, assassination (⊕ target), rescue (hostage at the heart of the pods), defend a VIP / survive N turns, extraction (deep zone). Rerolls from scratch on each click (seed).</div>
@@ -759,6 +759,13 @@
   let cells=[];
   let walls=new Set();          // low walls: partial cover placed on the edge between two cells
   let fenetres=new Set();       // among them, the ones that are BUILDING WINDOWS (drawn differently)
+  // MURS PLEINS, portés par une ARÊTE et non par une case. Un mur n'occupe pas de terrain : il
+  // sépare. Le mettre sur la case coûtait une quinzaine de cases pour une pièce de six et donnait
+  // des maisons énormes ; sur l'arête, une maison de six cases fait six cases, et la porte comme la
+  // fenêtre trouvent leur place naturelle — dans le mur, pas à la place d'un morceau de mur.
+  let murs=new Set();           // full walls on an edge: impassable AND opaque
+  let portes=new Set();         // the openings left in a wall line (drawn as a threshold)
+  const murBetween=(a,b)=>murs.has(wkey(a,b));
   let wallSeg=new Map();        // wkey -> segment [[x1,y1],[x2,y2]] of the shared edge
   const wkey=(a,b)=>Math.min(a,b)+"-"+Math.max(a,b);
   const wallBetween=(a,b)=>walls.has(wkey(a,b));
@@ -1204,6 +1211,18 @@
     cells[e.cell].elev=Math.min(...nb.map(v=>cells[v].elev))-2;
     return "cuvette creusée en case "+e.cell+" (elev "+cells[e.cell].elev+")";
   };
+  // Vérification d'étanchéité : depuis DEHORS et de loin, combien de cases de plancher voit-on
+  // encore ? On compare la même carte murs posés / murs ôtés — c'est la chute qui dit si la
+  // maçonnerie fait son travail, un mur isolé pouvant toujours se contourner par son bout.
+  window.BATLOS=function(n){ n=n||10; const R={paires:0,avec:0,sans:0,cartes:0};
+    for(let i=0;i<n;i++){ genMission({bats:1,batSize:6,forme:"rect"});
+      const sol=cells.filter(c=>c.sol).map(c=>c.id); if(!sol.length)continue; R.cartes++;
+      const dehors=cells.filter(c=>!c.sol&&passable(c.id)).map(c=>c.id);
+      const loin=dehors.filter(id=>sol.every(f=>hops(id,f)>=3));
+      const compte=()=>{ let v=0; for(const o of loin) for(const f of sol) if(los(o,f))v++; return v; };
+      R.paires+=loin.length*sol.length; R.avec+=compte();
+      const sauv=new Set(murs); murs=new Set(); R.sans+=compte(); murs=sauv; }
+    return R; };
   window.MAPSTATS=function(){
     if(!cells||!cells.length)return null;
     const n=cells.length, isCov=c=>c.terr==="wall"||c.terr==="rough";
@@ -1393,19 +1412,22 @@
              murets:walls?walls.size:0,
              // BÂTIMENTS : ce qu'on veut vérifier d'un coup d'œil — chaque maison a-t-elle une porte,
              // et son sol est-il vraiment ATTEIGNABLE (secteur fortement connexe, pas seulement voisin) ?
-             batiments:(function(){ const murs=cells.filter(c=>c.bat), portes=cells.filter(c=>c.porte), fen=cells.filter(c=>c.fen);
-               if(!murs.length&&!portes.length)return null;
+             batiments:(function(){
+               if(!murs.size&&!portes.size)return null;
                const {comp}=secteursForts(); const tail=new Map();
                for(const c of cells) if(passable(c.id)&&comp[c.id]>=0) tail.set(comp[c.id],(tail.get(comp[c.id])||0)+1);
                let princ=-1,mx=-1; tail.forEach((v,k)=>{ if(v>mx){mx=v;princ=k;} });
                const sols=cells.filter(c=>c.sol||c._batin);   // `sol` est le champ persisté, `_batin` le drapeau de génération
-               return { murs:murs.length, portes:portes.length, fenetres:fen.length,
+               return { murs:murs.size, portes:portes.size, fenetres:fenetres.size,
                  solCases:sols.length,
                  solRelie:sols.filter(c=>comp[c.id]===princ).length,   // doit valoir solCases
-                 fenetresMuret:fen.filter(c=>c.nb.some(v=>walls.has(wkey(c.id,v)))).length }; })() };
+                 vueBloquee:(function(){ let ko=0;   // depuis dehors, un mur doit vraiment couper la vue
+                   for(const k of murs){ const ab=k.split("-").map(Number); if(los(ab[0],ab[1]))ko++; }
+                   return murs.size-ko; })() }; })() };
   };
   const opaque=id=>cells[id].terr==="wall"||smoke.has(id);   // rock OR smoke blocks line of sight
   const enterCost=(from,to)=>{ if(!passable(to))return null;
+    if(murBetween(from,to))return null;                      // un mur plein ne se traverse pas
     const dz=cells[to].elev-cells[from].elev;
     if(dz>=2)return null;                                    // une falaise de 2 niveaux ne se grimpe pas
     if(dz!==0&&wallBetween(from,to))return null;             // PARAPET : un muret en dénivelé se contourne, il ne s'escalade pas
@@ -1513,11 +1535,30 @@
   // sortie, ce qui rendait hops() quadratique — or l'IA l'appelle pour chaque cible à chaque tour.
   function hops(a,b){if(!cells[a]||!cells[b])return Infinity;const s={};s[a]=0;const q=[a];let h=0;
     while(h<q.length){const id=q[h++];if(id===b)return s[id];for(const n of cells[id].nb){if(!passable(n))continue;if(s[n]===undefined){s[n]=s[id]+1;q.push(n);}}}return Infinity;}
-  function los(a,b){const A=cells[a],B=cells[b],N=Math.max(2,Math.round(Math.hypot(B.cx-A.cx,B.cy-A.cy)/8));
-    for(let k=1;k<N;k++){const t=k/N,x=A.cx+(B.cx-A.cx)*t,y=A.cy+(B.cy-A.cy)*t;const c=cellAtXY(x,y);if(c&&c.id!==a&&c.id!==b&&opaque(c.id))return false;}return true;}
+  // La vue est coupée par une case opaque (roche, fumée) OU par un mur plein posé sur une arête.
+  // On échantillonne assez fin pour voir CHAQUE changement de case : franchir un mur, c'est passer
+  // d'une case à sa voisine, et c'est là qu'on teste l'arête.
+  const segInter=(p,q,r,t)=>{ const d=(x,y,z)=>(y[0]-x[0])*(z[1]-x[1])-(y[1]-x[1])*(z[0]-x[0]);
+    const d1=d(r,t,p),d2=d(r,t,q),d3=d(p,q,r),d4=d(p,q,t);
+    return ((d1>0)!==(d2>0))&&((d3>0)!==(d4>0)); };
+  // Le rayon peut effleurer le coin d'une troisième case et « sauter » par-dessus l'arête murée :
+  // quand les deux cases traversées ne sont pas voisines, on tranche géométriquement, sur les seuls
+  // murs qui les touchent.
+  function murCoupe(A,B,u,v){ for(const id of [u,v]) for(const n of cells[id].nb){ const k=wkey(id,n);
+      if(!murs.has(k))continue; const sg=wallSeg.get(k); if(!sg)continue;
+      if(segInter([A.cx,A.cy],[B.cx,B.cy],sg[0],sg[1]))return true; } return false; }
+  function los(a,b){const A=cells[a],B=cells[b],N=Math.max(2,Math.round(Math.hypot(B.cx-A.cx,B.cy-A.cy)/5));
+    let prev=a;
+    for(let k=1;k<N;k++){const t=k/N,x=A.cx+(B.cx-A.cx)*t,y=A.cy+(B.cy-A.cy)*t;const c=cellAtXY(x,y);if(!c)continue;
+      if(c.id!==prev){ if(murs.size){ if(murBetween(prev,c.id))return false;
+          if(murCoupe(A,B,prev,c.id))return false; } prev=c.id; }   // le rayon peut aussi contourner par un coin : on tranche géométriquement
+      if(c.id!==a&&c.id!==b&&opaque(c.id))return false;}
+    if(murs.size&&prev!==b){ if(murBetween(prev,b))return false; if(murCoupe(A,B,prev,b))return false; }
+    return true;}
   // reliable geometric adjacency: two cells sharing an edge (≥2 common vertices) — catches an edge missed by buildAdj
   function shareEdge(a,b){const pa=cells[a]&&cells[a].poly,pb=cells[b]&&cells[b].poly;if(!pa||!pb)return false;let n=0;for(const p of pa){for(const q of pb){if(Math.abs(p[0]-q[0])<1.5&&Math.abs(p[1]-q[1])<1.5){n++;break;}}if(n>=2)return true;}return false;}
-  function adjacent(a,b){ if(hops(a,b)<=1||shareEdge(a,b))return true;   // graph neighbor or shared edge
+  function adjacent(a,b){ if(murBetween(a,b))return false;   // un mur plein sépare : pas de corps à corps au travers
+    if(hops(a,b)<=1||shareEdge(a,b))return true;   // graph neighbor or shared edge
     const A=cells[a],B=cells[b]; if(!A||!B||!A.nb||!A.nb.length)return false;   // otherwise: close enough (≤ 1.6× the average distance to real neighbors)
     let sum=0; for(const n of A.nb)sum+=Math.hypot(cells[n].cx-A.cx,cells[n].cy-A.cy); const avg=sum/A.nb.length;
     return Math.hypot(B.cx-A.cx,B.cy-A.cy)<=avg*1.6; }
@@ -1528,10 +1569,10 @@
   // low-wall cover: partial, directional (full value from the front, none from the flank), and only
   // if the target is not higher than the cell across from it (the low ground is protected from the high).
   function muretCover(tgt,att){ const T=cells[tgt.cell],A=cells[att.cell]; let ax=A.cx-T.cx,ay=A.cy-T.cy; const al=Math.hypot(ax,ay)||1; ax/=al;ay/=al; let best=0;
-    for(const n of T.nb){ if(!wallBetween(tgt.cell,n))continue;
+    for(const n of T.nb){ const plein=murBetween(tgt.cell,n); if(!plein&&!wallBetween(tgt.cell,n))continue;
       // Un muret ne couvre pas quand on domine le voisin : on est au-dessus, on tire par-dessus.
       // SAUF si l'assaillant est plus bas — là c'est un parapet, et il encaisse les tirs venus d'en bas.
-      if(T.elev>cells[n].elev && A.elev>=T.elev) continue; let dx=cells[n].cx-T.cx,dy=cells[n].cy-T.cy; const dl=Math.hypot(dx,dy)||1; dx/=dl;dy/=dl; const align=ax*dx+ay*dy; if(align<=0)continue; best=Math.max(best,(COVER_PEN/2)*align); }
+      if(!plein&&T.elev>cells[n].elev && A.elev>=T.elev) continue; let dx=cells[n].cx-T.cx,dy=cells[n].cy-T.cy; const dl=Math.hypot(dx,dy)||1; dx/=dl;dy/=dl; const align=ax*dx+ay*dy; if(align<=0)continue; best=Math.max(best,(plein?COVER_PEN:COVER_PEN/2)*align); }
     return Math.round(best); }
   function chance(att,tgt,m){const w=att.w[m];let cover=0;if(w.type==="ranged"){if(cells[tgt.cell].terr==="cover")cover=COVER_PEN;cover=Math.max(cover,muretCover(tgt,att));if(units.some(a=>a.hp>0&&a.team===tgt.team&&a!==tgt&&a.wallStance&&adjacent(a.cell,tgt.cell)))cover=Math.max(cover,Math.round(COVER_PEN*0.5));}const dh=Math.max(-3,Math.min(3,cells[att.cell].elev-cells[tgt.cell].elev))*HEIGHT_BONUS;const pb=w.type==="ranged"?(PB[hops(att.cell,tgt.cell)]||0):0;const def=(tgt.bracing?DEF_BRACE:0)+(tgt.dodge||0);return Math.max(5,Math.min(95,Math.round(w.aim+(att.aimBonus||0)-cover+dh-pb-def)));}   // dodge = esquive du défenseur
   function doAttack(att,tgt,m,reaction){
@@ -2047,26 +2088,29 @@
     ctx.fillStyle="#4a4d54"; ctx.beginPath(); blob(-s*0.42,s*0.2,s*0.6); blob(s*0.4,s*0.24,s*0.55); blob(0,-s*0.24,s*0.7); ctx.fill();
     ctx.strokeStyle="#1d1e22"; ctx.lineWidth=2; ctx.stroke();
     ctx.fillStyle="#7d818a"; ctx.beginPath(); blob(-s*0.1,-s*0.32,s*0.42); blob(s*0.3,s*0.05,s*0.3); ctx.fill(); }
-  // MAÇONNERIE. Un mur de bâtiment est du couvert plein comme la roche, mais il ne doit pas se lire
-  // comme elle : la roche est un tas organique au centre de la case, le mur est une case PLEINE,
-  // équarrie, appareillée. On remplit tout le polygone, on l'assombrit d'un liseré net, et on pose
-  // deux lits de pierres — de loin la silhouette suffit à distinguer une ruine d'un rocher.
-  function drawMur(c){ ctx.save(); poly(c); ctx.clip();
-    poly(c); ctx.fillStyle="#6b6259"; ctx.fill();
-    ctx.strokeStyle="#2b2620"; ctx.lineWidth=1.1;
-    const b=[]; for(const p of c.poly){ b.push(p); }
-    let x0=1e9,y0=1e9,x1=-1e9,y1=-1e9; for(const p of b){ x0=Math.min(x0,p[0]);y0=Math.min(y0,p[1]);x1=Math.max(x1,p[0]);y1=Math.max(y1,p[1]); }
-    const h=(y1-y0)/3;
-    for(let i=1;i<3;i++){ const y=y0+h*i; ctx.beginPath(); ctx.moveTo(x0,y); ctx.lineTo(x1,y); ctx.stroke(); }
-    for(let i=0;i<3;i++){ const y=y0+h*i, x=x0+((i%2)?0.5:0.18)*(x1-x0);   // joints décalés d'un lit à l'autre
-      ctx.beginPath(); ctx.moveTo(x,y); ctx.lineTo(x,y+h); ctx.stroke(); }
-    ctx.restore();
-    poly(c); ctx.strokeStyle="#25211b"; ctx.lineWidth=2.2; ctx.stroke(); }
-  // PORTE : un seuil, dessiné dans l'ouverture — la case est praticable, c'est par là qu'on entre.
-  function drawPorte(c){ const s=7; ctx.save(); ctx.strokeStyle="#c9a24a"; ctx.lineWidth=2.4; ctx.lineCap="round";
-    ctx.beginPath(); ctx.moveTo(c.cx-s,c.cy+s*0.8); ctx.lineTo(c.cx-s,c.cy-s*0.5);
-    ctx.quadraticCurveTo(c.cx,c.cy-s*1.5,c.cx+s,c.cy-s*0.5); ctx.lineTo(c.cx+s,c.cy+s*0.8); ctx.stroke();
-    ctx.restore(); }
+  // MAÇONNERIE, sur l'arête. Le muret est un trait clair et fin ; le mur plein est ÉPAIS, sombre,
+  // appareillé — deux traits parallèles serrés avec des boutisses en travers. À l'œil, on distingue
+  // « je peux passer par-dessus » de « ça m'arrête ».
+  function drawMurSeg(s){ const ax=s[0][0],ay=s[0][1],bx=s[1][0],by=s[1][1];
+    const dx=bx-ax, dy=by-ay, L=Math.hypot(dx,dy)||1, nx=-dy/L, ny=dx/L, ep=3.2;
+    ctx.lineCap="butt";
+    ctx.strokeStyle="#5c534a"; ctx.lineWidth=ep*2; ctx.beginPath(); ctx.moveTo(ax,ay); ctx.lineTo(bx,by); ctx.stroke();
+    ctx.strokeStyle="#23201b"; ctx.lineWidth=1.1;
+    for(const sgn of [-1,1]){ ctx.beginPath(); ctx.moveTo(ax+nx*ep*sgn,ay+ny*ep*sgn); ctx.lineTo(bx+nx*ep*sgn,by+ny*ep*sgn); ctx.stroke(); }
+    const n=Math.max(2,Math.round(L/9));   // les boutisses : c'est l'appareillage qui dit « pierre » plutôt que « planche »
+    for(let i=1;i<n;i++){ const t=i/n, x=ax+dx*t, y=ay+dy*t;
+      ctx.beginPath(); ctx.moveTo(x-nx*ep,y-ny*ep); ctx.lineTo(x+nx*ep,y+ny*ep); ctx.stroke(); } }
+  // PORTE : l'arête est libre, on ne dessine que le jambage de part et d'autre — l'ouverture se voit
+  // parce que le mur s'interrompt, et les deux montants disent que ce n'est pas un trou fortuit.
+  function drawPorteSeg(s){ const ax=s[0][0],ay=s[0][1],bx=s[1][0],by=s[1][1];
+    const dx=bx-ax, dy=by-ay, L=Math.hypot(dx,dy)||1, nx=-dy/L, ny=dx/L, ep=5;
+    ctx.lineCap="round";
+    ctx.strokeStyle="#e0b341"; ctx.lineWidth=3.4;   // les jambages : deux montants francs, l'ouverture entre eux
+    for(const t of [0.06,0.94]){ const x=ax+dx*t, y=ay+dy*t;
+      ctx.beginPath(); ctx.moveTo(x-nx*ep,y-ny*ep); ctx.lineTo(x+nx*ep,y+ny*ep); ctx.stroke(); }
+    ctx.strokeStyle="rgba(224,179,65,.45)"; ctx.lineWidth=1.6;   // le seuil, en pointillé : on passe
+    ctx.setLineDash([3,4]); ctx.beginPath(); ctx.moveTo(ax,ay); ctx.lineTo(bx,by); ctx.stroke(); ctx.setLineDash([]);
+    ctx.lineCap="butt"; }
   const ZCOL={square:"rgba(255,225,176,.13)",hex:"rgba(207,232,255,.13)",pentagon:"rgba(233,198,238,.13)",mix:"rgba(255,255,255,.07)"};
   function poly(c){ctx.beginPath();c.poly.forEach((p,i)=>i?ctx.lineTo(p[0],p[1]):ctx.moveTo(p[0],p[1]));ctx.closePath();}
   // ===== ephemeral visual effects (combat juice): damage, projectiles, blades, explosions, alerts, shake =====
@@ -2113,19 +2157,9 @@
       else if(mode==="edit"&&c._gen!=null){ const PP=["#4c86e0","#7a46c8","#c0396b","#e8902b","#f0c33e"]; col=PP[Math.min(PP.length-1,c._gen)]; }   // pinwheel : coloration par GÉNÉRATION (gros/peu subdivisé = bleu → fin/profond = orange), style fractale par niveau
       poly(c); ctx.fillStyle=col; ctx.fill(); ctx.lineWidth=1.5; ctx.strokeStyle=col; ctx.stroke();   // fill + border = same final color → no antialiasing seam
       poly(c); ctx.lineWidth=c.sup!=null?0.4:0.6; ctx.strokeStyle=unseen?"rgba(18,14,9,.16)":"rgba(18,14,9,.30)"; ctx.stroke();   // very thin tile outline (kites even finer under a double mesh) — subtle under the fog
-      if(c.sol&&!unseen){ poly(c); ctx.fillStyle="rgba(206,176,128,.32)"; ctx.fill(); }   // le SOL d'une maison : un plancher, pas de l'herbe
-      if(c.terr==="wall"&&!unseen){ c.bat?drawMur(c):drawRock(c); }
-      if(c.porte&&!unseen){ drawPorte(c); }
+      if(c.sol&&!unseen){ poly(c); ctx.fillStyle="rgba(206,176,128,.30)"; ctx.fill(); }   // le SOL d'une maison : un plancher, pas de l'herbe
+      if(c.terr==="wall"&&!unseen){ drawRock(c); }
       if(smoke.has(c.id)&&!unseen){ poly(c); ctx.fillStyle="rgba(200,205,212,.55)"; ctx.fill(); } }   // 🌫 smoke: gray veil over the smoked tiles
-    // CONTOUR DES BÂTIMENTS. Les cases de pourtour sont des polygones irréguliers : prises une à une
-    // elles se lisent comme une ruine éparpillée. Un trait continu sur la frontière de l'emprise
-    // (même batId d'un côté, rien de l'autre) rend la maison lisible d'un coup d'œil.
-    { ctx.lineWidth=3; ctx.strokeStyle="rgba(30,25,18,.9)"; ctx.lineCap="round";
-      for(const c of cells){ if(c.batId==null)continue;
-        if(mode==="play"&&!visible.has(c.id)&&!c.nb.some(n=>visible.has(n)))continue;
-        for(const n of c.nb){ if(cells[n].batId===c.batId)continue; const sg=wallSeg.get(wkey(c.id,n)); if(!sg)continue;
-          ctx.beginPath(); ctx.moveTo(sg[0][0],sg[0][1]); ctx.lineTo(sg[1][0],sg[1][1]); ctx.stroke(); } }
-      ctx.lineCap="butt"; }
     if(cells.length&&cells[0].sup!=null){ ctx.lineWidth=3.4; ctx.strokeStyle="rgba(20,14,7,.95)"; ctx.lineCap="round";   // double maillage : trait ÉPAIS uniquement aux frontières de chapeau (sup différent) — contraste fort avec les kites fins
       for(const c of cells){ for(const n of c.nb){ if(n<=c.id||cells[n].sup===c.sup)continue; const s=wallSeg.get(wkey(c.id,n)); if(!s)continue; ctx.beginPath(); ctx.moveTo(s[0][0],s[0][1]); ctx.lineTo(s[1][0],s[1][1]); ctx.stroke(); } }
       ctx.lineCap="butt"; }
@@ -2184,6 +2218,9 @@
       ctx.lineWidth=3; ctx.strokeStyle="#8fd3ff"; ctx.beginPath(); ctx.moveTo(A[0],A[1]); ctx.lineTo(B[0],B[1]); ctx.stroke();   // l'appui vitré
       const M=q(0.5), dx=(bx-ax), dy=(by-ay), L=Math.hypot(dx,dy)||1, nx=-dy/L, ny=dx/L;   // le meneau
       ctx.lineWidth=1.6; ctx.beginPath(); ctx.moveTo(M[0]-nx*3,M[1]-ny*3); ctx.lineTo(M[0]+nx*3,M[1]+ny*3); ctx.stroke(); });
+    const vuArete=k=>{ if(mode!=="play")return true; const ab=k.split("-"); return visible.has(+ab[0])||visible.has(+ab[1]); };
+    murs.forEach(k=>{ const sg=wallSeg.get(k); if(sg&&vuArete(k))drawMurSeg(sg); });
+    portes.forEach(k=>{ const sg=wallSeg.get(k); if(sg&&vuArete(k))drawPorteSeg(sg); });
     if(mode==="edit"&&editTool==="muret"&&hoverEdge){const s=wallSeg.get(hoverEdge);if(s){ctx.beginPath();ctx.moveTo(s[0][0],s[0][1]);ctx.lineTo(s[1][0],s[1][1]);ctx.lineWidth=5;ctx.lineCap="round";ctx.strokeStyle="rgba(255,212,121,.5)";ctx.stroke();ctx.lineCap="butt";}}
     // cover highlight around the hovered tile: amber ½ = low wall (half cover), cyan █ = rock (full cover)
     if(mode==="play"&&!over&&hoverCell!=null&&cells[hoverCell]&&visible.has(hoverCell)){ const c=cells[hoverCell],p=c.poly,en=c.edgeNb||[];
@@ -2256,22 +2293,27 @@
 
   // re-meshes while keeping terrain, elevation, low walls and units via geometric projection
   function snapBoard(){ return {
-    cells:cells.map(c=>({cx:c.cx,cy:c.cy,terr:c.terr,elev:c.elev,zone:c.zone,ore:c.ore,bat:c.bat,porte:c.porte,fen:c.fen,sol:c.sol,batId:c.batId})),
-    walls:[...walls].map(k=>{const g=wallSeg.get(k);return g?[(g[0][0]+g[1][0])/2,(g[0][1]+g[1][1])/2,fenetres.has(k)?1:0]:null;}).filter(Boolean),
+    cells:cells.map(c=>({cx:c.cx,cy:c.cy,terr:c.terr,elev:c.elev,zone:c.zone,ore:c.ore,sol:c.sol,batId:c.batId})),
+    // arêtes repérées par leur MILIEU, avec leur nature (0 muret, 1 fenêtre, 2 mur plein, 3 porte)
+    walls:[...walls,...murs,...portes].map(k=>{const g=wallSeg.get(k);if(!g)return null;
+      const t=murs.has(k)?2:(portes.has(k)?3:(fenetres.has(k)?1:0));
+      return [(g[0][0]+g[1][0])/2,(g[0][1]+g[1][1])/2,t];}).filter(Boolean),
     units:units.map(u=>({team:u.team,cls:u.cls,name:u.name,pod:u.pod,asleep:u._asleep0,hostage:u.hostage,facing:u.facing,cx:cells[u.cell]?cells[u.cell].cx:0,cy:cells[u.cell]?cells[u.cell].cy:0})) }; }
   function restoreBoard(s){ if(!s||!s.cells.length)return;
     const near=(arr,x,y)=>{let bi=0,bd=1e9;for(let i=0;i<arr.length;i++){const d=(arr[i].cx-x)**2+(arr[i].cy-y)**2;if(d<bd){bd=d;bi=i;}}return bi;};
-    cells.forEach(c=>{const o=s.cells[near(s.cells,c.cx,c.cy)];c.terr=o.terr;c.elev=o.elev;c.zone=o.zone;c.bat=o.bat;c.porte=o.porte;c.fen=o.fen;c.sol=o.sol;c.batId=o.batId;});
-    walls=new Set(); fenetres=new Set();
+    cells.forEach(c=>{const o=s.cells[near(s.cells,c.cx,c.cy)];c.terr=o.terr;c.elev=o.elev;c.zone=o.zone;c.sol=o.sol;c.batId=o.batId;});
+    walls=new Set(); fenetres=new Set(); murs=new Set(); portes=new Set();
     if(s.walls.length){ const mids=[]; cells.forEach(c=>{for(const n of c.nb)if(n>c.id){const sg=wallSeg.get(wkey(c.id,n));if(sg)mids.push([wkey(c.id,n),(sg[0][0]+sg[1][0])/2,(sg[0][1]+sg[1][1])/2]);}});
-      s.walls.forEach(m=>{let bk=null,bd=1e9;mids.forEach(([k,mx,my])=>{const d=(mx-m[0])**2+(my-m[1])**2;if(d<bd){bd=d;bk=k;}});if(bk&&bd<(MC*0.5)**2){walls.add(bk);if(m[2])fenetres.add(bk);}}); }
+      s.walls.forEach(m=>{let bk=null,bd=1e9;mids.forEach(([k,mx,my])=>{const d=(mx-m[0])**2+(my-m[1])**2;if(d<bd){bd=d;bk=k;}});
+        if(!bk||bd>=(MC*0.5)**2)return;
+        if(m[2]===2)murs.add(bk); else if(m[2]===3)portes.add(bk); else { walls.add(bk); if(m[2]===1)fenetres.add(bk); } }); }
     const used=new Set(); units=[];
     s.units.forEach(su=>{ const ord=cells.map((c,i)=>[(c.cx-su.cx)**2+(c.cy-su.cy)**2,i]).sort((a,b)=>a[0]-b[0]);
       for(const [,i] of ord){ if(used.has(i)||cells[i].terr==="wall")continue; used.add(i); units.push(U(su.team,su.cls,i,{name:su.name,pod:su.pod,asleep:su.asleep,hostage:su.hostage,facing:su.facing})); break; } }); }
-  function rebuildShape(keep){ const snap=keep?snapBoard():null; genMesh(); applyBoardShape(); if(snap)restoreBoard(snap); else{units=[];walls=new Set();fenetres=new Set();} refresh(); }
+  function rebuildShape(keep){ const snap=keep?snapBoard():null; genMesh(); applyBoardShape(); if(snap)restoreBoard(snap); else{units=[];walls=new Set();fenetres=new Set();murs=new Set();portes=new Set();} refresh(); }
   // generates a terrain profile: hills (elevation), rocks, cover and scattered low walls
   function autoTerrain(){ if(!cells.length)return; seed=(seed*1103515245+12345)&0x7fffffff; const rnd=mk((seed^0x9e3779b9)>>>0);
-    cells.forEach(c=>{c.terr="plain";c.elev=0;c.bat=false;c.porte=false;c.fen=false;c.sol=false;c.batId=null;}); walls=new Set(); fenetres=new Set();
+    cells.forEach(c=>{c.terr="plain";c.elev=0;c.sol=false;c.batId=null;}); walls=new Set(); fenetres=new Set(); murs=new Set(); portes=new Set();
     const nh=2+Math.floor(rnd()*3);                       // 2-4 hills
     for(let k=0;k<nh;k++){ const cx=rnd()*W,cy=rnd()*H,rad=W*(0.12+rnd()*0.14),pk=1+Math.floor(rnd()*3);
       cells.forEach(c=>{const d=Math.hypot(c.cx-cx,c.cy-cy);if(d<rad)c.elev=Math.min(3,Math.max(c.elev,Math.round(pk*(1-d/rad))));}); }
@@ -2585,33 +2627,28 @@
       }
     })();
 
-    // BÂTIMENTS — de la maçonnerie fermée : un sol dégagé, ceint de murs pleins et HAUTS (terr
-    // « wall » : infranchissable et opaque, contrairement à l'éboulis), percé d'au moins une porte
-    // et de quelques fenêtres. La fenêtre réutilise le muret qui existe déjà : demi-couvert pour qui
-    // la tient, et la vue passe au-dessus. Elle se franchit donc — c'est une ouverture, pas une
-    // meurtrière ; la différence avec la porte est tactique (le couvert), pas cinématique.
+    // BÂTIMENTS — de la maçonnerie fermée, portée par les ARÊTES du pourtour. Le sol reste du sol :
+    // une pièce de six cases coûte six cases, pas quinze. Le mur plein est infranchissable et
+    // opaque ; la fenêtre est le muret qui existe déjà (demi-couvert, la vue passe au-dessus) ;
+    // la porte est une arête laissée libre. Au moins une porte, toujours.
     // Pas de surélévation : une maison n'est pas un promontoire, elle se prend de l'intérieur.
-    const batEdges=[];
+    const batMurs=[], batFen=[], batPortes=[];
     STRUCT&&(function batiments(){
       const el=id=>document.getElementById(id);
       const rd=(id,def)=>{ const e=el(id); return e&&e.value!=="" ? +e.value : def; };
       const n=P.bats!=null?P.bats:rd("gen-bats",1);
-      const taille=P.batSize!=null?P.batSize:rd("gen-batSize",rd("gen-batsize",6));   // surface INTÉRIEURE en cases
+      const taille=P.batSize!=null?P.batSize:rd("gen-batsize",6);   // surface du SOL, murs compris dans le pourtour
       const used=[]; let batSeq=0;
-      const libre=c=>!c._route&&!c._barrier&&!c._dio&&!c._plat&&!c._ramp&&!c._bat&&!c._batin;
+      const libre=c=>!c._route&&!c._barrier&&!c._dio&&!c._plat&&!c._ramp&&!c._batin;
       for(let k=0;k<n;k++){
-       // plusieurs essais par bâtiment : un centre peut ne pas donner assez de sol ou pas de
-       // pourtour utilisable, ce n'est pas une raison pour renoncer à la maison.
        let pose=false;
        for(let essai=0; essai<24 && !pose; essai++){
-        const ecart=W*(0.20+0.012*taille);
+        const ecart=W*(0.16+0.010*taille);
         const cand=cells.filter(c=>libre(c)&&c.elev===0&&c.nb.length>=4
           && used.every(u=>Math.hypot(c.cx-u.cx,c.cy-u.cy)>ecart));
         if(!cand.length)break;
         const c0=cand[Math.floor(rnd()*cand.length)];
-        // le SOL du bâtiment. Croissance par PROXIMITÉ au centre, pas par anneaux : le parcours en
-        // largeur donnait des plans étirés, dont le pourtour se lisait comme une ruine éparpillée
-        // plutôt que comme une maison. On ajoute à chaque fois la case libre la plus proche du centre.
+        // le SOL : croissance par PROXIMITÉ au centre, pour un plan compact plutôt qu'étiré
         const sol=[c0], ids=new Set([c0.id]);
         while(sol.length<taille){
           let best=null,bd=1e9;
@@ -2619,37 +2656,28 @@
             if(ids.has(v)||!libre(cv)||cv.elev!==0)continue;
             const d=(cv.cx-c0.cx)**2+(cv.cy-c0.cy)**2; if(d<bd){bd=d;best=cv;} }
           if(!best)break; ids.add(best.id); sol.push(best); }
-        if(sol.length<3)continue;   // sous trois cases ce n'est plus une pièce, c'est un rocher (on retente ailleurs)
-        // le POURTOUR devient la maçonnerie
-        const bordIds=new Set();
-        for(const c of sol) for(const v of c.nb) if(!ids.has(v)) bordIds.add(v);
-        // Le pourtour doit être ENTIÈREMENT maçonnable : une case de rampe ou de route au milieu de
-        // l'anneau laisserait un trou béant dans le mur, et la maison ne serait plus fermée du tout.
-        const bord=[...bordIds].map(v=>cells[v]);
-        if(bord.length<6)continue;   // sous six cases de pourtour, la « maison » ne se lit plus comme fermée
-        if(bord.some(c=>c.elev>1||c._plat||c._ramp||c._route||c._batin||c.bat))continue;
-        const bid=++batSeq;   // le même sur TOUTES les cases de la maison : c'est lui qui trace le contour au dessin
-        for(const c of sol){ c.terr="plain"; c.elev=0; c._batin=true; c.batId=bid; c.sol=true; }
-        for(const c of bord){ c.terr="wall"; c.elev=0; c.bat=true; c._bat=true; c._barrier=false; c.batId=bid; }
-        // OUVERTURES. Une porte au moins, et elle doit donner sur du sol praticable : une porte
-        // murée ne serait qu'un mur de plus. On la choisit donc parmi les cases de pourtour qui ont
-        // un voisin hors bâtiment au niveau du sol.
-        const dehors=c=>c.nb.some(v=>!ids.has(v)&&!bordIds.has(v)&&cells[v].elev===0&&cells[v].terr!=="wall");
-        const ouvrables=bord.filter(dehors);
-        if(!ouvrables.length){ for(const c of bord){ c.terr="plain"; c.bat=false; c._bat=false; c.batId=null; } for(const c of sol){ c._batin=false; c.batId=null; c.sol=false; } continue; }
-        const melange=ouvrables.slice(); for(let i=melange.length-1;i>0;i--){ const j=Math.floor(rnd()*(i+1)); const t=melange[i]; melange[i]=melange[j]; melange[j]=t; }
-        const porte=melange.shift();
-        porte.terr="plain"; porte.bat=false; porte._bat=false; porte.porte=true;
-        // fenêtres : environ une pour quatre cases de mur, jamais collées à la porte
-        const nFen=Math.max(1,Math.floor((bord.length-1)/4));   // porte comprise, on n'ouvre jamais plus d'un tiers du pourtour
-        const fen=[];
-        for(const c of melange){ if(fen.length>=nFen)break;
-          if(c.nb.includes(porte.id))continue;
-          if(fen.some(f=>f.nb.includes(c.id)))continue;
-          fen.push(c); }
-        if(!fen.length&&melange.length)fen.push(melange[0]);   // au moins une fenêtre dès qu'il reste une ouverture, même voisine de la porte
-        for(const c of fen){ c.terr="plain"; c.bat=false; c._bat=false; c.fen=true;
-          for(const v of c.nb) if(!ids.has(v)&&!bordIds.has(v)) batEdges.push(wkey(c.id,v)); }   // le muret regarde vers l'EXTÉRIEUR
+        if(sol.length<3)continue;   // sous trois cases ce n'est plus une pièce
+        // LE POURTOUR est l'ensemble des arêtes qui séparent la pièce du dehors. Une arête dont
+        // l'autre côté est infranchissable (roche, dénivelé) ne peut pas servir de porte : la maison
+        // n'aurait pas d'entrée de ce côté-là.
+        const aretes=[];
+        for(const c of sol) for(const v of c.nb){ if(ids.has(v))continue;
+          const kk=wkey(c.id,v); if(!wallSeg.has(kk))continue;
+          aretes.push({k:kk,dedans:c.id,dehors:v,ouvrable:cells[v].terr!=="wall"&&Math.abs(cells[v].elev-cells[c.id].elev)<2}); }
+        if(aretes.length<5)continue;                                   // un pourtour de moins de cinq arêtes ne se lit pas comme une maison
+        const ouvrables=aretes.filter(a=>a.ouvrable);
+        if(!ouvrables.length)continue;                                 // aucune entrée possible : on cherche ailleurs
+        const bid=++batSeq;
+        for(const c of sol){ c._batin=true; c.batId=bid; c.sol=true; c.terr="plain"; c.elev=0; }
+        const melange=ouvrables.slice();
+        for(let i=melange.length-1;i>0;i--){ const j=Math.floor(rnd()*(i+1)); const t=melange[i]; melange[i]=melange[j]; melange[j]=t; }
+        const porte=melange.shift(); batPortes.push(porte.k);
+        const nFen=Math.max(1,Math.floor((aretes.length-1)/4));         // porte comprise, jamais plus d'un tiers d'ouvertures
+        const fen=new Set();
+        for(const a of melange){ if(fen.size>=nFen)break; fen.add(a.k); }
+        const ouvertes=new Set([porte.k,...fen]);
+        for(const a of aretes){ if(ouvertes.has(a.k))continue; batMurs.push(a.k); }
+        for(const kk of fen) batFen.push(kk);
         used.push(c0); pose=true;
        }
       }
@@ -2661,10 +2689,10 @@
     // Le budget tient compte des murs déjà posés par les barrières, pour que le curseur reste juste.
     (function scatterCover(){
       const flat=cells.filter(c=>c.elev===0);
-      const already=flat.filter(c=>(c._barrier||c._dio||c._bat)&&(c.terr==="wall"||c.terr==="rough")).length;   // la maçonnerie EST du couvert : elle entre dans le budget, sinon le curseur ment
+      const already=flat.filter(c=>(c._barrier||c._dio)&&(c.terr==="wall"||c.terr==="rough")).length;
       // on épargne aussi les ABORDS d'une rampe : y poser un mur scellerait la plateforme
       const abords=new Set(); for(const c of cells) if(c._ramp) for(const v of c.nb) abords.add(v);
-      const elig=flat.filter(c=>!c._barrier&&!c._route&&!c._dio&&!c._ramp&&!c._bat&&!c._batin&&!abords.has(c.id));   // ni les murs ni le sol d'un bâtiment : on ne remplit pas une pièce de rochers
+      const elig=flat.filter(c=>!c._barrier&&!c._route&&!c._dio&&!c._ramp&&!c._batin&&!abords.has(c.id));   // on ne remplit pas une pièce de rochers
       const budget=Math.max(0,Math.round(flat.length*cover)-already);
       const scored=elig.map(c=>({c,v:STRUCT?(nz(c.cx,c.cy,SC)*0.72+nz(c.cx,c.cy,SC*0.42)*0.28):rnd()}));
       scored.sort((a,b)=>b.v-a.v);
@@ -2703,25 +2731,24 @@
         if(k<=1)return;
         const size=new Array(k).fill(0); for(const [,g] of comp)size[g]++;
         const main=size.indexOf(Math.max(...size));
-        let done=false, secours=null;
+        let done=false;
         for(const id of pass){ if(comp.get(id)===main)continue;
           for(const v of cells[id].nb){ if(cells[v].terr!=="wall")continue;
-            if(!cells[v].nb.some(w=>ps.has(w)&&comp.get(w)===main))continue;
-            if(cells[v]._bat){ if(!secours)secours=v; continue; }   // percer une maison en dernier recours : elle a déjà une porte
-            cells[v].terr="rough"; cells[v]._barrier=false; done=true; break; }
+            if(cells[v].nb.some(w=>ps.has(w)&&comp.get(w)===main)){ cells[v].terr="rough"; cells[v]._barrier=false; done=true; break; } }
           if(done)break; }
-        if(!done&&secours!=null){ cells[secours].terr="rough"; cells[secours]._bat=false; cells[secours].bat=false; done=true; }
         if(!done)return;
       }
     })();
-    walls=new Set(); fenetres=new Set();
+    walls=new Set(); fenetres=new Set(); murs=new Set(); portes=new Set();
     for(const k of wallSeg.keys()){ const ab=k.split("-").map(Number); if(cells[ab[0]].terr==="wall"||cells[ab[1]].terr==="wall")continue;
       if(cells[ab[0]]._route&&cells[ab[1]]._route)continue;              // pas de muret en travers de la route
       if(cells[ab[0]].elev!==cells[ab[1]].elev)continue;                 // JAMAIS de muret aléatoire sur un dénivelé :
-      if(cells[ab[0]]._batin||cells[ab[1]]._batin||cells[ab[0]].porte||cells[ab[1]].porte)continue;   // ni dans une pièce, ni en travers d'une porte
+      if(cells[ab[0]]._batin||cells[ab[1]]._batin)continue;   // ni dans une pièce, ni en travers de son pourtour
       if(rnd()<0.15)walls.add(k); }                                      // seuls les parapets voulus y sont posés, sinon ils scelleraient des reliefs
     for(const k of platEdges) if(wallSeg.has(k)) walls.add(k);   // parapets des plateformes
-    for(const k of batEdges) if(wallSeg.has(k)){ walls.add(k); fenetres.add(k); }   // fenêtres : des murets, mais on les dessine autrement
+    for(const k of batMurs) if(wallSeg.has(k)){ murs.add(k); walls.delete(k); }              // maçonnerie
+    for(const k of batFen) if(wallSeg.has(k)){ walls.add(k); fenetres.add(k); murs.delete(k); }   // fenêtres : des murets, mais dessinés autrement
+    for(const k of batPortes) if(wallSeg.has(k)){ walls.delete(k); murs.delete(k); portes.add(k); }   // la porte reste franche : aucun obstacle
     // GARANTIE DE CIRCULATION — avec les VRAIES règles de déplacement (enterCost), donc après les
     // parapets. Falaises et parapets peuvent isoler des secteurs entiers : une plateforme enfermée
     // n'était qu'un symptôme. On raccroche chaque secteur au principal en ouvrant le strict minimum.
@@ -2739,7 +2766,8 @@
             for(const v of cells[u].nb){
               if(sec.has(v)||!passable(v))continue;
               const k=wkey(u,v);
-              if(walls.has(k)){ walls.delete(k); ouvert=true; break; }  // 1) ôter le parapet
+              if(walls.has(k)){ walls.delete(k); fenetres.delete(k); ouvert=true; break; }  // 1) ôter le parapet (ou la fenêtre)
+              if(murs.has(k)){ murs.delete(k); portes.add(k); ouvert=true; break; }           // 1 bis) percer le mur : ça fait une porte de plus
               const dz=Math.abs(cells[u].elev-cells[v].elev);
               if(dz>=2){ const bas=cells[u].elev<cells[v].elev?u:v, haut=bas===u?v:u;
                 cells[bas].elev=cells[haut].elev-1; cells[bas]._ramp=true; ouvert=true; break; }   // 2) adoucir la marche
@@ -2752,7 +2780,7 @@
               if(passable(v))continue;
               if(!cells[v].nb.some(w=>!sec.has(w)&&passable(w)))continue;   // ce rocher touche bien un autre secteur
               cells[v].terr="rough"; cells[v]._barrier=false;
-              for(const w of cells[v].nb){ const kk=wkey(v,w); if(walls.has(kk))walls.delete(kk); }
+              for(const w of cells[v].nb){ const kk=wkey(v,w); if(walls.has(kk)){walls.delete(kk);fenetres.delete(kk);} if(murs.has(kk)){murs.delete(kk);portes.add(kk);} }
               ouvert=true; break; }
             if(ouvert)break; }
           if(ouvert)break;
@@ -2764,7 +2792,7 @@
             for(const u of g[i]) for(const v of cells[u].nb){ if(passable(v)||sec.has(v))continue;
               const d=Math.hypot(cells[v].cx-cx,cells[v].cy-cy); if(d<bd){ bd=d; best=v; } }
             if(best!=null){ cells[best].terr="rough"; cells[best]._barrier=false;
-              for(const w of cells[best].nb){ const kk=wkey(best,w); if(walls.has(kk))walls.delete(kk); }
+              for(const w of cells[best].nb){ const kk=wkey(best,w); if(walls.has(kk)){walls.delete(kk);fenetres.delete(kk);} if(murs.has(kk)){murs.delete(kk);portes.add(kk);} }
               ouvert=true; } }
         }
         if(!ouvert){ murerLesRestes(secteurs()); return; }
@@ -2938,9 +2966,10 @@
     document.getElementById("counts").textContent=`${cells.length} cells · ${np} allies · ${ne} enemies`; }
   // serialization: cells (polygon + terrain + elevation) + units + shape parameters (to re-mesh)
   function exportObj(){ return { name:((mname&&mname.value)||"").trim()||"mission-maillage", form:{infl,dist:+distEl.value,dens:+dens.value,seed,meshType:(meshTypeEl()&&meshTypeEl().value)||"voronoi",meshFractal:!!(document.getElementById("mesh-fractal")||{}).checked},
-    cells:cells.map(c=>{const o={poly:c.poly.map(p=>[Math.round(p[0]),Math.round(p[1])]),terr:c.terr,elev:c.elev};if(c.zone)o.zone=c.zone;if(c.sup!=null)o.sup=c.sup;if(c.bat)o.bat=1;if(c.porte)o.porte=1;if(c.fen)o.fen=1;if(c.sol)o.sol=1;if(c.batId!=null)o.bid=c.batId;return o;}),
+    cells:cells.map(c=>{const o={poly:c.poly.map(p=>[Math.round(p[0]),Math.round(p[1])]),terr:c.terr,elev:c.elev};if(c.zone)o.zone=c.zone;if(c.sup!=null)o.sup=c.sup;if(c.sol)o.sol=1;if(c.batId!=null)o.bid=c.batId;return o;}),
     walls:[...walls],
     windows:[...fenetres],   // sous-ensemble de walls : sans ça une fenêtre rechargée redevient un parapet
+    murs:[...murs], portes:[...portes],   // murs pleins et ouvertures, portés par des arêtes
 
     deployZone:cells.filter(c=>c.deploy).map(c=>c.id),   // squad deployment zone (tiles where the roster appears)
     podAnchors:cells.filter(c=>c.podAnchor).map(c=>({cell:c.id,sleep:c.podAnchor==="asleep"})),   // enemy pod anchors (awake/asleep) populated by the engine each game
@@ -2963,12 +2992,14 @@
     if(k.value==="mission"&&mref)b.mission=mref; return b; }
   function applyMissionObj(m,noDraw){ resetView(); curMission=m;
     if(!m||!Array.isArray(m.cells))throw new Error("invalid format");
-    cells=m.cells.map((c,i)=>{const ct=polyCentroid(c.poly);return {id:i,poly:c.poly,cx:ct[0],cy:ct[1],nb:[],terr:c.terr||"plain",elev:c.elev||0,zone:c.zone,ore:c.ore,sup:c.sup,bat:!!c.bat,porte:!!c.porte,fen:!!c.fen,sol:!!c.sol,batId:c.bid!=null?c.bid:null};});
+    cells=m.cells.map((c,i)=>{const ct=polyCentroid(c.poly);return {id:i,poly:c.poly,cx:ct[0],cy:ct[1],nb:[],terr:c.terr||"plain",elev:c.elev||0,zone:c.zone,ore:c.ore,sup:c.sup,sol:!!c.sol,batId:c.bid!=null?c.bid:null};});
     { const dz=new Set(Array.isArray(m.deployZone)?m.deployZone:[]); cells.forEach(c=>{ if(dz.has(c.id))c.deploy=true; }); }   // squad deployment zone
     { (Array.isArray(m.podAnchors)?m.podAnchors:[]).forEach(a=>{ const id=(a&&typeof a==="object")?a.cell:a; const sleep=(a&&typeof a==="object")&&a.sleep; if(cells[id])cells[id].podAnchor=sleep?"asleep":"awake"; }); const ps=document.getElementById("m-podsize"); if(ps)ps.value=m.podSize||2; setMissionEWeights(m.enemyWeights); }   // pod anchors (compat. old format = list of awake ids)
     buildAdj();
     walls=new Set((Array.isArray(m.walls)?m.walls:[]).filter(k=>wallSeg.has(k)));
     fenetres=new Set((Array.isArray(m.windows)?m.windows:[]).filter(k=>walls.has(k)));
+    murs=new Set((Array.isArray(m.murs)?m.murs:[]).filter(k=>wallSeg.has(k)));
+    portes=new Set((Array.isArray(m.portes)?m.portes:[]).filter(k=>wallSeg.has(k)));
     units=(m.units||[]).map(u=>U(u.team,u.cls,u.cell,{name:u.name,pod:u.pod,asleep:u.asleep,hostage:u.hostage,hvt:u.hvt,runner:u.runner,guard:u.guard,facing:u.facing})).filter(u=>cells[u.cell]);
     triggers=Array.isArray(m.triggers)?m.triggers:[]; renderTrigList();
     { const mp=document.getElementById("m-protect"),mf=document.getElementById("m-fullheal"),ml=document.getElementById("m-loot"); if(mp)mp.value=m.protect!=null?m.protect:""; if(mf)mf.checked=!!m.fullheal; if(ml)ml.value=m.loot||0; }
