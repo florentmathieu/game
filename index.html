@@ -252,6 +252,13 @@
     background:rgba(10,8,5,.82); border:1px solid #5a4530; border-radius:10px; padding:13px 18px; color:#e8ddc8; font-family:Georgia,serif; box-shadow:0 8px 28px rgba(0,0,0,.6) }
   #storybox.show{ display:block } #storybox-body{ font-size:1.05rem; line-height:1.6; min-height:1.6em; text-align:left }
   #storybox-btn{ float:right; margin-top:8px; color:#caa24a; background:#1c150e; border:1px solid #5a4530; border-radius:6px; padding:3px 13px; font-weight:bold; cursor:pointer }
+  /* Légende de la case survolée. En bas de l'écran plutôt que collée au curseur : sur le curseur
+     elle masque justement la zone qu'on est en train d'examiner, et elle saute d'une case à l'autre. */
+  #tilebar{ position:fixed; left:50%; transform:translateX(-50%); bottom:10px; z-index:10; display:none;
+    background:#100d08; border:1px solid #5a4530; border-radius:8px; padding:5px 12px;
+    font-size:.8rem; color:#b8b0a0; max-width:min(860px,80vw); text-align:center; line-height:1.5;
+    box-shadow:0 4px 14px rgba(0,0,0,.5); pointer-events:none }   /* on préfère passer à la ligne que tronquer : l'information tronquée est celle qui manque */
+  #tilebar b{ color:#ffd479; font-weight:600 } #tilebar .sep{ color:#5a4530; margin:0 7px }
   #fiche{ position:fixed; right:12px; top:12px; pointer-events:none; display:none; z-index:11; background:rgba(10,8,5,.96); border:1px solid #5a4530; border-radius:8px; padding:7px 10px; font-size:.78rem; color:#e8ddc8; max-width:230px; box-shadow:0 6px 18px rgba(0,0,0,.5) }
   #banner{ position:fixed; top:18px; left:50%; transform:translateX(-50%); z-index:11; display:none; padding:8px 18px; border-radius:8px; color:#fff; font-weight:bold; font-size:1.05rem; letter-spacing:1px; box-shadow:0 6px 18px rgba(0,0,0,.5) }
   #banner.show{ display:block; animation:bn 1.6s ease forwards } @keyframes bn{ 0%{opacity:0} 15%{opacity:1} 80%{opacity:1} 100%{opacity:0} }
@@ -467,6 +474,7 @@
 </div>
 <div id="combatline"></div>
 <div id="fiche"></div>
+<div id="tilebar"></div>
 <div id="banner"></div>
 <div id="geobanner"></div>
 <div id="georoster"></div>
@@ -1919,6 +1927,7 @@
       if(turn==="player"&&!over&&sel&&(sel.hp<=0||(sel.ap<=0&&!sel.freeAvail))){ const nxt=units.find(u=>u.team==="player"&&u.hp>0&&!(u.ap<=0&&!u.freeAvail)); if(nxt){sel=nxt;amode=null;aimTarget=null;throwing=false;usingItem=false;} }   // exhausted unit → switch to the next one
     } else visible=new Set(cells.map(c=>c.id));
     if(SIMRAPIDE)return;   // simulation : l'état est à jour, on saute l'affichage — et maybeAutoEnd, car c'est le pilote qui mène les tours
+    majBarreCase();   // le terrain a pu changer sous le curseur (un mur qui tombe, une zone qui s'ouvre)
     draw(); if(mode==="play"){renderActs();renderRoster();maybeAutoEnd();} else { renderCounts(); saveDraft(); } }
   // soldier roster (top-left): name, HP, AP; click = select
   function renderRoster(){ const el=document.getElementById("roster"); if(!el)return; el.innerHTML="";
@@ -2336,11 +2345,15 @@
       const bw=30,bx=x-bw/2,by=y-25;ctx.fillStyle="rgba(0,0,0,.6)";ctx.fillRect(bx-1,by-1,bw+2,6);ctx.fillStyle="#3a3128";ctx.fillRect(bx,by,bw,4);ctx.fillStyle=u.team==="player"?"#6fd06f":"#e06f6f";ctx.fillRect(bx,by,bw*Math.max(0,u.hp)/u.max,4);
       ctx.globalAlpha=1; } catch(e){ ctx.globalAlpha=1; } }
     if(mode==="play")drawFx();   // combat juice on top of the scene
-    if(hoverCell!=null&&cells[hoverCell]&&(mode!=="play"||visible.has(hoverCell)))legendeCase(cells[hoverCell]);
   }
   // LÉGENDE DE CASE. Les marqueurs de survol (½, █, liseré cyan) supposent qu'on connaisse le code ;
-  // au moment de choisir où se poster, la question est « qu'est-ce que ça me donne ? ». On l'écrit.
-  function legendeCase(c){
+  // au moment de choisir où se poster, la question est « qu'est-ce que ça me donne ? ». On l'écrit —
+  // en bas de l'écran, pas sous le curseur, qui masquerait la zone qu'on examine.
+  function majBarreCase(){
+    const el=document.getElementById("tilebar"); if(!el)return;
+    if(inGeo()||(geoPlay&&!geoPlay.inMission)){ el.style.display="none"; return; }   // sur la carte stratégique, hoverCell désigne une région : rien à dire ici
+    const c=(hoverCell!=null)?cells[hoverCell]:null;
+    if(!c||(mode==="play"&&!visible.has(c.id))){ el.style.display="none"; return; }
     const L=[];
     if(c.terr==="cover")L.push(["Cover","protected from every side · −"+COVER_PEN+" to hit you"]);
     else if(c.terr==="rough")L.push(["Rubble","costs 2 to enter · no cover"]);
@@ -2355,19 +2368,9 @@
     if(nMur)L.push([nMur+" building wall"+(nMur>1?"s":""),"full cover from that side · nothing gets through"]);
     if(nPorte)L.push(["Doorway","the way in, no cover"]);
     if(c.sol)L.push(["Inside a building",""]);
-    if(!L.length)return;
-    ctx.save(); ctx.font="11px system-ui,sans-serif"; ctx.textBaseline="top"; ctx.textAlign="left";   // le contexte peut arriver centré (surlignage de couvert) : on le pose explicitement
-    const lignes=L.map(([a,b])=>[a,b]);
-    let lw=0; for(const [a,b] of lignes){ const w=ctx.measureText(a+(b?"  "+b:"")).width; if(w>lw)lw=w; }
-    const pad=6, bw=lw+pad*2, bh=lignes.length*14+pad*2;
-    let bx=c.cx+16, by=c.cy-bh/2;
-    if(bx+bw>W-4)bx=c.cx-16-bw; if(by<4)by=4; if(by+bh>H-4)by=H-bh-4;
-    ctx.fillStyle="rgba(14,11,7,.92)"; ctx.strokeStyle="rgba(90,69,48,.9)"; ctx.lineWidth=1;
-    ctx.beginPath(); ctx.rect(bx,by,bw,bh); ctx.fill(); ctx.stroke();
-    lignes.forEach(([a,b],i)=>{ const y=by+pad+i*14;
-      ctx.fillStyle="#ffd479"; ctx.fillText(a,bx+pad,y);
-      if(b){ const w=ctx.measureText(a).width; ctx.fillStyle="#b8b0a0"; ctx.fillText("  "+b,bx+pad+w,y); } });
-    ctx.restore(); }
+    if(!L.length){ el.style.display="none"; return; }
+    el.innerHTML=L.map(([a,b])=>`<b>${escTxt(a)}</b>${b?" "+escTxt(b):""}`).join(`<span class="sep">·</span>`);
+    el.style.display="block"; }
 
   // ===== editor UI =====
   const distEl=document.getElementById("dist"),dens=document.getElementById("dens"),uteam=document.getElementById("uteam"),ucls=document.getElementById("ucls"),upod=document.getElementById("upod"),uasleep=document.getElementById("uasleep"),uhostage=document.getElementById("uhostage"),uname=document.getElementById("uname");
@@ -4607,7 +4610,7 @@
   cv.addEventListener("mousemove",e=>{ if(inGeo())return; if(geoPlay&&!geoPlay.inMission){ const [gx,gy]=evXY(e); const gc=cellAtXY(gx,gy); const h=gc?gc.id:null; if(h!==hoverCell){hoverCell=h;draw();} return; } const f=document.getElementById("fiche"); const [mx,my]=evXY(e); const cell=cellAtXY(mx,my);
     // le survol n'était suivi que pendant un tour joueur avec un pion sélectionné, parce qu'il ne
     // servait qu'à tracer le chemin. La légende de case, elle, est utile aussi en composant la carte.
-    if((mode==="play"&&!over)||mode==="edit"){ const hc=cell?cell.id:null; if(hc!==hoverCell){hoverCell=hc;draw();} }
+    if((mode==="play"&&!over)||mode==="edit"){ const hc=cell?cell.id:null; if(hc!==hoverCell){hoverCell=hc;majBarreCase();draw();} }
     if(!cell){f.style.display="none";return;} const u=uAt(cell.id);
     if(!(u&&(mode==="edit"||u.team==="player"||seen(u)))){ f.style.display="none"; return; }   // no "cell · ground" tooltip
     const m=u.w.ranged?"ranged":"melee",w=u.w[m]; const wn=(CLASSES[u.cls]&&CLASSES[u.cls].wname)||(u.w.ranged?(u.clip!==undefined?"crossbow":"bow"):(u.flank?"daggers":(w.bare?"bare hands":"sword")));
@@ -4615,7 +4618,7 @@
         +(u.shieldBlock?` · 🛡 ${u.shieldBlock}%`:"")+(u.parry?` · 🗡 parry ${u.parry}%`:"")+(u.flank?` · back +${u.flank.back}/flank +${u.flank.side}`:"")
         +(u.crackers?` · 💣×${u.crackers}`:"")+(u.asleep?" · 💤":"")+(u.pod!==undefined?` · pod ${u.pod}`:"")+(u.overwatch?(u.owMode==="ranged"?" · 👁🏹":" · 👁"):"");
     f.innerHTML=h; f.style.display="block"; });   // card anchored at the top right (no longer follows the cursor)
-  cv.addEventListener("mouseleave",()=>{document.getElementById("fiche").style.display="none"; if(hoverCell!=null){hoverCell=null;draw();}});
+  cv.addEventListener("mouseleave",()=>{document.getElementById("fiche").style.display="none"; if(hoverCell!=null){hoverCell=null;majBarreCase();draw();}});
   function cycleSel(dir){ if(mode!=="play"||turn!=="player")return; const ps=units.filter(u=>u.team==="player"&&u.hp>0); if(!ps.length)return; let i=ps.indexOf(sel); i=(i<0?0:(i+dir+ps.length)%ps.length); sel=ps[i]; amode=null;aimTarget=null;throwing=false;usingItem=false; refresh(); }
   window.addEventListener("keydown",e=>{ if(mode!=="play"||introBlocking||speaking||(geoPlay&&!geoPlay.inMission)||document.getElementById("camptext").classList.contains("show"))return;
     if(e.key==="Tab"){e.preventDefault(); if(amode&&cycleTarget(e.shiftKey?-1:1))return; cycleSel(e.shiftKey?-1:1);}   // while aiming: Tab switches target, otherwise unit
