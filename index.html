@@ -114,6 +114,15 @@
   .arbre .niv b{ color:#c9b98a; font-size:.8rem; display:block }
   .arbre .lig.actif .niv b{ color:#ffd479 }
   .arbre .lig.futur{ opacity:.42 }
+  /* NIVEAUX D'ANCIENNETÉ (4, 6, 8) : ils relèvent de la VOIE, pas de l'arbre de classe. On les
+     distingue par la couleur, sinon rien ne signale qu'ils obéissent à une autre règle. */
+  .arbre .lig.voieniv .niv{ border-right-color:#6b5a2a }
+  .arbre .lig.voieniv .niv b{ color:#e0b341 }
+  .arbre .lig.voieniv .niv span{ color:#9a8442 }
+  .arbre .lig.voieniv .cel{ background:#231f16; border-color:#4a3f24 }
+  .arbre .lig.voieniv .cel.pris{ background:#33291480; border-color:#c79b3a }
+  .arbre .lig.voieniv .cel.pris .pn{ color:#ffd479 }
+  .arbre .lig.voieniv .cel.masque{ background:repeating-linear-gradient(135deg,#221e15 0 6px,#1d1a12 6px 12px); border-color:#3a3220 }
   .arbre .cel{ background:#1b1a17; border:1px solid #2c2a24; border-radius:7px; padding:6px 8px; min-height:40px }
   .arbre .cel .pn{ font-size:.84rem; color:#d8d2c4; font-weight:600 }
   .arbre .cel .pd{ font-size:.72rem; color:#8f8a7c; margin-top:2px; line-height:1.25 }
@@ -3256,6 +3265,10 @@
     // "open" : premiere ouverture d'un ecran (roster, fiche, promotion, selection d'escouade).
     // L'unicite vient de firedEvents (persiste) : l'evenement ne rejoue pas.
     if(phase==="open"){ if(w.kind!=="open")return false; const v=geoEvScope(e); return v===""||v===(ctx&&ctx.panel); }
+    // "grade" : PREMIÈRE fois qu'une unité atteint un niveau donné (vide = n'importe lequel).
+    // Sert notamment à expliquer le choix de voie au niveau 4, au moment où il se pose.
+    // L'unicité vient de firedEvents, qui persiste : le texte ne rejoue pas.
+    if(phase==="grade"){ if(w.kind!=="grade")return false; const v=geoEvScope(e); return v===""||+v===(ctx&&ctx.lvl); }
     if(phase==="debrief")return (w.kind==="cleared"&&geoRegionCleared(w.value))||(w.kind==="wins"&&(campRun.winCount||0)>=(+w.value||0));
     if(phase==="before"||phase==="after"){ if(w.kind!==phase)return false; const v=geoEvScope(e);
       if(v==="")return true; if(/^\d+$/.test(v))return +v===(ctx&&ctx.missionN); return v===(ctx&&ctx.region); }
@@ -3266,6 +3279,10 @@
   function uiOpened(panel,cb){ cb=cb||function(){};
     if(!campRun||!geoPlay||!geoPlay.map||!Array.isArray(geoPlay.map.events)){ cb(); return; }
     runGeoEvents("open",{panel},cb); }
+  // Texte de la PREMIÈRE atteinte d'un niveau, joué juste avant l'écran de promotion correspondant.
+  function niveauAtteint(lvl,cb){ cb=cb||function(){};
+    if(!campRun||!geoPlay||!geoPlay.map||!Array.isArray(geoPlay.map.events)){ cb(); return; }
+    runGeoEvents("grade",{lvl},cb); }
   function runGeoEvents(phase,ctx,cb){ if(typeof ctx==="function"){ cb=ctx; ctx=null; }   // compat: runGeoEvents(phase, cb)
     cb=cb||function(){}; if(!campRun||!geoPlay||!geoPlay.map||!Array.isArray(geoPlay.map.events)){ cb(); return; }
     campRun.firedEvents=campRun.firedEvents||new Set();
@@ -3312,6 +3329,8 @@
     (function step(){
       if(i>=list.length){ el.classList.remove("show"); saveRosterProgress(); done(); return; }
       const it=list[i];
+      // 0) première fois qu'une unité atteint ce niveau : on explique avant de faire choisir
+      if(!it._nivDit){ it._nivDit=1; el.classList.remove("show"); niveauAtteint(it.lvl,step); return; }
       // 1) au premier niveau de voie, on choisit d'abord OFFICIER ou VÉTÉRAN — définitif
       if(usesTrack(it.m,it.lvl)&&!it.m.track){
         hd.innerHTML=`<span class="who">${esc(it.m.name)}</span> <span class="gr">→ ${esc(GRADES[it.lvl]||("niveau "+it.lvl))}</span> — choisis une voie (définitive)`;
@@ -3550,14 +3569,15 @@
   function geoRenderEvents(){ const el=document.getElementById("geo-events"); if(!el)return; geoEventsDraft=geoEventsDraft||[];
     if(!geoEventsDraft.length){ el.innerHTML=`<div class="hint">No event.</div>`; return; }
     el.innerHTML=geoEventsDraft.map((e,i)=>{ e.when=e.when||{kind:"arrive"}; const k=e.when.kind||"arrive"; const ba=(k==="before"||k==="after");
-      const ph=ba?"empty=each mission · 3=3rd mission · name=region":(k==="wins"?"N (e.g. 3)":(k==="open"?"roster · squad · sheet · promote (empty=any)":"region name"));
+      const ph=ba?"empty=each mission · 3=3rd mission · name=region":(k==="wins"?"N (e.g. 3)":(k==="open"?"roster · squad · sheet · promote (empty=any)":(k==="grade"?"4 · 6 · 8 … (empty=any level)":"region name")));
       return `<div class="evrow" data-i="${i}"><div class="row"><select data-ev-kind>
         <option value="arrive"${k==="arrive"?" selected":""}>1st arrival</option>
         <option value="cleared"${k==="cleared"?" selected":""}>region taken</option>
         <option value="wins"${k==="wins"?" selected":""}>after N victories</option>
         <option value="before"${k==="before"?" selected":""}>⏵ before a mission</option>
         <option value="after"${k==="after"?" selected":""}>⏹ after a mission</option>
-        <option value="open"${k==="open"?" selected":""}>🗂 1st time a screen opens</option></select>
+        <option value="open"${k==="open"?" selected":""}>🗂 1st time a screen opens</option>
+        <option value="grade"${k==="grade"?" selected":""}>🎖 1st time a level is reached</option></select>
         <input data-ev-val placeholder="${ph}" value="${esc(e.when.value!=null?e.when.value:"")}" style="flex:1${k==="arrive"?";display:none":""}">
         <button data-ev-del title="delete">🗑</button></div>
         <div class="row"><label style="font-size:.78rem">Display <select data-ev-mode><option value="plein"${e.mode!=="over"?" selected":""}>full screen</option><option value="over"${e.mode==="over"?" selected":""}>overlay</option></select></label>
@@ -3743,9 +3763,9 @@
       actEndWin:"Region secured. The act ends.", actEndLoss:"Region lost. The act ends.",
       clickLocked:"region cut off from the camp — clear a path first", clickCleared:"region already cleared", clickNA:"region unavailable" },
     acts:{
-      1:{ arrive:"The March of Velhaur stretches out before you.\n_\n[... what you were told you came here to do ...]", forge:"An old forge sleeps beneath the region.\n_\n[... getting it running would better arm the squad ...]", boss:"The Bastion locks the March.\n_\n[... taking it opens the way forward ...]" },
-      2:{ arrive:"The Rift opens beneath the territory.\n_\n[... the corruption, and those who chose it ...]", forge:"A drowned forge can still serve.\n_\n[... at what price ...]", boss:"The Rift Lock bars the road to the Heart.\n_\n[... it must be broken ...]" },
-      3:{ arrive:"The last territory — where the Rift beats strongest.\n_\n[... almost at the Heart ...]", forge:"The chasm's forge, the final workshop.\n_\n[... one last reinforcement ...]", boss:"The Heart of the Rift beats before you.\n_\n[... smother it under otataral ...]" } } };
+      1:{ arrive:"The March of Velhaur stretches out before you.\n_\n[... what you were told you came here to do ...]", forge:"An old forge sleeps beneath the region.\n_\n[... getting it running would better arm the squad ...]", boss:"The Bastion locks the March.\n_\n[... taking it opens the way forward ...]" , voie:"The Company asks you to choose.\n_\n[... Officer or Veteran — command the others, or perfect your own trade. The choice is permanent: it decides your levels 4, 6 and 8 ...]"},
+      2:{ arrive:"The Rift opens beneath the territory.\n_\n[... the corruption, and those who chose it ...]", forge:"A drowned forge can still serve.\n_\n[... at what price ...]", boss:"The Rift Lock bars the road to the Heart.\n_\n[... it must be broken ...]" , voie:"The Company asks you to choose.\n_\n[... Officer or Veteran — permanent ...]"},
+      3:{ arrive:"The last territory — where the Rift beats strongest.\n_\n[... almost at the Heart ...]", forge:"The chasm's forge, the final workshop.\n_\n[... one last reinforcement ...]", boss:"The Heart of the Rift beats before you.\n_\n[... smother it under otataral ...]" } } , voie:"The Company asks you to choose.\n_\n[... Officer or Veteran — permanent ...]"};
   let GTX=JSON.parse(JSON.stringify(GEO_TXT_DEFAULTS)), _geoTxtLoaded=false;
   const tfmt=(s,vars)=>(s||"").replace(/\{(\w+)\}/g,(m,k)=>(vars&&vars[k]!=null)?vars[k]:m);
   function gtx(pathStr,vars){ const get=o=>{ for(const p of pathStr.split("."))o=o&&o[p]; return o; }; let v=get(GTX); if(v==null)v=get(GEO_TXT_DEFAULTS); return tfmt(typeof v==="string"?v:"",vars); }
@@ -3906,6 +3926,7 @@
     const aArr=gtx("acts."+act+".arrive"); if(aArr)out.events.push({when:{kind:"arrive"},text:aArr});
     const aForge=gtx("acts."+act+".forge"); if(aForge)out.events.push({when:{kind:"before",value:FORGE_NAME[act]},text:aForge});
     const aBoss=gtx("acts."+act+".boss"); if(aBoss)out.events.push({when:{kind:"before",value:BOSS_NAME[act]},text:aBoss});
+    const aVoie=gtx("acts."+act+".voie"); if(aVoie)out.events.push({when:{kind:"grade",value:TRACK_LEVELS[0]},text:aVoie});   // le choix de voie, expliqué à la première unité qui y arrive
     return out; }
   window.GEO_MARCHE=o=>genGeoMarche(o);
 
@@ -3979,8 +4000,10 @@
       const estActif=!!(actif&&actif.lvl===lvl);
       const futur=!choisi&&!estActif;
       const trackIci=usesTrack(m,lvl);
-      h+=`<div class="lig${estActif?" actif":""}${futur?" futur":""}">`
-        +`<div class="niv"><b>${esc(GRADES[lvl]||("niv "+lvl))}</b>${trackIci?`<span>voie</span>`:""}${estActif?`<span style="color:#ffd479">à choisir</span>`:""}</div>`;
+      h+=`<div class="lig${estActif?" actif":""}${futur?" futur":""}${trackIci?" voieniv":""}">`
+        +`<div class="niv"><b>${esc(GRADES[lvl]||("niv "+lvl))}</b>`
+        +(trackIci?`<span>${m.track?esc(TRACKS[m.track].name):"voie"}</span>`:"")
+        +(estActif?`<span style="color:#ffd479">à choisir</span>`:"")+`</div>`;
       // niveau de VOIE non encore tranché : on montre les deux branches côte à côte
       if(trackIci&&!m.track&&!choisi&&estActif){
         h+=`<div class="voie">`+Object.keys(TRACKS).map(k=>{ const g=(TRACK_PERKS[k]||{})[lvl];
