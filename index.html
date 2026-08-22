@@ -76,7 +76,7 @@
   #log{ max-height:120px; overflow:auto; font-size:.74rem; border-top:1px solid #3a2c1c; margin-top:6px; padding-top:5px } #log div{margin:1px 0} .pl{color:#9fd3ec}.en{color:#e8a39f}
   #over{ position:fixed; inset:0; background:rgba(0,0,0,.72); display:none; align-items:center; justify-content:center; flex-direction:column; gap:14px; z-index:9 } #over.show{display:flex} #over h2{font-size:2rem;margin:0}
   #promote{ position:fixed; inset:0; background:rgba(8,10,14,.86); display:none; align-items:center; justify-content:center; z-index:11 } #promote.show{display:flex}
-  #promote-card{ width:min(560px,94vw); background:#171a22; border:1px solid #2c2f3a; border-radius:12px; padding:22px 24px; box-shadow:0 12px 40px rgba(0,0,0,.5) }
+  #promote-card{ width:min(760px,96vw); max-height:92vh; overflow-y:auto; background:#171a22; border:1px solid #2c2f3a; border-radius:12px; padding:22px 24px; box-shadow:0 12px 40px rgba(0,0,0,.5) }
   #promote-hd{ font-size:1.15rem; color:#e0b341; margin-bottom:14px } #promote-hd .who{ font-weight:bold; color:#fff } #promote-hd .gr{ color:#9fd0a8 }
   #promote-opts{ display:flex; gap:14px } .perkopt{ flex:1; background:#1f2330; border:1px solid #39405a; border-radius:10px; padding:14px; cursor:pointer; transition:.12s } .perkopt:hover{ background:#283150; border-color:#e0b341 }
   .perkopt .pn{ font-weight:bold; color:#fff; font-size:1.05rem } .perkopt .pd{ color:#aab; font-size:.9rem; margin-top:5px } .perkopt .ab{ color:#e0b341; font-size:.8rem; font-weight:bold }
@@ -106,8 +106,35 @@
   #camptext-btn{ position:absolute; bottom:38px; left:50%; transform:translateX(-50%) }   /* button always in the same place */
   .sp-who{ color:#ffd479; font-weight:bold }
   #georoster .gr-h{ cursor:pointer } #georoster .gr-u{ cursor:pointer }
+  /* ===== ARBRE DE COMPÉTENCES (façon XCOM) : une ligne par niveau, les options en colonnes.
+     Le même rendu sert à CHOISIR (lignes cliquables) et à RELIRE (consultation depuis le camp). */
+  .arbre{ display:flex; flex-direction:column; gap:3px }
+  .arbre .lig{ display:grid; grid-template-columns:78px repeat(3,1fr); gap:6px; align-items:stretch }
+  .arbre .niv{ display:flex; flex-direction:column; justify-content:center; padding:6px 4px; font-size:.72rem; color:#8a8272; border-right:1px solid #2c2822 }
+  .arbre .niv b{ color:#c9b98a; font-size:.8rem; display:block }
+  .arbre .lig.actif .niv b{ color:#ffd479 }
+  .arbre .lig.futur{ opacity:.42 }
+  .arbre .cel{ background:#1b1a17; border:1px solid #2c2a24; border-radius:7px; padding:6px 8px; min-height:40px }
+  .arbre .cel .pn{ font-size:.84rem; color:#d8d2c4; font-weight:600 }
+  .arbre .cel .pd{ font-size:.72rem; color:#8f8a7c; margin-top:2px; line-height:1.25 }
+  .arbre .cel .tag{ font-size:.65rem; color:#6f6a5e; text-transform:uppercase; letter-spacing:.04em }
+  .arbre .cel.pris{ background:#243020; border-color:#5c8a4a; box-shadow:inset 0 0 0 1px rgba(120,200,110,.18) }
+  .arbre .cel.pris .pn{ color:#a8e08a }
+  .arbre .cel.ecarte .pn{ color:#7a7468; text-decoration:line-through }
+  .arbre .cel.vide{ background:transparent; border-style:dashed; border-color:#26241f }
+  .arbre .lig.actif .cel.choix{ cursor:pointer; border-color:#7a6a3a; background:#241f14 }
+  .arbre .lig.actif .cel.choix:hover{ background:#332b1a; border-color:#e0b341 }
+  .arbre .voie{ grid-column:2/4; display:grid; grid-template-columns:repeat(2,1fr); gap:6px }
+  .arbre .voie .bloc{ border:1px solid #3a3428; border-radius:7px; padding:6px 8px; background:#1b1a17 }
+  .arbre .voie .bloc h4{ margin:0 0 3px; font-size:.78rem; color:#e0b341 }
+  /* les styles .pn/.pd sont attachés à .cel : sans ces règles, la description s'affichait plus
+     grosse que le nom du perk à l'intérieur des blocs de voie */
+  .arbre .voie .bloc .pn{ font-size:.8rem; color:#d8d2c4; font-weight:600; margin-top:3px }
+  .arbre .voie .bloc .pd{ font-size:.72rem; color:#8f8a7c; line-height:1.25 }
+  .arbre .voie .bloc.perdu{ opacity:.4 } .arbre .voie .bloc.suivi{ border-color:#5c8a4a }
+  .arbre-hd{ display:grid; grid-template-columns:78px repeat(3,1fr); gap:6px; font-size:.7rem; color:#6f6a5e; text-transform:uppercase; letter-spacing:.05em; margin-bottom:3px }
   #sheet{ position:fixed; inset:0; background:rgba(8,6,4,.88); display:none; align-items:center; justify-content:center; z-index:14; padding:24px }
-  #sheet.show{ display:flex } #sheet-card{ width:min(640px,95vw); max-height:88vh; display:flex; flex-direction:column; background:#14100a; border:1px solid #5a4530; border-radius:12px; box-shadow:0 12px 40px rgba(0,0,0,.7); color:#e8ddc8 }
+  #sheet.show{ display:flex } #sheet-card{ width:min(780px,96vw); max-height:88vh; display:flex; flex-direction:column; background:#14100a; border:1px solid #5a4530; border-radius:12px; box-shadow:0 12px 40px rgba(0,0,0,.7); color:#e8ddc8 }
   #sheet-hd{ display:flex; align-items:center; gap:8px; padding:13px 16px; border-bottom:1px solid #3a2c1c; font-size:1.05rem; color:#e0b341 } #sheet-hd #sheet-x{ margin-left:auto }
   #sheet-body{ overflow-y:auto; padding:10px 16px 16px }
   .sh-m{ border:1px solid #3a2c1c; border-radius:9px; padding:10px 12px; margin:9px 0; background:#0f0c08 } .sh-m.sh-dead{ opacity:.5 }
@@ -3247,6 +3274,10 @@
   // level-up screen (between missions): for each grade gained, an irreversible A/B choice, then continue.
   // autoPromote (option/tests): if set, chooses without UI; otherwise, a clickable screen.
   let autoPromote=null;
+  // ÉCHAFAUDAGE DE TEST — provoque l'écran de promotion sans jouer de mission, pour vérifier que
+  // l'arbre s'affiche bien au moment du choix (et pas seulement en consultation).
+  window.TEST_PROMO=function(xp){ if(!campRun||!campRun.roster)return "pas de campagne en cours";
+    campRun.roster.forEach(m=>{ m.xp=(xp==null?12:xp); }); showPromotions(()=>{}); return "promotions ouvertes"; };
   function showPromotions(done){ const list=pendingPromotions(), el=document.getElementById("promote");
     // À chaque niveau : A et B = les deux perks CONNUS (arbre de classe, ou VOIE aux niveaux 4/6/8), C = un perk ALÉATOIRE.
     // Le choix est irréversible ; on garde les options écartées dans m.offered pour pouvoir les réafficher.
@@ -3271,23 +3302,25 @@
       const it=list[i];
       // 1) au premier niveau de voie, on choisit d'abord OFFICIER ou VÉTÉRAN — définitif
       if(usesTrack(it.m,it.lvl)&&!it.m.track){
-        hd.innerHTML=`<span class="who">${esc(it.m.name)}</span> <span class="gr">→ niveau ${it.lvl}</span> — choisis une voie (définitive)`;
-        opts.innerHTML="";
-        for(const key of Object.keys(TRACKS)){ const t=TRACKS[key], d=document.createElement("div"); d.className="perkopt";
-          d.innerHTML=`<div class="ab">${esc(t.name)}</div><div class="pn">${esc(t.name)}</div><div class="pd">${esc(t.desc)}</div>`;
-          d.onclick=()=>{ it.m.track=key; saveRosterProgress(); step(); }; opts.appendChild(d); }
+        hd.innerHTML=`<span class="who">${esc(it.m.name)}</span> <span class="gr">→ ${esc(GRADES[it.lvl]||("niveau "+it.lvl))}</span> — choisis une voie (définitive)`;
+        // l'arbre entier reste visible pendant qu'on tranche : la voie engage les niveaux 4, 6 et 8
+        opts.innerHTML=`<div style="flex:1">${arbrePerks(it.m,{lvl:it.lvl})}`
+          +`<div class="row" style="gap:10px;margin-top:12px">`
+          +Object.keys(TRACKS).map(k=>`<button data-voie="${k}" style="flex:1;padding:9px">${esc(TRACKS[k].name)} — ${esc(TRACKS[k].desc)}</button>`).join("")
+          +`</div></div>`;
+        opts.querySelectorAll("[data-voie]").forEach(btn=>btn.onclick=()=>{ it.m.track=btn.getAttribute("data-voie"); saveRosterProgress(); step(); });
         el.classList.add("show"); return; }
       // 2) puis le choix du perk parmi trois
       i++;
       const offer=buildOffer(it);
       if(!offer.A&&!offer.B){ offer.A=randStatPerk(); }   // filet : voie sans contenu à ce niveau → on ne bloque pas la montée
       const trk=usesTrack(it.m,it.lvl)&&it.m.track?` · ${TRACKS[it.m.track].name}`:"";
-      hd.innerHTML=`<span class="who">${esc(it.m.name)}</span> <span class="gr">→ ${GRADES[it.grade+1]||("niveau "+it.lvl)}${trk}</span> — choose a skill (permanent)`;
-      opts.innerHTML="";
-      for(const key of ["A","B","C"]){ const pk=offer[key]; if(!pk)continue;
-        const d=document.createElement("div"); d.className="perkopt";
-        d.innerHTML=`<div class="ab">${key}${key==="C"?" 🎲":""}</div><div class="pn">${esc(pk.name)}</div><div class="pd">${esc(pk.desc)}</div>`;
-        d.onclick=()=>{ rec(it,offer,key); step(); }; opts.appendChild(d); }
+      hd.innerHTML=`<span class="who">${esc(it.m.name)}</span> <span class="gr">→ ${GRADES[it.grade+1]||("niveau "+it.lvl)}${trk}</span> — choisis une compétence (définitif)`;
+      // ARBRE COMPLET, ligne du niveau courant cliquable : on voit d'où l'on vient et ce qui reste
+      opts.innerHTML=`<div style="flex:1">${arbrePerks(it.m,{lvl:it.lvl,offer})}</div>`;
+      const lig=opts.querySelector(".lig.actif");
+      if(lig){ const cel=lig.querySelectorAll(".cel"); ["A","B","C"].forEach((key,k)=>{ const c=cel[k]; if(!c||!offer[key])return;
+        c.classList.add("choix"); c.onclick=()=>{ rec(it,offer,key); step(); }; }); }
       el.classList.add("show"); })(); }
   // Phase A — in a campaign, replace the mission's pre-placed player units with the persistent ROSTER
   // (the mission's slots serve as deployment slots; HP restored afterward by applyCarry).
@@ -3913,20 +3946,61 @@
     const sub=t!=null?esc(t):"";   // by default: just the territory title; an explicit message (t) shows as a subtitle
     el.innerHTML=`<b>${esc(geoPlay.map.name||"Territory")}</b>${sub?(" — "+sub):""}`; renderGeoRoster(); }
   // squad sheet: grade + chosen perks (A/B choices made) of each member — viewable at any time
+  // ===== ARBRE DE COMPÉTENCES — un seul rendu pour les deux écrans =====
+  // Au lieu de lister ce qu'un personnage est devenu, on montre l'ESPACE DES CHOIX : une ligne par
+  // niveau, trois colonnes (les deux perks connus de la classe ou de la voie, plus le tirage), les
+  // niveaux passés avec leur choix et leurs écartés, les niveaux à venir en grisé. Le même arbre
+  // sert au moment de choisir — la ligne du niveau courant devient cliquable — et à la relecture
+  // depuis le camp : on relit ses décisions dans le décor où on les a prises.
+  const NIV_MAX=8;
+  function celPerk(pk,cls,tag){
+    if(!pk)return `<div class="cel vide"></div>`;
+    return `<div class="cel ${cls||""}">${tag?`<div class="tag">${esc(tag)}</div>`:""}`
+      +`<div class="pn">${esc(pk.name)}</div><div class="pd">${esc(pk.desc||"")}</div></div>`; }
+  function arbrePerks(m,actif){
+    const perks=m.perks||[], off=m.offered||{};
+    let h=`<div class="arbre"><div class="arbre-hd"><span>niveau</span><span>A</span><span>B</span><span>C · tirage</span></div>`;
+    for(let lvl=1;lvl<=NIV_MAX;lvl++){
+      const ti=lvl-1, choisi=perks[ti], o=off[ti];
+      const estActif=!!(actif&&actif.lvl===lvl);
+      const futur=!choisi&&!estActif;
+      const trackIci=usesTrack(m,lvl);
+      h+=`<div class="lig${estActif?" actif":""}${futur?" futur":""}">`
+        +`<div class="niv"><b>${esc(GRADES[lvl]||("niv "+lvl))}</b>${trackIci?`<span>voie</span>`:""}${estActif?`<span style="color:#ffd479">à choisir</span>`:""}</div>`;
+      // niveau de VOIE non encore tranché : on montre les deux branches côte à côte
+      if(trackIci&&!m.track&&!choisi){
+        h+=`<div class="voie">`+Object.keys(TRACKS).map(k=>{ const g=(TRACK_PERKS[k]||{})[lvl];
+          return `<div class="bloc" data-voie="${k}"><h4>${esc(TRACKS[k].name)}</h4>`
+            +[g&&g.A,g&&g.B].filter(Boolean).map(x=>`<div class="pn" style="font-size:.8rem">${esc(x.name)}</div><div class="pd">${esc(x.desc)}</div>`).join("")
+            +`</div>`; }).join("")+`</div>`
+          +`<div class="cel vide"><div class="tag">🎲 tirage</div></div></div>`;
+        continue; }
+      let A,B,C;
+      if(o){ A=perkById(m.cls,o.a); B=perkById(m.cls,o.b); C=perkById(m.cls,o.c); }
+      else { const pr=(estActif&&actif.offer)?actif.offer:perkPairFor(m,lvl);
+        A=pr&&pr.A; B=pr&&pr.B; C=(estActif&&actif.offer)?actif.offer.C:null; }
+      const etat=k=>{ if(!choisi&&!o)return estActif?"choix":"";
+        const pk=({A,B,C})[k]; if(!pk)return "";
+        return (o&&o.took===k)||(pk.id===choisi)?"pris":"ecarte"; };
+      if(!A&&!B&&!choisi){   // l'arbre de cette classe s'arrête avant ce niveau (les mages n'ont pas de
+        // niveau 8) : on le DIT, au lieu de laisser une ligne vide qui passe pour un défaut d'affichage
+        h+=`<div class="cel vide" style="grid-column:2/4;display:flex;align-items:center"><span class="tag">aucun perk défini à ce niveau pour cette classe</span></div>`
+          +`<div class="cel vide"><div class="tag">🎲 tirage</div></div></div>`; continue; }
+      h+=celPerk(A,etat("A"))+celPerk(B,etat("B"))
+        +(C?celPerk(C,etat("C"),"🎲"):`<div class="cel vide"><div class="tag">🎲 tirage</div></div>`)
+        +`</div>`; }
+    return h+`</div>`; }
+
   function openSquadSheet(){ const el=document.getElementById("sheet"),body=document.getElementById("sheet-body"); if(!el||!body||!campRun||!campRun.roster)return;
     if(!openSquadSheet._t){ openSquadSheet._t=1; uiOpened("sheet",()=>openSquadSheet()); return; }   // 1re ouverture : le texte d'abord
     openSquadSheet._t=0;
-    body.innerHTML=campRun.roster.map(m=>{ const g=gradeFromXp(m.xp||0), next=XP_THRESH[g+1], clsName=(CLASSES[m.cls]&&CLASSES[m.cls].name)||m.cls;
-      const perks=(m.perks||[]).map((id,ti)=>{ const p=perkById(m.cls,id); if(!p)return "";
-        const off=m.offered&&m.offered[ti]; let side,altIds=[];   // options écartées : depuis m.offered (3 options), sinon repli sur l'ancienne paire A/B
-        if(off){ side=off.took||((off.a===id)?"A":(off.b===id?"B":"C")); altIds=[off.a,off.b,off.c].filter(x=>x&&x!==id); }
-        else { const pair=PERKS[m.cls]&&PERKS[m.cls][ti]; side=(pair&&pair.A.id===id)?"A":"B"; if(pair)altIds=[(pair.A.id===id)?pair.B.id:pair.A.id]; }
-        const alt=altIds.length?perkById(m.cls,altIds[0]):null; const alt2=altIds.length>1?perkById(m.cls,altIds[1]):null;
-        return `<div class="sh-perk"><span class="sh-t">${esc(GRADES[ti+1]||("grade "+(ti+1)))}</span> <span class="sh-ab">(choice ${side})</span> — ${esc(p.name)} <span class="sh-d">· ${esc(p.desc)}</span>`+
-          (alt?`<div class="sh-alt">discarded: ${esc(alt.name)} <span class="sh-d">· ${esc(alt.desc)}</span></div>`:"")+
-          (alt2?`<div class="sh-alt">discarded: ${esc(alt2.name)} <span class="sh-d">· ${esc(alt2.desc)}</span></div>`:"")+`</div>`; }).join("")||`<div class="sh-none">no perk chosen yet</div>`;
-      return `<div class="sh-m${m.dead?" sh-dead":""}"><div class="sh-h"><b>${esc(m.name)}</b> <span class="sh-cls">${esc(clsName)}</span>${m.track?' · <span class="sh-cls">'+esc(TRACKS[m.track].name)+'</span>':""} · <span class="sh-grade">${esc(GRADES[g])}</span>${m.special!==false?' <span title="protected character">★</span>':""}${m.dead?' ✝':""}</div>`+
-        `<div class="sh-xp">${m.xp||0} XP${next!=null?(" · next grade at "+next+" XP"):" · max grade reached"}</div>${perks}</div>`; }).join("");
+    body.innerHTML=campRun.roster.map(m=>{
+      const g=Math.max(gradeFromXp(m.xp||0),(m.perks||[]).length);   // un « chevronné » créé avec des perks
+      const next=XP_THRESH[g+1], clsName=(CLASSES[m.cls]&&CLASSES[m.cls].name)||m.cls;   // n'est pas une recrue
+      return `<div class="sh-m${m.dead?" sh-dead":""}"><div class="sh-h"><b>${esc(m.name)}</b> <span class="sh-cls">${esc(clsName)}</span>`
+        +`${m.track?' · <span class="sh-cls">'+esc(TRACKS[m.track].name)+'</span>':""} · <b style="color:#a8e08a">${esc(GRADES[g]||("niv "+g))}</b>${m.special!==false?" ★":""}</div>`
+        +`<div class="sh-xp">${m.xp||0} XP${next!=null?(" · niveau suivant à "+next+" XP"):" · niveau maximal"}</div>`
+        +arbrePerks(m,null)+`</div>`; }).join("");
     el.classList.add("show"); }
   { const sx=document.getElementById("sheet-x"),sh=document.getElementById("sheet"); if(sx)sx.onclick=()=>sh.classList.remove("show"); if(sh)sh.addEventListener("click",e=>{ if(e.target===sh)sh.classList.remove("show"); }); }
   // "camp" panel: roster status (grade, fatigue, stress, special status, death)
