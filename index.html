@@ -497,12 +497,12 @@
       <div class="tefft">💬 Dialogue<button class="teffx" data-eff="dialogue" title="Remove this effect">✕</button></div>
       <div class="row"><select id="t-dmode" style="flex:1"><option value="one">💬 a one-liner</option><option value="txt">📄 a written dialogue from texts/</option></select></div>
       <div id="t-d-one">
-        <div class="row"><select id="t-whomode" style="flex:1"><option value="">🎯 whoever triggered it</option><option value="@top">🎖 the highest-ranked</option><option value="nom">✎ a specific character…</option></select><input id="t-who" type="text" placeholder="name" list="dl-noms" style="flex:1;display:none"></div>
+        <div class="row"><select id="t-whomode" style="flex:1"><option value="">🎯 whoever triggered it</option><option value="@top">🎖 the highest-ranked</option><option value="rang">🎖 by rank…</option><option value="nom">✎ a specific character…</option></select><input id="t-rang" type="number" min="1" max="8" value="2" style="width:60px;display:none" title="1 = highest-ranked, 2 = next, …"><input id="t-who" type="text" placeholder="name" list="dl-noms" style="flex:1;display:none"></div>
         <div class="row"><input id="t-text" type="text" placeholder="line…" style="flex:1"></div>
       </div>
       <div id="t-d-txt" style="display:none">
         <div class="row"><select id="t-txt" style="flex:1"></select><button id="t-txtload" title="Read the file and stack its lines here — “Name: line” gives the speaker, a lone “_” is skipped">📥 Import the lines</button></div>
-        <div class="hint" id="t-txtnote">A whole dialogue from <b>texts/</b> lands in the stack below, then you edit it like any other line.</div>
+        <div class="hint" id="t-txtnote">A whole dialogue from <b>texts/</b> lands in the stack below, then you edit it like any other line. Write <b>1:</b>, <b>2:</b>… instead of a name to let the game pick by grade.</div>
         <div id="t-lines" class="hint"></div>
       </div>
     </div>
@@ -1559,15 +1559,25 @@
   // debout : une réplique de commandement n'appartient à personne en particulier, elle appartient à
   // celui qui mène — et l'escouade change d'une mission à l'autre. Le grade se lit comme partout
   // ailleurs (XP ou perks choisis, le plus élevé des deux) ; à égalité, le plus expérimenté.
-  function plusGradé(){ const cands=units.filter(u=>u.team==="player"&&u.hp>0); if(!cands.length)return null;
-    let best=null,bg=-1,bx=-1;
-    for(const u of cands){ const m=(campRun&&campRun.roster)?campRun.roster.find(r=>r.name===u.name):null;
-      const g=m?Math.max(gradeFromXp(m.xp||0),(m.perks||[]).length):0, x=m?(m.xp||0):0;
-      if(g>bg||(g===bg&&x>bx)){ best=u; bg=g; bx=x; } }
-    return best?best.name:null; }
+  // CLASSEMENT PAR GRADE des combattants encore debout, meilleur d'abord. C'est lui qui permet
+  // d'écrire un dialogue pour « le 1er », « le 2e »… sans nommer personne : la réplique tombe
+  // forcément sur quelqu'un qui est là. Le grade se lit comme dans la fiche d'escouade (XP ou perks
+  // choisis, le plus élevé des deux) ; à égalité le plus expérimenté, puis l'ordre alphabétique
+  // pour que deux parties identiques donnent la même distribution.
+  function classement(){ return units.filter(u=>u.team==="player"&&u.hp>0).map(u=>{
+      const m=(campRun&&campRun.roster)?campRun.roster.find(r=>r.name===u.name):null;
+      return {n:u.name, g:m?Math.max(gradeFromXp(m.xp||0),(m.perks||[]).length):0, x:m?(m.xp||0):0}; })
+    .sort((a,b)=>b.g-a.g||b.x-a.x||a.n.localeCompare(b.n)).map(o=>o.n); }
+  // Rang au-delà de l'effectif : on reboucle plutôt que de laisser la réplique sans personne — un
+  // dialogue écrit pour quatre doit rester jouable avec trois survivants.
+  function parRang(k){ const L=classement(); return L.length?L[(Math.max(1,k)-1)%L.length]:null; }
+  const plusGradé=()=>parRang(1);
   // « @narr » : une ligne sans « Nom: » dans un texte est de la NARRATION. La rattacher à l'auteur
   // de l'action lui ferait dire ce que personne ne dit.
-  const quiParle=(who,ctx)=>who==="@narr"?"":(who==="@top"?(plusGradé()||ctx.actorName):(who||ctx.actorName));
+  function quiParle(who,ctx){ if(who==="@narr")return "";
+    const m=/^@(?:top|(\d+))$/.exec(who||"");
+    if(m)return parRang(m[1]?+m[1]:1)||ctx.actorName;
+    return who||ctx.actorName; }
   function sayLine(ln,ctx){if(Array.isArray(ln))say(quiParle(ln[0],ctx),ln[1]);else if(typeof ln==="string")say(ctx.actorName,ln);else if(ln)say(quiParle(ln.who,ctx),ln.text);}
   function say(who,text){const u=units.find(x=>x.name===who);log(who?`💬 ${who}: ${text}`:`💬 ${text}`,u&&u.team==="enemy"?"enemy":"player");speechQ.push({who:who||"",text});if(!speaking)nextSpeech();}
   // UNE PAGE = UNE BULLE. Les « _ » d'un fichier de texts/ découpent l'échange en temps ; les
@@ -2964,7 +2974,9 @@
     spotted:"when a pod is spotted",discovered:"when a pod is discovered",
     newfoe:"the first time an enemy type is seen"};
   const nomClasse=k=>(CLASSES[k]&&CLASSES[k].name)||k;
-  const nomQuiParle=w=>w==="@top"?"the highest-ranked":(w==="@narr"?"narration":(w||"—"));
+  const nomQuiParle=w=>{ if(w==="@narr")return "narration";
+    const m=/^@(?:top|(\d+))$/.exec(w||""); if(!m)return w||"—";
+    const k=m[1]?+m[1]:1; return k===1?"the highest-ranked":`the #${k} by rank`; };
   const unUne=n=>(/^[aeiouAEIOU]/.test(n)?"an ":"a ")+n;
   const COND={actor:v=>`by ${v}`, target:(v,t)=>t.on==="newfoe"?unUne(nomClasse(v)):`on ${v}`, zone:v=>`in zone ${v}`,
     result:v=>({hit:"if it hits",miss:"if it misses",blocked:"if it is blocked"}[v]||`if ${v}`),
@@ -3065,15 +3077,21 @@
     if(a)a.style.display=(m==="one")?"":"none"; if(b)b.style.display=(m==="txt")?"":"none"; }
   // Qui parle : personne en particulier (celui qui a déclenché), le plus haut gradé, ou un nom.
   function majWhoMode(){
-    const e=document.getElementById("t-who"), sel=document.getElementById("t-whomode");
-    if(e&&sel){ const nom=(sel.value==="nom"); e.style.display=nom?"":"none"; if(!nom)e.value=""; } }
+    const e=document.getElementById("t-who"), r=document.getElementById("t-rang"), sel=document.getElementById("t-whomode");
+    if(!sel)return; const nom=(sel.value==="nom"), rang=(sel.value==="rang");
+    if(e){ e.style.display=nom?"":"none"; if(!nom)e.value=""; }
+    if(r)r.style.display=rang?"":"none"; }
   const whoDuForm=()=>{ const sel=document.getElementById("t-whomode"), v=sel?sel.value:"";
-    if(v==="@top")return "@top";
+    if(v==="@top")return "@1";
+    if(v==="rang"){ const r=document.getElementById("t-rang"); return "@"+Math.max(1,+((r&&r.value)||1)); }
     if(v==="nom"){ const e=document.getElementById("t-who"); return e?(e.value||"").trim():""; }
     return ""; };
-  function poserWho(w){ const sel=document.getElementById("t-whomode"), e=document.getElementById("t-who");
-    if(!sel)return; sel.value=(w==="@top")?"@top":(w?"nom":"");
-    if(e)e.value=(w&&w!=="@top")?w:""; majWhoMode(); }
+  function poserWho(w){ const sel=document.getElementById("t-whomode"), e=document.getElementById("t-who"), r=document.getElementById("t-rang");
+    if(!sel)return;
+    const m=/^@(?:top|(\d+))$/.exec(w||""), k=m?(m[1]?+m[1]:1):0;
+    sel.value=k===1?"@top":(k>1?"rang":(w?"nom":""));
+    if(r&&k>1)r.value=k;
+    if(e)e.value=(w&&!m)?w:""; majWhoMode(); }
   { const d=document.getElementById("t-dmode"); if(d)d.onchange=()=>{ majDMode(); majApercu(); };
     const w=document.getElementById("t-whomode"); if(w)w.onchange=()=>{ majWhoMode(); majApercu(); }; }
 
@@ -3188,7 +3206,7 @@
   // sans rien pouvoir attendre. Les répliques atterrissent donc dans la pile, où elles restent
   // éditables — au prix qu'une retouche du .txt ne les suit pas ; le nom du fichier est rappelé
   // dans la note pour qu'on puisse ré-importer.
-  const TXTNOTE0='A whole dialogue from <b>texts/</b> lands in the stack below, then you edit it like any other line.';
+  const TXTNOTE0='A whole dialogue from <b>texts/</b> lands in the stack below, then you edit it like any other line. Write <b>1:</b>, <b>2:</b>… instead of a name to let the game pick by grade.';
   async function importerDialogue(){
     const sel=document.getElementById("t-txt"), f=sel?sel.value:"", note=document.getElementById("t-txtnote");
     const dis=t=>{ if(note)note.innerHTML=t; };
@@ -3203,14 +3221,24 @@
     const lignes=[]; let pages=1;
     for(const l of brutes){
       if(l.text==="_"){ if(lignes.length&&!lignes[lignes.length-1].br){ lignes.push({br:true}); pages++; } continue; }
-      lignes.push({who:l.who||"@narr",text:l.text}); }
+      // « 1: », « 2: »… ne sont pas des noms : ce sont des RANGS, résolus en cours de mission sur le
+      // classement par grade. C'est la garantie demandée — celui qui parle est forcément déployé.
+      const w=l.who||"", rang=/^\d+$/.test(w.trim());
+      lignes.push({who:rang?("@"+Math.max(1,+w)):(w||"@narr"),text:l.text}); }
     while(lignes.length&&lignes[lignes.length-1].br){ lignes.pop(); pages--; }
     if(!lignes.length){ dis("<b>"+fileName(f)+"</b> holds no line."); return; }
     for(const l of lignes)trigLines.push(l);
     renderTrigLines();
     majApercu();
     const nl=lignes.filter(l=>!l.br).length;
-    dis(`${nl} line(s) over ${pages} page(s) imported from <b>${fileName(f)}</b> — the page breaks of the file are kept, one bubble per page.`); }
+    const rangs=[...new Set(lignes.filter(l=>/^@\d+$/.test(l.who||"")).map(l=>l.who.slice(1)))].sort();
+    // Un nom écrit en toutes lettres qui n'est dans aucun roster parlera quand même — mais dans le
+    // vide. Autant le dire à l'import, c'est là qu'on peut encore le remplacer par un rang.
+    const connus=new Set((campRoster||[]).map(m=>m.name).filter(Boolean));
+    const inconnus=[...new Set(lignes.filter(l=>l.who&&l.who[0]!=="@"&&!connus.has(l.who)).map(l=>l.who))];
+    dis(`${nl} line(s) over ${pages} page(s) imported from <b>${fileName(f)}</b> — page breaks kept, one bubble per page.`
+      +(rangs.length?`<br>🎖 ranks ${rangs.join(", ")} will be filled in at play time by grade, so the speakers are always in the mission.`:"")
+      +(inconnus.length?`<br>⚠ not in the campaign roster: <b>${esc(inconnus.join(", "))}</b> — replace them with a rank number in the file if they must always be present.`:"")); }
   { const b=document.getElementById("t-txtload"); if(b)b.onclick=importerDialogue; }
 
   // ===== BIBLIOTHÈQUE DE LISTES =====
