@@ -580,6 +580,10 @@
   function resetView(){ zoom=1;panX=0;panY=0; }
   let FREE_MP=2,AP_MAX=2,MOB=3;   // movement (tunable: balancing / generation parameter)
   let HEIGHT_BONUS=6,COVER_PEN=30,DEF_BRACE=20; const PB={1:30,2:15};   // tunable via the balancing panel
+  // Les HAUTES HERBES ont leur propre valeur : elles gênent le tir sans rien arrêter, ce n'est pas
+  // la même chose que se plaquer derrière un mur. Partager COVER_PEN aurait fait bouger les murets
+  // (moitié) et les murs de bâtiment (plein) avec elles.
+  let HERBE_PEN=10;
   let ENEMY_COUNT={facile:4,moyen:5,difficile:7}, ENNEMIS_PAR_POD=2;   // target enemy count per difficulty (main dial)
   const sword=(a,l,h)=>({type:"melee",aim:a,dmgMin:l,dmgMax:h});
   const bow=(a,l,h,r,c)=>({type:"ranged",aim:a,dmgMin:l,dmgMax:h,range:r,clip:c});
@@ -1588,7 +1592,7 @@
       // SAUF si l'assaillant est plus bas — là c'est un parapet, et il encaisse les tirs venus d'en bas.
       if(!plein&&T.elev>cells[n].elev && A.elev>=T.elev) continue; let dx=cells[n].cx-T.cx,dy=cells[n].cy-T.cy; const dl=Math.hypot(dx,dy)||1; dx/=dl;dy/=dl; const align=ax*dx+ay*dy; if(align<=0)continue; best=Math.max(best,(plein?COVER_PEN:COVER_PEN/2)*align); }
     return Math.round(best); }
-  function chance(att,tgt,m){const w=att.w[m];let cover=0;if(w.type==="ranged"){if(cells[tgt.cell].terr==="cover")cover=COVER_PEN;cover=Math.max(cover,muretCover(tgt,att));if(units.some(a=>a.hp>0&&a.team===tgt.team&&a!==tgt&&a.wallStance&&adjacent(a.cell,tgt.cell)))cover=Math.max(cover,Math.round(COVER_PEN*0.5));}const dh=Math.max(-3,Math.min(3,cells[att.cell].elev-cells[tgt.cell].elev))*HEIGHT_BONUS;const pb=w.type==="ranged"?(PB[hops(att.cell,tgt.cell)]||0):0;const def=(tgt.bracing?DEF_BRACE:0)+(tgt.dodge||0);return Math.max(5,Math.min(95,Math.round(w.aim+(att.aimBonus||0)-cover+dh-pb-def)));}   // dodge = esquive du défenseur
+  function chance(att,tgt,m){const w=att.w[m];let cover=0;if(w.type==="ranged"){if(cells[tgt.cell].terr==="cover")cover=HERBE_PEN;cover=Math.max(cover,muretCover(tgt,att));if(units.some(a=>a.hp>0&&a.team===tgt.team&&a!==tgt&&a.wallStance&&adjacent(a.cell,tgt.cell)))cover=Math.max(cover,Math.round(COVER_PEN*0.5));}const dh=Math.max(-3,Math.min(3,cells[att.cell].elev-cells[tgt.cell].elev))*HEIGHT_BONUS;const pb=w.type==="ranged"?(PB[hops(att.cell,tgt.cell)]||0):0;const def=(tgt.bracing?DEF_BRACE:0)+(tgt.dodge||0);return Math.max(5,Math.min(95,Math.round(w.aim+(att.aimBonus||0)-cover+dh-pb-def)));}   // dodge = esquive du défenseur
   function doAttack(att,tgt,m,reaction){
     if(!reaction&&tgt.team==="player"&&!tgt.protect){ const g=units.find(o=>o!==tgt&&o.team==="player"&&o.hp>0&&o.protect&&!o.reacted&&adjacent(o.cell,tgt.cell)); if(g){g.reacted=true;log(`🛡 ${g.name} protects ${tgt.name}`,"player");tgt=g;} }   // Protecting Shield: the guard steps in
     const w=att.w[m];att.facing=ang(att.cell,tgt.cell);if(!reaction){att.ap=0;att.freeAvail=false;turnActions++;}if(w.type==="ranged"&&att.clip!==undefined)att.ammo--;
@@ -1960,7 +1964,8 @@
 
   function bestGrenadeCell(e){ const cr=e.w.cracker; if(!cr||!(e.crackers>0))return null; let best=null,bs=0;
     for(const c of cells){ if(!passable(c.id)||hops(e.cell,c.id)>cr.range||!los(e.cell,c.id))continue;
-      let pl=0,al=0,cov=false; for(const u of units){ if(u.hp<=0||hops(c.id,u.cell)>cr.radius)continue; if(u.team==="player"){pl++; if(cells[u.cell].terr==="cover"||muretCover(u,e)>=20)cov=true;} else al++; }
+      // une grenade se justifie contre un VRAI couvert (elle l'ignore), pas contre des herbes
+      let pl=0,al=0,cov=false; for(const u of units){ if(u.hp<=0||hops(c.id,u.cell)>cr.radius)continue; if(u.team==="player"){pl++; if((cells[u.cell].terr==="cover"?HERBE_PEN:0)>=20||muretCover(u,e)>=20)cov=true;} else al++; }
       const sc=pl-1.5*al; if(pl>=1&&(sc>=2||(sc>=1&&cov))&&sc>bs){bs=sc;best=c.id;} } return best; }
   function holdWatch(e){ const w=e.w[e.wtype]; if((w.range||1)>1&&(e.clip===undefined||e.ammo>0)&&enemyKnowsPlayers()){e.overwatch=true;e.owMode="ranged";} const p=nearestOpposing(e); if(p)faceTowards(e,p.cell); e.ap=0; }
   // patrol of a dormant pod (not yet alerted): the awake member wanders within an ACTION ZONE
@@ -2004,7 +2009,7 @@
   // enemy shieldbearer: long charge to engage, otherwise shove an entrenched player (cover/height)
   function enemyShieldAct(e,tgts){ if(!e.abil||e.ap<=0||!tgts.length)return false;
     if(e.abil.includes("charge")&&!onCd(e,"charge")){ const far=tgts.filter(p=>{const h=hops(e.cell,p.cell);return h>=2&&h<=CHARGE_RANGE&&los(e.cell,p.cell);}).sort((a,b)=>hops(e.cell,a.cell)-hops(e.cell,b.cell))[0]; if(far&&execCharge(e,far))return true; }
-    if(e.abil.includes("shove")&&!onCd(e,"shove")){ const adj=tgts.find(p=>adjacent(e.cell,p.cell)&&(cells[p.cell].elev>cells[e.cell].elev||cells[p.cell].terr==="cover")); if(adj&&execShove(e,adj))return true; }
+    if(e.abil.includes("shove")&&!onCd(e,"shove")){ const adj=tgts.find(p=>adjacent(e.cell,p.cell)&&(cells[p.cell].elev>cells[e.cell].elev||(cells[p.cell].terr==="cover"&&HERBE_PEN>=20))); if(adj&&execShove(e,adj))return true; }
     return false; }
   // RÉCOLTE : chaque gisement occupé par un des nôtres progresse d'un cran à la fin du tour.
   function harvestTick(){ if(!curMission||curMission.objective!=="harvest")return;
@@ -2330,7 +2335,7 @@
         if(!col)continue;
         ctx.globalAlpha=.95; ctx.strokeStyle=col; ctx.lineWidth=6; ctx.beginPath(); ctx.moveTo(a[0],a[1]); ctx.lineTo(b[0],b[1]); ctx.stroke();
         const mx=(a[0]+b[0])/2,my=(a[1]+b[1])/2; ctx.globalAlpha=1; ctx.lineWidth=3; ctx.strokeStyle="rgba(0,0,0,.7)"; ctx.strokeText(lab,mx,my); ctx.fillStyle=col; ctx.fillText(lab,mx,my); }
-      if(c.terr==="cover"){ poly(c); ctx.globalAlpha=.95; ctx.strokeStyle="#7fd0ff"; ctx.lineWidth=3; ctx.setLineDash([5,4]); ctx.stroke(); ctx.setLineDash([]); }   // cover tile = omnidirectional full cover
+      if(c.terr==="cover"){ poly(c); ctx.globalAlpha=.95; ctx.strokeStyle="#a8e08a"; ctx.lineWidth=3; ctx.setLineDash([5,4]); ctx.stroke(); ctx.setLineDash([]); }   // hautes herbes : gêne le tir de partout, mais légèrement — d'où le vert, pas le cyan du couvert plein
       ctx.restore(); }
     if(showZones){ctx.strokeStyle="rgba(202,162,74,.3)";for(let c=1;c<COLS;c++){ctx.beginPath();ctx.moveTo(c*MC,0);ctx.lineTo(c*MC,H);ctx.stroke();}for(let r=1;r<ROWS;r++){ctx.beginPath();ctx.moveTo(0,r*MC);ctx.lineTo(W,r*MC);ctx.stroke();}}
     const ucol=u=>u.team==="player"?"#5fb0d8":u.team==="neutral"?(u.hostage?"#c98fd0":"#e0b84a"):"#d8635f";
@@ -2366,7 +2371,7 @@
     const c=(hoverCell!=null)?cells[hoverCell]:null;
     if(!c||(mode==="play"&&!visible.has(c.id))){ el.style.display="none"; return; }
     const L=[];
-    if(c.terr==="cover")L.push(["Tall grass","−"+COVER_PEN+" to hit you, from any side · doesn't block sight or movement"]);
+    if(c.terr==="cover")L.push(["Tall grass","−"+HERBE_PEN+" to hit you, from any side · doesn't block sight or movement"]);
     else if(c.terr==="rough")L.push(["Rubble","costs 2 to enter · no cover"]);
     else if(c.terr==="wall")L.push(["Rock","blocks sight and passage"]);
     if(c.elev)L.push([(c.elev>0?"Height +":"Depth ")+c.elev, (c.elev>0?"+":"")+(c.elev*HEIGHT_BONUS)+" to your aim"]);
@@ -2847,7 +2852,7 @@
     })();
 
     // ABRIS — la case « cover » : sacs de sable, caisses, épave, trou d'obus. On s'y tient DEDANS et
-    // on est protégé de partout (−COVER_PEN, sans condition d'angle), mais la vue passe et le
+    // on est gêné de partout (−HERBE_PEN, sans condition d'angle), mais la vue passe et le
     // passage aussi. C'est le seul couvert non directionnel du jeu ; il était câblé partout — règle
     // de tir, dessin, IA — et le générateur ne l'avait jamais posé.
     // Groupés par le même champ de bruit que le couvert : une ligne de sacs, pas des confettis.
@@ -5343,6 +5348,7 @@
       {k:"FREE_MP",label:"Free movement",get:()=>FREE_MP,set:v=>FREE_MP=v,min:0,max:6,step:1} ]},
     {name:"Combat", items:[
       {k:"COVER_PEN",label:"Cover penalty",get:()=>COVER_PEN,set:v=>COVER_PEN=v,min:0,max:60,step:5,suffix:"%"},
+      {k:"HERBE_PEN",label:"Tall grass penalty",get:()=>HERBE_PEN,set:v=>HERBE_PEN=v,min:0,max:40,step:5,suffix:"%"},
       {k:"HEIGHT_BONUS",label:"Height bonus (/level)",get:()=>HEIGHT_BONUS,set:v=>HEIGHT_BONUS=v,min:0,max:15,step:1,suffix:"%"},
       {k:"DEF_BRACE",label:"\"Brace\" defense",get:()=>DEF_BRACE,set:v=>DEF_BRACE=v,min:0,max:40,step:5,suffix:"%"},
       {k:"CD_MULT",label:"Ability cooldowns",get:()=>Math.round(CD_MULT*100),set:v=>CD_MULT=v/100,min:25,max:200,step:25,suffix:"%"} ]},
