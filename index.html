@@ -1670,11 +1670,40 @@
       { const zc=cells[u.cell]; if(zc&&zc.zone&&u.team==="player")emit("enter",{zone:zc.zone,actorName:u.name,actorCls:u.cls,actorTeam:u.team}); }   // zone entry: only for an ally
       if(reactTo(u)){startAnim(u,visited);return;} if(over){startAnim(u,visited);return;} }
     startAnim(u,visited); }
+  // FRANCHISSEMENT. Le déplacement défilait à vitesse constante : enjamber un muret, escalader une
+  // marche ou patauger dans l'éboulis coûtaient pourtant deux fois plus cher au tour, sans que rien
+  // ne se voie. Chaque segment porte maintenant son POIDS (le temps qu'on y passe) et sa HAUTEUR
+  // d'enjambée — le pion ralentit et se soulève là où le terrain résiste, ce qui rend le coût
+  // lisible sans écrire un chiffre.
+  function poidsSegment(a,b){
+    let w=1, saut=0;
+    if(wallBetween(a,b)){ w+=1.4; saut=11; }                      // on passe PAR-DESSUS le muret (ou la fenêtre)
+    const dz=(cells[b].elev||0)-(cells[a].elev||0);
+    if(dz>0){ w+=0.55*dz; saut=Math.max(saut,6*dz); }             // on se hisse
+    else if(dz<0){ w+=0.25*(-dz); saut=Math.max(saut,4); }        // on saute en bas : moins long, mais pas gratuit
+    if(cells[b].terr==="rough"){ w+=0.5; }                        // l'éboulis se traverse en s'aidant des mains
+    return {w,saut}; }
   function startAnim(u,ids){ if(SIMRAPIDE){ checkEnd(); return; }   // simulation : pas d'animation, on solde tout de suite
     if(typeof requestAnimationFrame==="undefined"||typeof performance==="undefined"||ids.length<2)return;
-    anim={u,pts:ids.map(id=>cells[id]?[cells[id].cx,cells[id].cy]:[0,0]),t0:performance.now(),dur:(u.team==="enemy"?240:160)*(ids.length-1),t:0};   // enemy slower = more readable moves
+    const pts=ids.map(id=>cells[id]?[cells[id].cx,cells[id].cy]:[0,0]);
+    const segs=[]; let total=0;
+    for(let i=0;i<ids.length-1;i++){ const p=(cells[ids[i]]&&cells[ids[i+1]])?poidsSegment(ids[i],ids[i+1]):{w:1,saut:0};
+      total+=p.w; segs.push({w:p.w,saut:p.saut,cum:total,arete:p.saut>0?wkey(ids[i],ids[i+1]):null}); }
+    const base=(u.team==="enemy"?240:160);
+    anim={u,pts,segs,total,t0:performance.now(),dur:base*total,t:0};   // enemy slower = more readable moves
     (function loop(now){ if(!anim)return; anim.t=Math.min(1,(now-anim.t0)/anim.dur); draw(); if(anim.t<1)requestAnimationFrame(loop); else {anim=null;draw();checkEnd();if(!over&&turn==="player")maybeAutoEnd();} })(performance.now()); }   // end of anim: re-evaluate victory + auto end turn (otherwise it only happened at the next refresh)
-  function animPos(){ const n=anim.pts.length-1,seg=Math.min(n-1e-9,anim.t*n),i=Math.floor(seg),f=seg-i,a=anim.pts[i],b=anim.pts[i+1]; return [a[0]+(b[0]-a[0])*f,a[1]+(b[1]-a[1])*f]; }
+  // Position le long du chemin, le temps réparti selon le poids des segments — et un arc vertical
+  // pendant l'enjambée, en sinus, pour que le pion « passe par-dessus » plutôt que de glisser au
+  // travers. `anim.franchit` retient l'arête en cours de franchissement, que le dessin met en avant.
+  function animPos(){
+    const segs=anim.segs; if(!segs||!segs.length){ const a=anim.pts[0]; return [a[0],a[1]]; }
+    const d=anim.t*anim.total; let i=0; while(i<segs.length-1&&d>segs[i].cum)i++;
+    const deb=segs[i].cum-segs[i].w, f=Math.max(0,Math.min(1,(d-deb)/segs[i].w));
+    const a=anim.pts[i], b=anim.pts[i+1];
+    anim.franchit=(segs[i].saut>0&&f>0.05&&f<0.95)?segs[i].arete:null;
+    const gx=a[0]+(b[0]-a[0])*f, gy=a[1]+(b[1]-a[1])*f;
+    anim.h=segs[i].saut*Math.sin(Math.PI*f); anim.sol=[gx,gy];   // le sol reste sous le pion : c'est l'ombre qui donne la hauteur
+    return [gx, gy-anim.h]; }
   function doOverwatch(m){ if(!sel||sel.ap<=0||!sel.w[m])return; sel.overwatch=true; sel.owMode=m; sel.ap=0; sel.freeAvail=false; sel.reacted=false; amode=null; setMsg("On overwatch — will react to enemy movement."); refresh(); }
   // ===== cracker (area) =====
   let throwing=false, usingItem=false, inv={potion:2}, crackerJit=null, crackerTimer=null;
@@ -2254,6 +2283,10 @@
     murs.forEach(k=>{ const sg=wallSeg.get(k); if(sg&&vuArete(k))drawMurSeg(sg); });
     portes.forEach(k=>{ const sg=wallSeg.get(k); if(sg&&vuArete(k))drawPorteSeg(sg); });
     breches.forEach(k=>{ const sg=wallSeg.get(k); if(sg&&vuArete(k))drawBrecheSeg(sg); });
+    // l'arête qu'on est en train d'enjamber s'allume : on voit CE QUI coûte du temps
+    if(anim&&anim.franchit){ const sg=wallSeg.get(anim.franchit);
+      if(sg){ ctx.save(); ctx.lineCap="round"; ctx.strokeStyle="rgba(255,212,121,.75)"; ctx.lineWidth=7;
+        ctx.beginPath(); ctx.moveTo(sg[0][0],sg[0][1]); ctx.lineTo(sg[1][0],sg[1][1]); ctx.stroke(); ctx.restore(); } }
     if(mode==="edit"&&editTool==="muret"&&hoverEdge){const s=wallSeg.get(hoverEdge);if(s){ctx.beginPath();ctx.moveTo(s[0][0],s[0][1]);ctx.lineTo(s[1][0],s[1][1]);ctx.lineWidth=5;ctx.lineCap="round";ctx.strokeStyle="rgba(255,212,121,.5)";ctx.stroke();ctx.lineCap="butt";}}
     // cover highlight around the hovered tile: amber ½ = low wall (half cover), cyan █ = rock (full cover)
     if(mode==="play"&&!over&&hoverCell!=null&&cells[hoverCell]&&visible.has(hoverCell)){ const c=cells[hoverCell],p=c.poly,en=c.edgeNb||[];
@@ -2268,7 +2301,10 @@
       ctx.restore(); }
     if(showZones){ctx.strokeStyle="rgba(202,162,74,.3)";for(let c=1;c<COLS;c++){ctx.beginPath();ctx.moveTo(c*MC,0);ctx.lineTo(c*MC,H);ctx.stroke();}for(let r=1;r<ROWS;r++){ctx.beginPath();ctx.moveTo(0,r*MC);ctx.lineTo(W,r*MC);ctx.stroke();}}
     const ucol=u=>u.team==="player"?"#5fb0d8":u.team==="neutral"?(u.hostage?"#c98fd0":"#e0b84a"):"#d8635f";
-    for(const u of units){ try{ const c=cells[u.cell];if(!c)continue;let x=c.cx,y=c.cy;if(anim&&anim.u===u&&u.hp>0){const p=animPos();if(isFinite(p[0])&&isFinite(p[1])){x=p[0];y=p[1];}} if(dragU===u&&dragXY){x=dragXY[0];y=dragXY[1];}
+    for(const u of units){ try{ const c=cells[u.cell];if(!c)continue;let x=c.cx,y=c.cy;
+      if(anim&&anim.u===u&&u.hp>0){const p=animPos();if(isFinite(p[0])&&isFinite(p[1])){x=p[0];y=p[1];}
+        if(anim.h>0.5&&anim.sol){ ctx.save(); ctx.fillStyle="rgba(0,0,0,.28)"; ctx.beginPath();   // l'ombre au sol : sans elle, le pion « monte » sans qu'on sache pourquoi
+          ctx.ellipse(anim.sol[0],anim.sol[1]+3,9-anim.h*0.18,4-anim.h*0.08,0,0,TWO); ctx.fill(); ctx.restore(); } } if(dragU===u&&dragXY){x=dragXY[0];y=dragXY[1];}
       if(mode==="play"&&u.team!=="player"&&u.hp>0&&!seen(u))continue;
       if(u.hp<=0){ctx.globalAlpha=.5;ctx.strokeStyle=u.team==="player"?"#86bce6":"#d88a8a";ctx.lineWidth=3;ctx.beginPath();ctx.moveTo(x-9,y-9);ctx.lineTo(x+9,y+9);ctx.moveTo(x+9,y-9);ctx.lineTo(x-9,y+9);ctx.stroke();ctx.globalAlpha=1;continue;}
       ctx.beginPath();ctx.moveTo(x+Math.cos(u.facing)*11,y+Math.sin(u.facing)*11);ctx.lineTo(x+Math.cos(u.facing)*23,y+Math.sin(u.facing)*23);ctx.lineWidth=3.5;ctx.strokeStyle=u.team==="player"?"#bfe6ff":u.team==="neutral"?"#f0d89a":"#f0b0ac";ctx.stroke();
