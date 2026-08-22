@@ -535,10 +535,11 @@
         <label style="font-size:.85rem">pod <input id="t-sppod" type="text" placeholder="—" style="width:48px"></label></div>
       <div class="hint">Needs a painted zone: the units appear on its free tiles.</div>
     </div>
-    <div class="tsec">4 · How often</div>
+    <div class="tsec">4 · How often, and links to other events</div>
     <div class="row"><label style="display:flex;align-items:center;gap:5px;font-size:.85rem"><input type="checkbox" id="t-once" checked> once only</label><label style="display:flex;align-items:center;gap:5px;font-size:.85rem"><input type="checkbox" id="t-first"> 1st action of the turn</label>
       <label style="font-size:.85rem;display:flex;align-items:center;gap:6px" title="When several events match the same moment, only the highest priority plays. On a tie the mission's own events win over the act's.">priority <input id="t-prio" type="number" value="0" style="width:64px"></label></div>
-    <div class="row"><input id="t-id" type="text" placeholder="id (optional)" style="flex:1"><input id="t-requires" type="text" placeholder="requires id…" style="flex:1"><input id="t-forbids" type="text" placeholder="unless id…" style="flex:1"></div>
+    <div class="row"><input id="t-id" type="text" placeholder="id — a name for this event" style="flex:1" title="Only useful to point at this event from another one. Two events must never share an id: the second would count as already played."><input id="t-requires" type="text" placeholder="only after id…" style="flex:1" title="This event stays silent until the event with that id has played."><input id="t-forbids" type="text" placeholder="never after id…" style="flex:1" title="This event stops being available once the event with that id has played."></div>
+    <div class="hint">The <b>id</b> is just a name, so another event can wait for this one (<i>only after</i>) or be cancelled by it (<i>never after</i>). Leave it empty if nothing points here.</div>
     <datalist id="dl-noms"></datalist><datalist id="dl-zones"></datalist>
     <div id="trigwin-scope" class="row" style="display:none;flex-wrap:wrap;gap:8px;border:1px solid #3a3428;border-radius:8px;padding:8px;margin-bottom:10px">
       <span style="font-size:.8rem;color:#e0b341;width:100%">Play this event on which generated missions? <span class="hint" style="font-weight:normal">every field left empty = every mission</span></span>
@@ -3154,6 +3155,9 @@
     const t=composerTrig();
     if(!trigAgit(t)){ alert("Nothing would happen: add an effect in step 3 (a dialogue, a pod to wake, a passage, or units to spawn)."); return; }
     if(t.open&&t.close&&t.open===t.close){ alert("The same zone cannot be opened and closed by one event."); return; }
+    // Deux évènements de même id se neutralisent : « fired » est indexé par id, donc le second passe
+    // pour déjà joué et ne part jamais. Le refus vaut mieux qu'un silence à la partie.
+    if(t.id&&trigArr().some((x,k)=>k!==trigEdit&&x.id===t.id)){ alert(`The id “${t.id}” is already used by another event. Two events sharing an id block each other — the second would count as already played.`); return; }
     if(trigEdit!=null){ trigArr()[trigEdit]=t; finEdition(); } else trigArr().push(t);
     viderForm(); renderTrigList(); trigSave(); majTrigCount(); }
   { const al=document.getElementById("t-addline"); if(al)al.onclick=addLine; }
