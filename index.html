@@ -765,6 +765,7 @@
   // fenêtre trouvent leur place naturelle — dans le mur, pas à la place d'un morceau de mur.
   let murs=new Set();           // full walls on an edge: impassable AND opaque
   let portes=new Set();         // the openings left in a wall line (drawn as a threshold)
+  let breches=new Set();        // arêtes de mur ABATTUES : elles ne bloquent plus rien, on les dessine en ruine
   const murBetween=(a,b)=>murs.has(wkey(a,b));
   let wallSeg=new Map();        // wkey -> segment [[x1,y1],[x2,y2]] of the shared edge
   const wkey=(a,b)=>Math.min(a,b)+"-"+Math.max(a,b);
@@ -1686,6 +1687,19 @@
     } else crackerJit=null;
     draw(); crackerTimer=setTimeout(crackerJitTick,150); }
   function startCrackerJit(){ if(!crackerTimer)crackerJitTick(); }
+  // DÉMOLITION. Une grenade dans une pièce doit pouvoir ouvrir le mur : sinon la maison est un
+  // abri sans contrepartie, et la seule réponse à un ennemi retranché est d'entrer par la porte
+  // qu'il surveille. Un mur tombe quand ses DEUX côtés sont dans le souffle — c'est-à-dire quand la
+  // charge est posée contre lui, pas quand elle explose au loin.
+  function detruireMurs(imp,radius,par){
+    if(!murs.size)return 0;
+    const zone=new Set(); for(const c of cells) if(hops(imp,c.id)<=radius) zone.add(c.id);
+    const tombes=[]; for(const k of murs){ const ab=k.split("-").map(Number); if(zone.has(ab[0])&&zone.has(ab[1]))tombes.push(k); }
+    if(!tombes.length)return 0;
+    for(const k of tombes){ murs.delete(k); breches.add(k); }
+    log(`   🧱 ${tombes.length} wall section${tombes.length>1?"s":""} blown open`,par?par.team:"player");
+    emit("wallbreak",{actorName:par&&par.name,actorCls:par&&par.cls,actorTeam:par&&par.team,count:tombes.length});
+    return tombes.length; }
   function resolveThrow(thrower,target){ const cr=thrower.w.cracker; thrower.crackers--; thrower.ap=0; thrower.freeAvail=false; throwing=false; turnActions++;
     const scat=Math.max(0,cr.scatter-(thrower.scatterBonus||0));   // Bombardier reduces the scatter
     const cand=cells.filter(c=>passable(c.id)&&hops(target,c.id)<=scat); const imp=cand.length?cand[Math.floor(RND()*cand.length)].id:target;
@@ -1695,6 +1709,7 @@
       log(`   💥 ${u.name}: ${dmg} damage`+(u.hp<=0?(u.team==="player"?" ✚K.O.":" ✝"):""),u.team); if(u.hp<=0){u.hp=0;killed++;}
       if(u!==thrower&&!hostile(thrower,u))emit("friendlyfire",{actorName:thrower.name,actorCls:thrower.cls,actorTeam:thrower.team,targetName:u.name,targetCls:u.cls,targetTeam:u.team,weapon:"cracker",dmg,killed:u.hp<=0}); } }
     log(`▲ ${thrower.name} throws a cracker`,thrower.team);
+    detruireMurs(imp,cr.radius,thrower);
     for(const e of units)if(e.team==="enemy"&&e.hp>0&&hops(imp,e.cell)<=cr.radius+2)wakeEnemy(e,"noise");
     emit("cracker",{actorName:thrower.name,actorCls:thrower.cls,actorTeam:thrower.team,enemiesHit,alliesHit,killed}); checkEnd(); refresh(); }
 
@@ -1726,8 +1741,10 @@
   function execSmoke(u,id){ if(onCd(u,"smoke"))return false; if(hops(u.cell,id)>SMOKE_RANGE||!los(u.cell,id)){setMsg("Smoke Bomb: out of range / no line of sight.");return false;}
     for(const c of cells)if(hops(id,c.id)<=SMOKE_RADIUS)smoke.set(c.id,SMOKE_TURNS); u.ap-=1; u.freeAvail=false; setCd(u,"smoke"); log(`▲ ${u.name} deploys a smoke bomb`,"player"); refresh(); return true; }
   function execBreach(u,id){ if(onCd(u,"breach"))return false; if(hops(u.cell,id)>BREACH_RANGE||!los(u.cell,id)){setMsg("Shaped Charge: out of range / no line of sight.");return false;}
-    let done=false; if(cells[id].terr==="wall"){cells[id].terr="plain";done=true;} for(const n of cells[id].nb){const k=wkey(id,n);if(walls.has(k)){walls.delete(k);done=true;}}
-    if(!done){setMsg("Shaped Charge: aim at a rock or a low wall.");return false;}
+    let done=false; if(cells[id].terr==="wall"){cells[id].terr="plain";done=true;}
+    for(const n of cells[id].nb){const k=wkey(id,n);if(walls.has(k)){walls.delete(k);fenetres.delete(k);done=true;}}
+    if(detruireMurs(id,1,u))done=true;   // une charge creuse est faite pour ça
+    if(!done){setMsg("Shaped Charge: aim at a rock, a low wall or a building wall.");return false;}
     u.ap=0; u.freeAvail=false; setCd(u,"breach"); pushBlast(id,1); screenShake(5); log(`▲ ${u.name}: shaped charge — passage opened`,"player"); for(const e of units)if(e.team==="enemy"&&e.hp>0&&hops(id,e.cell)<=3)wakeEnemy(e,"noise"); refresh(); return true; }
   function execShadow(u,tgt){ if(onCd(u,"shadowstrike"))return false; const d=reach(u); let best=null,bs=-1;
     for(const n of cells[tgt.cell].nb){ if(!adjacent(n,tgt.cell))continue; if(n!==u.cell&&(d[n]===undefined||uAt(n)))continue; const s={back:3,side:2,front:1}[flankOfCell(n,tgt)]; if(s>bs){bs=s;best=n;} }
@@ -1745,6 +1762,7 @@
     for(const e of units){ if(!hostile(u,e)||e.hp<=0||hops(id,e.cell)>BLAST_RADIUS)continue;   // hits the caster's hostiles (player OR enemy)
       const dmg=BLAST_MIN+Math.floor(RND()*(BLAST_MAX-BLAST_MIN+1)); e.hp=Math.max(0,e.hp-dmg); pushDmg(e.cell,dmg,e.team);
       if(e.hp<=0){ if(u.team==="player")u.kills=(u.kills||0)+1; } else if(e.team==="enemy")wakeEnemy(e,"noise"); }
+    detruireMurs(id,BLAST_RADIUS,u);
     pushBlast(id,BLAST_RADIUS); screenShake(6); u.spellsCast=(u.spellsCast||0)+1; setCd(u,"blast"); u.ap=0; u.freeAvail=false; log(`▲ ${u.name} unleashes a blast`,"player"); checkEnd(); if(!over)refresh(); return true; }
   function execHeal(u,a){ if(onCd(u,"heal"))return false; if(!a||a.team!==u.team||a.hp<=0){setMsg("Healing Wave: choose a visible ally.");return false;}
     if(hops(u.cell,a.cell)>HEAL_RANGE||!los(u.cell,a.cell)){setMsg("Healing Wave: out of range / no line of sight.");return false;}
@@ -2100,6 +2118,20 @@
     const n=Math.max(2,Math.round(L/9));   // les boutisses : c'est l'appareillage qui dit « pierre » plutôt que « planche »
     for(let i=1;i<n;i++){ const t=i/n, x=ax+dx*t, y=ay+dy*t;
       ctx.beginPath(); ctx.moveTo(x-nx*ep,y-ny*ep); ctx.lineTo(x+nx*ep,y+ny*ep); ctx.stroke(); } }
+  // BRÈCHE : le mur est tombé. On garde ses souches aux deux bouts et on jette des gravats entre
+  // elles — on doit lire « il y avait un mur ici » aussi bien que « on passe ».
+  function drawBrecheSeg(s){ const ax=s[0][0],ay=s[0][1],bx=s[1][0],by=s[1][1];
+    const dx=bx-ax, dy=by-ay, L=Math.hypot(dx,dy)||1, nx=-dy/L, ny=dx/L, ep=3.2;
+    ctx.lineCap="butt";
+    for(const [t0,t1] of [[0,0.24],[0.76,1]]){   // les souches du mur, ébréchées
+      ctx.strokeStyle="#5c534a"; ctx.lineWidth=ep*2;
+      ctx.beginPath(); ctx.moveTo(ax+dx*t0,ay+dy*t0); ctx.lineTo(ax+dx*t1,ay+dy*t1); ctx.stroke();
+      ctx.strokeStyle="#23201b"; ctx.lineWidth=1.1;
+      for(const sgn of [-1,1]){ ctx.beginPath(); ctx.moveTo(ax+dx*t0+nx*ep*sgn,ay+dy*t0+ny*ep*sgn); ctx.lineTo(ax+dx*t1+nx*ep*sgn,ay+dy*t1+ny*ep*sgn); ctx.stroke(); } }
+    for(let i=0;i<7;i++){ const t=0.22+0.56*((i+0.5)/7), o=((i*37)%9-4)*1.5, r=1.6+((i*17)%3)*1.1;   // les gravats
+      ctx.fillStyle=(i%2)?"#8a8074":"#635a4f";
+      ctx.beginPath(); ctx.arc(ax+dx*t+nx*o, ay+dy*t+ny*o, r, 0, TWO); ctx.fill();
+      ctx.strokeStyle="rgba(25,22,18,.8)"; ctx.lineWidth=0.8; ctx.stroke(); } }
   // PORTE : l'arête est libre, on ne dessine que le jambage de part et d'autre — l'ouverture se voit
   // parce que le mur s'interrompt, et les deux montants disent que ce n'est pas un trou fortuit.
   function drawPorteSeg(s){ const ax=s[0][0],ay=s[0][1],bx=s[1][0],by=s[1][1];
@@ -2157,7 +2189,7 @@
       else if(mode==="edit"&&c._gen!=null){ const PP=["#4c86e0","#7a46c8","#c0396b","#e8902b","#f0c33e"]; col=PP[Math.min(PP.length-1,c._gen)]; }   // pinwheel : coloration par GÉNÉRATION (gros/peu subdivisé = bleu → fin/profond = orange), style fractale par niveau
       poly(c); ctx.fillStyle=col; ctx.fill(); ctx.lineWidth=1.5; ctx.strokeStyle=col; ctx.stroke();   // fill + border = same final color → no antialiasing seam
       poly(c); ctx.lineWidth=c.sup!=null?0.4:0.6; ctx.strokeStyle=unseen?"rgba(18,14,9,.16)":"rgba(18,14,9,.30)"; ctx.stroke();   // very thin tile outline (kites even finer under a double mesh) — subtle under the fog
-      if(c.sol&&!unseen){ poly(c); ctx.fillStyle="rgba(206,176,128,.30)"; ctx.fill(); }   // le SOL d'une maison : un plancher, pas de l'herbe
+      if(c.sol&&!unseen){ poly(c); ctx.fillStyle="rgba(206,176,128,.12)"; ctx.fill(); }   // le plancher, juste teinté : les murs suffisent à dire la maison
       if(c.terr==="wall"&&!unseen){ drawRock(c); }
       if(smoke.has(c.id)&&!unseen){ poly(c); ctx.fillStyle="rgba(200,205,212,.55)"; ctx.fill(); } }   // 🌫 smoke: gray veil over the smoked tiles
     if(cells.length&&cells[0].sup!=null){ ctx.lineWidth=3.4; ctx.strokeStyle="rgba(20,14,7,.95)"; ctx.lineCap="round";   // double maillage : trait ÉPAIS uniquement aux frontières de chapeau (sup différent) — contraste fort avec les kites fins
@@ -2221,6 +2253,7 @@
     const vuArete=k=>{ if(mode!=="play")return true; const ab=k.split("-"); return visible.has(+ab[0])||visible.has(+ab[1]); };
     murs.forEach(k=>{ const sg=wallSeg.get(k); if(sg&&vuArete(k))drawMurSeg(sg); });
     portes.forEach(k=>{ const sg=wallSeg.get(k); if(sg&&vuArete(k))drawPorteSeg(sg); });
+    breches.forEach(k=>{ const sg=wallSeg.get(k); if(sg&&vuArete(k))drawBrecheSeg(sg); });
     if(mode==="edit"&&editTool==="muret"&&hoverEdge){const s=wallSeg.get(hoverEdge);if(s){ctx.beginPath();ctx.moveTo(s[0][0],s[0][1]);ctx.lineTo(s[1][0],s[1][1]);ctx.lineWidth=5;ctx.lineCap="round";ctx.strokeStyle="rgba(255,212,121,.5)";ctx.stroke();ctx.lineCap="butt";}}
     // cover highlight around the hovered tile: amber ½ = low wall (half cover), cyan █ = rock (full cover)
     if(mode==="play"&&!over&&hoverCell!=null&&cells[hoverCell]&&visible.has(hoverCell)){ const c=cells[hoverCell],p=c.poly,en=c.edgeNb||[];
@@ -2302,7 +2335,7 @@
   function restoreBoard(s){ if(!s||!s.cells.length)return;
     const near=(arr,x,y)=>{let bi=0,bd=1e9;for(let i=0;i<arr.length;i++){const d=(arr[i].cx-x)**2+(arr[i].cy-y)**2;if(d<bd){bd=d;bi=i;}}return bi;};
     cells.forEach(c=>{const o=s.cells[near(s.cells,c.cx,c.cy)];c.terr=o.terr;c.elev=o.elev;c.zone=o.zone;c.sol=o.sol;c.batId=o.batId;});
-    walls=new Set(); fenetres=new Set(); murs=new Set(); portes=new Set();
+    walls=new Set(); fenetres=new Set(); murs=new Set(); portes=new Set(); breches=new Set();
     if(s.walls.length){ const mids=[]; cells.forEach(c=>{for(const n of c.nb)if(n>c.id){const sg=wallSeg.get(wkey(c.id,n));if(sg)mids.push([wkey(c.id,n),(sg[0][0]+sg[1][0])/2,(sg[0][1]+sg[1][1])/2]);}});
       s.walls.forEach(m=>{let bk=null,bd=1e9;mids.forEach(([k,mx,my])=>{const d=(mx-m[0])**2+(my-m[1])**2;if(d<bd){bd=d;bk=k;}});
         if(!bk||bd>=(MC*0.5)**2)return;
@@ -2310,10 +2343,10 @@
     const used=new Set(); units=[];
     s.units.forEach(su=>{ const ord=cells.map((c,i)=>[(c.cx-su.cx)**2+(c.cy-su.cy)**2,i]).sort((a,b)=>a[0]-b[0]);
       for(const [,i] of ord){ if(used.has(i)||cells[i].terr==="wall")continue; used.add(i); units.push(U(su.team,su.cls,i,{name:su.name,pod:su.pod,asleep:su.asleep,hostage:su.hostage,facing:su.facing})); break; } }); }
-  function rebuildShape(keep){ const snap=keep?snapBoard():null; genMesh(); applyBoardShape(); if(snap)restoreBoard(snap); else{units=[];walls=new Set();fenetres=new Set();murs=new Set();portes=new Set();} refresh(); }
+  function rebuildShape(keep){ const snap=keep?snapBoard():null; genMesh(); applyBoardShape(); if(snap)restoreBoard(snap); else{units=[];walls=new Set();fenetres=new Set();murs=new Set();portes=new Set();breches=new Set();} refresh(); }
   // generates a terrain profile: hills (elevation), rocks, cover and scattered low walls
   function autoTerrain(){ if(!cells.length)return; seed=(seed*1103515245+12345)&0x7fffffff; const rnd=mk((seed^0x9e3779b9)>>>0);
-    cells.forEach(c=>{c.terr="plain";c.elev=0;c.sol=false;c.batId=null;}); walls=new Set(); fenetres=new Set(); murs=new Set(); portes=new Set();
+    cells.forEach(c=>{c.terr="plain";c.elev=0;c.sol=false;c.batId=null;}); walls=new Set(); fenetres=new Set(); murs=new Set(); portes=new Set(); breches=new Set();
     const nh=2+Math.floor(rnd()*3);                       // 2-4 hills
     for(let k=0;k<nh;k++){ const cx=rnd()*W,cy=rnd()*H,rad=W*(0.12+rnd()*0.14),pk=1+Math.floor(rnd()*3);
       cells.forEach(c=>{const d=Math.hypot(c.cx-cx,c.cy-cy);if(d<rad)c.elev=Math.min(3,Math.max(c.elev,Math.round(pk*(1-d/rad))));}); }
@@ -2739,7 +2772,7 @@
         if(!done)return;
       }
     })();
-    walls=new Set(); fenetres=new Set(); murs=new Set(); portes=new Set();
+    walls=new Set(); fenetres=new Set(); murs=new Set(); portes=new Set(); breches=new Set();
     for(const k of wallSeg.keys()){ const ab=k.split("-").map(Number); if(cells[ab[0]].terr==="wall"||cells[ab[1]].terr==="wall")continue;
       if(cells[ab[0]]._route&&cells[ab[1]]._route)continue;              // pas de muret en travers de la route
       if(cells[ab[0]].elev!==cells[ab[1]].elev)continue;                 // JAMAIS de muret aléatoire sur un dénivelé :
@@ -2998,7 +3031,7 @@
     buildAdj();
     walls=new Set((Array.isArray(m.walls)?m.walls:[]).filter(k=>wallSeg.has(k)));
     fenetres=new Set((Array.isArray(m.windows)?m.windows:[]).filter(k=>walls.has(k)));
-    murs=new Set((Array.isArray(m.murs)?m.murs:[]).filter(k=>wallSeg.has(k)));
+    murs=new Set((Array.isArray(m.murs)?m.murs:[]).filter(k=>wallSeg.has(k))); breches=new Set();
     portes=new Set((Array.isArray(m.portes)?m.portes:[]).filter(k=>wallSeg.has(k)));
     units=(m.units||[]).map(u=>U(u.team,u.cls,u.cell,{name:u.name,pod:u.pod,asleep:u.asleep,hostage:u.hostage,hvt:u.hvt,runner:u.runner,guard:u.guard,facing:u.facing})).filter(u=>cells[u.cell]);
     triggers=Array.isArray(m.triggers)?m.triggers:[]; renderTrigList();
@@ -3079,7 +3112,8 @@
     hp:     {lbl:"target HP %", kind:"num", key:"targetHpPct"},
     pod:    {lbl:"pod",         kind:"int", key:"pod", ph:"any pod"},
     podTeam:{lbl:"whose pod",   kind:"sel", key:"actorTeam", opts:()=>[["","— any —"],["enemy","an enemy pod"],["neutral","a civilian / NPC pod"]]},
-    parQuoi:{lbl:"woken by",    kind:"sel", key:"by", opts:()=>[["","— any —"],["sight","being seen"],["noise","noise"],["alert","an alert"]]} };
+    parQuoi:{lbl:"woken by",    kind:"sel", key:"by", opts:()=>[["","— any —"],["sight","being seen"],["noise","noise"],["alert","an alert"]]},
+    sections:{lbl:"sections down", kind:"num", key:"count"} };
   const CHAMPS_PAR_TYPE={
     start:[], win:[], lose:[], turn:["turnNo"],
     attack:["actor","target","result","killedB","hp"],
@@ -3089,7 +3123,7 @@
     friendlyfire:["actor","target","killedB"],
     move:["actor"], enter:["actor","zone"],
     spotted:["pod","podTeam","parQuoi"], discovered:["pod","podTeam"],
-    newfoe:["foe"] };
+    newfoe:["foe"], wallbreak:["actor","sections"] };
   function renderConds(){
     const el=document.getElementById("t-conds"); if(!el)return;
     const champs=CHAMPS_PAR_TYPE[tOn.value]||[];
@@ -3129,10 +3163,12 @@
     {nom:"Mission flow",          ids:["start","turn","win","lose"]},
     {nom:"Combat",                ids:["attack","kill","wounded","cracker","friendlyfire"]},
     {nom:"Movement & detection",  ids:["move","enter","spotted","discovered","newfoe"]},
+    {nom:"Terrain",               ids:["wallbreak"]},
   ];
   const TRIG_LABEL={start:"Start",turn:"Turn start",win:"Victory",lose:"Defeat",
     attack:"Attack",kill:"Kill",wounded:"Wounded",cracker:"Cracker (explosion)",friendlyfire:"Friendly fire",
-    move:"Move",enter:"Zone entry",spotted:"Pod spotted",discovered:"Pod discovered",newfoe:"Enemy type first seen"};
+    move:"Move",enter:"Zone entry",spotted:"Pod spotted",discovered:"Pod discovered",newfoe:"Enemy type first seen",
+    wallbreak:"Building wall destroyed"};
   const TRIG_CAT_DE=(()=>{ const m={}; for(const c of TRIG_CATS) for(const id of c.ids) m[id]=c.nom; return m; })();
   { const sel=document.getElementById("t-on");
     if(sel)sel.innerHTML=TRIG_CATS.map(c=>`<optgroup label="${c.nom}">`
@@ -3153,7 +3189,8 @@
     attack:"on an attack",kill:"on a kill",wounded:"when someone is wounded",cracker:"on an explosion",
     friendlyfire:"on friendly fire",move:"on a move",enter:"when a zone is entered",
     spotted:"when a pod is spotted",discovered:"when a pod is discovered",
-    newfoe:"the first time an enemy type is seen"};
+    newfoe:"the first time an enemy type is seen",
+    wallbreak:"when a building wall is blown open"};
   const nomClasse=k=>(CLASSES[k]&&CLASSES[k].name)||k;
   const nomQuiParle=w=>{ if(w==="@narr")return "narration";
     const m=/^@(?:top|(\d+))$/.exec(w||""); if(!m)return w||"—";
@@ -3165,6 +3202,7 @@
     enemiesHit:v=>`${fmtMatch(v)} enemies hit`, alliesHit:v=>`${fmtMatch(v)} allies hit`,
     turn:v=>`turn ${fmtMatch(v)}`, targetHpPct:v=>`target at ${fmtMatch(v)}% HP`,
     pod:v=>`pod ${v}`, actorTeam:v=>({enemy:"an enemy pod",neutral:"a civilian pod"}[v]||v),
+    count:v=>`${fmtMatch(v)} sections down`,
     by:v=>({sight:"seen",noise:"on noise",alert:"alerted"}[v]||v)};
   const PORTEE={rang:v=>`mission ${v}`, etoiles:v=>`★${v}`, forme:v=>`${v} maps`,
     objectif:v=>`${v} missions`, region:v=>`in ${v}`};
