@@ -3891,11 +3891,9 @@
         <span style="font-size:.82rem">place names:</span>
         <label style="font-size:.8rem">territory <input data-gf="procnom" type="text" placeholder="Act 1 — The March" value="${esc((n.proc&&n.proc.nom)||"")}" style="width:150px"></label>
         <label style="font-size:.8rem">camp <input data-gf="procnomcamp" type="text" placeholder="The Camp" value="${esc((n.proc&&n.proc.nomCamp)||"")}" style="width:96px"></label>
-        <label style="font-size:.8rem">forge <input data-gf="procnomforge" type="text" placeholder="Old Forge" value="${esc((n.proc&&n.proc.nomForge)||"")}" style="width:96px"></label>
-        <label style="font-size:.8rem">bastion <input data-gf="procnombastion" type="text" placeholder="Bastion" value="${esc((n.proc&&n.proc.nomBastion)||"")}" style="width:96px"></label>
         <label style="font-size:.8rem">left band <input data-gf="procnomgauche" type="text" placeholder="The Nation" value="${esc((n.proc&&n.proc.nomGauche)||"")}" style="width:96px"></label>
         <label style="font-size:.8rem">right band <input data-gf="procnomdroite" type="text" placeholder="The Unknown" value="${esc((n.proc&&n.proc.nomDroite)||"")}" style="width:96px"></label>
-        <label style="font-size:.8rem" title="The bastion is born locked; it opens after this many victories. 0 = open from the start. Leave empty for half the regions.">bastion opens after <input data-gf="procbastion" type="number" min="0" max="40" placeholder="auto" value="${(n.proc&&n.proc.bastionApres!=null)?n.proc.bastionApres:""}" style="width:60px"> wins</label></div>
+<span class="hint">a region opens when you control one of its neighbours — nothing else locks it</span></div>
       <div class="row" id="cd-formerow" style="${(n.proc&&(!n.proc.layout||n.proc.layout==="marche"))?"flex-wrap:wrap;gap:8px":"display:none"}">
         <span style="font-size:.82rem">board shapes drawn:</span>
         <span data-formebox style="display:flex;flex-wrap:wrap;gap:8px"></span></div>
@@ -3903,8 +3901,8 @@
         <span style="font-size:.82rem">objectives drawn for the other regions:</span>
         <span data-poolbox style="display:flex;flex-wrap:wrap;gap:8px"></span></div>
       <div class="row" id="cd-imposrow" style="${(n.proc&&(!n.proc.layout||n.proc.layout==="marche"))?"":"display:none"}">
-        <label style="flex:1;font-size:.82rem">scripted missions — one per line: <code>★ | name | objective</code>
-          <textarea data-gf="procimposees" rows="3" placeholder="2 | Rescue the mage | rescue&#10;4 | Mining | harvest" style="width:100%;font-family:Menlo,Consolas,monospace;font-size:.78rem">${esc(((n.proc&&n.proc.imposees)||[]).map(x=>[x.etoiles,x.nom,x.objectif].join(" | ")).join("\n"))}</textarea></label></div>
+        <label style="flex:1;font-size:.82rem">named missions — one per line: <code>★ | name | objective | role</code> <span class="hint">role (optional): <b>forge</b> or <b>bastion</b> — the generator places no special place of its own</span>
+          <textarea data-gf="procimposees" rows="3" placeholder="2 | Rescue the mage | rescue&#10;3 | Old Forge | eliminate | forge&#10;5 | Bastion | eliminate | bastion" style="width:100%;font-family:Menlo,Consolas,monospace;font-size:.78rem">${esc(((n.proc&&n.proc.imposees)||[]).map(x=>[x.etoiles,x.nom,x.objectif].join(" | ")).join("\n"))}</textarea></label></div>
       <div class="hint" data-imposapercu></div>
       <div class="row">act end <select data-gf="endkind"><option value="all" ${ew.kind!=="key"?"selected":""}>all regions resolved</option><option value="key" ${ew.kind==="key"?"selected":""}>key region cleared</option></select></div>
       <div class="row" id="cd-keyrow" style="${ew.kind==="key"?"":"display:none"}">key region (name) <input data-gf="endname" type="text" value="${esc(ew.name)}" placeholder="exact region name" style="flex:1"></div>
@@ -3977,25 +3975,29 @@
       else if(f==="procgraine"){ n.proc.graine=Math.max(0,Math.min(999999,+inp.value||0)); }
       else if(f==="procnom"){ n.proc.nom=inp.value; }
       else if(f==="procnomcamp"){ n.proc.nomCamp=inp.value; }
-      else if(f==="procnomforge"){ n.proc.nomForge=inp.value; }
-      else if(f==="procnombastion"){ n.proc.nomBastion=inp.value; }
       else if(f==="procnomgauche"){ n.proc.nomGauche=inp.value; }
       else if(f==="procnomdroite"){ n.proc.nomDroite=inp.value; }
-      else if(f==="procbastion"){ if(inp.value==="")delete n.proc.bastionApres; else n.proc.bastionApres=Math.max(0,Math.min(40,+inp.value||0)); }
       else if(f==="procimposees"){
-        // « ★ | nom | objectif [| forme] », une par ligne. On tolère les lignes vides et le
-        // désordre : ce qui n'est pas lisible est signalé, pas avalé en silence.
+        // « ★ | nom | objectif [| forme] [| rôle] », une par ligne. Le RÔLE (forge / bastion) est
+        // ce qui fait d'une mission un LIEU : le générateur n'en pose plus aucun de lui-même.
+        // On tolère les lignes vides et le désordre : ce qui n'est pas lisible est signalé.
         const lignes=inp.value.split("\n").map(l=>l.trim()).filter(Boolean);
         const ok=[], ko=[];
         for(const l of lignes){ const m=l.split("|").map(x=>x.trim());
           const et=parseInt(m[0],10);
           if(!(et>=1&&et<=5)||!m[1]){ ko.push(l); continue; }
           const o=m[2]||""; if(o&&OBJ_ACTE.indexOf(o)<0){ ko.push(l+"  (objectif inconnu)"); continue; }
-          ok.push({etoiles:et,nom:m[1],objectif:o,forme:m[3]||""}); }
+          // le rôle peut être en 4e ou 5e colonne : « ★|nom|objectif|bastion » comme « …|forme|bastion »
+          let forme=m[3]||"", role="";
+          const ROLES={forge:"forge",bastion:"bastion",boss:"bastion"};
+          if(ROLES[(forme||"").toLowerCase()]){ role=ROLES[forme.toLowerCase()]; forme=""; }
+          else if(m[4]&&ROLES[m[4].toLowerCase()])role=ROLES[m[4].toLowerCase()];
+          else if(m[4]){ ko.push(l+"  (rôle inconnu : forge ou bastion)"); continue; }
+          ok.push({etoiles:et,nom:m[1],objectif:o,forme,role}); }
         n.proc.imposees=ok; majMarche();
         const z=el.querySelector("[data-imposapercu]");
-        if(z)z.innerHTML=(ok.length?`${ok.length} scripted: `+ok.map(x=>`★${x.etoiles} “${esc(x.nom)}”${x.objectif?" → "+x.objectif:""}`).join(" · "):"")
-          +(ko.length?`<br><b style="color:#e0635f">not read:</b> ${ko.map(esc).join(" ; ")} — expected format <code>★ | name | objective</code>, objectives: ${OBJ_ACTE.join(", ")}`:"");
+        if(z)z.innerHTML=(ok.length?`${ok.length} scripted: `+ok.map(x=>`${x.role==="forge"?"⚒ ":x.role==="bastion"?"☠ ":""}★${x.etoiles} “${esc(x.nom)}”${x.objectif?" → "+x.objectif:""}`).join(" · "):"")
+          +(ko.length?`<br><b style="color:#e0635f">not read:</b> ${ko.map(esc).join(" ; ")} — expected format <code>★ | name | objective | role</code>, objectives: ${OBJ_ACTE.join(", ")}, roles: forge, bastion`:"");
       } else if(f==="endkind"){ n.endWhen.kind=inp.value; const kr=el.querySelector("#cd-keyrow"); if(kr)kr.style.display=(inp.value==="key")?"":"none"; } else if(f==="endname")n.endWhen.name=inp.value;   // procshape: regenerates the shape each game (names + content kept)
       saveCampDraft(); drawGraph(); }; (inp.tagName==="SELECT"||inp.type==="checkbox")?inp.onchange=set:inp.oninput=set; });
     el.querySelector("[data-del]").onclick=()=>{campNodes=campNodes.filter(x=>x.id!==n.id);if(campStart===n.id)campStart=campNodes[0]?campNodes[0].id:"";campSel=campNodes[0]?campNodes[0].id:null;renderNodes();};
@@ -4027,9 +4029,7 @@
     try{ m=(disp==="marche")
       ? genGeoMarche({act, cols:n.proc.cols||6, rows:n.proc.rows||4, seed:graine,
           missions:n.proc.missions||"generees", formes:n.proc.formes||null,
-          nom:n.proc.nom||"", nomCamp:n.proc.nomCamp||"", nomForge:n.proc.nomForge||"", nomBastion:n.proc.nomBastion||"",
-          nomGauche:n.proc.nomGauche||"", nomDroite:n.proc.nomDroite||"",
-          bastionApres:(n.proc.bastionApres!=null?n.proc.bastionApres:null),
+          nom:n.proc.nom||"", nomCamp:n.proc.nomCamp||"", nomGauche:n.proc.nomGauche||"", nomDroite:n.proc.nomDroite||"",
           objectifs:n.proc.objectifs||null, imposees:n.proc.imposees||null})
       : genGeoMap({act, regions:n.proc.regions||10, seed:graine}); }
     catch(e){ m=null; }
@@ -5019,10 +5019,6 @@
     // la forge à ~62 % du chemin, sur une autre rangée que l'axe camp→bastion : on doit s'écarter
     const colForge=Math.max(2,Math.min(cols-1,Math.round(cols*0.62)));
     const rangForge=rows>1?((milieu+1)%rows):milieu;
-    // NOMS DES LIEUX. Ils étaient constants : « Old Forge » et « Bastion » à tous les coups. Ce
-    // sont pourtant les deux régions qu'on désigne dans un déclencheur (portée « region »).
-    const nomForge=(opts.nomForge||"").trim()||FORGE_NAME[act];
-    const nomBastion=(opts.nomBastion||"").trim()||BOSS_NAME[act];
     const out={ name:opts.nom||("Act "+act+" — The March"), camp:idx(1,milieu), act, seed, cells:[], events:[] };
     // QUOTAS DE DIFFICULTÉ. Une rampe purement colonnaire faisait disparaître des paliers : à trois
     // colonnes elle donnait ★1 ★3 ★5, sans aucune ★2 ni ★4. On répartit donc ★1 à ★4 en parts
@@ -5039,12 +5035,8 @@
     const quota=[0,1,2,3].map(k=>socle+(k<reste?1:0));   // le surplus va aux paliers les plus bas
     const niveau=new Map(); { let k=0, pris=0;
       for(const q of jouablesPos){ while(k<3&&pris>=quota[k]){ k++; pris=0; } niveau.set(q.c+","+q.r,k+1); pris++; } }
-    // la forge se place parmi les régions déjà notées ★3 ou ★4, au plus près des 62 % du chemin et
-    // hors de l'axe camp → Bastion : y aller doit rester un détour qui se paie
-    let forgePos=null, meilleur=1e9;
-    for(const q of jouablesPos){ if((niveau.get(q.c+","+q.r)||1)<3)continue;
-      const sc=Math.abs(q.c-colForge)*2+(q.r===milieu?3:0)+Math.abs(q.r-rangForge);
-      if(sc<meilleur){ meilleur=sc; forgePos=q; } }
+    // Ni forge ni bastion posés d'office : ce sont des LIEUX, donc du contenu d'auteur. On les
+    // déclare dans la liste des missions écrites à la main (colonne « rôle »).
     for(let r=0;r<rows;r++) for(let c=0;c<NC;c++){
       const i=idx(c,r), poly=polys[i];
       if(c===0||c===NC-1){   // bandes de bord : décor nommé, jamais jouable
@@ -5055,13 +5047,13 @@
           content:{kind:"empty",ref:null}, state:"available", unlockedBy:[]}; continue; }
       // La difficulté vient du QUOTA, pas d'un calcul local : voir plus haut.
       const d=niveau.get(c+","+r)||1;
-      if(c===cols&&r===milieu){   // LE BASTION, tout à droite, sur l'axe d'entrée
-        out.cells[i]={poly, name:nomBastion, type:"region", content:contenu(5,c,r),
-          state:((opts.bastionApres!=null&&opts.bastionApres<=0)?"available":"locked"),
-          unlockedBy:[], diff:5, boss:true}; continue; }
-      if(forgePos&&c===forgePos.c&&r===forgePos.r){
-        out.cells[i]={poly, name:nomForge, type:"region", content:contenu(d,c,r), state:"available",
-          unlockedBy:[], diff:d, forge:true}; continue; }
+      // Bout de la marche : la région la plus dure, par géographie et non par scénario. Elle est
+      // ACCESSIBLE comme les autres — c'est le contrôle des régions voisines qui décide quand on y
+      // arrive, plus un déverrouillage caché.
+      if(c===cols&&r===milieu){
+        const tour0=Math.floor(iNom/noms.length), n0=noms[(iNom++)%noms.length]+(tour0?" "+["","II","III","IV","V"][Math.min(4,tour0)]:"");
+        out.cells[i]={poly, name:n0, type:"region", content:contenu(5,c,r), state:"available",
+          unlockedBy:[], diff:5}; continue; }
       // la liste de noms est plus courte que le nombre de régions sur les grandes grilles : au
       // second tour on suffixe en chiffres romains plutôt que d'afficher deux fois « Marsh »
       const tour=Math.floor(iNom/noms.length), nom=noms[(iNom++)%noms.length]+(tour?" "+["","II","III","IV","V"][Math.min(4,tour)]:"");
@@ -5069,7 +5061,8 @@
         state:"available", unlockedBy:[], diff:d}; }
     // MISSIONS IMPOSÉES. On place les missions écrites à la main sur une région de la difficulté
     // demandée ; à défaut, sur la plus proche encore libre. Le reste du territoire garde ses
-    // objectifs tirés. Une imposée ne remplace jamais le Bastion ni la forge — ce sont des lieux.
+    // objectifs tirés. C'est ICI que naissent la forge et le bastion : une imposée peut porter un
+    // RÔLE, et c'est l'auteur qui décide lequel, où et sous quel nom.
     out.imposees=[];
     for(const im of (opts.imposees||[])){
       const et=Math.max(1,Math.min(5,im.etoiles|0||1));
@@ -5085,16 +5078,13 @@
       const cible=exacts[Math.floor(rnd()*exacts.length)];
       const decale=(ecart!==0);
       cible.c.name=im.nom||cible.c.name; if(decale)cible.c.diff=et; cible.c.impose=true;
+      if(im.role==="forge")cible.c.forge=true; else if(im.role==="bastion")cible.c.boss=true;
       if(cible.c.content.gen){ if(im.objectif)cible.c.content.gen.objectif=im.objectif;
                                if(im.forme)cible.c.content.gen.forme=im.forme; }
       else if(im.objectif)cible.c.content.ref=refPour(et);
-      out.imposees.push({nom:cible.c.name,etoiles:cible.c.diff,demande:et,decale,objectif:im.objectif||"",case:cible.i}); }
-    const jouables=out.cells.filter(c=>c.content&&c.content.kind==="mission").length;
-    // OUVERTURE DU BASTION. Ce n'est pas du récit : le bastion naît verrouillé, et c'est cet
-    // évènement qui le déverrouille. Sans lui l'acte ne se termine jamais. On le rend donc
-    // RÉGLABLE au lieu de le laisser implicite — 0 = ouvert dès le départ.
-    { const apres=(opts.bastionApres!=null)?Math.max(0,opts.bastionApres|0):Math.max(3,Math.round(jouables*0.5));
-      if(apres>0)out.events.push({when:{kind:"wins",value:apres},reveal:nomBastion,text:""}); }
+      out.imposees.push({nom:cible.c.name,etoiles:cible.c.diff,demande:et,decale,objectif:im.objectif||"",role:im.role||"",case:cible.i}); }
+    // Aucun verrou de scénario, aucun évènement : ce qui ouvre une région, c'est le contrôle de ses
+    // voisines (geoAccessibleSet) ; ce qui la rend redoutable, c'est sa difficulté.
     // Idem : aucun texte imposé. Le seul évènement que le générateur pose encore est la RÉVÉLATION
     // du bastion à mi-parcours, qui n'est pas du récit mais une règle de progression.
     return out; }
@@ -5140,9 +5130,7 @@
         ? genGeoMarche({act, cols:node.proc.cols||6, rows:node.proc.rows||4,
                         seed:node.proc.graine?(node.proc.graine>>>0):seedOf(),   // graine fixée dans la recette = territoire reproductible ; 0 = une autre à chaque partie
                         missions:node.proc.missions||"generees",
-                        nom:node.proc.nom||"", nomCamp:node.proc.nomCamp||"", nomForge:node.proc.nomForge||"", nomBastion:node.proc.nomBastion||"",
-                        nomGauche:node.proc.nomGauche||"", nomDroite:node.proc.nomDroite||"",
-                        bastionApres:(node.proc.bastionApres!=null?node.proc.bastionApres:null),
+                        nom:node.proc.nom||"", nomCamp:node.proc.nomCamp||"", nomGauche:node.proc.nomGauche||"", nomDroite:node.proc.nomDroite||"",
                         formes:node.proc.formes||null,
                         objectifs:node.proc.objectifs||null, imposees:node.proc.imposees||null})
         : genGeoMap({act, regions:node.proc.regions||10, seed:seedOf()}); }   // purely procedural (no drawn territory)
