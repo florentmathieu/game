@@ -254,10 +254,14 @@
   #storybox-btn{ float:right; margin-top:8px; color:#caa24a; background:#1c150e; border:1px solid #5a4530; border-radius:6px; padding:3px 13px; font-weight:bold; cursor:pointer }
   /* Légende de la case survolée. En bas de l'écran plutôt que collée au curseur : sur le curseur
      elle masque justement la zone qu'on est en train d'examiner, et elle saute d'une case à l'autre. */
-  #tilebar{ position:fixed; left:50%; transform:translateX(-50%); bottom:10px; z-index:10; display:none;
+  /* Centrée dans la BANDE LIBRE du bas — entre les boutons d'action (à gauche) et le journal (à
+     droite) — et non au milieu de l'écran, où elle mordait sur le journal. */
+  #tilebar{ position:fixed; left:88px; right:324px; bottom:10px; margin:0 auto; width:fit-content;
+    max-width:100%; z-index:10; display:none;
     background:#100d08; border:1px solid #5a4530; border-radius:8px; padding:5px 12px;
-    font-size:.8rem; color:#b8b0a0; max-width:min(860px,80vw); text-align:center; line-height:1.5;
+    font-size:.8rem; color:#b8b0a0; text-align:center; line-height:1.5;
     box-shadow:0 4px 14px rgba(0,0,0,.5); pointer-events:none }   /* on préfère passer à la ligne que tronquer : l'information tronquée est celle qui manque */
+  @media (max-width:900px){ #tilebar{ left:8px; right:8px } }
   #tilebar b{ color:#ffd479; font-weight:600 } #tilebar .sep{ color:#5a4530; margin:0 7px }
   #fiche{ position:fixed; right:12px; top:12px; pointer-events:none; display:none; z-index:11; background:rgba(10,8,5,.96); border:1px solid #5a4530; border-radius:8px; padding:7px 10px; font-size:.78rem; color:#e8ddc8; max-width:230px; box-shadow:0 6px 18px rgba(0,0,0,.5) }
   #banner{ position:fixed; top:18px; left:50%; transform:translateX(-50%); z-index:11; display:none; padding:8px 18px; border-radius:8px; color:#fff; font-weight:bold; font-size:1.05rem; letter-spacing:1px; box-shadow:0 6px 18px rgba(0,0,0,.5) }
