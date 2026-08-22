@@ -263,6 +263,16 @@
     box-shadow:0 4px 14px rgba(0,0,0,.5); pointer-events:none }   /* on préfère passer à la ligne que tronquer : l'information tronquée est celle qui manque */
   @media (max-width:900px){ #tilebar{ left:8px; right:8px } }
   #tilebar b{ color:#ffd479; font-weight:600 } #tilebar .sep{ color:#5a4530; margin:0 7px }
+  /* Aperçu du territoire : on doit VOIR ce que la recette produit avant de jouer l'acte. */
+  #geoprev{ position:fixed; inset:0; background:rgba(8,6,4,.9); display:none; align-items:center; justify-content:center; z-index:24; padding:20px }
+  #geoprev.show{ display:flex }
+  #geoprev-card{ background:#14100a; border:1px solid #5a4530; border-radius:12px; max-width:96vw; max-height:94vh;
+    display:flex; flex-direction:column; box-shadow:0 12px 40px rgba(0,0,0,.6) }
+  #geoprev-hd{ display:flex; align-items:center; gap:10px; padding:11px 15px; border-bottom:1px solid #3a2c1c; color:#e0b341 }
+  #geoprev-hd #geoprev-x{ margin-left:auto; cursor:pointer }
+  #geoprev-cv{ display:block; max-width:min(880px,92vw); height:auto; margin:10px 14px }
+  #geoprev-lg{ padding:0 15px 12px; display:flex; flex-wrap:wrap; gap:10px; align-items:center }
+  #geoprev-lg i{ display:inline-block; width:13px; height:13px; border-radius:3px; margin-right:4px; vertical-align:-2px }
   #fiche{ position:fixed; right:12px; top:12px; pointer-events:none; display:none; z-index:11; background:rgba(10,8,5,.96); border:1px solid #5a4530; border-radius:8px; padding:7px 10px; font-size:.78rem; color:#e8ddc8; max-width:230px; box-shadow:0 6px 18px rgba(0,0,0,.5) }
   #banner{ position:fixed; top:18px; left:50%; transform:translateX(-50%); z-index:11; display:none; padding:8px 18px; border-radius:8px; color:#fff; font-weight:bold; font-size:1.05rem; letter-spacing:1px; box-shadow:0 6px 18px rgba(0,0,0,.5) }
   #banner.show{ display:block; animation:bn 1.6s ease forwards } @keyframes bn{ 0%{opacity:0} 15%{opacity:1} 80%{opacity:1} 100%{opacity:0} }
@@ -382,20 +392,6 @@
       <div id="cdetail" class="hint">Click a node in the graph to edit it here.</div>
     </div>
     <select id="cmsel" style="display:none"></select>
-    <h2>Generate an act</h2>
-    <div class="hint">Everything is set <b>up front</b>: describe the act, look at it, build it. Same parameters and same seed give back the <b>same act</b> — change the seed to draw another one of the same character. Missions are <b>generated</b> (no files), so the recipe alone reproduces them.</div>
-    <div class="row"><label>name <input id="ra-nom" type="text" value="Act" style="width:110px"></label>
-      <label>missions <input id="ra-n" type="number" min="1" max="20" value="6" style="width:52px"></label>
-      <label>seed <input id="ra-graine" type="number" min="1" max="999999" value="1" style="width:70px"></label>
-      <button id="ra-degraine" title="Draw a new seed">🎲</button></div>
-    <div class="row"><label>difficulty from <select id="ra-d0"><option value="facile" selected>easy</option><option value="moyen">medium</option><option value="difficile">hard</option></select></label>
-      <label>→ to <select id="ra-d1"><option value="facile">easy</option><option value="moyen">medium</option><option value="difficile" selected>hard</option></select></label>
-      <label><input type="checkbox" id="ra-textes" checked> a text before each mission</label></div>
-    <div class="row" style="flex-wrap:wrap;gap:8px"><span style="font-size:.82rem">allowed shapes:</span><span id="ra-formes" style="display:flex;flex-wrap:wrap;gap:8px"></span></div>
-    <div class="row" style="flex-wrap:wrap;gap:8px"><span style="font-size:.82rem">objectives drawn:</span><span id="ra-objs" style="display:flex;flex-wrap:wrap;gap:8px"></span></div>
-    <div id="ra-plan" class="hint" style="white-space:pre;font-family:Menlo,Consolas,monospace;font-size:.72rem;line-height:1.5"></div>
-    <div class="row"><button id="ra-go">🏗 Build the act</button><span class="hint" id="ra-etat"></span></div>
-
     <h2>Act triggers</h2>
     <div class="hint">Lines and actions written <b>once for the whole act</b>, and replayed on every generated mission whose <b>scope</b> matches — by rank, stars, shape, objective or region. Missions have no file to attach them to, so this is where they live.</div>
     <div class="row"><button id="ctrig-open">🎬 Edit the act triggers</button><span class="hint" id="ctrig-count"></span></div>
@@ -479,6 +475,11 @@
 <div id="combatline"></div>
 <div id="fiche"></div>
 <div id="tilebar"></div>
+<div id="geoprev"><div id="geoprev-card">
+  <div id="geoprev-hd"><span id="geoprev-t">🌍 Territory</span><span id="geoprev-sub" class="hint"></span><span id="geoprev-x">✕</span></div>
+  <canvas id="geoprev-cv" width="820" height="620"></canvas>
+  <div id="geoprev-lg" class="hint"></div>
+</div></div>
 <div id="banner"></div>
 <div id="geobanner"></div>
 <div id="georoster"></div>
@@ -3831,7 +3832,7 @@
       +`<button data-genoff title="Switch back to a mission file">↩ file</button>`
       +`<button data-genseed title="New seed: another map, same parameters">🎲 another map</button></div>`
       +`<div class="row"><label>difficulty <select data-g="diff">${DIFFS.map(d=>`<option value="${d}"${n.gen.diff===d?" selected":""}>${d}</option>`).join("")}</select></label>`
-      +`<label>shape <select data-g="forme">${RECETTE_ACTE_DEFAUT.formes.map(f=>`<option value="${f}"${n.gen.forme===f?" selected":""}>${f}</option>`).join("")}</select></label></div>`
+      +`<label>shape <select data-g="forme">${FORMES_ACTE.map(f=>`<option value="${f}"${n.gen.forme===f?" selected":""}>${f}</option>`).join("")}</select></label></div>`
       +`<div class="row"><label>objective <select data-g="objectif">${OBJ_ACTE.map(o=>`<option value="${o}"${n.gen.objectif===o?" selected":""}>${o}</option>`).join("")}</select></label>`
       +`<label title="Position in the act, from 0 (start) to 100% (end): this is what decides the geometry">progress <input data-g="avancement" type="number" min="0" max="100" step="5" value="${Math.round((n.gen.avancement||0)*100)}" style="width:56px">&nbsp;%</label>`
       +`<label>seed <input data-g="graine" type="number" min="1" max="999999" value="${n.gen.graine||1}" style="width:74px"></label></div>`
@@ -3850,6 +3851,13 @@
         <label>rows <input data-gf="procrows" type="number" min="2" max="8" value="${(n.proc&&n.proc.rows)||4}" style="width:48px"></label>
         <label>missions <select data-gf="procmissions"><option value="generees"${(!n.proc||n.proc.missions!=="fichiers")?" selected":""}>generated</option><option value="fichiers"${(n.proc&&n.proc.missions==="fichiers")?" selected":""}>files</option></select></label>
         <span class="hint" data-marcheapercu style="flex:1"></span></div>
+      <div class="row" id="cd-grainerow" style="${(n.proc&&(!n.proc.layout||n.proc.layout==="marche"))?"":"display:none"}">
+        <label title="Same seed = same territory, same maps. Leave empty to draw a new one each game.">seed <input data-gf="procgraine" type="number" min="0" max="999999" value="${(n.proc&&n.proc.graine)||0}" style="width:74px"></label>
+        <button data-degraine title="Draw a new seed">🎲</button>
+        <button data-apercugeo title="Draw the territory this recipe produces">👁 Preview the territory</button></div>
+      <div class="row" id="cd-formerow" style="${(n.proc&&(!n.proc.layout||n.proc.layout==="marche"))?"flex-wrap:wrap;gap:8px":"display:none"}">
+        <span style="font-size:.82rem">board shapes drawn:</span>
+        <span data-formebox style="display:flex;flex-wrap:wrap;gap:8px"></span></div>
       <div class="row" id="cd-poolrow" style="${(n.proc&&(!n.proc.layout||n.proc.layout==="marche"))?"flex-wrap:wrap;gap:8px":"display:none"}">
         <span style="font-size:.82rem">objectives drawn for the other regions:</span>
         <span data-poolbox style="display:flex;flex-wrap:wrap;gap:8px"></span></div>
@@ -3901,16 +3909,31 @@
       z.querySelectorAll("[data-pool]").forEach(cb=>cb.onchange=()=>{
         n.proc.objectifs=Array.from(z.querySelectorAll("[data-pool]")).filter(x=>x.checked).map(x=>x.getAttribute("data-pool"));
         saveCampDraft(); }); }
-    majMarche(); majPool();
+    // FORMES DE PLATEAU tirées pour les cartes du territoire. C'était dans la recette d'acte, qui
+    // ne produisait qu'un couloir ; c'est ici que ça sert, puisque c'est ici que les missions sont
+    // décrites.
+    function majFormes(){ const z=el.querySelector("[data-formebox]"); if(!z||!n.proc)return;
+      const cur=n.proc.formes||FORMES_ACTE.slice();
+      z.innerHTML=FORMES_ACTE.map(f=>`<label style="font-size:.8rem"><input type="checkbox" data-forme="${f}"${cur.indexOf(f)>=0?" checked":""}> ${f}</label>`).join("");
+      z.querySelectorAll("[data-forme]").forEach(cb=>cb.onchange=()=>{
+        n.proc.formes=Array.from(z.querySelectorAll("[data-forme]")).filter(x=>x.checked).map(x=>x.getAttribute("data-forme"));
+        saveCampDraft(); }); }
+    majMarche(); majPool(); majFormes();
+    { const dg=el.querySelector("[data-degraine]");
+      if(dg)dg.onclick=()=>{ n.proc.graine=1+Math.floor(Math.random()*999998);
+        const e=el.querySelector('[data-gf="procgraine"]'); if(e)e.value=n.proc.graine; saveCampDraft(); };
+      const ap=el.querySelector("[data-apercugeo]");
+      if(ap)ap.onclick=()=>apercuTerritoire(n); }
     { const ta=el.querySelector('[data-gf="procimposees"]'); if(ta&&ta.value.trim())ta.dispatchEvent(new Event("input",{bubbles:true})); }
     el.querySelectorAll("[data-gf]").forEach(inp=>{ const f=inp.dataset.gf; const set=()=>{ n.endWhen=n.endWhen||{kind:"all",name:""};
       if(f==="map")n.map=inp.value;
-      else if(f==="procshape"){ if(inp.checked)n.proc=n.proc||{act:1,layout:"marche",cols:6,rows:4,missions:"generees"}; else delete n.proc; renderDetail(); return; }
+      else if(f==="procshape"){ if(inp.checked)n.proc=n.proc||{act:1,layout:"marche",cols:6,rows:4,missions:"generees",formes:FORMES_ACTE.slice()}; else delete n.proc; renderDetail(); return; }
       else if(f==="procact"){ n.proc.act=Math.max(1,Math.min(3,+inp.value||1)); }
       else if(f==="proclayout"){ n.proc.layout=inp.value; renderDetail(); return; }
       else if(f==="proccols"){ n.proc.cols=Math.max(3,Math.min(12,+inp.value||6)); majMarche(); }
       else if(f==="procrows"){ n.proc.rows=Math.max(2,Math.min(8,+inp.value||4)); majMarche(); }
       else if(f==="procmissions"){ n.proc.missions=inp.value; }
+      else if(f==="procgraine"){ n.proc.graine=Math.max(0,Math.min(999999,+inp.value||0)); }
       else if(f==="procimposees"){
         // « ★ | nom | objectif [| forme] », une par ligne. On tolère les lignes vides et le
         // désordre : ce qui n'est pas lisible est signalé, pas avalé en silence.
@@ -3935,99 +3958,67 @@
     el.querySelectorAll("[data-optdel]").forEach(b=>b.onclick=()=>{n.options.splice(+b.dataset.optdel,1);renderDetail();drawGraph();saveCampDraft();}); }
   function saveCampDraft(){ try{ localStorage.setItem("mgf_camp_draft_mesh", JSON.stringify({name:cname.value,start:campStart,roster:campRoster,dialogs:campDialogs,nodes:campNodes,terrain:campTerrain,recette:campRecette,triggers:campTriggers})); }catch(e){} }
   // ===== RECETTE D'ACTE — tout se pilote AVANT, et se rejoue à l'identique =====
-  // Un acte n'est plus assemblé nœud par nœud : on décrit ce qu'on veut — longueur, courbe de
-  // difficulté, formes autorisées, objectifs, profil de terrain — et le générateur en produit un.
-  // À paramètres ET graine identiques on retombe sur le MÊME acte ; on change la graine pour en
-  // tirer un autre du même caractère. La recette est stockée avec l'acte, donc regénérable.
-  const RECETTE_ACTE_DEFAUT={
-    graine:1, nom:"Acte", missions:6,
-    difficulte:{debut:"facile", fin:"difficile"},
-    formes:["rect","L","S","croix","sablier","anneau","diag"],
-    objectifs:["eliminate","eliminate","assassinate","rescue","extract","harvest"],
-    textes:true };
-  const DIFFS=["facile","moyen","difficile"];
-  // courbe de difficulté : interpolée sur le RANG de la mission dans l'acte
-  function difficulteAuRang(courbe,r){
-    const a=Math.max(0,DIFFS.indexOf((courbe&&courbe.debut)||"facile"));
-    const b=Math.max(0,DIFFS.indexOf((courbe&&courbe.fin)||"difficile"));
-    return DIFFS[Math.max(0,Math.min(2,Math.round(a+(b-a)*Math.max(0,Math.min(1,r)))))]; }
-  // Aperçu complet de l'acte SANS rien construire : c'est ce tableau qui répond à « qu'est-ce que
-  // cette recette va produire ? », mission par mission.
-  function apercuActe(rec,profil){
-    rec=Object.assign({},RECETTE_ACTE_DEFAUT,rec||{});
-    const rnd=mk((rec.graine>>>0)||1), N=Math.max(1,rec.missions|0), out=[];
-    const formes=(rec.formes&&rec.formes.length)?rec.formes:RECETTE_ACTE_DEFAUT.formes;
-    const objs=(rec.objectifs&&rec.objectifs.length)?rec.objectifs:RECETTE_ACTE_DEFAUT.objectifs;
-    for(let i=0;i<N;i++){
-      const r=N>1?i/(N-1):0;
-      const diff=difficulteAuRang(rec.difficulte,r);
-      const forme=formes[Math.floor(rnd()*formes.length)];
-      const objectif=objs[Math.floor(rnd()*objs.length)];
-      const pods=podsPourDiff(diff);
-      const geo=terrainInterpole(profil,r,diff);
-      const t=tailleAuto(forme,pods,geo.densite);
-      out.push({rang:i+1, avancement:+r.toFixed(3), diff, forme, objectif, pods,
-                bw:t.bw, bh:t.bh, distorsion:geo.distorsion, densite:geo.densite,
-                graine:((rec.graine>>>0)||1)+i*7919}); }
-    return out; }
-  function genererActe(rec,profil){
-    rec=Object.assign({},RECETTE_ACTE_DEFAUT,rec||{});
-    const plan=apercuActe(rec,profil), noeuds=[];
-    let seq=0; const id=()=>"a"+(++seq);
-    for(const m of plan){
-      // le texte précède sa mission : on l'identifie AUSSI en premier, pour que le graphe se lise
-      // de haut en bas (a1 texte, a2 mission, a3 texte…)
-      const nt=rec.textes?{id:id(), type:"text", text:"", file:"", next:null}:null;
-      const nm={id:id(), type:"mission", gen:{diff:m.diff, forme:m.forme, objectif:m.objectif,
-                 avancement:m.avancement, graine:m.graine},
-                intro:"", outro:"", win:null, lose:null};
-      if(nt){ nt.next=nm.id; noeuds.push(nt); }
-      noeuds.push(nm); }
-    // chaînage : chaque mission gagnée mène au bloc suivant, chaque défaite aussi (l'échec fait
-    // avancer, cf. DIRECTION.md — il ne renvoie pas en arrière)
-    const blocs=[]; for(let i=0;i<noeuds.length;i++) if(noeuds[i].type==="mission")blocs.push(i);
-    for(let b=0;b<blocs.length;b++){
-      const m=noeuds[blocs[b]];
-      const suivantIdx=(b+1<blocs.length)?(rec.textes?blocs[b+1]-1:blocs[b+1]):-1;
-      const suivant=suivantIdx>=0?noeuds[suivantIdx].id:null;
-      m.win=suivant; m.lose=suivant; }
-    return {nom:rec.nom, noeuds, plan}; }
-  window.ACTE={recette:RECETTE_ACTE_DEFAUT, apercu:apercuActe, generer:genererActe};
 
   // --- interface de la recette d'acte ---
   const OBJ_ACTE=["eliminate","assassinate","rescue","defend","survive","extract","harvest","intercept"];
-  function recetteDepuisUI(){
-    const q=id=>document.getElementById(id);
-    const coches=(sel)=>Array.from(document.querySelectorAll(sel)).filter(e=>e.checked).map(e=>e.value);
-    return { nom:(q("ra-nom").value||"Acte"), missions:Math.max(1,+q("ra-n").value||6),
-      graine:Math.max(1,+q("ra-graine").value||1),
-      difficulte:{debut:q("ra-d0").value, fin:q("ra-d1").value},
-      formes:coches("#ra-formes input"), objectifs:coches("#ra-objs input"),
-      textes:q("ra-textes").checked }; }
-  function renderPlanActe(){
-    const el=document.getElementById("ra-plan"); if(!el)return;
-    const plan=apercuActe(recetteDepuisUI(),campTerrain);
-    el.textContent="rank  difficulty  shape     objective     pods  board     distortion\n"+
-      plan.map(m=>` ${String(m.rang).padStart(2)}   ${m.diff.padEnd(10)} ${m.forme.padEnd(9)} ${m.objectif.padEnd(13)} ${String(m.pods).padStart(2)}   ${(m.bw+"x"+m.bh).padStart(6)}    ${String(m.distorsion).padStart(3)} %`).join("\n"); }
-  { const zf=document.getElementById("ra-formes"), zo=document.getElementById("ra-objs");
-    if(zf){ zf.innerHTML=RECETTE_ACTE_DEFAUT.formes.map(f=>`<label style="font-size:.8rem"><input type="checkbox" value="${f}" checked> ${f}</label>`).join(""); }
-    if(zo){ zo.innerHTML=OBJ_ACTE.map(o=>`<label style="font-size:.8rem"><input type="checkbox" value="${o}"${RECETTE_ACTE_DEFAUT.objectifs.indexOf(o)>=0?" checked":""}> ${o}</label>`).join(""); }
-    const maj=()=>renderPlanActe();
-    for(const id of ["ra-nom","ra-n","ra-graine","ra-d0","ra-d1","ra-textes"]){ const e=document.getElementById(id); if(e){e.oninput=maj;e.onchange=maj;} }
-    document.querySelectorAll("#ra-formes input,#ra-objs input").forEach(e=>e.onchange=maj);
-    const dg=document.getElementById("ra-degraine");
-    if(dg)dg.onclick=()=>{ document.getElementById("ra-graine").value=1+Math.floor(Math.random()*999998); maj(); };
-    const go=document.getElementById("ra-go");
-    if(go)go.onclick=()=>{
-      const rec=recetteDepuisUI();
-      const a=genererActe(rec,campTerrain);
-      campNodes=a.noeuds; campStart=campNodes[0]?campNodes[0].id:""; campSel=campStart;
-      document.getElementById("cname").value=rec.nom;
-      campRecette=rec;                       // la recette voyage AVEC l'acte : il reste regénérable
-      const e=document.getElementById("ra-etat");
-      if(e)e.textContent=`${a.plan.length} missions · ${campNodes.length} nodes · seed ${rec.graine}`;
-      renderNodes(); };
-    maj(); }
+  const FORMES_ACTE=["rect","L","S","croix","sablier","anneau","diag"];
+  const DIFFS=["facile","moyen","difficile"];
+  // ===== APERÇU DU TERRITOIRE =====
+  // La recette décrit ; l'aperçu montre. Sans lui on règle des colonnes et des quotas à l'aveugle,
+  // et on ne découvre la carte qu'en lançant la partie. On dessine le territoire tel que le moteur
+  // le produira — même fonction, même graine — avec ses difficultés, ses lieux et ses objectifs.
+  const GEO_ETOILE_COL=["#4e6f45","#5f7f4a","#8a7a3c","#a3653a","#9c4340"];   // ★1 → ★5, du vert au rouge
+  function apercuTerritoire(n){
+    const el=document.getElementById("geoprev"), cv=document.getElementById("geoprev-cv");
+    if(!el||!cv||!n||!n.proc)return;
+    const act=n.proc.act||1, disp=n.proc.layout||(act===1?"marche":"libre");
+    const graine=n.proc.graine?(n.proc.graine>>>0):(1+Math.floor(Math.random()*999998));
+    let m;
+    try{ m=(disp==="marche")
+      ? genGeoMarche({act, cols:n.proc.cols||6, rows:n.proc.rows||4, seed:graine,
+          missions:n.proc.missions||"generees", formes:n.proc.formes||null,
+          objectifs:n.proc.objectifs||null, imposees:n.proc.imposees||null})
+      : genGeoMap({act, regions:n.proc.regions||10, seed:graine}); }
+    catch(e){ m=null; }
+    if(!m){ return; }
+    const g=cv.getContext("2d");
+    g.setTransform(1,0,0,1,0,0); g.clearRect(0,0,cv.width,cv.height);
+    g.fillStyle="#0d0b07"; g.fillRect(0,0,cv.width,cv.height);
+    for(const c of m.cells){ if(!c||!c.poly)continue;
+      const bord=c.edge, jouable=c.type==="region"&&c.content&&c.content.kind==="mission";
+      g.beginPath(); c.poly.forEach((p,i)=>i?g.lineTo(p[0],p[1]):g.moveTo(p[0],p[1])); g.closePath();
+      g.fillStyle = bord?"#1a1710" : (c.type==="camp"?"#2f4a63" : (jouable?GEO_ETOILE_COL[Math.max(1,Math.min(5,c.diff||1))-1]:"#201c14"));
+      g.fill(); g.strokeStyle="rgba(12,9,6,.85)"; g.lineWidth=2; g.stroke();
+      // centre du polygone (rectangles : la moyenne suffit)
+      let cx=0,cy=0; for(const p of c.poly){cx+=p[0];cy+=p[1];} cx/=c.poly.length; cy/=c.poly.length;
+      g.textAlign="center"; g.textBaseline="middle";
+      // largeur utile de la région : un nom plus long est coupé plutôt que de mordre sur la voisine
+      let x0=1e9,x1=-1e9; for(const q of c.poly){ if(q[0]<x0)x0=q[0]; if(q[0]>x1)x1=q[0]; }
+      const lim=(x1-x0)-10;
+      const coupe=t=>{ t=String(t||""); if(g.measureText(t).width<=lim)return t;
+        while(t.length>1&&g.measureText(t+"…").width>lim)t=t.slice(0,-1); return t+"…"; };
+      if(c.type==="camp"){ g.font="bold 13px system-ui,sans-serif"; g.fillStyle="#cfe8ff"; g.fillText(coupe("⌂ "+(c.name||"Camp")),cx,cy); continue; }
+      if(bord){ if(c.name){ g.font="italic 12px system-ui,sans-serif"; g.fillStyle="#6d6350"; g.fillText(coupe(c.name),cx,cy); } continue; }
+      if(!jouable)continue;
+      g.font="bold 12px system-ui,sans-serif"; g.fillStyle="#f2e9d6";
+      g.fillText(coupe((c.boss?"☠ ":c.forge?"⚒ ":"")+(c.name||"")),cx,cy-11);
+      g.font="12px system-ui,sans-serif"; g.fillStyle="#ffd479";
+      g.fillText("★"+(c.diff||1),cx,cy+5);
+      const ob=c.content&&c.content.gen&&c.content.gen.objectif, fo=c.content&&c.content.gen&&c.content.gen.forme;
+      if(ob){ g.font="10px system-ui,sans-serif"; g.fillStyle="#a89e8a"; g.fillText(coupe(ob+(fo?" · "+fo:"")),cx,cy+19); } }
+    const nj=m.cells.filter(c=>c&&c.type==="region"&&c.content&&c.content.kind==="mission").length;
+    const q={}; for(const c of m.cells) if(c&&c.diff)q[c.diff]=(q[c.diff]||0)+1;
+    document.getElementById("geoprev-t").textContent="🌍 "+(m.name||"Territory");
+    document.getElementById("geoprev-sub").textContent=`seed ${graine} · ${nj} missions · `
+      +[1,2,3,4,5].map(k=>"★"+k+"×"+(q[k]||0)).join(" ");
+    document.getElementById("geoprev-lg").innerHTML=
+      [1,2,3,4,5].map(k=>`<span><i style="background:${GEO_ETOILE_COL[k-1]}"></i>★${k}</span>`).join("")
+      +`<span style="color:#8fb3c9">⌂ camp · ⚒ forge · ☠ bastion</span>`
+      +(m.imposees&&m.imposees.length?`<span style="color:#a8e08a">scripted: ${m.imposees.map(x=>esc(x.nom||"?")).join(", ")}</span>`:"");
+    el.classList.add("show"); }
+  { const x=document.getElementById("geoprev-x"), w=document.getElementById("geoprev");
+    if(x)x.onclick=()=>w.classList.remove("show");
+    if(w)w.onclick=e=>{ if(e.target===w)w.classList.remove("show"); }; }
 
   // --- édition du profil de terrain de l'acte ---
   const taEl=id=>document.getElementById("ta-"+id);
@@ -4751,7 +4742,7 @@
       <div class="row" id="gd-procrow" style="${c.gkind==="mission"?"":"display:none"}">
         <label title="The map is produced by the generator: the STARS drive the number of pods, hence the board size and the distortion band."><input type="checkbox" id="gd-proc"${c.gproc?" checked":""}> 🎲 generated map</label>
         <span id="gd-procopts" style="${c.gproc?"display:flex;gap:8px":"display:none"}">
-          <label>shape <select id="gd-proc-forme"><option value="">random</option>${RECETTE_ACTE_DEFAUT.formes.map(f=>`<option value="${f}"${c.gproc&&c.gproc.forme===f?" selected":""}>${f}</option>`).join("")}</select></label>
+          <label>shape <select id="gd-proc-forme"><option value="">random</option>${FORMES_ACTE.map(f=>`<option value="${f}"${c.gproc&&c.gproc.forme===f?" selected":""}>${f}</option>`).join("")}</select></label>
           <label>objective <select id="gd-proc-obj"><option value="">random</option>${OBJ_ACTE.map(o=>`<option value="${o}"${c.gproc&&c.gproc.objectif===o?" selected":""}>${o}</option>`).join("")}</select></label>
         </span></div>
       <div class="hint" id="gd-procapercu" style="${c.gproc?"":"display:none"}"></div>
@@ -4962,12 +4953,16 @@
     const refPour=d=>{ const l=(ACT_MISSIONS[act]&&ACT_MISSIONS[act][d])||(ACT_MISSIONS[act]&&ACT_MISSIONS[act][4])||["mission-1.json"]; return l[Math.floor(rnd()*l.length)]; };
     // objectifs tirés pour les régions non imposées
     const pool=(opts.objectifs&&opts.objectifs.length)?opts.objectifs:["eliminate","eliminate","harvest","extract","assassinate","intercept"];
+    // FORMES : une par région, tirée dans la liste autorisée. Une seule forme pour tout un acte
+    // donnait vingt-quatre fois le même plateau.
+    const formes=(opts.formes&&opts.formes.length)?opts.formes:FORMES_ACTE.slice();
     // GRAINE PROPRE À CHAQUE RÉGION : deux régions de même difficulté ne doivent pas produire deux
     // fois la même carte. Dérivée de la graine du territoire et de la position — donc aléatoire à
     // l'œil, mais reproductible : le même territoire redonne les mêmes cartes.
     const graineDe=(c,r)=>((seed^((c*73856093)^(r*19349663)))>>>0)%999983+1;
     const contenu=(d,c,r)=>parFichier?{kind:"mission",ref:refPour(d),gen:null}
-      :{kind:"mission",ref:null,gen:{forme:opts.forme||"",objectif:pool[Math.floor(rnd()*pool.length)],graine:graineDe(c,r)}};
+      :{kind:"mission",ref:null,gen:{forme:opts.forme||formes[Math.floor(rnd()*formes.length)],
+          objectif:pool[Math.floor(rnd()*pool.length)],graine:graineDe(c,r)}};
     // la forge à ~62 % du chemin, sur une autre rangée que l'axe camp→bastion : on doit s'écarter
     const colForge=Math.max(2,Math.min(cols-1,Math.round(cols*0.62)));
     const rangForge=rows>1?((milieu+1)%rows):milieu;
@@ -5082,8 +5077,10 @@
       // « toujours un acte 1 comme ceci » : la marche est la disposition PAR DÉFAUT de l'acte 1.
       const disp=node.proc.layout||(act===1?"marche":"libre");
       m=(disp==="marche")
-        ? genGeoMarche({act, cols:node.proc.cols||6, rows:node.proc.rows||4, seed:seedOf(),
+        ? genGeoMarche({act, cols:node.proc.cols||6, rows:node.proc.rows||4,
+                        seed:node.proc.graine?(node.proc.graine>>>0):seedOf(),   // graine fixée dans la recette = territoire reproductible ; 0 = une autre à chaque partie
                         missions:node.proc.missions||"generees",
+                        formes:node.proc.formes||null,
                         objectifs:node.proc.objectifs||null, imposees:node.proc.imposees||null})
         : genGeoMap({act, regions:node.proc.regions||10, seed:seedOf()}); }   // purely procedural (no drawn territory)
     else { showCampText("No territory defined for this node.",()=>{ if(node.next)runNode(node.next); else endCampaignRun("End."); }); return; }
