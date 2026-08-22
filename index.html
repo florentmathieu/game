@@ -122,6 +122,8 @@
   .arbre .cel.pris .pn{ color:#a8e08a }
   .arbre .cel.ecarte .pn{ color:#7a7468; text-decoration:line-through }
   .arbre .cel.vide{ background:transparent; border-style:dashed; border-color:#26241f }
+  .arbre .cel.masque{ background:repeating-linear-gradient(135deg,#1a1916 0 6px,#171613 6px 12px); border-color:#26241f;
+                      display:flex; align-items:center; justify-content:center; color:#4e4a42; font-size:1rem }
   .arbre .lig.actif .cel.choix{ cursor:pointer; border-color:#7a6a3a; background:#241f14 }
   .arbre .lig.actif .cel.choix:hover{ background:#332b1a; border-color:#e0b341 }
   .arbre .voie{ grid-column:2/4; display:grid; grid-template-columns:repeat(2,1fr); gap:6px }
@@ -3947,11 +3949,13 @@
     el.innerHTML=`<b>${esc(geoPlay.map.name||"Territory")}</b>${sub?(" — "+sub):""}`; renderGeoRoster(); }
   // squad sheet: grade + chosen perks (A/B choices made) of each member — viewable at any time
   // ===== ARBRE DE COMPÉTENCES — un seul rendu pour les deux écrans =====
-  // Au lieu de lister ce qu'un personnage est devenu, on montre l'ESPACE DES CHOIX : une ligne par
-  // niveau, trois colonnes (les deux perks connus de la classe ou de la voie, plus le tirage), les
-  // niveaux passés avec leur choix et leurs écartés, les niveaux à venir en grisé. Le même arbre
-  // sert au moment de choisir — la ligne du niveau courant devient cliquable — et à la relecture
-  // depuis le camp : on relit ses décisions dans le décor où on les a prises.
+  // Au lieu de lister ce qu'un personnage est devenu, on montre la structure des choix : une ligne
+  // par niveau, trois colonnes (les deux perks connus, plus le tirage). Le même arbre sert au
+  // moment de choisir — la ligne du niveau courant devient cliquable — et à la relecture depuis le
+  // camp : on relit ses décisions dans le décor où on les a prises.
+  // LES NIVEAUX À VENIR SONT MASQUÉS. On voit combien il en reste, pas ce qu'ils contiennent : on
+  // ne planifie pas sa montée, on la subit. Le tirage (colonne C) ne peut de toute façon pas être
+  // annoncé — il est tiré au moment de la promotion.
   const NIV_MAX=8;
   function celPerk(pk,cls,tag){
     if(!pk)return `<div class="cel vide"></div>`;
@@ -3968,13 +3972,16 @@
       h+=`<div class="lig${estActif?" actif":""}${futur?" futur":""}">`
         +`<div class="niv"><b>${esc(GRADES[lvl]||("niv "+lvl))}</b>${trackIci?`<span>voie</span>`:""}${estActif?`<span style="color:#ffd479">à choisir</span>`:""}</div>`;
       // niveau de VOIE non encore tranché : on montre les deux branches côte à côte
-      if(trackIci&&!m.track&&!choisi){
+      if(trackIci&&!m.track&&!choisi&&estActif){
         h+=`<div class="voie">`+Object.keys(TRACKS).map(k=>{ const g=(TRACK_PERKS[k]||{})[lvl];
           return `<div class="bloc" data-voie="${k}"><h4>${esc(TRACKS[k].name)}</h4>`
             +[g&&g.A,g&&g.B].filter(Boolean).map(x=>`<div class="pn" style="font-size:.8rem">${esc(x.name)}</div><div class="pd">${esc(x.desc)}</div>`).join("")
             +`</div>`; }).join("")+`</div>`
           +`<div class="cel vide"><div class="tag">🎲 tirage</div></div></div>`;
         continue; }
+      if(futur){   // à venir : on montre la ligne, pas son contenu
+        h+=`<div class="cel masque">?</div><div class="cel masque">?</div>`
+          +`<div class="cel vide"><div class="tag">🎲 tirage</div></div></div>`; continue; }
       let A,B,C;
       if(o){ A=perkById(m.cls,o.a); B=perkById(m.cls,o.b); C=perkById(m.cls,o.c); }
       else { const pr=(estActif&&actif.offer)?actif.offer:perkPairFor(m,lvl);
