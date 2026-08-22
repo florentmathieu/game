@@ -538,8 +538,8 @@
     <div class="tsec">4 · How often, and links to other events</div>
     <div class="row"><label style="display:flex;align-items:center;gap:5px;font-size:.85rem"><input type="checkbox" id="t-once" checked> once only</label><label style="display:flex;align-items:center;gap:5px;font-size:.85rem"><input type="checkbox" id="t-first"> 1st action of the turn</label>
       <label style="font-size:.85rem;display:flex;align-items:center;gap:6px" title="When several events match the same moment, only the highest priority plays. On a tie the mission's own events win over the act's.">priority <input id="t-prio" type="number" value="0" style="width:64px"></label></div>
-    <div class="row"><input id="t-id" type="text" placeholder="id — a name for this event" style="flex:1" title="Only useful to point at this event from another one. Two events must never share an id: the second would count as already played."><input id="t-requires" type="text" placeholder="only after id…" style="flex:1" title="This event stays silent until the event with that id has played."><input id="t-forbids" type="text" placeholder="never after id…" style="flex:1" title="This event stops being available once the event with that id has played."></div>
-    <div class="hint">The <b>id</b> is just a name, so another event can wait for this one (<i>only after</i>) or be cancelled by it (<i>never after</i>). Leave it empty if nothing points here.</div>
+    <div class="row"><select id="t-requires" style="flex:1" title="This event stays silent until the one you pick has played."></select><select id="t-forbids" style="flex:1" title="This event stops being available once the one you pick has played."></select></div>
+    <div class="row"><input id="t-id" type="text" placeholder="id — set for you when another event points here" style="flex:1" title="A name for this event. You rarely need to type it: picking this event in another one's “only after / never after” names it automatically."></div>
     <datalist id="dl-noms"></datalist><datalist id="dl-zones"></datalist>
     <div id="trigwin-scope" class="row" style="display:none;flex-wrap:wrap;gap:8px;border:1px solid #3a3428;border-radius:8px;padding:8px;margin-bottom:10px">
       <span style="font-size:.8rem;color:#e0b341;width:100%">Play this event on which generated missions? <span class="hint" style="font-weight:normal">every field left empty = every mission</span></span>
@@ -3037,7 +3037,7 @@
     el.innerHTML=[...par.entries()].filter(([,v])=>v.length).map(([nom,v])=>
       `<div class="tcat">${esc(nom)} <span>${v.length}</span></div>`+v.map(([t,i])=>ligne(t,i)).join("")
     ).join("");
-    el.querySelectorAll(".tdel").forEach(b=>b.onclick=()=>{trigArr().splice(+b.dataset.i,1);if(trigEdit!=null)finEdition();renderTrigList();trigSave();majTrigCount();});
+    el.querySelectorAll(".tdel").forEach(b=>b.onclick=()=>{trigArr().splice(+b.dataset.i,1);if(trigEdit!=null)finEdition();renderTrigList();trigSave();majTrigCount();remplirLiens();});
     el.querySelectorAll(".tedit").forEach(b=>b.onclick=()=>ouvrirEdition(+b.dataset.i));
     majTrigCount(); }
   function majTrigCount(){ const c=document.getElementById("trig-count");
@@ -3106,6 +3106,38 @@
   { const d=document.getElementById("t-dmode"); if(d)d.onchange=()=>{ majDMode(); majApercu(); };
     const w=document.getElementById("t-whomode"); if(w)w.onchange=()=>{ majWhoMode(); majApercu(); }; }
 
+  // ===== LES LIENS SE CHOISISSENT, L'ID SE POSE TOUT SEUL =====
+  // Demander à l'auteur de taper un identifiant, puis de le retaper à l'identique dans un autre
+  // évènement, c'est lui faire tenir un registre à la main pour le compte du moteur. On désigne
+  // l'évènement dans une liste ; s'il n'a pas encore de nom, on lui en donne un à ce moment-là —
+  // les ids n'apparaissent donc que là où quelque chose s'en sert.
+  const idAuto=(arr,on)=>{ let n=1,id; do{ id=on+"_"+(n++); }while(arr.some(x=>x.id===id)); return id; };
+  function premiereRepl(t){ const pg=t.pages?t.pages[0]:null;
+    const l=t.say||(pg&&pg[0])||((t.lines&&t.lines[0])||null);
+    return l?String(l[1]||"").slice(0,38):""; }
+  // `forces` : les valeurs à rétablir quand on ouvre un évènement en édition — elles ne sont pas
+  // encore dans le DOM à ce moment-là, et une valeur absente des options se perdrait en silence.
+  function remplirLiens(forces){
+    const vals={}; for(const id of ["t-requires","t-forbids"]){ const e=document.getElementById(id); if(e)vals[id]=e.value; }
+    if(forces){ vals["t-requires"]=forces.req||""; vals["t-forbids"]=forces.forb||""; }
+    const arr=trigArr();
+    for(const id of ["t-requires","t-forbids"]){
+      const sel=document.getElementById(id); if(!sel)continue;
+      const vide=(id==="t-requires")?"— only after… (nothing)":"— never after… (nothing)";
+      const opts=[`<option value="">${vide}</option>`];
+      arr.forEach((t,i)=>{ if(i===trigEdit)return; const f=phraseTrig(t), r=premiereRepl(t);
+        opts.push(`<option value="${t.id?esc(t.id):"i:"+i}">${esc(f.quand+(t.id?" · #"+t.id:"")+(r?" — "+r:""))}</option>`); });
+      const cur=vals[id]||"";
+      if(cur&&!arr.some(t=>t.id===cur))opts.splice(1,0,`<option value="${esc(cur)}">#${esc(cur)} (defined elsewhere)</option>`);
+      sel.innerHTML=opts.join(""); sel.value=cur; } }
+  function materialiserLien(sel){ const v=sel.value; if(v.slice(0,2)!=="i:")return;
+    const arr=trigArr(), t=arr[+v.slice(2)]; if(!t){ sel.value=""; return; }
+    if(!t.id)t.id=idAuto(arr,t.on);
+    const garde=t.id; sel.value=garde;
+    renderTrigList(); trigSave(); remplirLiens(); sel.value=garde; }
+  { for(const id of ["t-requires","t-forbids"]){ const e=document.getElementById(id);
+      if(e)e.addEventListener("change",()=>{ materialiserLien(e); majApercu(); }); } }
+
   // Composer un déclencheur, c'est remplir un objet à partir de quatre blocs qui se CUMULENT :
   // le moment, les conditions, ce qui se passe (répliques ET actions), la fréquence. Rien ici n'est
   // exclusif — sauf ouvrir et fermer la MÊME zone, qui n'aurait pas de sens.
@@ -3159,7 +3191,7 @@
     // pour déjà joué et ne part jamais. Le refus vaut mieux qu'un silence à la partie.
     if(t.id&&trigArr().some((x,k)=>k!==trigEdit&&x.id===t.id)){ alert(`The id “${t.id}” is already used by another event. Two events sharing an id block each other — the second would count as already played.`); return; }
     if(trigEdit!=null){ trigArr()[trigEdit]=t; finEdition(); } else trigArr().push(t);
-    viderForm(); renderTrigList(); trigSave(); majTrigCount(); }
+    viderForm(); renderTrigList(); trigSave(); majTrigCount(); remplirLiens(); }
   { const al=document.getElementById("t-addline"); if(al)al.onclick=addLine; }
   document.getElementById("t-add").onclick=addTrig;
   // ÉDITION D'UNE LIGNE. Sans elle, corriger une portée obligeait à supprimer et tout ré-écrire —
@@ -3181,13 +3213,14 @@
     ecrireConds({}); trigMatchInconnu={}; trigLines=[]; renderTrigLines(); majApercu(); }
   function ouvrirEdition(i){
     const t=trigArr()[i]; if(!t)return;
+    trigEdit=i;   // posé AVANT de remplir les liens : un évènement ne doit pas pouvoir se désigner lui-même
     const q=id=>document.getElementById(id), set=(id,v)=>{ const e=q(id); if(e)e.value=(v==null?"":v); };
     set("t-on",t.on); renderConds(); viderForm();
     const m=t.match||{}, connus=new Set((CHAMPS_PAR_TYPE[t.on]||[]).map(f=>COND_SPEC[f]&&COND_SPEC[f].key));
     trigMatchInconnu={}; for(const k in m) if(!connus.has(k))trigMatchInconnu[k]=m[k];
-    ecrireConds(m);
+    ecrireConds(m); remplirLiens({req:t.requires||"",forb:t.forbids||""});   // la liste exclut l'évènement en cours d'édition
     q("t-once").checked=(t.once!==false); q("t-first").checked=!!t.firstAction;
-    set("t-id",t.id); set("t-requires",t.requires); set("t-forbids",t.forbids); set("t-prio",t.priority||0);
+    set("t-id",t.id); set("t-prio",t.priority||0);
     if(t.wake)effetsActifs.add("wake"); if(t.open||t.close)effetsActifs.add("passage");
     if(t.spawn)effetsActifs.add("spawn"); if(t.say||t.lines)effetsActifs.add("dialogue");
     majEffets();
@@ -3204,7 +3237,6 @@
     else { if(dm)dm.value="one"; trigLines=[];
       if(rep.length){ poserWho(rep[0].who); set("t-text",rep[0].text); } }
     majDMode(); renderTrigLines(); majApercu();
-    trigEdit=i;
     const b=q("t-add"); if(b)b.textContent="✓ Update the event";
     const c=q("t-cancel"); if(c)c.style.display="";
     const w=document.getElementById("trig-right"); if(w)w.scrollTop=0; }   // le formulaire est en face, à droite : on le remonte plutôt que de descendre la fenêtre
@@ -3391,7 +3423,7 @@
     const w=document.getElementById("trigwin"); if(!w)return;
     const sc=document.getElementById("trigwin-scope"); if(sc)sc.style.display=(trigMode==="camp")?"":"none";
     const fn=document.getElementById("t-foenote"); if(fn)fn.textContent="";
-    tsSt(""); remplirSets(); listerSetsRepo();   // le dépôt est relu à l'ouverture : une liste publiée ailleurs apparaît
+    tsSt(""); remplirSets(); listerSetsRepo(); remplirLiens();   // le dépôt est relu à l'ouverture : une liste publiée ailleurs apparaît
     { const ts=document.getElementById("t-txt"); if(ts)ts.innerHTML=txtOpts("","— a dialogue written in texts/ —"); }
     remplirSuggestions(); renderConds(); majApercu();
     const t=document.getElementById("trigwin-t"), sub=document.getElementById("trigwin-sub");
