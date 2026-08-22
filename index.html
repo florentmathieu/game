@@ -107,7 +107,21 @@
   /* La liste était plafonnée à 90 px — hauteur héritée de la colonne étroite où elle vivait. Dans
      une fenêtre dédiée ce plafond annule ce qu'on venait de gagner : quatre lignes visibles sur
      treize. C'est la fenêtre qui défile désormais, pas la liste. */
-  #triglist{ max-height:none; overflow:visible } #triglist .tdel{ padding:0 5px; margin-right:4px }
+  #triglist{ max-height:none; overflow:visible }
+  /* CONTRASTE. Le récapitulatif héritait de .hint — gris pâle sur fond sombre, illisible dès qu'on
+     s'en sert vraiment. Chaque partie de la phrase a maintenant son propre niveau : le moment en
+     clair, les conditions en second plan mais lisibles, la réplique en pleine lumière. */
+  #triglist .tline{ display:flex; flex-wrap:wrap; align-items:baseline; gap:4px 8px;
+    padding:5px 6px; border-radius:5px; line-height:1.45; font-size:.86rem }
+  #triglist .tline:nth-child(even){ background:rgba(255,255,255,.028) }
+  #triglist .tline:hover{ background:rgba(224,179,65,.09) }
+  #triglist .tq{ color:#ffd479; font-weight:600 }
+  #triglist .tid{ color:#8fb3c9; font-family:Menlo,Consolas,monospace; font-size:.78rem }
+  #triglist .tc{ color:#b8b0a0 }
+  #triglist .tsay{ color:#efe8d8; flex-basis:100%; padding-left:2px }
+  #triglist .tsay b{ color:#a8e08a; font-weight:600 }
+  #triglist .tsay i{ color:#9fb8c9; font-style:italic }
+  #triglist .tdel,#triglist .tedit{ padding:0 5px; margin:0; line-height:1.4 }
   #cwrap{ display:flex; gap:12px; align-items:stretch; flex-wrap:wrap; margin:6px 0 }
   #cgwrap{ flex:1 1 420px; min-width:300px; height:56vh; min-height:360px; overflow:auto; background:#0b0906; border:1px solid #3a2c1c; border-radius:8px }
   #cgraph{ display:block; cursor:grab }
@@ -2770,7 +2784,41 @@
   function renderTrigList(){const el=document.getElementById("triglist");if(!el)return;
     const src=trigArr();
     // une ligne, telle qu'elle s'affichait avant — on ne change que le RANGEMENT
-    const ligne=(t,i)=>{const mm=Object.entries(t.match||{}).map(([k,v])=>k+":"+fmtMatch(v)).join(" ");const flags=(trigMode==="camp"?fmtPortee(t.portee):"")+(t.id?" #"+t.id:"")+(t.once===false?"":" ⟲1×")+(t.firstAction?" ⚑1st":"")+(t.requires?" ⊳"+t.requires:"")+(t.forbids?" ⊘"+t.forbids:"")+(t.priority?" ⇧"+t.priority:"")+(t.wake?" ⏰"+t.wake:"")+(t.open?" ⛩"+t.open:"")+(t.close?" ⛔"+t.close:"");const say=t.say?`${t.say[0]||"?"}: "${t.say[1]}"`:(t.lines?t.lines.length+" lines":(t.wake||t.open||t.close?"(action)":""));return `<div><button class="tedit" data-i="${i}" title="Edit this event">✎</button><button class="tdel" data-i="${i}">✕</button> <b>${t.on}</b> ${mm}${flags} → 💬 ${say}</div>`;};
+    // Une ligne se lit comme une PHRASE, pas comme une suite de sigles : « when a pod is spotted ·
+    // Ilm only · once · after intro ». Les symboles (⟲ ⊳ ⊘ ⇧) demandaient une légende que personne
+    // n'a sous les yeux au moment d'écrire.
+    const QUAND={start:"at the start",turn:"at the start of a turn",win:"on victory",lose:"on defeat",
+      attack:"on an attack",kill:"on a kill",wounded:"when someone is wounded",cracker:"on an explosion",
+      friendlyfire:"on friendly fire",move:"on a move",enter:"when a zone is entered",
+      spotted:"when a pod is spotted",discovered:"when a pod is discovered"};
+    const COND={actor:v=>`by ${v}`, target:v=>`on ${v}`, zone:v=>`in zone ${v}`,
+      result:v=>({hit:"if it hits",miss:"if it misses",blocked:"if it is blocked"}[v]||`if ${v}`),
+      killed:v=>(v===true||v==="true")?"if it kills":"if it does not kill",
+      enemiesHit:v=>`${fmtMatch(v)} enemies hit`};
+    const PORTEE={rang:v=>`mission ${v}`, etoiles:v=>`★${v}`, forme:v=>`${v} maps`,
+      objectif:v=>`${v} missions`, region:v=>`in ${v}`};
+    const ligne=(t,i)=>{
+      const bouts=[];
+      for(const [k,v] of Object.entries(t.match||{})) if(COND[k])bouts.push(COND[k](v));
+      if(trigMode==="camp"){ const P=t.portee||{}; const p2=[];
+        for(const k in PORTEE) if(P[k])p2.push(PORTEE[k](P[k]));
+        bouts.push(p2.length?p2.join(", "):"every mission"); }
+      if(t.firstAction)bouts.push("first action of the turn");
+      bouts.push(t.once===false?"every time":"once");
+      if(t.requires)bouts.push(`after ${t.requires}`);
+      if(t.forbids)bouts.push(`unless ${t.forbids}`);
+      if(t.priority)bouts.push(`priority ${t.priority}`);
+      const actes=[]; if(t.wake)actes.push(`wakes pod ${t.wake}`);
+      if(t.open)actes.push(`opens ${t.open}`); if(t.close)actes.push(`closes ${t.close}`);
+      const dit=t.say?`<b>${esc(t.say[0]||"—")}</b> ${esc(t.say[1])}`
+        :(t.lines?`<i>${t.lines.length} lines</i>`:"");
+      const corps=[dit,actes.length?`<i>${esc(actes.join(", "))}</i>`:""].filter(Boolean).join(" · ");
+      return `<div class="tline"><button class="tedit" data-i="${i}" title="Edit this event">✎</button>`
+        +`<button class="tdel" data-i="${i}" title="Delete">✕</button>`
+        +`<span class="tq">${esc(QUAND[t.on]||t.on)}</span>`
+        +(t.id?`<span class="tid">#${esc(t.id)}</span>`:"")
+        +`<span class="tc">${esc(bouts.join(" · "))}</span>`
+        +(corps?`<span class="tsay">${corps}</span>`:"")+`</div>`; };
     if(!src.length){ el.innerHTML=`<i>no event yet</i>`; majTrigCount(); return; }
     // regroupement par famille : les catégories vides ne s'affichent pas, et une famille inconnue
     // (déclencheur venu d'un fichier plus ancien) tombe dans « Other » plutôt que de disparaître
