@@ -140,7 +140,7 @@
   /* les deux branches sont cliquables : c'est le geste naturel, les boutons du bas ne sont qu'un repli */
   .arbre .lig.actif .voie .bloc{ cursor:pointer }
   .arbre .lig.actif .voie .bloc:hover{ background:#332b1a; border-color:#e0b341; box-shadow:0 0 0 1px rgba(224,179,65,.35) }
-  .arbre .lig.actif .voie .bloc::after{ content:"choisir cette voie"; display:block; margin-top:5px; font-size:.68rem;
+  .arbre .lig.actif .voie .bloc::after{ content:"choose this path"; display:block; margin-top:5px; font-size:.68rem;
     color:#8a7a45; text-transform:uppercase; letter-spacing:.05em }
   .arbre .lig.actif .voie .bloc:hover::after{ color:#e0b341 }
   .arbre .voie .bloc h4{ margin:0 0 3px; font-size:.78rem; color:#e0b341 }
@@ -219,16 +219,16 @@
     <div class="row" id="zones"></div>
     <div class="row"><label style="flex:1">Distortion <input id="dist" type="range" min="0" max="100" value="28"></label><span id="distv">28%</span></div>
     <div class="row"><label style="flex:1">Density <input id="dens" type="range" min="30" max="64" value="44"></label><span id="densv">44</span> <button id="regen">↻</button></div>
-    <div class="row"><label>Forme <select id="board-shape">
-      <option value="rect">rectangle (plein)</option>
+    <div class="row"><label>Shape <select id="board-shape">
+      <option value="rect">rectangle (full)</option>
       <option value="L">L</option>
       <option value="S">S</option>
-      <option value="croix">croix</option>
-      <option value="sablier">sablier</option>
-      <option value="anneau">anneau (cour centrale)</option>
-      <option value="diag">diagonale</option>
+      <option value="croix">cross</option>
+      <option value="sablier">hourglass</option>
+      <option value="anneau">ring (central courtyard)</option>
+      <option value="diag">diagonal</option>
     </select></label></div>
-    <div class="row"><label>Tiling <select id="mesh-type"><option value="voronoi">Voronoi (zones)</option><option value="penrose3">Penrose — rhombi (P3)</option><option value="ammann">Ammann–Beenker (8-fold)</option><option value="spectre">Spectre (einstein monotile)</option><option value="hat">Hat / einstein (+ tortues)</option><option value="pinwheel">Pinwheel (fractale, taille variable)</option></select></label> <label id="mesh-fractal-row" title="Île apériodique au contour fractal (décoché : remplit le plateau)"><input type="checkbox" id="mesh-fractal"> Forme fractale</label></div>
+    <div class="row"><label>Tiling <select id="mesh-type"><option value="voronoi">Voronoi (zones)</option><option value="penrose3">Penrose — rhombi (P3)</option><option value="ammann">Ammann–Beenker (8-fold)</option><option value="spectre">Spectre (einstein monotile)</option><option value="hat">Hat / einstein (+ turtles)</option><option value="pinwheel">Pinwheel (fractal, variable size)</option></select></label> <label id="mesh-fractal-row" title="Aperiodic island with a fractal outline (unchecked: fills the board)"><input type="checkbox" id="mesh-fractal"> Fractal shape</label></div>
     <div class="hint">Paint the zones (or "🎲 Auto zones") then set the distortion: terrain, elevation, low walls & units are preserved as best as possible. ⚠ only "↻" re-meshes from scratch and resets everything.<br>With a Penrose / Ammann–Beenker / Spectre / Hat tiling: <b>Density</b> = tile size, <b>Distortion</b> = vertex jitter (the zones are ignored).</div>
     <h2>2 · Terrain & elevation</h2>
     <div class="row" id="terr"></div>
@@ -236,13 +236,13 @@
     <h2>Auto-generation (mission)</h2>
     <div class="row"><label>Difficulty <select id="gen-diff"><option value="facile">easy</option><option value="moyen" selected>medium</option><option value="difficile">hard</option></select></label>
       <label title="Board size derived from the pod count, using the law measured over 560 games (see MESURES-TAILLE-PLATEAU.md). Uncheck to keep Width/Height as typed."><input type="checkbox" id="gen-autosize" checked> 📐 auto size</label>
-      <label>Objective <select id="gen-arch"><option value="eliminate" selected>elimination</option><option value="assassinate">assassination (target)</option><option value="rescue">rescue (hostage)</option><option value="defend">defense (VIP, N turns)</option><option value="survive">survival (N turns)</option><option value="harvest">récolte (gisements)</option><option value="intercept">interception (fuyards)</option><option value="extract">extraction (zone)</option></select></label></div>
+      <label>Objective <select id="gen-arch"><option value="eliminate" selected>elimination</option><option value="assassinate">assassination (target)</option><option value="rescue">rescue (hostage)</option><option value="defend">defense (VIP, N turns)</option><option value="survive">survival (N turns)</option><option value="harvest">harvest (deposits)</option><option value="intercept">interception (fuyards)</option><option value="extract">extraction (zone)</option></select></label></div>
     <div class="row"><label>Enemies <input id="gen-enemies" type="number" min="1" max="16" placeholder="auto" style="width:54px"></label>
       <label>Pods <input id="gen-pods" type="number" min="1" max="6" placeholder="auto" style="width:54px"></label>
       <span class="hint" style="flex:1">total enemies = the real dial; empty = based on difficulty</span></div>
     <div class="row"><label style="flex:1">Cover <input id="gen-cover" type="range" min="10" max="50" value="30"></label><span id="gen-coverv">30%</span></div>
-    <div class="row"><label style="flex:1">Plateformes <input id="gen-plats" type="range" min="0" max="4" value="2"></label><span id="gen-platsv">2</span>
-      <label style="flex:1">taille <input id="gen-platsize" type="range" min="2" max="9" value="2"></label><span id="gen-platsizev">2</span></div>
+    <div class="row"><label style="flex:1">Platforms <input id="gen-plats" type="range" min="0" max="4" value="2"></label><span id="gen-platsv">2</span>
+      <label style="flex:1">size <input id="gen-platsize" type="range" min="2" max="9" value="2"></label><span id="gen-platsizev">2</span></div>
     <div class="row" style="flex-wrap:wrap;gap:8px"><span style="font-size:.85rem">Enemy classes:</span><span id="gen-eclasses" style="display:flex;flex-wrap:wrap;gap:8px"></span></div>
     <div class="row"><button id="gen-mission">🎲 Generate a mission</button></div>
     <div class="hint">Generates shape (island) + elevation/cover + <b>deployment & pods</b> (graph-based placement: pods far from the deployment, spaced out, out of sight). <b>Objective</b> of your choice: elimination, assassination (⊕ target), rescue (hostage at the heart of the pods), defend a VIP / survive N turns, extraction (deep zone). Rerolls from scratch on each click (seed).</div>
@@ -307,52 +307,52 @@
       <div id="cdetail" class="hint">Click a node in the graph to edit it here.</div>
     </div>
     <select id="cmsel" style="display:none"></select>
-    <h2>Générer un acte</h2>
-    <div class="hint">Tout se pilote <b>avant</b> : on décrit l'acte, on le regarde, on le construit. À paramètres et graine identiques, on retombe sur le <b>même acte</b> — change la graine pour en tirer un autre du même caractère. Les missions sont <b>générées</b> (aucun fichier), donc la recette suffit à les reproduire.</div>
-    <div class="row"><label>nom <input id="ra-nom" type="text" value="Acte" style="width:110px"></label>
+    <h2>Generate an act</h2>
+    <div class="hint">Everything is set <b>up front</b>: describe the act, look at it, build it. Same parameters and same seed give back the <b>same act</b> — change the seed to draw another one of the same character. Missions are <b>generated</b> (no files), so the recipe alone reproduces them.</div>
+    <div class="row"><label>name <input id="ra-nom" type="text" value="Act" style="width:110px"></label>
       <label>missions <input id="ra-n" type="number" min="1" max="20" value="6" style="width:52px"></label>
-      <label>graine <input id="ra-graine" type="number" min="1" max="999999" value="1" style="width:70px"></label>
-      <button id="ra-degraine" title="Tire une nouvelle graine">🎲</button></div>
-    <div class="row"><label>difficulté du début <select id="ra-d0"><option value="facile" selected>facile</option><option value="moyen">moyen</option><option value="difficile">difficile</option></select></label>
-      <label>→ fin <select id="ra-d1"><option value="facile">facile</option><option value="moyen">moyen</option><option value="difficile" selected>difficile</option></select></label>
-      <label><input type="checkbox" id="ra-textes" checked> un texte avant chaque mission</label></div>
-    <div class="row" style="flex-wrap:wrap;gap:8px"><span style="font-size:.82rem">formes autorisées :</span><span id="ra-formes" style="display:flex;flex-wrap:wrap;gap:8px"></span></div>
-    <div class="row" style="flex-wrap:wrap;gap:8px"><span style="font-size:.82rem">objectifs tirés :</span><span id="ra-objs" style="display:flex;flex-wrap:wrap;gap:8px"></span></div>
+      <label>seed <input id="ra-graine" type="number" min="1" max="999999" value="1" style="width:70px"></label>
+      <button id="ra-degraine" title="Draw a new seed">🎲</button></div>
+    <div class="row"><label>difficulty from <select id="ra-d0"><option value="facile" selected>easy</option><option value="moyen">medium</option><option value="difficile">hard</option></select></label>
+      <label>→ to <select id="ra-d1"><option value="facile">easy</option><option value="moyen">medium</option><option value="difficile" selected>hard</option></select></label>
+      <label><input type="checkbox" id="ra-textes" checked> a text before each mission</label></div>
+    <div class="row" style="flex-wrap:wrap;gap:8px"><span style="font-size:.82rem">allowed shapes:</span><span id="ra-formes" style="display:flex;flex-wrap:wrap;gap:8px"></span></div>
+    <div class="row" style="flex-wrap:wrap;gap:8px"><span style="font-size:.82rem">objectives drawn:</span><span id="ra-objs" style="display:flex;flex-wrap:wrap;gap:8px"></span></div>
     <div id="ra-plan" class="hint" style="white-space:pre;font-family:Menlo,Consolas,monospace;font-size:.72rem;line-height:1.5"></div>
-    <div class="row"><button id="ra-go">🏗 Construire l'acte</button><span class="hint" id="ra-etat"></span></div>
+    <div class="row"><button id="ra-go">🏗 Build the act</button><span class="hint" id="ra-etat"></span></div>
 
-    <h2>Terrain de l'acte (macro)</h2>
-    <div class="hint">Géométrie de <b>départ</b> et d'<b>arrivée</b> de l'acte : chaque mission interpole entre les deux selon son rang. C'est ici que la grille régulière cède à l'organique. Les poids sont relatifs (des taches de zones sont tirées selon eux) ; « mix » panache les trois à l'intérieur d'une même tache.</div>
-    <div class="row"><label><input type="checkbox" id="ta-on"> piloter la géométrie depuis l'acte</label>
-      <label>longueur de référence <input id="ta-missions" type="number" min="1" max="30" value="8" style="width:52px"> missions</label></div>
+    <h2>Act terrain (macro)</h2>
+    <div class="hint">The act's <b>starting</b> and <b>ending</b> geometry: each mission interpolates between the two according to its rank. This is where the regular grid gives way to the organic. Weights are relative (zone patches are drawn from them); “mix” blends all three inside a single patch.</div>
+    <div class="row"><label><input type="checkbox" id="ta-on"> drive the geometry from the act</label>
+      <label>reference length <input id="ta-missions" type="number" min="1" max="30" value="8" style="width:52px"> missions</label></div>
     <div id="ta-body" style="display:none">
       <table id="ta-table" style="width:100%;border-collapse:collapse;font-size:.82rem">
-        <tr><th style="text-align:left"></th><th>carrés</th><th>hexa</th><th>pentagones</th><th>mixte</th><th>densité</th></tr>
-        <tr><td><b>début</b></td>
+        <tr><th style="text-align:left"></th><th>squares</th><th>hex</th><th>pentagons</th><th>mixed</th><th>density</th></tr>
+        <tr><td><b>start</b></td>
           <td><input id="ta-d-square" type="number" min="0" max="100" value="100" style="width:48px"></td>
           <td><input id="ta-d-hex" type="number" min="0" max="100" value="0" style="width:48px"></td>
           <td><input id="ta-d-pentagon" type="number" min="0" max="100" value="0" style="width:48px"></td>
           <td><input id="ta-d-mix" type="number" min="0" max="100" value="0" style="width:48px"></td>
           <td><input id="ta-d-dens" type="number" min="30" max="64" value="46" style="width:48px"></td></tr>
-        <tr><td><b>fin</b></td>
+        <tr><td><b>end</b></td>
           <td><input id="ta-f-square" type="number" min="0" max="100" value="20" style="width:48px"></td>
           <td><input id="ta-f-hex" type="number" min="0" max="100" value="35" style="width:48px"></td>
           <td><input id="ta-f-pentagon" type="number" min="0" max="100" value="30" style="width:48px"></td>
           <td><input id="ta-f-mix" type="number" min="0" max="100" value="15" style="width:48px"></td>
           <td><input id="ta-f-dens" type="number" min="30" max="64" value="38" style="width:48px"></td></tr>
       </table>
-      <div class="hint" style="margin-top:8px">Distorsion : chaque difficulté a sa <b>plage</b>, et le rang de la mission situe la mission dedans — <code>min + (max − min) × avancement</code>.<br>
-        <b>Attention, l'échelle sature.</b> Nombre moyen de voisins mesuré (un carré en a 4, un hexagone 6) :
-        <code>0 % → 3,7</code> · <code>4 % → 4,4</code> · <code>8 % → 4,7</code> · <code>16 % → 5,2</code> · <code>32 % → 5,2</code> · <code>55 % → 5,3</code> · <code>80 % → 5,3</code>.
-        Tout se joue <b>entre 0 et 16 %</b> ; au-delà l'œil ne distingue plus rien. À 0 %, 72 % des cases ont exactement 4 voisins — une vraie grille.</div>
+      <div class="hint" style="margin-top:8px">Distortion: each difficulty has its own <b>range</b>, and the mission's rank places it inside — <code>min + (max − min) × progress</code>.<br>
+        <b>Careful, the scale saturates.</b> Measured mean neighbour count (a square has 4, a hexagon 6):
+        <code>0% → 3.7</code> · <code>4% → 4.4</code> · <code>8% → 4.7</code> · <code>16% → 5.2</code> · <code>32% → 5.2</code> · <code>55% → 5.3</code> · <code>80% → 5.3</code>.
+        Everything happens <b>between 0 and 16%</b>; beyond that the eye sees no difference. At 0%, 72% of tiles have exactly 4 neighbours — a real grid.</div>
       <table style="width:100%;border-collapse:collapse;font-size:.82rem">
-        <tr><th style="text-align:left">distorsion</th><th>min</th><th>max</th></tr>
-        <tr><td>facile</td><td><input id="ta-x-facile-min" type="number" min="0" max="100" value="0" style="width:48px"></td><td><input id="ta-x-facile-max" type="number" min="0" max="100" value="15" style="width:48px"></td></tr>
-        <tr><td>moyen</td><td><input id="ta-x-moyen-min" type="number" min="0" max="100" value="15" style="width:48px"></td><td><input id="ta-x-moyen-max" type="number" min="0" max="100" value="40" style="width:48px"></td></tr>
-        <tr><td>difficile</td><td><input id="ta-x-difficile-min" type="number" min="0" max="100" value="40" style="width:48px"></td><td><input id="ta-x-difficile-max" type="number" min="0" max="100" value="70" style="width:48px"></td></tr>
+        <tr><th style="text-align:left">distortion</th><th>min</th><th>max</th></tr>
+        <tr><td>easy</td><td><input id="ta-x-facile-min" type="number" min="0" max="100" value="0" style="width:48px"></td><td><input id="ta-x-facile-max" type="number" min="0" max="100" value="15" style="width:48px"></td></tr>
+        <tr><td>medium</td><td><input id="ta-x-moyen-min" type="number" min="0" max="100" value="15" style="width:48px"></td><td><input id="ta-x-moyen-max" type="number" min="0" max="100" value="40" style="width:48px"></td></tr>
+        <tr><td>hard</td><td><input id="ta-x-difficile-min" type="number" min="0" max="100" value="40" style="width:48px"></td><td><input id="ta-x-difficile-max" type="number" min="0" max="100" value="70" style="width:48px"></td></tr>
       </table>
-      <div class="row"><label style="flex:1">Aperçu — avancement dans l'acte <input id="ta-t" type="range" min="0" max="100" value="0"></label><span id="ta-tv">0 %</span>
-        <button id="ta-preview" title="Applique la géométrie interpolée au plateau de l'onglet Mission, pour la voir">👁 Voir</button></div>
+      <div class="row"><label style="flex:1">Preview — progress through the act <input id="ta-t" type="range" min="0" max="100" value="0"></label><span id="ta-tv">0 %</span>
+        <button id="ta-preview" title="Applies the interpolated geometry to the Mission tab's board, so you can see it">👁 Show</button></div>
       <div class="hint" id="ta-resume"></div>
     </div>
     <h2>Roster (campaign squad)</h2>
@@ -531,8 +531,8 @@
   // Les niveaux 4, 6 et 8 puisent dans la voie choisie ; les autres dans l'arbre de classe.
   // Contenu PROVISOIRE : à remplacer par les onglets « Officer » / « Vétéran » du Sheet (colonnes Niveau/Nom/Perk/Effet).
   const TRACK_LEVELS=[4,6,8];
-  const TRACKS={ officer:{name:"Officer",desc:"Commande : agit sur l'escouade"},
-                 veteran:{name:"Veteran",desc:"Métier : agit sur soi-même"} };
+  const TRACKS={ officer:{name:"Officer",desc:"Command: acts on the squad"},
+                 veteran:{name:"Veteran",desc:"Craft: acts on oneself"} };
   const TRACK_PERKS={
     officer:{
       4:{A:{id:"of4a",name:"Field Orders",desc:"Restores 1 AP to an adjacent ally",abil:"rally"},
@@ -1570,11 +1570,11 @@
     if(obj==="extract"){ const need=(curMission&&curMission.extractCount)||1; const ez=exitCells(); if(units.filter(u=>u.team==="player"&&u.hp>0&&ez.has(u.cell)).length>=need)return end("Victory — extraction successful!"); return; }
     if(obj==="harvest"){ const need=(curMission&&curMission.harvestTurns)||2;
       const nodes=cells.filter(c=>c.ore);
-      if(nodes.length&&nodes.every(c=>(c.oreP||0)>=need))return end("Victory — gisements épuisés !");
+      if(nodes.length&&nodes.every(c=>(c.oreP||0)>=need))return end("Victory — deposits drained!");
       return; }
     if(obj==="intercept"){ const tot=(curMission&&curMission.interceptTotal)||0;
-      if((curMission.escaped||0)>0)return end("Defeat — un fuyard est passé…");
-      if(tot&&!units.some(u=>u.team==="enemy"&&u.runner&&u.hp>0))return end("Victory — aucun fuyard n'est passé !");
+      if((curMission.escaped||0)>0)return end("Defeat — a runner got through…");
+      if(tot&&!units.some(u=>u.team==="enemy"&&u.runner&&u.hp>0))return end("Victory — no runner got through!");
       return; }
     if(obj==="rescue"){ if(noEnemies)return end("Victory — hostage freed!"); return; }   // freeing = neutralize all the jailers (the hostage must survive, handled above)
     if(noEnemies)end("Victory!");   // eliminate
@@ -2723,7 +2723,7 @@
   function dedupeNodes(){ const used=new Set(); for(const n of campNodes){ if(used.has(n.id)){ let id; do{id="n"+(++nodeSeq);}while(used.has(id)||campNodes.some(x=>x.id===id)); n.id=id; } used.add(n.id); } }   // repairs duplicate ids from old collisions
   const campNode=id=>campNodes.find(n=>n.id===id);
   const fileName=f=>(f||"").split("/").pop().replace(/\.txt$/,"");
-  function nodeLabel(n){ return n.type==="mission"?("🗺 "+(n.gen?("généré · "+(n.gen.diff||"moyen")+" · "+(n.gen.forme||"rect")):(n.mission||"mission"))):n.type==="choice"?("🔀 "+(n.title||"choice")):n.type==="geoscape"?("🌍 "+(n.map||"territory").replace(/\.json$/,"")):("📝 "+(n.file?fileName(n.file):((n.text||"").slice(0,14)||"text"))); }
+  function nodeLabel(n){ return n.type==="mission"?("🗺 "+(n.gen?("generated · "+(n.gen.diff||"moyen")+" · "+(n.gen.forme||"rect")):(n.mission||"mission"))):n.type==="choice"?("🔀 "+(n.title||"choice")):n.type==="geoscape"?("🌍 "+(n.map||"territory").replace(/\.json$/,"")):("📝 "+(n.file?fileName(n.file):((n.text||"").slice(0,14)||"text"))); }
   const geoMapOpts=sel=>repoGeoscapes.length?repoGeoscapes.map(g=>`<option value="${g.file}" ${g.file===sel?"selected":""}>${esc(g.name)}</option>`).join(""):`<option value="">(no territory)</option>`;
   const idOpts=(sel,allowNull)=>(allowNull?`<option value="">—</option>`:"")+campNodes.map(n=>`<option value="${n.id}" ${n.id===sel?"selected":""}>${nodeLabel(n)}</option>`).join("");
   const missOpts=sel=>repoMissionList.length?repoMissionList.map(m=>`<option value="${m.file}" ${m.file===sel?"selected":""}>${m.name}</option>`).join(""):`<option value="">(none)</option>`;
@@ -2782,35 +2782,35 @@
     let h=`<h3>${n.type==="mission"?"🗺 Mission":n.type==="choice"?"🔀 Choice":"📝 Text"} <code style="font-size:.7rem;color:#9a8a74">${n.id}</code></h3>`;
     if(n.type==="text") h+=`<div class="row">📄 file <select data-f="file">${txtOpts(n.file,"— text entered below —")}</select></div><input data-f="text" type="text" placeholder="…or full-screen text" value="${esc(n.text)}"><input data-f="mortal" type="text" placeholder="✝ makes mortal (names, commas) — &quot;their role is done&quot;" value="${esc(Array.isArray(n.mortal)?n.mortal.join(', '):(n.mortal||''))}"><input data-f="recruit" type="text" placeholder="➕ recruits (Name:class, … ; * = ★ special)" value="${esc(Array.isArray(n.recruit)?n.recruit.join(', '):(n.recruit||''))}"><div class="row">next → <select data-f="next">${idOpts(n.next,true)}</select></div>`;
     else if(n.type==="mission"&&n.gen) h+=
-       `<div class="row"><b style="font-size:.8rem">carte générée</b>`
-      +`<button data-genoff title="Repasser sur un fichier de mission">↩ fichier</button>`
-      +`<button data-genseed title="Nouvelle graine : autre carte, mêmes paramètres">🎲 autre carte</button></div>`
-      +`<div class="row"><label>difficulté <select data-g="diff">${DIFFS.map(d=>`<option value="${d}"${n.gen.diff===d?" selected":""}>${d}</option>`).join("")}</select></label>`
-      +`<label>forme <select data-g="forme">${RECETTE_ACTE_DEFAUT.formes.map(f=>`<option value="${f}"${n.gen.forme===f?" selected":""}>${f}</option>`).join("")}</select></label></div>`
-      +`<div class="row"><label>objectif <select data-g="objectif">${OBJ_ACTE.map(o=>`<option value="${o}"${n.gen.objectif===o?" selected":""}>${o}</option>`).join("")}</select></label>`
-      +`<label title="Position dans l'acte, de 0 (début) à 100 % (fin) : c'est elle qui décide la géométrie">avancement <input data-g="avancement" type="number" min="0" max="100" step="5" value="${Math.round((n.gen.avancement||0)*100)}" style="width:56px">&nbsp;%</label>`
-      +`<label>graine <input data-g="graine" type="number" min="1" max="999999" value="${n.gen.graine||1}" style="width:74px"></label></div>`
+       `<div class="row"><b style="font-size:.8rem">generated map</b>`
+      +`<button data-genoff title="Switch back to a mission file">↩ file</button>`
+      +`<button data-genseed title="New seed: another map, same parameters">🎲 another map</button></div>`
+      +`<div class="row"><label>difficulty <select data-g="diff">${DIFFS.map(d=>`<option value="${d}"${n.gen.diff===d?" selected":""}>${d}</option>`).join("")}</select></label>`
+      +`<label>shape <select data-g="forme">${RECETTE_ACTE_DEFAUT.formes.map(f=>`<option value="${f}"${n.gen.forme===f?" selected":""}>${f}</option>`).join("")}</select></label></div>`
+      +`<div class="row"><label>objective <select data-g="objectif">${OBJ_ACTE.map(o=>`<option value="${o}"${n.gen.objectif===o?" selected":""}>${o}</option>`).join("")}</select></label>`
+      +`<label title="Position in the act, from 0 (start) to 100% (end): this is what decides the geometry">progress <input data-g="avancement" type="number" min="0" max="100" step="5" value="${Math.round((n.gen.avancement||0)*100)}" style="width:56px">&nbsp;%</label>`
+      +`<label>seed <input data-g="graine" type="number" min="1" max="999999" value="${n.gen.graine||1}" style="width:74px"></label></div>`
       +`<div class="hint" data-genapercu></div>`
       +`<div class="row">📄 intro <select data-f="introFile">${txtOpts(n.introFile)}</select></div><input data-f="intro" type="text" placeholder="…or entered intro" value="${esc(n.intro)}"><div class="row">📄 outro <select data-f="outroFile">${txtOpts(n.outroFile)}</select></div><input data-f="outro" type="text" placeholder="…or entered outro" value="${esc(n.outro)}"><div class="row">✓ win → <select data-f="win">${idOpts(n.win,true)}</select></div><div class="row">✕ loss → <select data-f="lose">${idOpts(n.lose,true)}</select></div>`;
-    else if(n.type==="mission") h+=`<div class="row">mission <select data-f="mission">${missOpts(n.mission)}</select> <button data-genon title="Remplacer par une carte générée">🎲 générer</button></div><div class="row">📄 intro <select data-f="introFile">${txtOpts(n.introFile)}</select></div><input data-f="intro" type="text" placeholder="…or entered intro" value="${esc(n.intro)}"><div class="row">📄 outro <select data-f="outroFile">${txtOpts(n.outroFile)}</select></div><input data-f="outro" type="text" placeholder="…or entered outro" value="${esc(n.outro)}"><div class="row">✓ win → <select data-f="win">${idOpts(n.win,true)}</select></div><div class="row">✕ loss → <select data-f="lose">${idOpts(n.lose,true)}</select></div>`;
+    else if(n.type==="mission") h+=`<div class="row">mission <select data-f="mission">${missOpts(n.mission)}</select> <button data-genon title="Replace with a generated map">🎲 generate</button></div><div class="row">📄 intro <select data-f="introFile">${txtOpts(n.introFile)}</select></div><input data-f="intro" type="text" placeholder="…or entered intro" value="${esc(n.intro)}"><div class="row">📄 outro <select data-f="outroFile">${txtOpts(n.outroFile)}</select></div><input data-f="outro" type="text" placeholder="…or entered outro" value="${esc(n.outro)}"><div class="row">✓ win → <select data-f="win">${idOpts(n.win,true)}</select></div><div class="row">✕ loss → <select data-f="lose">${idOpts(n.lose,true)}</select></div>`;
     else if(n.type==="choice") h+=`<input data-f="title" type="text" placeholder="choice title…" value="${esc(n.title)}"><div id="cdopts" style="margin:6px 0"></div><button data-addopt="1">+ option</button>`;
     else if(n.type==="geoscape"){ const ew=n.endWhen||{kind:"all"}; h+=`<div class="row">🌍 territory <select data-gf="map">${geoMapOpts(n.map)}</select></div>
       <div class="row"><label style="display:inline-flex;align-items:center;gap:4px" title="The shape/layout is regenerated each game; the territory's names, missions, difficulties, unlocks and events are kept."><input type="checkbox" data-gf="procshape" ${n.proc?"checked":""}> procedural shape (changes each game)</label></div>
       <div class="row" id="cd-procrow" style="${n.proc?"":"display:none"}">
-        <label>acte <input data-gf="procact" type="number" min="1" max="3" value="${(n.proc&&n.proc.act)||1}" style="width:44px"></label>
-        <label title="« marche » : grille rectangulaire, on entre par la gauche, le Bastion est à droite, la nation d'un côté et l'inconnu de l'autre. « libre » : Voronoï, camp au centre.">disposition
-          <select data-gf="proclayout"><option value="marche"${(!n.proc||!n.proc.layout||n.proc.layout==="marche")?" selected":""}>marche (grille, gauche → droite)</option><option value="libre"${(n.proc&&n.proc.layout==="libre")?" selected":""}>libre (Voronoï, camp au centre)</option></select></label></div>
+        <label>act <input data-gf="procact" type="number" min="1" max="3" value="${(n.proc&&n.proc.act)||1}" style="width:44px"></label>
+        <label title="“march”: rectangular grid, you enter from the left, the Bastion sits on the right, the nation on one side and the unknown on the other. “open”: Voronoi, camp at the centre.">layout
+          <select data-gf="proclayout"><option value="marche"${(!n.proc||!n.proc.layout||n.proc.layout==="marche")?" selected":""}>march (grid, left → right)</option><option value="libre"${(n.proc&&n.proc.layout==="libre")?" selected":""}>open (Voronoi, camp at the centre)</option></select></label></div>
       <div class="row" id="cd-marcherow" style="${(n.proc&&(!n.proc.layout||n.proc.layout==="marche"))?"":"display:none"}">
-        <label>colonnes <input data-gf="proccols" type="number" min="3" max="12" value="${(n.proc&&n.proc.cols)||6}" style="width:48px"></label>
-        <label>rangées <input data-gf="procrows" type="number" min="2" max="8" value="${(n.proc&&n.proc.rows)||4}" style="width:48px"></label>
-        <label>missions <select data-gf="procmissions"><option value="generees"${(!n.proc||n.proc.missions!=="fichiers")?" selected":""}>générées</option><option value="fichiers"${(n.proc&&n.proc.missions==="fichiers")?" selected":""}>fichiers</option></select></label>
+        <label>columns <input data-gf="proccols" type="number" min="3" max="12" value="${(n.proc&&n.proc.cols)||6}" style="width:48px"></label>
+        <label>rows <input data-gf="procrows" type="number" min="2" max="8" value="${(n.proc&&n.proc.rows)||4}" style="width:48px"></label>
+        <label>missions <select data-gf="procmissions"><option value="generees"${(!n.proc||n.proc.missions!=="fichiers")?" selected":""}>generated</option><option value="fichiers"${(n.proc&&n.proc.missions==="fichiers")?" selected":""}>files</option></select></label>
         <span class="hint" data-marcheapercu style="flex:1"></span></div>
       <div class="row" id="cd-poolrow" style="${(n.proc&&(!n.proc.layout||n.proc.layout==="marche"))?"flex-wrap:wrap;gap:8px":"display:none"}">
-        <span style="font-size:.82rem">objectifs tirés pour les autres régions :</span>
+        <span style="font-size:.82rem">objectives drawn for the other regions:</span>
         <span data-poolbox style="display:flex;flex-wrap:wrap;gap:8px"></span></div>
       <div class="row" id="cd-imposrow" style="${(n.proc&&(!n.proc.layout||n.proc.layout==="marche"))?"":"display:none"}">
-        <label style="flex:1;font-size:.82rem">missions imposées — une par ligne : <code>★ | nom | objectif</code>
-          <textarea data-gf="procimposees" rows="3" placeholder="2 | Sauvetage du mage | rescue&#10;4 | Mining | harvest" style="width:100%;font-family:Menlo,Consolas,monospace;font-size:.78rem">${esc(((n.proc&&n.proc.imposees)||[]).map(x=>[x.etoiles,x.nom,x.objectif].join(" | ")).join("\n"))}</textarea></label></div>
+        <label style="flex:1;font-size:.82rem">scripted missions — one per line: <code>★ | name | objective</code>
+          <textarea data-gf="procimposees" rows="3" placeholder="2 | Rescue the mage | rescue&#10;4 | Mining | harvest" style="width:100%;font-family:Menlo,Consolas,monospace;font-size:.78rem">${esc(((n.proc&&n.proc.imposees)||[]).map(x=>[x.etoiles,x.nom,x.objectif].join(" | ")).join("\n"))}</textarea></label></div>
       <div class="hint" data-imposapercu></div>
       <div class="row">act end <select data-gf="endkind"><option value="all" ${ew.kind!=="key"?"selected":""}>all regions resolved</option><option value="key" ${ew.kind==="key"?"selected":""}>key region cleared</option></select></div>
       <div class="row" id="cd-keyrow" style="${ew.kind==="key"?"":"display:none"}">key region (name) <input data-gf="endname" type="text" value="${esc(ew.name)}" placeholder="exact region name" style="flex:1"></div>
@@ -2829,7 +2829,7 @@
     function majApercuGen(){ const z=el.querySelector("[data-genapercu]"); if(!z||!n.gen)return;
       const prof=campTerrain, g=terrainInterpole(prof,n.gen.avancement||0,n.gen.diff);
       const pods=podsPourDiff(n.gen.diff), t=tailleAuto(n.gen.forme,pods,g.densite);
-      z.textContent=`→ ${pods} pods · plateau ${t.bw}x${t.bh} · distorsion ${g.distorsion} % · densité ${g.densite}`; }
+      z.textContent=`→ ${pods} pods · board ${t.bw}x${t.bh} · distortion ${g.distorsion}% · density ${g.densite}`; }
     majApercuGen();
     { const off=el.querySelector("[data-genoff]"); if(off)off.onclick=()=>{ delete n.gen; renderNodes(); }; }
     { const on=el.querySelector("[data-genon]"); if(on)on.onclick=()=>{
@@ -2838,13 +2838,18 @@
         n.gen.graine=1+Math.floor(Math.random()*999998); renderNodes(); }; }
     function majMarche(){ const z=el.querySelector("[data-marcheapercu]"); if(!z||!n.proc)return;
       const c=n.proc.cols||6, r=n.proc.rows||4;
-      // on GÉNÈRE un exemplaire pour montrer le vrai compte, plutôt que de le recalculer à côté
-      const ex=genGeoMarche({act:n.proc.act||1,cols:c,rows:r,seed:1,
-        objectifs:n.proc.objectifs||null, imposees:n.proc.imposees||null});
-      const q={1:0,2:0,3:0,4:0}; ex.cells.filter(x=>x.content&&x.content.kind==="mission"&&!x.boss).forEach(x=>q[x.diff]++);
-      const dec=(ex.imposees||[]).filter(x=>x.decale);
-      z.innerHTML=`→ ${c*r} régions · ★1×${q[1]} ★2×${q[2]} ★3×${q[3]} ★4×${q[4]} + le Bastion ★5`
-        +(dec.length?` <b style="color:#e0b341">— ${dec.length} imposée(s) déplacée(s) faute de place à leur palier : ${dec.map(x=>esc(x.nom)+" ★"+x.demande+"→★"+x.etoiles).join(", ")}</b>`:""); }
+      // Les quotas sont de l'ARITHMÉTIQUE PURE : autant les recalculer que générer un territoire.
+      // La version précédente appelait genGeoMarche() ici — or l'éditeur se dessine pendant
+      // l'initialisation de la page, avant que les constantes du geoscape existent, et l'appel
+      // levait « Cannot access 'GEO_W' before initialization » au chargement d'un brouillon.
+      const NJ=Math.max(0,c*r-2), socle=Math.floor(NJ/4), reste=NJ%4;
+      const q={1:socle+(reste>0?1:0),2:socle+(reste>1?1:0),3:socle+(reste>2?1:0),4:socle};
+      // une imposée est déplacée s'il y a plus de demandes à un palier que de places
+      const dem={}; for(const im of (n.proc.imposees||[])){ const k=Math.max(1,Math.min(4,im.etoiles|0||1)); dem[k]=(dem[k]||0)+1; }
+      const dec=[]; for(const k in dem){ const sur=dem[k]-(q[k]||0); if(sur>0)dec.push({demande:k,n:sur}); }
+      z.innerHTML=`→ ${c*r} regions · ★1×${q[1]} ★2×${q[2]} ★3×${q[3]} ★4×${q[4]} + the Bastion ★5`
+        +(dec.length?` <b style="color:#e0b341">— scripted missions will be moved, no room at their tier: `
+            +dec.map(x=>x.n+" at ★"+x.demande).join(", ")+`</b>`:""); }
     function majPool(){ const z=el.querySelector("[data-poolbox]"); if(!z||!n.proc)return;
       const cur=n.proc.objectifs||["eliminate","eliminate","harvest","extract","assassinate","intercept"];
       z.innerHTML=OBJ_ACTE.map(o=>`<label style="font-size:.8rem"><input type="checkbox" data-pool="${o}"${cur.indexOf(o)>=0?" checked":""}> ${o}</label>`).join("");
@@ -2873,8 +2878,8 @@
           ok.push({etoiles:et,nom:m[1],objectif:o,forme:m[3]||""}); }
         n.proc.imposees=ok; majMarche();
         const z=el.querySelector("[data-imposapercu]");
-        if(z)z.innerHTML=(ok.length?`${ok.length} imposée(s) : `+ok.map(x=>`★${x.etoiles} « ${esc(x.nom)} »${x.objectif?" → "+x.objectif:""}`).join(" · "):"")
-          +(ko.length?`<br><b style="color:#e0635f">non lues :</b> ${ko.map(esc).join(" ; ")} — format attendu <code>★ | nom | objectif</code>, objectifs : ${OBJ_ACTE.join(", ")}`:"");
+        if(z)z.innerHTML=(ok.length?`${ok.length} scripted: `+ok.map(x=>`★${x.etoiles} “${esc(x.nom)}”${x.objectif?" → "+x.objectif:""}`).join(" · "):"")
+          +(ko.length?`<br><b style="color:#e0635f">not read:</b> ${ko.map(esc).join(" ; ")} — expected format <code>★ | name | objective</code>, objectives: ${OBJ_ACTE.join(", ")}`:"");
       } else if(f==="endkind"){ n.endWhen.kind=inp.value; const kr=el.querySelector("#cd-keyrow"); if(kr)kr.style.display=(inp.value==="key")?"":"none"; } else if(f==="endname")n.endWhen.name=inp.value;   // procshape: regenerates the shape each game (names + content kept)
       saveCampDraft(); drawGraph(); }; (inp.tagName==="SELECT"||inp.type==="checkbox")?inp.onchange=set:inp.oninput=set; });
     el.querySelector("[data-del]").onclick=()=>{campNodes=campNodes.filter(x=>x.id!==n.id);if(campStart===n.id)campStart=campNodes[0]?campNodes[0].id:"";campSel=campNodes[0]?campNodes[0].id:null;renderNodes();};
@@ -2957,7 +2962,7 @@
   function renderPlanActe(){
     const el=document.getElementById("ra-plan"); if(!el)return;
     const plan=apercuActe(recetteDepuisUI(),campTerrain);
-    el.textContent="rang  difficulté  forme     objectif      pods  plateau   distorsion\n"+
+    el.textContent="rank  difficulty  shape     objective     pods  board     distortion\n"+
       plan.map(m=>` ${String(m.rang).padStart(2)}   ${m.diff.padEnd(10)} ${m.forme.padEnd(9)} ${m.objectif.padEnd(13)} ${String(m.pods).padStart(2)}   ${(m.bw+"x"+m.bh).padStart(6)}    ${String(m.distorsion).padStart(3)} %`).join("\n"); }
   { const zf=document.getElementById("ra-formes"), zo=document.getElementById("ra-objs");
     if(zf){ zf.innerHTML=RECETTE_ACTE_DEFAUT.formes.map(f=>`<label style="font-size:.8rem"><input type="checkbox" value="${f}" checked> ${f}</label>`).join(""); }
@@ -2975,7 +2980,7 @@
       document.getElementById("cname").value=rec.nom;
       campRecette=rec;                       // la recette voyage AVEC l'acte : il reste regénérable
       const e=document.getElementById("ra-etat");
-      if(e)e.textContent=`${a.plan.length} missions · ${campNodes.length} nœuds · graine ${rec.graine}`;
+      if(e)e.textContent=`${a.plan.length} missions · ${campNodes.length} nodes · seed ${rec.graine}`;
       renderNodes(); };
     maj(); }
 
@@ -3007,7 +3012,7 @@
     const tv=document.getElementById("ta-tv"); if(tv)tv.textContent=Math.round(t*100)+" %";
     const prof=campTerrain||terrainDepuisUI();
     const parDiff=DIFFS.map(d=>d+" "+terrainInterpole(prof,t,d).distorsion+" %").join(" · ");
-    r.textContent=`à ${Math.round(t*100)} % de l'acte : ${part} — densité ${i.densite} · distorsion selon la difficulté : ${parDiff}`; }
+    r.textContent=`at ${Math.round(t*100)}% of the act: ${part} — density ${i.densite} · distortion by difficulty: ${parDiff}`; }
   { const on=taEl("on");
     if(on){
       const majDepuisUI=()=>{ if(!on.checked){campTerrain=null;} else {campTerrain=terrainDepuisUI();}
@@ -3023,7 +3028,7 @@
       if(pv)pv.onclick=()=>{ const prof=campTerrain||terrainDepuisUI();
         appliquerTerrain(prof,(+taEl("t").value||0)/100,seed,"moyen");
         seed=(seed*1103515245+12345)&0x7fffffff; rebuildShape(); setView("mission");
-        const r=document.getElementById("ta-resume"); if(r)r.textContent+=` — aperçu : ${cells.length} cellules`; };
+        const r=document.getElementById("ta-resume"); if(r)r.textContent+=` — preview: ${cells.length} cells`; };
       renderTerrainActe(); } }
 
   function loadCampDraft(){ try{ const d=JSON.parse(localStorage.getItem("mgf_camp_draft_mesh")||"null"); if(d&&Array.isArray(d.nodes)&&d.nodes.length) return d; }catch(e){} return null; }
@@ -3355,21 +3360,21 @@
       if(!it._nivDit){ it._nivDit=1; el.classList.remove("show"); niveauAtteint(it.lvl,step); return; }
       // 1) au premier niveau de voie, on choisit d'abord OFFICIER ou VÉTÉRAN — définitif
       if(usesTrack(it.m,it.lvl)&&!it.m.track){
-        hd.innerHTML=`<span class="who">${esc(it.m.name)}</span> <span class="gr">→ ${esc(GRADES[it.lvl]||("niveau "+it.lvl))}</span> — choisis une voie (définitive)`;
+        hd.innerHTML=`<span class="who">${esc(it.m.name)}</span> <span class="gr">→ ${esc(GRADES[it.lvl]||("niveau "+it.lvl))}</span> — choose a path (permanent)`;
         // ÉCRAN DÉDIÉ. Présenté dans l'arbre, ce choix se lisait comme deux colonnes de plus dans une
         // ligne parmi huit — alors que c'est le seul point de non-retour du système. Il a donc son
         // propre écran : deux cartes, rien d'autre.
         opts.innerHTML=`<div class="voiechoix">`
-          +`<div class="vc-intro">Ce choix est <b>définitif</b>. Il décidera de tes niveaux ${TRACK_LEVELS.join(", ")}.</div>`
+          +`<div class="vc-intro">This choice is <b>permanent</b>. It decides your levels ${TRACK_LEVELS.join(", ")}.</div>`
           +`<div class="vc-cartes">`
           +Object.keys(TRACKS).map(k=>{ const t=TRACKS[k], g=(TRACK_PERKS[k]||{})[it.lvl];
               const perks=[g&&g.A,g&&g.B].filter(Boolean);
               return `<div class="vc" data-voie="${k}"><h3>${esc(t.name)}</h3>`
                 +`<p class="vc-d">${esc(t.desc)}</p>`
-                +`<div class="vc-perks"><span class="vc-lbl">à ce niveau</span>`
+                +`<div class="vc-perks"><span class="vc-lbl">at this level</span>`
                 +(perks.length?perks.map(x=>`<div class="vc-p"><b>${esc(x.name)}</b><span>${esc(x.desc)}</span></div>`).join("")
                               :`<div class="vc-p"><span>—</span></div>`)
-                +`</div><div class="vc-go">choisir cette voie</div></div>`; }).join("")
+                +`</div><div class="vc-go">choose this path</div></div>`; }).join("")
           +`</div></div>`;
         opts.querySelectorAll("[data-voie]").forEach(btn=>btn.onclick=()=>{ it.m.track=btn.getAttribute("data-voie"); saveRosterProgress(); step(); });
         el.classList.add("show"); return; }
@@ -3378,7 +3383,7 @@
       const offer=buildOffer(it);
       if(!offer.A&&!offer.B){ offer.A=randStatPerk(); }   // filet : voie sans contenu à ce niveau → on ne bloque pas la montée
       const trk=usesTrack(it.m,it.lvl)&&it.m.track?` · ${TRACKS[it.m.track].name}`:"";
-      hd.innerHTML=`<span class="who">${esc(it.m.name)}</span> <span class="gr">→ ${GRADES[it.grade+1]||("niveau "+it.lvl)}${trk}</span> — choisis une compétence (définitif)`;
+      hd.innerHTML=`<span class="who">${esc(it.m.name)}</span> <span class="gr">→ ${GRADES[it.grade+1]||("niveau "+it.lvl)}${trk}</span> — choose a skill (permanent)`;
       // ARBRE COMPLET, ligne du niveau courant cliquable : on voit d'où l'on vient et ce qui reste
       opts.innerHTML=`<div style="flex:1">${arbrePerks(it.m,{lvl:it.lvl,offer})}</div>`;
       const lig=opts.querySelector(".lig.actif");
@@ -3666,10 +3671,10 @@
       <div class="row" id="gd-refrow" style="${c.gkind==="mission"?"":"display:none"}"><label style="flex:1">Mission <select id="gd-ref" style="flex:1"${c.gproc?" disabled":""}>${geoMissionOpts(c.gref)}</select></label>
         <label>Difficulty <select id="gd-diff"><option value="0"${!c.gdiff?" selected":""}>—</option>${[1,2,3,4,5].map(n=>`<option value="${n}"${c.gdiff===n?" selected":""}>${"★".repeat(n)}</option>`).join("")}</select></label></div>
       <div class="row" id="gd-procrow" style="${c.gkind==="mission"?"":"display:none"}">
-        <label title="La carte est produite par le générateur : les ÉTOILES commandent le nombre de poches, donc la taille du plateau et la bande de distorsion."><input type="checkbox" id="gd-proc"${c.gproc?" checked":""}> 🎲 carte générée</label>
+        <label title="The map is produced by the generator: the STARS drive the number of pods, hence the board size and the distortion band."><input type="checkbox" id="gd-proc"${c.gproc?" checked":""}> 🎲 generated map</label>
         <span id="gd-procopts" style="${c.gproc?"display:flex;gap:8px":"display:none"}">
-          <label>forme <select id="gd-proc-forme"><option value="">au hasard</option>${RECETTE_ACTE_DEFAUT.formes.map(f=>`<option value="${f}"${c.gproc&&c.gproc.forme===f?" selected":""}>${f}</option>`).join("")}</select></label>
-          <label>objectif <select id="gd-proc-obj"><option value="">au hasard</option>${OBJ_ACTE.map(o=>`<option value="${o}"${c.gproc&&c.gproc.objectif===o?" selected":""}>${o}</option>`).join("")}</select></label>
+          <label>shape <select id="gd-proc-forme"><option value="">random</option>${RECETTE_ACTE_DEFAUT.formes.map(f=>`<option value="${f}"${c.gproc&&c.gproc.forme===f?" selected":""}>${f}</option>`).join("")}</select></label>
+          <label>objective <select id="gd-proc-obj"><option value="">random</option>${OBJ_ACTE.map(o=>`<option value="${o}"${c.gproc&&c.gproc.objectif===o?" selected":""}>${o}</option>`).join("")}</select></label>
         </span></div>
       <div class="hint" id="gd-procapercu" style="${c.gproc?"":"display:none"}"></div>
       <div style="margin-top:6px"><b style="font-size:.82rem">Unlocked by:</b><br>${others||"(no other cell)"}</div>`;
@@ -3686,7 +3691,7 @@
       if(!c.gproc){ z.style.display="none"; return; }
       const et=Math.max(1,Math.min(6,c.gdiff||3)), pods=podsPourEtoiles(et), pal=diffPourEtoiles(et);
       const geo=terrainInterpole(campTerrain,0.5,pal), t=tailleAuto(c.gproc.forme||"rect",pods,geo.densite);
-      z.style.display=""; z.textContent=`★${et} → ${pods} poches · plateau ${t.bw}x${t.bh} · bande « ${pal} » · distorsion ${geo.distorsion} % à mi-acte`; }
+      z.style.display=""; z.textContent=`★${et} → ${pods} pods · board ${t.bw}x${t.bh} · band “${pal}” · distortion ${geo.distorsion}% at mid-act`; }
     const gdf=g("gd-diff"); if(gdf)gdf.onchange=e=>{ c.gdiff=+e.target.value||0; majProcApercu(); draw(); };
     { const pc=g("gd-proc");
       if(pc)pc.onchange=e=>{ if(e.target.checked)c.gproc=c.gproc||{forme:"",objectif:""}; else delete c.gproc; geoRenderDetail(); draw(); };
@@ -3913,7 +3918,7 @@
     for(let r=0;r<rows;r++) for(let c=0;c<NC;c++){
       const i=idx(c,r), poly=polys[i];
       if(c===0||c===NC-1){   // bandes de bord : décor nommé, jamais jouable
-        out.cells[i]={poly, name:(r===milieu?(c===0?(opts.nomGauche||"La Nation"):(opts.nomDroite||"L\u2019Inconnu")):""),
+        out.cells[i]={poly, name:(r===milieu?(c===0?(opts.nomGauche||"The Nation"):(opts.nomDroite||"The Unknown")):""),
           type:"region", content:{kind:"empty",ref:null}, state:"available", unlockedBy:[], edge:(c===0?"nation":"inconnu")};
         continue; }
       if(c===1&&r===milieu){ out.cells[i]={poly, name:(opts.nomCamp||"The Camp"), type:"camp",
@@ -4026,27 +4031,27 @@
       +`<div class="pn">${esc(pk.name)}</div><div class="pd">${esc(pk.desc||"")}</div></div>`; }
   function arbrePerks(m,actif){
     const perks=m.perks||[], off=m.offered||{};
-    let h=`<div class="arbre"><div class="arbre-hd"><span>niveau</span><span>A</span><span>B</span><span>C · tirage</span></div>`;
+    let h=`<div class="arbre"><div class="arbre-hd"><span>level</span><span>A</span><span>B</span><span>C · draw</span></div>`;
     for(let lvl=1;lvl<=NIV_MAX;lvl++){
       const ti=lvl-1, choisi=perks[ti], o=off[ti];
       const estActif=!!(actif&&actif.lvl===lvl);
       const futur=!choisi&&!estActif;
       const trackIci=usesTrack(m,lvl);
       h+=`<div class="lig${estActif?" actif":""}${futur?" futur":""}${trackIci?" voieniv":""}">`
-        +`<div class="niv"><b>${esc(GRADES[lvl]||("niv "+lvl))}</b>`
-        +(trackIci?`<span>${m.track?esc(TRACKS[m.track].name):"voie"}</span>`:"")
-        +(estActif?`<span style="color:#ffd479">à choisir</span>`:"")+`</div>`;
+        +`<div class="niv"><b>${esc(GRADES[lvl]||("lvl "+lvl))}</b>`
+        +(trackIci?`<span>${m.track?esc(TRACKS[m.track].name):"path"}</span>`:"")
+        +(estActif?`<span style="color:#ffd479">to choose</span>`:"")+`</div>`;
       // niveau de VOIE non encore tranché : on montre les deux branches côte à côte
       if(trackIci&&!m.track&&!choisi&&estActif){
         h+=`<div class="voie">`+Object.keys(TRACKS).map(k=>{ const g=(TRACK_PERKS[k]||{})[lvl];
           return `<div class="bloc" data-voie="${k}"><h4>${esc(TRACKS[k].name)}</h4>`
             +[g&&g.A,g&&g.B].filter(Boolean).map(x=>`<div class="pn" style="font-size:.8rem">${esc(x.name)}</div><div class="pd">${esc(x.desc)}</div>`).join("")
             +`</div>`; }).join("")+`</div>`
-          +`<div class="cel vide"><div class="tag">🎲 tirage</div></div></div>`;
+          +`<div class="cel vide"><div class="tag">🎲 draw</div></div></div>`;
         continue; }
       if(futur){   // à venir : on montre la ligne, pas son contenu
         h+=`<div class="cel masque">?</div><div class="cel masque">?</div>`
-          +`<div class="cel vide"><div class="tag">🎲 tirage</div></div></div>`; continue; }
+          +`<div class="cel vide"><div class="tag">🎲 draw</div></div></div>`; continue; }
       let A,B,C;
       if(o){ A=perkById(m.cls,o.a); B=perkById(m.cls,o.b); C=perkById(m.cls,o.c); }
       else { const pr=(estActif&&actif.offer)?actif.offer:perkPairFor(m,lvl);
@@ -4058,7 +4063,7 @@
       if(choisi&&!o){
         const pk=perkById(m.cls,choisi);
         const col=(A&&A.id===choisi)?"A":((B&&B.id===choisi)?"B":"C");
-        const inconnu=`<div class="cel vide" style="display:flex;align-items:center"><span class="tag">non enregistré</span></div>`;
+        const inconnu=`<div class="cel vide" style="display:flex;align-items:center"><span class="tag">not recorded</span></div>`;
         h+=(col==="A"?celPerk(pk,"pris"):(A?celPerk(A,"ecarte"):inconnu))
           +(col==="B"?celPerk(pk,"pris"):(B?celPerk(B,"ecarte"):inconnu))
           +(col==="C"?celPerk(pk,"pris","🎲"):inconnu)+`</div>`;
@@ -4068,10 +4073,10 @@
         return (o&&o.took===k)||(pk.id===choisi)?"pris":"ecarte"; };
       if(!A&&!B&&!choisi){   // l'arbre de cette classe s'arrête avant ce niveau (les mages n'ont pas de
         // niveau 8) : on le DIT, au lieu de laisser une ligne vide qui passe pour un défaut d'affichage
-        h+=`<div class="cel vide" style="grid-column:2/4;display:flex;align-items:center"><span class="tag">aucun perk défini à ce niveau pour cette classe</span></div>`
-          +`<div class="cel vide"><div class="tag">🎲 tirage</div></div></div>`; continue; }
+        h+=`<div class="cel vide" style="grid-column:2/4;display:flex;align-items:center"><span class="tag">no perk defined at this level for this class</span></div>`
+          +`<div class="cel vide"><div class="tag">🎲 draw</div></div></div>`; continue; }
       h+=celPerk(A,etat("A"))+celPerk(B,etat("B"))
-        +(C?celPerk(C,etat("C"),"🎲"):`<div class="cel vide"><div class="tag">🎲 tirage</div></div>`)
+        +(C?celPerk(C,etat("C"),"🎲"):`<div class="cel vide"><div class="tag">🎲 draw</div></div>`)
         +`</div>`; }
     return h+`</div>`; }
 
@@ -4083,7 +4088,7 @@
       const next=XP_THRESH[g+1], clsName=(CLASSES[m.cls]&&CLASSES[m.cls].name)||m.cls;   // n'est pas une recrue
       return `<div class="sh-m${m.dead?" sh-dead":""}"><div class="sh-h"><b>${esc(m.name)}</b> <span class="sh-cls">${esc(clsName)}</span>`
         +`${m.track?' · <span class="sh-cls">'+esc(TRACKS[m.track].name)+'</span>':""} · <b style="color:#a8e08a">${esc(GRADES[g]||("niv "+g))}</b>${m.special!==false?" ★":""}</div>`
-        +`<div class="sh-xp">${m.xp||0} XP${next!=null?(" · niveau suivant à "+next+" XP"):" · niveau maximal"}</div>`
+        +`<div class="sh-xp">${m.xp||0} XP${next!=null?(" · next level at "+next+" XP"):" · top level"}</div>`
         +arbrePerks(m,null)+`</div>`; }).join("");
     el.classList.add("show"); }
   { const sx=document.getElementById("sheet-x"),sh=document.getElementById("sheet"); if(sx)sx.onclick=()=>sh.classList.remove("show"); if(sh)sh.addEventListener("click",e=>{ if(e.target===sh)sh.classList.remove("show"); }); }
