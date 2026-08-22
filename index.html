@@ -432,7 +432,9 @@
     <div class="row"><select id="t-result"><option value="">result —</option><option>hit</option><option>miss</option><option>blocked</option></select><select id="t-killed"><option value="">kills? —</option><option value="true">yes</option><option value="false">no</option></select></div>
     <div class="row" id="t-cracker-row" style="display:none"><label style="font-size:.85rem;display:flex;align-items:center;gap:5px">💥 enemies hit <input id="t-ehmin" type="number" min="0" placeholder="min" style="width:56px"> to <input id="t-ehmax" type="number" min="0" placeholder="max" style="width:56px"></label></div>
     <div class="row"><label style="display:flex;align-items:center;gap:5px;font-size:.85rem"><input type="checkbox" id="t-once" checked> once only</label><label style="display:flex;align-items:center;gap:5px;font-size:.85rem"><input type="checkbox" id="t-first"> 1st action of the turn</label></div>
-    <div class="row"><input id="t-id" type="text" placeholder="id (optional)" style="flex:1"><input id="t-requires" type="text" placeholder="requires id…" style="flex:1"></div>
+    <div class="row"><input id="t-id" type="text" placeholder="id (optional)" style="flex:1"><input id="t-requires" type="text" placeholder="requires id…" style="flex:1"><input id="t-forbids" type="text" placeholder="unless id…" style="flex:1"></div>
+    <div class="row"><label style="font-size:.85rem;display:flex;align-items:center;gap:6px" title="When several events match the same moment, only the highest priority plays. On a tie the mission's own events win over the act's.">priority <input id="t-prio" type="number" value="0" style="width:64px"></label>
+      <span class="hint" style="flex:1">One event per moment: the highest priority wins, ties go to the mission's own.</span></div>
     <div class="row"><input id="t-wake" type="text" placeholder="wake pod N / all" style="flex:1"><select id="t-passmode"><option value="">passage —</option><option value="open">open zone</option><option value="close">close zone</option></select><input id="t-passzone" type="text" placeholder="zone" style="width:64px"></div>
     <div class="hint">Actions: wake a pod, or open/close a painted zone (makes it passable / blocked).</div>
     <div class="row"><input id="t-who" type="text" placeholder="who speaks" style="flex:1"><input id="t-text" type="text" placeholder="line…" style="flex:2"><button id="t-addline" title="Stack one more line">＋</button></div>
@@ -2768,7 +2770,7 @@
   function renderTrigList(){const el=document.getElementById("triglist");if(!el)return;
     const src=trigArr();
     // une ligne, telle qu'elle s'affichait avant — on ne change que le RANGEMENT
-    const ligne=(t,i)=>{const mm=Object.entries(t.match||{}).map(([k,v])=>k+":"+fmtMatch(v)).join(" ");const flags=(trigMode==="camp"?fmtPortee(t.portee):"")+(t.id?" #"+t.id:"")+(t.once===false?"":" ⟲1×")+(t.firstAction?" ⚑1st":"")+(t.requires?" ⊳"+t.requires:"")+(t.wake?" ⏰"+t.wake:"")+(t.open?" ⛩"+t.open:"")+(t.close?" ⛔"+t.close:"");const say=t.say?`${t.say[0]||"?"}: "${t.say[1]}"`:(t.lines?t.lines.length+" lines":(t.wake||t.open||t.close?"(action)":""));return `<div><button class="tedit" data-i="${i}" title="Edit this event">✎</button><button class="tdel" data-i="${i}">✕</button> <b>${t.on}</b> ${mm}${flags} → 💬 ${say}</div>`;};
+    const ligne=(t,i)=>{const mm=Object.entries(t.match||{}).map(([k,v])=>k+":"+fmtMatch(v)).join(" ");const flags=(trigMode==="camp"?fmtPortee(t.portee):"")+(t.id?" #"+t.id:"")+(t.once===false?"":" ⟲1×")+(t.firstAction?" ⚑1st":"")+(t.requires?" ⊳"+t.requires:"")+(t.forbids?" ⊘"+t.forbids:"")+(t.priority?" ⇧"+t.priority:"")+(t.wake?" ⏰"+t.wake:"")+(t.open?" ⛩"+t.open:"")+(t.close?" ⛔"+t.close:"");const say=t.say?`${t.say[0]||"?"}: "${t.say[1]}"`:(t.lines?t.lines.length+" lines":(t.wake||t.open||t.close?"(action)":""));return `<div><button class="tedit" data-i="${i}" title="Edit this event">✎</button><button class="tdel" data-i="${i}">✕</button> <b>${t.on}</b> ${mm}${flags} → 💬 ${say}</div>`;};
     if(!src.length){ el.innerHTML=`<i>no event yet</i>`; majTrigCount(); return; }
     // regroupement par famille : les catégories vides ne s'affichent pas, et une famille inconnue
     // (déclencheur venu d'un fichier plus ancien) tombe dans « Other » plutôt que de disparaître
@@ -2795,6 +2797,8 @@
     const lines=trigLines.slice();const cur=(tText.value||"").trim();if(cur)lines.push({who:(tWho.value||"").trim(),text:cur});
     const t={on};if(Object.keys(m).length)t.match=m;t.once=tOnce.checked;if(tFirst.checked)t.firstAction=true;
     const idv=(tId.value||"").trim();if(idv)t.id=idv; const req=(tRequires.value||"").trim();if(req)t.requires=req;
+    { const fb=(document.getElementById("t-forbids").value||"").trim(); if(fb)t.forbids=fb;
+      const pr=+document.getElementById("t-prio").value||0; if(pr)t.priority=pr; }
     const wk=(tWake.value||"").trim();if(wk)t.wake=wk; if(tPassmode.value&&(tPasszone.value||"").trim())t[tPassmode.value]=tPasszone.value.trim();
     if(!lines.length&&!(t.wake||t.open||t.close)){alert("Write a line or choose an action (wake / passage).");return;}
     if(lines.length===1)t.say=[lines[0].who,lines[0].text];else if(lines.length)t.lines=lines.map(l=>[l.who,l.text]);
@@ -2802,7 +2806,7 @@
         const e=document.getElementById("t-sc-"+k), v=e?(e.value||"").trim():""; if(v)P[k]=v; }
       if(Object.keys(P).length)t.portee=P; }
     if(trigEdit!=null){ trigArr()[trigEdit]=t; finEdition(); } else trigArr().push(t);
-    tText.value="";tId.value="";tRequires.value="";tWake.value="";tPasszone.value="";tPassmode.value="";tActor.value="";tZone.value="";tTarget.value="";tResult.value="";tKilled.value="";tEhMin.value="";tEhMax.value="";trigLines=[];renderTrigLines();renderTrigList();saveDraft();}
+    tText.value="";tId.value="";tRequires.value="";tWake.value="";tPasszone.value="";tPassmode.value="";tActor.value="";tZone.value="";tTarget.value="";document.getElementById("t-forbids").value="";document.getElementById("t-prio").value=0;tResult.value="";tKilled.value="";tEhMin.value="";tEhMax.value="";trigLines=[];renderTrigLines();renderTrigList();saveDraft();}
   document.getElementById("t-addline").onclick=addLine;
   document.getElementById("t-add").onclick=addTrig;
   // ÉDITION D'UNE LIGNE. Sans elle, corriger une portée obligeait à supprimer et tout ré-écrire —
@@ -2811,8 +2815,9 @@
   function finEdition(){ trigEdit=null;
     const b=document.getElementById("t-add"); if(b)b.textContent="+ Add the event";
     const c=document.getElementById("t-cancel"); if(c)c.style.display="none"; }
-  function viderForm(){ for(const id of ["t-actor","t-zone","t-target","t-id","t-requires","t-wake","t-passzone","t-who","t-text","t-ehmin","t-ehmax"]){
+  function viderForm(){ for(const id of ["t-actor","t-zone","t-target","t-id","t-requires","t-forbids","t-wake","t-passzone","t-who","t-text","t-ehmin","t-ehmax"]){
       const e=document.getElementById(id); if(e)e.value=""; }
+    const pr=document.getElementById("t-prio"); if(pr)pr.value=0;
     for(const id of ["t-result","t-killed","t-passmode"]){ const e=document.getElementById(id); if(e)e.value=""; }
     const o=document.getElementById("t-once"); if(o)o.checked=true;
     const f=document.getElementById("t-first"); if(f)f.checked=false;
@@ -2828,6 +2833,7 @@
     if(m.enemiesHit){ set("t-ehmin",m.enemiesHit.min); set("t-ehmax",m.enemiesHit.max); }
     q("t-once").checked=(t.once!==false); q("t-first").checked=!!t.firstAction;
     set("t-id",t.id); set("t-requires",t.requires); set("t-wake",t.wake);
+    set("t-forbids",t.forbids); set("t-prio",t.priority||0);
     if(t.open){ set("t-passmode","open"); set("t-passzone",t.open); }
     else if(t.close){ set("t-passmode","close"); set("t-passzone",t.close); }
     const P=t.portee||{}; for(const k of ["rang","etoiles","forme","objectif","region"]) set("t-sc-"+k,P[k]||"");
