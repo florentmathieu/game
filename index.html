@@ -1410,6 +1410,7 @@
                const corr=new Set(onPath); for(const id of onPath) for(const v of cells[id].nb) corr.add(v);
                let cc=0; for(const id of corr) if(isCov(cells[id]))cc++;
                return +(100*cc/corr.size).toFixed(1); })(),   // couvert DANS le couloir : doit etre bien sous la moyenne
+             abriPct:+(100*cells.filter(c=>c.terr==="cover").length/n).toFixed(1),
              murets:walls?walls.size:0,
              // BÂTIMENTS : ce qu'on veut vérifier d'un coup d'œil — chaque maison a-t-elle une porte,
              // et son sol est-il vraiment ATTEIGNABLE (secteur fortement connexe, pas seulement voisin) ?
@@ -2120,7 +2121,7 @@
     differer(()=>{ if(!over&&att.hp>0&&u.hp>0&&att.ap>0&&inRange(att,u,m))doAttack(att,u,m); refresh(); }, anim?anim.dur+120:60); }
 
   // ===== rendering =====
-  const terrFill={plain:"#3a6e4c",rough:"#7a6326",wall:"#3a6e4c",cover:"#46663f"};
+  const terrFill={plain:"#3a6e4c",rough:"#7a6326",wall:"#3a6e4c",cover:"#4a6f74"};   // l'abri tirait sur le vert de l'herbe : rien ne le distinguait
   const terrRGB={}; for(const k in terrFill){terrRGB[k]=[parseInt(terrFill[k].slice(1,3),16),parseInt(terrFill[k].slice(3,5),16),parseInt(terrFill[k].slice(5,7),16)];}
   // FINAL color of a tile (base + elevation, or fog) as solid → identical fill AND border = no visible boundary
   function shade(c,unseen){ let [r,g,b]=terrRGB[c.terr]||terrRGB.plain;
@@ -2135,6 +2136,17 @@
     ctx.fillStyle="#4a4d54"; ctx.beginPath(); blob(-s*0.42,s*0.2,s*0.6); blob(s*0.4,s*0.24,s*0.55); blob(0,-s*0.24,s*0.7); ctx.fill();
     ctx.strokeStyle="#1d1e22"; ctx.lineWidth=2; ctx.stroke();
     ctx.fillStyle="#7d818a"; ctx.beginPath(); blob(-s*0.1,-s*0.32,s*0.42); blob(s*0.3,s*0.05,s*0.3); ctx.fill(); }
+  // ABRI : des sacs empilés au centre de la case. On doit voir qu'on se met DEDANS — d'où une
+  // silhouette basse et large, à l'opposé du tas de roche pointu.
+  function drawAbri(c){ const x=c.cx,y=c.cy;
+    ctx.save();
+    const sac=(sx,sy,w,h)=>{ ctx.beginPath();
+      ctx.ellipse(x+sx,y+sy,w,h,0,0,TWO); ctx.fillStyle="#9b8b63"; ctx.fill();
+      ctx.strokeStyle="#4a4232"; ctx.lineWidth=1.2; ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(x+sx-w*0.7,y+sy); ctx.lineTo(x+sx+w*0.7,y+sy); ctx.strokeStyle="rgba(74,66,50,.6)"; ctx.lineWidth=0.9; ctx.stroke(); };
+    sac(-7,4,6.5,4); sac(7,4,6.5,4); sac(0,4,6.5,4);
+    sac(-3.5,-2,6.5,4); sac(3.5,-2,6.5,4);
+    ctx.restore(); }
   // MAÇONNERIE, sur l'arête. Le muret est un trait clair et fin ; le mur plein est ÉPAIS, sombre,
   // appareillé — deux traits parallèles serrés avec des boutisses en travers. À l'œil, on distingue
   // « je peux passer par-dessus » de « ça m'arrête ».
@@ -2220,6 +2232,7 @@
       poly(c); ctx.lineWidth=c.sup!=null?0.4:0.6; ctx.strokeStyle=unseen?"rgba(18,14,9,.16)":"rgba(18,14,9,.30)"; ctx.stroke();   // very thin tile outline (kites even finer under a double mesh) — subtle under the fog
       if(c.sol&&!unseen){ poly(c); ctx.fillStyle="rgba(206,176,128,.12)"; ctx.fill(); }   // le plancher, juste teinté : les murs suffisent à dire la maison
       if(c.terr==="wall"&&!unseen){ drawRock(c); }
+      if(c.terr==="cover"&&!unseen){ drawAbri(c); }
       if(smoke.has(c.id)&&!unseen){ poly(c); ctx.fillStyle="rgba(200,205,212,.55)"; ctx.fill(); } }   // 🌫 smoke: gray veil over the smoked tiles
     if(cells.length&&cells[0].sup!=null){ ctx.lineWidth=3.4; ctx.strokeStyle="rgba(20,14,7,.95)"; ctx.lineCap="round";   // double maillage : trait ÉPAIS uniquement aux frontières de chapeau (sup différent) — contraste fort avec les kites fins
       for(const c of cells){ for(const n of c.nb){ if(n<=c.id||cells[n].sup===c.sup)continue; const s=wallSeg.get(wkey(c.id,n)); if(!s)continue; ctx.beginPath(); ctx.moveTo(s[0][0],s[0][1]); ctx.lineTo(s[1][0],s[1][1]); ctx.stroke(); } }
@@ -2323,7 +2336,38 @@
       const bw=30,bx=x-bw/2,by=y-25;ctx.fillStyle="rgba(0,0,0,.6)";ctx.fillRect(bx-1,by-1,bw+2,6);ctx.fillStyle="#3a3128";ctx.fillRect(bx,by,bw,4);ctx.fillStyle=u.team==="player"?"#6fd06f":"#e06f6f";ctx.fillRect(bx,by,bw*Math.max(0,u.hp)/u.max,4);
       ctx.globalAlpha=1; } catch(e){ ctx.globalAlpha=1; } }
     if(mode==="play")drawFx();   // combat juice on top of the scene
+    if(hoverCell!=null&&cells[hoverCell]&&(mode!=="play"||visible.has(hoverCell)))legendeCase(cells[hoverCell]);
   }
+  // LÉGENDE DE CASE. Les marqueurs de survol (½, █, liseré cyan) supposent qu'on connaisse le code ;
+  // au moment de choisir où se poster, la question est « qu'est-ce que ça me donne ? ». On l'écrit.
+  function legendeCase(c){
+    const L=[];
+    if(c.terr==="cover")L.push(["Cover","protected from every side · −"+COVER_PEN+" to hit you"]);
+    else if(c.terr==="rough")L.push(["Rubble","costs 2 to enter · no cover"]);
+    else if(c.terr==="wall")L.push(["Rock","blocks sight and passage"]);
+    if(c.elev)L.push([(c.elev>0?"Height +":"Depth ")+c.elev, (c.elev>0?"+":"")+(c.elev*HEIGHT_BONUS)+" to your aim"]);
+    let nMuret=0,nMur=0,nFen=0,nPorte=0;
+    for(const n of c.nb){ const k=wkey(c.id,n);
+      if(murs.has(k))nMur++; else if(fenetres.has(k))nFen++; else if(walls.has(k))nMuret++;
+      if(portes.has(k))nPorte++; }
+    if(nMuret)L.push([nMuret+" low wall"+(nMuret>1?"s":""),"half cover from that side · slow to climb"]);
+    if(nFen)L.push([nFen+" window"+(nFen>1?"s":""),"half cover · you can see and climb through"]);
+    if(nMur)L.push([nMur+" building wall"+(nMur>1?"s":""),"full cover from that side · nothing gets through"]);
+    if(nPorte)L.push(["Doorway","the way in, no cover"]);
+    if(c.sol)L.push(["Inside a building",""]);
+    if(!L.length)return;
+    ctx.save(); ctx.font="11px system-ui,sans-serif"; ctx.textBaseline="top"; ctx.textAlign="left";   // le contexte peut arriver centré (surlignage de couvert) : on le pose explicitement
+    const lignes=L.map(([a,b])=>[a,b]);
+    let lw=0; for(const [a,b] of lignes){ const w=ctx.measureText(a+(b?"  "+b:"")).width; if(w>lw)lw=w; }
+    const pad=6, bw=lw+pad*2, bh=lignes.length*14+pad*2;
+    let bx=c.cx+16, by=c.cy-bh/2;
+    if(bx+bw>W-4)bx=c.cx-16-bw; if(by<4)by=4; if(by+bh>H-4)by=H-bh-4;
+    ctx.fillStyle="rgba(14,11,7,.92)"; ctx.strokeStyle="rgba(90,69,48,.9)"; ctx.lineWidth=1;
+    ctx.beginPath(); ctx.rect(bx,by,bw,bh); ctx.fill(); ctx.stroke();
+    lignes.forEach(([a,b],i)=>{ const y=by+pad+i*14;
+      ctx.fillStyle="#ffd479"; ctx.fillText(a,bx+pad,y);
+      if(b){ const w=ctx.measureText(a).width; ctx.fillStyle="#b8b0a0"; ctx.fillText("  "+b,bx+pad+w,y); } });
+    ctx.restore(); }
 
   // ===== editor UI =====
   const distEl=document.getElementById("dist"),dens=document.getElementById("dens"),uteam=document.getElementById("uteam"),ucls=document.getElementById("ucls"),upod=document.getElementById("upod"),uasleep=document.getElementById("uasleep"),uhostage=document.getElementById("uhostage"),uname=document.getElementById("uname");
@@ -2331,7 +2375,7 @@
   function btnRow(host,items){ host.innerHTML=""; items.forEach(([label,tool])=>{const b=document.createElement("button");b.textContent=label;b.dataset.tool=tool;b.className=editTool===tool?"on":"";b.onclick=()=>{editTool=tool;syncTools();refresh();};host.appendChild(b);}); }
   function syncTools(){ document.querySelectorAll("#zones button,#terr button,#relief button,#tplace,#terase,#tpod,#tsleep,#tdeploy,#tpodanchor,#tzpaint,#tzerase").forEach(b=>b.classList.toggle("on",b.dataset.tool===editTool)); }
   btnRow(document.getElementById("zones"),[["⬛","zone:square"],["⬡","zone:hex"],["⬠","zone:pentagon"],["🔀","zone:mix"]]);
-  btnRow(document.getElementById("terr"),[["🟩 Ground","terr:plain"],["⛰ Rough","terr:rough"],["🪨 Rock","terr:wall"],["🧱 Low wall","muret"],["🧹 Eraser","gomme-t"]]);
+  btnRow(document.getElementById("terr"),[["🟩 Ground","terr:plain"],["⛰ Rough","terr:rough"],["🛡 Cover","terr:cover"],["🪨 Rock","terr:wall"],["🧱 Low wall","muret"],["🧹 Eraser","gomme-t"]]);
   btnRow(document.getElementById("relief"),[["⬆ raise","elev+"],["⬇ lower","elev-"]]);
   { const b=document.createElement("button"); b.textContent="🎲 Auto profile"; b.title="Generates random elevation, rocks, cover and low walls"; b.onclick=()=>autoTerrain(); document.getElementById("relief").appendChild(b); }
   { const gm=document.getElementById("gen-mission"); if(gm)gm.onclick=()=>genMission();
@@ -2459,6 +2503,7 @@
   //     45 -> 22 % de marche à vide, missions de 14 tours
   //     60 -> 30 %                              17 tours   <- la cible
   //     80 -> 39 %                              20 tours
+  const PART_ABRI=0.10;   // part des cases en ABRI (couvert plein omnidirectionnel) sur une carte générée
   let CEL_PAR_POD=60;
   // Les formes n'ont pas la même surface à réglages égaux : une croix à 20x16 fait 389 cellules là
   // où un rectangle en fait 806. Mesuré sur les mêmes 560 parties, cellules ~ k x largeur².
@@ -2786,6 +2831,20 @@
           if(c.terr==="wall"){ c.terr="rough"; murs--; } }
       })();
     })();
+
+    // ABRIS — la case « cover » : sacs de sable, caisses, épave, trou d'obus. On s'y tient DEDANS et
+    // on est protégé de partout (−COVER_PEN, sans condition d'angle), mais la vue passe et le
+    // passage aussi. C'est le seul couvert non directionnel du jeu ; il était câblé partout — règle
+    // de tir, dessin, IA — et le générateur ne l'avait jamais posé.
+    // Groupés par le même champ de bruit que le couvert : une ligne de sacs, pas des confettis.
+    (function abris(){
+      const part=(P.abris!=null?P.abris:PART_ABRI); if(part<=0)return;
+      const elig=cells.filter(c=>c.elev===0&&c.terr==="plain"&&!c._barrier&&!c._route&&!c._dio&&!c._ramp&&!c._batin&&!c.sol);
+      if(!elig.length)return;
+      const budget=Math.round(cells.length*part); if(budget<=0)return;
+      const scored=elig.map(c=>({c,v:STRUCT?(nz(c.cx+911,c.cy-437,SC*0.8)):rnd()}));
+      scored.sort((a,b)=>b.v-a.v);
+      for(let i=0;i<Math.min(budget,scored.length);i++)scored[i].c.terr="cover"; })();
 
     // garde-fou : murs agrégés + barrières peuvent isoler un morceau de carte.
     (function keepConnected(){
@@ -4546,7 +4605,9 @@
   function banner(text,cls){ const el=document.getElementById("banner"); el.textContent=text; el.style.background=cls==="enemy"?"#5a2a2a":"#2a4a5a"; el.classList.remove("show"); void el.offsetWidth; el.classList.add("show"); }
   const TERRN={plain:"ground",rough:"rough",wall:"rock",cover:"cover"};
   cv.addEventListener("mousemove",e=>{ if(inGeo())return; if(geoPlay&&!geoPlay.inMission){ const [gx,gy]=evXY(e); const gc=cellAtXY(gx,gy); const h=gc?gc.id:null; if(h!==hoverCell){hoverCell=h;draw();} return; } const f=document.getElementById("fiche"); const [mx,my]=evXY(e); const cell=cellAtXY(mx,my);
-    if(mode==="play"&&!over&&sel&&turn==="player"){ const hc=cell?cell.id:null; if(hc!==hoverCell){hoverCell=hc;draw();} }
+    // le survol n'était suivi que pendant un tour joueur avec un pion sélectionné, parce qu'il ne
+    // servait qu'à tracer le chemin. La légende de case, elle, est utile aussi en composant la carte.
+    if((mode==="play"&&!over)||mode==="edit"){ const hc=cell?cell.id:null; if(hc!==hoverCell){hoverCell=hc;draw();} }
     if(!cell){f.style.display="none";return;} const u=uAt(cell.id);
     if(!(u&&(mode==="edit"||u.team==="player"||seen(u)))){ f.style.display="none"; return; }   // no "cell · ground" tooltip
     const m=u.w.ranged?"ranged":"melee",w=u.w[m]; const wn=(CLASSES[u.cls]&&CLASSES[u.cls].wname)||(u.w.ranged?(u.clip!==undefined?"crossbow":"bow"):(u.flank?"daggers":(w.bare?"bare hands":"sword")));
@@ -4554,7 +4615,7 @@
         +(u.shieldBlock?` · 🛡 ${u.shieldBlock}%`:"")+(u.parry?` · 🗡 parry ${u.parry}%`:"")+(u.flank?` · back +${u.flank.back}/flank +${u.flank.side}`:"")
         +(u.crackers?` · 💣×${u.crackers}`:"")+(u.asleep?" · 💤":"")+(u.pod!==undefined?` · pod ${u.pod}`:"")+(u.overwatch?(u.owMode==="ranged"?" · 👁🏹":" · 👁"):"");
     f.innerHTML=h; f.style.display="block"; });   // card anchored at the top right (no longer follows the cursor)
-  cv.addEventListener("mouseleave",()=>{document.getElementById("fiche").style.display="none"; if(mode==="play"&&hoverCell!=null){hoverCell=null;draw();}});
+  cv.addEventListener("mouseleave",()=>{document.getElementById("fiche").style.display="none"; if(hoverCell!=null){hoverCell=null;draw();}});
   function cycleSel(dir){ if(mode!=="play"||turn!=="player")return; const ps=units.filter(u=>u.team==="player"&&u.hp>0); if(!ps.length)return; let i=ps.indexOf(sel); i=(i<0?0:(i+dir+ps.length)%ps.length); sel=ps[i]; amode=null;aimTarget=null;throwing=false;usingItem=false; refresh(); }
   window.addEventListener("keydown",e=>{ if(mode!=="play"||introBlocking||speaking||(geoPlay&&!geoPlay.inMission)||document.getElementById("camptext").classList.contains("show"))return;
     if(e.key==="Tab"){e.preventDefault(); if(amode&&cycleTarget(e.shiftKey?-1:1))return; cycleSel(e.shiftKey?-1:1);}   // while aiming: Tab switches target, otherwise unit
