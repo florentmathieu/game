@@ -425,14 +425,6 @@
 <div id="trigwin"><div id="trigwin-card">
   <div id="trigwin-hd"><span id="trigwin-t">🎬 Triggers</span><span id="trigwin-sub" class="hint"></span><span id="trigwin-x">✕</span></div>
   <div id="trigwin-body">
-    <div id="trigwin-scope" class="row" style="display:none;flex-wrap:wrap;gap:8px;border:1px solid #3a3428;border-radius:8px;padding:8px;margin-bottom:10px">
-      <span style="font-size:.8rem;color:#e0b341;width:100%">Applies to which generated missions? <span class="hint" style="font-weight:normal">(empty = all)</span></span>
-      <label style="font-size:.8rem">rank <input id="t-sc-rang" type="text" placeholder="3 · 2-4 · 1,5" style="width:78px"></label>
-      <label style="font-size:.8rem">★ <input id="t-sc-etoiles" type="text" placeholder="4 · 3-5" style="width:64px"></label>
-      <label style="font-size:.8rem">shape <input id="t-sc-forme" type="text" placeholder="croix" style="width:84px"></label>
-      <label style="font-size:.8rem">objective <input id="t-sc-objectif" type="text" placeholder="harvest" style="width:90px"></label>
-      <label style="font-size:.8rem">region <input id="t-sc-region" type="text" placeholder="Bastion" style="width:96px"></label>
-    </div>
     <div id="triglist" class="hint"></div>
     <div class="row"><select id="t-on"></select></div>
     <div class="row"><input id="t-actor" type="text" placeholder="actor (name/class)" style="flex:1"><input id="t-zone" type="text" placeholder="zone (e.g. A)" style="flex:1"></div>
@@ -445,7 +437,15 @@
     <div class="hint">Actions: wake a pod, or open/close a painted zone (makes it passable / blocked).</div>
     <div class="row"><input id="t-who" type="text" placeholder="who speaks" style="flex:1"><input id="t-text" type="text" placeholder="line…" style="flex:2"><button id="t-addline" title="Stack one more line">＋</button></div>
     <div id="t-lines" class="hint"></div>
-    <div class="row"><button id="t-add">+ Add the event</button></div>
+    <div id="trigwin-scope" class="row" style="display:none;flex-wrap:wrap;gap:8px;border:1px solid #3a3428;border-radius:8px;padding:8px;margin-bottom:10px">
+      <span style="font-size:.8rem;color:#e0b341;width:100%">Play this event on which generated missions? <span class="hint" style="font-weight:normal">every field left empty = every mission</span></span>
+      <label style="font-size:.8rem">rank <input id="t-sc-rang" type="text" placeholder="3 · 2-4 · 1,5" style="width:78px"></label>
+      <label style="font-size:.8rem">★ <input id="t-sc-etoiles" type="text" placeholder="4 · 3-5" style="width:64px"></label>
+      <label style="font-size:.8rem">shape <input id="t-sc-forme" type="text" placeholder="croix" style="width:84px"></label>
+      <label style="font-size:.8rem">objective <input id="t-sc-objectif" type="text" placeholder="harvest" style="width:90px"></label>
+      <label style="font-size:.8rem">region <input id="t-sc-region" type="text" placeholder="Bastion" style="width:96px"></label>
+    </div>
+    <div class="row"><button id="t-add">+ Add the event</button><button id="t-cancel" style="display:none">✕ Cancel the edit</button></div>
   </div></div></div>
 <div id="promote"><div id="promote-card"><div id="promote-hd"></div><div id="promote-opts"></div></div></div>
 <div id="squad"><div id="squad-card"><div id="squad-hd"></div><div id="squad-list"></div><div id="squad-foot"><button id="squad-cancel">Cancel</button><button id="squad-go">Start the mission</button></div></div></div>
@@ -2768,7 +2768,7 @@
   function renderTrigList(){const el=document.getElementById("triglist");if(!el)return;
     const src=trigArr();
     // une ligne, telle qu'elle s'affichait avant — on ne change que le RANGEMENT
-    const ligne=(t,i)=>{const mm=Object.entries(t.match||{}).map(([k,v])=>k+":"+fmtMatch(v)).join(" ");const flags=(trigMode==="camp"?fmtPortee(t.portee):"")+(t.id?" #"+t.id:"")+(t.once===false?"":" ⟲1×")+(t.firstAction?" ⚑1st":"")+(t.requires?" ⊳"+t.requires:"")+(t.wake?" ⏰"+t.wake:"")+(t.open?" ⛩"+t.open:"")+(t.close?" ⛔"+t.close:"");const say=t.say?`${t.say[0]||"?"}: "${t.say[1]}"`:(t.lines?t.lines.length+" lines":(t.wake||t.open||t.close?"(action)":""));return `<div><button class="tdel" data-i="${i}">✕</button> <b>${t.on}</b> ${mm}${flags} → 💬 ${say}</div>`;};
+    const ligne=(t,i)=>{const mm=Object.entries(t.match||{}).map(([k,v])=>k+":"+fmtMatch(v)).join(" ");const flags=(trigMode==="camp"?fmtPortee(t.portee):"")+(t.id?" #"+t.id:"")+(t.once===false?"":" ⟲1×")+(t.firstAction?" ⚑1st":"")+(t.requires?" ⊳"+t.requires:"")+(t.wake?" ⏰"+t.wake:"")+(t.open?" ⛩"+t.open:"")+(t.close?" ⛔"+t.close:"");const say=t.say?`${t.say[0]||"?"}: "${t.say[1]}"`:(t.lines?t.lines.length+" lines":(t.wake||t.open||t.close?"(action)":""));return `<div><button class="tedit" data-i="${i}" title="Edit this event">✎</button><button class="tdel" data-i="${i}">✕</button> <b>${t.on}</b> ${mm}${flags} → 💬 ${say}</div>`;};
     if(!src.length){ el.innerHTML=`<i>no event yet</i>`; majTrigCount(); return; }
     // regroupement par famille : les catégories vides ne s'affichent pas, et une famille inconnue
     // (déclencheur venu d'un fichier plus ancien) tombe dans « Other » plutôt que de disparaître
@@ -2777,7 +2777,8 @@
     el.innerHTML=[...par.entries()].filter(([,v])=>v.length).map(([nom,v])=>
       `<div class="tcat">${esc(nom)} <span>${v.length}</span></div>`+v.map(([t,i])=>ligne(t,i)).join("")
     ).join("");
-    el.querySelectorAll(".tdel").forEach(b=>b.onclick=()=>{trigArr().splice(+b.dataset.i,1);renderTrigList();trigSave();majTrigCount();});
+    el.querySelectorAll(".tdel").forEach(b=>b.onclick=()=>{trigArr().splice(+b.dataset.i,1);if(trigEdit!=null)finEdition();renderTrigList();trigSave();majTrigCount();});
+    el.querySelectorAll(".tedit").forEach(b=>b.onclick=()=>ouvrirEdition(+b.dataset.i));
     majTrigCount(); }
   function majTrigCount(){ const c=document.getElementById("trig-count");
     if(c)c.textContent=triggers.length?`${triggers.length} on this mission`:"none on this mission";
@@ -2800,10 +2801,44 @@
     if(trigMode==="camp"){ const P={}; for(const k of ["rang","etoiles","forme","objectif","region"]){
         const e=document.getElementById("t-sc-"+k), v=e?(e.value||"").trim():""; if(v)P[k]=v; }
       if(Object.keys(P).length)t.portee=P; }
-    trigArr().push(t);tText.value="";tId.value="";tRequires.value="";tWake.value="";tPasszone.value="";tPassmode.value="";tActor.value="";tZone.value="";tTarget.value="";tResult.value="";tKilled.value="";tEhMin.value="";tEhMax.value="";trigLines=[];renderTrigLines();renderTrigList();saveDraft();}
+    if(trigEdit!=null){ trigArr()[trigEdit]=t; finEdition(); } else trigArr().push(t);
+    tText.value="";tId.value="";tRequires.value="";tWake.value="";tPasszone.value="";tPassmode.value="";tActor.value="";tZone.value="";tTarget.value="";tResult.value="";tKilled.value="";tEhMin.value="";tEhMax.value="";trigLines=[];renderTrigLines();renderTrigList();saveDraft();}
   document.getElementById("t-addline").onclick=addLine;
   document.getElementById("t-add").onclick=addTrig;
-  function ouvrirTriggers(mode){ trigMode=mode||"mission";
+  // ÉDITION D'UNE LIGNE. Sans elle, corriger une portée obligeait à supprimer et tout ré-écrire —
+  // or la portée est justement ce qu'on ajuste le plus.
+  let trigEdit=null;
+  function finEdition(){ trigEdit=null;
+    const b=document.getElementById("t-add"); if(b)b.textContent="+ Add the event";
+    const c=document.getElementById("t-cancel"); if(c)c.style.display="none"; }
+  function viderForm(){ for(const id of ["t-actor","t-zone","t-target","t-id","t-requires","t-wake","t-passzone","t-who","t-text","t-ehmin","t-ehmax"]){
+      const e=document.getElementById(id); if(e)e.value=""; }
+    for(const id of ["t-result","t-killed","t-passmode"]){ const e=document.getElementById(id); if(e)e.value=""; }
+    const o=document.getElementById("t-once"); if(o)o.checked=true;
+    const f=document.getElementById("t-first"); if(f)f.checked=false;
+    for(const k of ["rang","etoiles","forme","objectif","region"]){ const e=document.getElementById("t-sc-"+k); if(e)e.value=""; }
+    trigLines=[]; renderTrigLines(); }
+  function ouvrirEdition(i){
+    const t=trigArr()[i]; if(!t)return;
+    viderForm();
+    const q=id=>document.getElementById(id), set=(id,v)=>{ const e=q(id); if(e&&v!=null)e.value=v; };
+    set("t-on",t.on); q("t-on").dispatchEvent(new Event("change",{bubbles:true}));
+    const m=t.match||{}; set("t-actor",m.actor); set("t-zone",m.zone); set("t-target",m.target);
+    set("t-result",m.result); if(m.killed!=null)set("t-killed",String(m.killed));
+    if(m.enemiesHit){ set("t-ehmin",m.enemiesHit.min); set("t-ehmax",m.enemiesHit.max); }
+    q("t-once").checked=(t.once!==false); q("t-first").checked=!!t.firstAction;
+    set("t-id",t.id); set("t-requires",t.requires); set("t-wake",t.wake);
+    if(t.open){ set("t-passmode","open"); set("t-passzone",t.open); }
+    else if(t.close){ set("t-passmode","close"); set("t-passzone",t.close); }
+    const P=t.portee||{}; for(const k of ["rang","etoiles","forme","objectif","region"]) set("t-sc-"+k,P[k]||"");
+    trigLines=(t.lines||(t.say?[t.say]:[])).map(l=>Array.isArray(l)?{who:l[0]||"",text:l[1]||""}:{who:"",text:String(l)});
+    renderTrigLines();
+    trigEdit=i;
+    const b=q("t-add"); if(b)b.textContent="✓ Update the event";
+    const c=q("t-cancel"); if(c)c.style.display="";
+    const w=document.getElementById("trigwin-body"); if(w)w.scrollTop=w.scrollHeight; }
+
+  function ouvrirTriggers(mode){ trigMode=mode||"mission"; viderForm(); finEdition();
     const w=document.getElementById("trigwin"); if(!w)return;
     const sc=document.getElementById("trigwin-scope"); if(sc)sc.style.display=(trigMode==="camp")?"":"none";
     const t=document.getElementById("trigwin-t"), sub=document.getElementById("trigwin-sub");
@@ -2812,7 +2847,8 @@
       ? "written once, replayed on every generated mission that matches the scope"
       : "attached to the mission open in the editor";
     renderTrigList(); w.classList.add("show"); }
-  { const o=document.getElementById("trig-open"); if(o)o.onclick=()=>ouvrirTriggers("mission");
+  { const c=document.getElementById("t-cancel"); if(c)c.onclick=()=>{ viderForm(); finEdition(); };
+    const o=document.getElementById("trig-open"); if(o)o.onclick=()=>ouvrirTriggers("mission");
     const oc=document.getElementById("ctrig-open"); if(oc)oc.onclick=()=>ouvrirTriggers("camp");
     const x=document.getElementById("trigwin-x"); if(x)x.onclick=()=>document.getElementById("trigwin").classList.remove("show");
     const w=document.getElementById("trigwin"); if(w)w.onclick=e=>{ if(e.target===w)w.classList.remove("show"); }; }
