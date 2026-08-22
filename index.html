@@ -3794,7 +3794,10 @@
   const campNode=id=>campNodes.find(n=>n.id===id);
   const fileName=f=>(f||"").split("/").pop().replace(/\.txt$/,"");
   function nodeLabel(n){ return n.type==="mission"?("🗺 "+(n.gen?("generated · "+(n.gen.diff||"moyen")+" · "+(n.gen.forme||"rect")):(n.mission||"mission"))):n.type==="choice"?("🔀 "+(n.title||"choice")):n.type==="geoscape"?("🌍 "+(n.map||"territory").replace(/\.json$/,"")):("📝 "+(n.file?fileName(n.file):((n.text||"").slice(0,14)||"text"))); }
-  const geoMapOpts=sel=>repoGeoscapes.length?repoGeoscapes.map(g=>`<option value="${g.file}" ${g.file===sel?"selected":""}>${esc(g.name)}</option>`).join(""):`<option value="">(no territory)</option>`;
+  // L'option VIDE manquait : le menu pointait toujours sur un territoire dessiné, et « procedural
+  // shape » se contentait alors de le redécouper — la recette n'était jamais lue.
+  const geoMapOpts=sel=>`<option value="" ${sel?"":"selected"}>— none: generate from the recipe —</option>`
+    +repoGeoscapes.map(g=>`<option value="${g.file}" ${g.file===sel?"selected":""}>${esc(g.name)}</option>`).join("");
   const idOpts=(sel,allowNull)=>(allowNull?`<option value="">—</option>`:"")+campNodes.map(n=>`<option value="${n.id}" ${n.id===sel?"selected":""}>${nodeLabel(n)}</option>`).join("");
   const missOpts=sel=>repoMissionList.length?repoMissionList.map(m=>`<option value="${m.file}" ${m.file===sel?"selected":""}>${m.name}</option>`).join(""):`<option value="">(none)</option>`;
   const txtOpts=(sel,none)=>`<option value="">${none||"— none —"}</option>`+repoTexts.map(t=>`<option value="${t.file}" ${t.file===sel?"selected":""}>${esc(t.name)}</option>`).join("");
@@ -3866,6 +3869,11 @@
     else if(n.type==="choice") h+=`<input data-f="title" type="text" placeholder="choice title…" value="${esc(n.title)}"><div id="cdopts" style="margin:6px 0"></div><button data-addopt="1">+ option</button>`;
     else if(n.type==="geoscape"){ const ew=n.endWhen||{kind:"all"}; h+=`<div class="row">🌍 territory <select data-gf="map">${geoMapOpts(n.map)}</select></div>
       <div class="row"><label style="display:inline-flex;align-items:center;gap:4px" title="The shape/layout is regenerated each game; the territory's names, missions, difficulties, unlocks and events are kept."><input type="checkbox" data-gf="procshape" ${n.proc?"checked":""}> procedural shape (changes each game)</label></div>
+      <div class="hint" style="${n.map&&n.proc?"color:#e0b341":""}">${
+        n.map&&n.proc?`⚠ The recipe below is <b>not used</b>: this node re-cuts the drawn territory “${esc(n.map)}” and keeps its names, missions and events. Set territory to <b>none</b> to generate from the recipe.`
+        :n.map?`Plays the drawn territory “${esc(n.map)}” exactly as authored.`
+        :n.proc?`Fully generated from the recipe below.`
+        :`⚠ No territory and no recipe: this node has nothing to play.`}</div>
       <div class="row" id="cd-procrow" style="${n.proc?"":"display:none"}">
         <label>act <input data-gf="procact" type="number" min="1" max="3" value="${(n.proc&&n.proc.act)||1}" style="width:44px"></label>
         <label title="“march”: rectangular grid, you enter from the left, the Bastion sits on the right, the nation on one side and the unknown on the other. “open”: Voronoi, camp at the centre.">layout
@@ -3950,7 +3958,7 @@
       if(ap)ap.onclick=()=>apercuTerritoire(n); }
     { const ta=el.querySelector('[data-gf="procimposees"]'); if(ta&&ta.value.trim())ta.dispatchEvent(new Event("input",{bubbles:true})); }
     el.querySelectorAll("[data-gf]").forEach(inp=>{ const f=inp.dataset.gf; const set=()=>{ n.endWhen=n.endWhen||{kind:"all",name:""};
-      if(f==="map")n.map=inp.value;
+      if(f==="map"){ n.map=inp.value; saveCampDraft(); renderDetail(); return; }
       else if(f==="procshape"){ if(inp.checked)n.proc=n.proc||{act:1,layout:"marche",cols:6,rows:4,missions:"generees",formes:FORMES_ACTE.slice()}; else delete n.proc; renderDetail(); return; }
       else if(f==="procact"){ n.proc.act=Math.max(1,Math.min(3,+inp.value||1)); }
       else if(f==="proclayout"){ n.proc.layout=inp.value; renderDetail(); return; }
@@ -3995,6 +4003,8 @@
   function apercuTerritoire(n){
     const el=document.getElementById("geoprev"), cv=document.getElementById("geoprev-cv");
     if(!el||!cv||!n||!n.proc)return;
+    if(n.map){ const z=document.getElementById("geoprev-sub");   // mentir en image serait pire que ne rien montrer
+      alert("This node re-cuts the drawn territory “"+n.map+"”, so the recipe below is not what will be played.\nSet territory to “none: generate from the recipe” to preview it."); return; }
     const act=n.proc.act||1, disp=n.proc.layout||(act===1?"marche":"libre");
     const graine=n.proc.graine?(n.proc.graine>>>0):(1+Math.floor(Math.random()*999998));
     let m;
