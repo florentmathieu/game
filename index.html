@@ -3489,6 +3489,9 @@
     if(s==="attacked")return "#b03a2a";   // taken region under attack: bright red
     if(s==="cleared")return GEO_FILL.cleared; if(s==="lost")return GEO_FILL.lost; if(s==="locked")return GEO_FILL.locked;
     if(c.gkind==="mission"&&c.gdiff>0)return DIFF_FILL[Math.min(5,c.gdiff)]||GEO_FILL.available; return GEO_FILL.available; }
+  // teinte des BANDES DE BORD (nation / inconnu) : du décor, pas un territoire à prendre — sans quoi
+  // elles se peignaient en vert « disponible » et se lisaient comme des régions jouables.
+  const BORD_FILL="#1e1c18";
   function geoFillFor(c){ return geoFillForState(c,c.gstate); }   // editor: raw state
   function geoInitCells(){ cells.forEach(c=>{ c.gname=c.gname||""; c.gtype="region"; c.gkind="empty"; c.gref=null; c.gproc=null; c.gstate="locked"; c.gunlock=[]; c.gdiff=0; }); geoCampId=null; geoSel=null; }
   function geoGenerate(){ const tgt=Math.max(4,Math.min(40,+(document.getElementById("geo-n").value)||12));
@@ -3600,7 +3603,7 @@
       mesh:{ infl, seed, g:geoG, cols:COLS, rows:ROWS },
       camp:geoCampId,
       cells:cells.map(c=>({ poly:c.poly.map(p=>[Math.round(p[0]),Math.round(p[1])]), name:c.gname||"", type:c.gtype||"region",
-        content:{kind:c.gkind||"empty", ref:c.gref||null, gen:c.gproc||null}, state:c.gstate||"locked", unlockedBy:(c.gunlock||[]).slice(), diff:c.gdiff||0 })),
+        content:{kind:c.gkind||"empty", ref:c.gref||null, gen:c.gproc||null}, state:c.gstate||"locked", unlockedBy:(c.gunlock||[]).slice(), diff:c.gdiff||0, edge:c.edge||undefined })),
       events:(geoEventsDraft||[]).map(e=>{ const o={when:{kind:(e.when&&e.when.kind)||"arrive"}}; if(o.when.kind!=="arrive")o.when.value=e.when&&e.when.value;
         if(e.file)o.file=e.file; if(e.text)o.text=e.text; if(e.recruit)o.recruit=e.recruit; if(e.reveal)o.reveal=e.reveal; if(e.mode==="over")o.mode="over"; if(e.priority)o.priority=e.priority; return o; }).filter(e=>e.text||e.file||e.recruit||e.reveal) }; }
   function geoApply(o){ resetView();
@@ -3609,7 +3612,7 @@
     document.getElementById("geo-name").value=o.name||"";
     if(Array.isArray(o.cells)&&o.cells.length&&o.cells[0].poly){
       cells=o.cells.map((c,i)=>{ const ct=polyCentroid(c.poly); return {id:i,poly:c.poly,cx:ct[0],cy:ct[1],nb:[],terr:"plain",elev:0,
-        gname:c.name||"",gtype:c.type||"region",gkind:(c.content&&c.content.kind)||"empty",gref:(c.content&&c.content.ref)||null,gproc:(c.content&&c.content.gen)||null,
+        gname:c.name||"",gtype:c.type||"region",gkind:(c.content&&c.content.kind)||"empty",gref:(c.content&&c.content.ref)||null,gproc:(c.content&&c.content.gen)||null,edge:c.edge||null,
         gstate:c.state||"locked",gunlock:Array.isArray(c.unlockedBy)?c.unlockedBy.slice():[],gdiff:c.diff||0}; });
       buildAdj();
     } else { genMesh(geoG,true); geoInitCells(); }
@@ -3652,6 +3655,7 @@
     cells=m.cells.map((c,i)=>{ const ct=polyCentroid(c.poly); return {id:i,poly:c.poly,cx:ct[0],cy:ct[1],nb:[],terr:"plain",elev:0,
       gname:c.name||"",gtype:c.type||"region",gkind:(c.content&&c.content.kind)||"empty",gref:(c.content&&c.content.ref)||null,
       gproc:(c.content&&c.content.gen)||null,   // recette de carte générée : sans ça, la région n'a rien à générer en jeu
+      edge:c.edge||null,                        // bande de bord (nation / inconnu) : du décor, à peindre comme tel
       gunlock:Array.isArray(c.unlockedBy)?c.unlockedBy:[],gstate:st[i]||"locked",gdiff:c.diff||0,gforge:!!c.forge,gboss:!!c.boss}; });
     buildAdj(); geoCampId=(m.camp!=null)?m.camp:null;
     if(campRun){ campRun.geoAdj=campRun.geoAdj||{}; campRun.geoAdj[geoPlay.node.id]=cells.map(c=>c.nb.slice()); } }   // frozen adjacency (reusable even during a mission, where `cells` = the mission)
@@ -3825,7 +3829,10 @@
       if(forgePos&&c===forgePos.c&&r===forgePos.r){
         out.cells[i]={poly, name:FORGE_NAME[act], type:"region", content:contenu(d,c,r), state:"available",
           unlockedBy:[], diff:d, forge:true}; continue; }
-      out.cells[i]={poly, name:noms[(iNom++)%noms.length], type:"region", content:contenu(d,c,r),
+      // la liste de noms est plus courte que le nombre de régions sur les grandes grilles : au
+      // second tour on suffixe en chiffres romains plutôt que d'afficher deux fois « Marsh »
+      const tour=Math.floor(iNom/noms.length), nom=noms[(iNom++)%noms.length]+(tour?" "+["","II","III","IV","V"][Math.min(4,tour)]:"");
+      out.cells[i]={poly, name:nom, type:"region", content:contenu(d,c,r),
         state:"available", unlockedBy:[], diff:d}; }
     // MISSIONS IMPOSÉES. On place les missions écrites à la main sur une région de la difficulté
     // demandée ; à défaut, sur la plus proche encore libre. Le reste du territoire garde ses
@@ -3943,7 +3950,9 @@
     if(dist[target]===undefined)return null; const path=[target]; let x=target; while(x!==geoCampId){ x=prev[x]; if(x==null)return null; path.unshift(x); } return path; }
   function drawGeoPlay(){ ctx.setTransform(1,0,0,1,0,0); ctx.clearRect(0,0,cv.width,cv.height); ctx.setTransform(zoom,0,0,zoom,panX,panY);
     const acc=geoAccessibleSet();
-    for(const c of cells){ const es=geoEffState(c,acc); poly(c); ctx.fillStyle=geoFillForState(c,es); ctx.fill(); ctx.lineWidth=1.5; ctx.strokeStyle="rgba(10,12,16,.5)"; ctx.stroke(); }
+    for(const c of cells){ const es=geoEffState(c,acc); poly(c);
+      ctx.fillStyle=c.edge?BORD_FILL:geoFillForState(c,es); ctx.fill();
+      ctx.lineWidth=1.5; ctx.strokeStyle=c.edge?"rgba(58,52,42,.7)":"rgba(10,12,16,.5)"; ctx.stroke(); }
     for(const c of cells){ const es=geoEffState(c,acc); if((es==="available"||es==="lost"||es==="attacked")&&c.gkind==="mission"){ poly(c); ctx.lineWidth=es==="attacked"?4:3; ctx.strokeStyle=(es==="attacked"?"#ff5a44":es==="lost"?"#d89a8a":"#9fd0a8"); ctx.stroke(); } }   // playable front (lost = red outline, attacked = bright red outline)
     // hover: purple path from the camp (like the movement preview in combat) + hovered region lit up
     if(hoverCell!=null&&cells[hoverCell]){ const path=geoPathTo(hoverCell);
@@ -3953,9 +3962,12 @@
         for(const id of path){ const cc=cells[id]; ctx.fillStyle="#c77dff"; ctx.beginPath(); ctx.arc(cc.cx,cc.cy,4,0,TWO); ctx.fill(); } ctx.restore(); }
       const hc=cells[hoverCell]; poly(hc); ctx.save(); ctx.fillStyle="rgba(255,255,255,.13)"; ctx.fill(); ctx.lineWidth=3.5; ctx.strokeStyle="#ffe08a"; ctx.stroke(); ctx.restore(); }
     ctx.textAlign="center"; ctx.textBaseline="middle";
-    for(const c of cells){ const es=geoEffState(c,acc); const isCamp=es==="camp"; const icon=isCamp?"⛺":(es==="attacked"?"⚠":(es==="cleared"?"✓":(es==="lost"?"↻":(es==="available"&&c.gkind==="mission"?(c.gforge?"⚒":"⚔"):(es==="locked"?"🔒":"")))));
+    for(const c of cells){ if(c.edge){ if(c.gname){ ctx.font="italic 12px system-ui"; ctx.fillStyle="rgba(180,170,150,.75)"; ctx.fillText(c.gname,c.cx,c.cy); } continue; }
+      const es=geoEffState(c,acc); const isCamp=es==="camp"; const icon=isCamp?"⛺":(es==="attacked"?"⚠":(es==="cleared"?"✓":(es==="lost"?"↻":(es==="available"&&c.gkind==="mission"?(c.gforge?"⚒":"⚔"):(es==="locked"?"🔒":"")))));
       if(icon){ ctx.font="bold 15px system-ui"; ctx.fillStyle="#fff"; ctx.fillText(icon,c.cx,c.cy-8); }
-      const nm=c.gname||("#"+c.id); ctx.font="11px system-ui"; ctx.fillStyle=(es==="locked")?"rgba(255,255,255,.42)":"rgba(255,255,255,.92)"; ctx.fillText(nm,c.cx,c.cy+10);
+      const nm=c.gname; if(nm){ ctx.font=c.edge?"italic 12px system-ui":"11px system-ui";
+        ctx.fillStyle=c.edge?"rgba(180,170,150,.75)":((es==="locked")?"rgba(255,255,255,.42)":"rgba(255,255,255,.92)");
+        ctx.fillText(nm,c.cx,c.edge?c.cy:c.cy+10); }   // en JEU, une case sans nom reste muette : le repli « #id » est une aide d'éditeur
       if(c.gdiff>0&&c.gkind==="mission"&&es!=="cleared"){ ctx.font="10px system-ui"; ctx.fillStyle=(es==="locked")?"rgba(224,179,65,.45)":"#e0b341"; ctx.fillText("★".repeat(c.gdiff),c.cx,c.cy+22); }   // stars = difficulty
       const pr=campRun&&campRun.primes&&campRun.primes[c.gname]; if(pr&&(es==="available"||es==="lost")){ ctx.font="bold 10px system-ui"; ctx.fillStyle="#ffd479"; ctx.fillText("⏳+"+(pr.xp||0)+"xp",c.cx,c.cy+33); } }   // express bounty that decays (only on the front)
     if(geoCampId!=null&&cells[geoCampId]){ poly(cells[geoCampId]); ctx.lineWidth=3; ctx.strokeStyle="#e0b341"; ctx.stroke(); } }
