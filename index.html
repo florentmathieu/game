@@ -3996,6 +3996,18 @@
       if(o){ A=perkById(m.cls,o.a); B=perkById(m.cls,o.b); C=perkById(m.cls,o.c); }
       else { const pr=(estActif&&actif.offer)?actif.offer:perkPairFor(m,lvl);
         A=pr&&pr.A; B=pr&&pr.B; C=(estActif&&actif.offer)?actif.offer.C:null; }
+      // NIVEAU PASSÉ SANS HISTORIQUE : un personnage créé « chevronné » dans l'éditeur, ou une
+      // sauvegarde d'avant l'enregistrement des options, a le perk mais pas les trois propositions.
+      // On affiche alors ce qu'on SAIT — le perk pris — et on le dit pour le reste, au lieu de
+      // laisser des cases vides qui passent pour un bug (une voie non tranchée en produisait deux).
+      if(choisi&&!o){
+        const pk=perkById(m.cls,choisi);
+        const col=(A&&A.id===choisi)?"A":((B&&B.id===choisi)?"B":"C");
+        const inconnu=`<div class="cel vide" style="display:flex;align-items:center"><span class="tag">non enregistré</span></div>`;
+        h+=(col==="A"?celPerk(pk,"pris"):(A?celPerk(A,"ecarte"):inconnu))
+          +(col==="B"?celPerk(pk,"pris"):(B?celPerk(B,"ecarte"):inconnu))
+          +(col==="C"?celPerk(pk,"pris","🎲"):inconnu)+`</div>`;
+        continue; }
       const etat=k=>{ if(!choisi&&!o)return estActif?"choix":"";
         const pk=({A,B,C})[k]; if(!pk)return "";
         return (o&&o.took===k)||(pk.id===choisi)?"pris":"ecarte"; };
