@@ -84,6 +84,11 @@
   #trigwin-hd #trigwin-x{ margin-left:auto; cursor:pointer }
   #trigwin-body{ overflow-y:auto; padding:12px 16px 16px }
   #trigwin-body .row{ margin:5px 0 }
+  /* en-têtes de famille dans le récapitulatif des déclencheurs */
+  #triglist .tcat{ margin:9px 0 3px; font-size:.7rem; text-transform:uppercase; letter-spacing:.07em; color:#e0b341;
+    border-bottom:1px solid #3a2c1c; padding-bottom:2px }
+  #triglist .tcat:first-child{ margin-top:0 }
+  #triglist .tcat span{ color:#7a7157; margin-left:4px }
   #promote{ position:fixed; inset:0; background:rgba(8,10,14,.86); display:none; align-items:center; justify-content:center; z-index:11 } #promote.show{display:flex}
   #promote-card{ width:min(760px,96vw); max-height:92vh; overflow-y:auto; background:#171a22; border:1px solid #2c2f3a; border-radius:12px; padding:22px 24px; box-shadow:0 12px 40px rgba(0,0,0,.5) }
   #promote-hd{ font-size:1.15rem; color:#e0b341; margin-bottom:14px } #promote-hd .who{ font-weight:bold; color:#fff } #promote-hd .gr{ color:#9fd0a8 }
@@ -426,7 +431,7 @@
       <label style="font-size:.8rem">region <input id="t-sc-region" type="text" placeholder="Bastion" style="width:96px"></label>
     </div>
     <div id="triglist" class="hint"></div>
-    <div class="row"><select id="t-on"><option value="start">Start</option><option value="turn">Turn start</option><option value="enter">Zone entry</option><option value="attack">Attack</option><option value="kill">Kill</option><option value="wounded">Wounded</option><option value="cracker">Cracker (explosion)</option><option value="move">Move</option><option value="spotted">Pod spotted</option><option value="discovered">Pod discovered</option><option value="friendlyfire">Friendly fire</option><option value="win">Victory</option><option value="lose">Defeat</option></select></div>
+    <div class="row"><select id="t-on"></select></div>
     <div class="row"><input id="t-actor" type="text" placeholder="actor (name/class)" style="flex:1"><input id="t-zone" type="text" placeholder="zone (e.g. A)" style="flex:1"></div>
     <div class="row"><input id="t-target" type="text" placeholder="target (name/class)" style="flex:1"></div>
     <div class="row"><select id="t-result"><option value="">result —</option><option>hit</option><option>miss</option><option>blocked</option></select><select id="t-killed"><option value="">kills? —</option><option value="true">yes</option><option value="false">no</option></select></div>
@@ -2733,6 +2738,23 @@
   // l'ACTE. Les déclencheurs d'acte portent en plus une PORTÉE, qui dit à quelles missions générées
   // ils s'appliquent — sans elle il n'y aurait aucun moyen d'écrire pour une carte qui n'existe pas
   // encore au moment où on écrit.
+  // ===== CATÉGORIES DE DÉCLENCHEURS =====
+  // Treize types dans une seule liste déroulante, et autant de lignes en vrac dans le récapitulatif :
+  // illisible dès qu'on en pose beaucoup. On les range en trois familles, et la MÊME table sert au
+  // menu (optgroup) et au regroupement de la liste — pas deux vérités à tenir d'accord.
+  const TRIG_CATS=[
+    {nom:"Mission flow",          ids:["start","turn","win","lose"]},
+    {nom:"Combat",                ids:["attack","kill","wounded","cracker","friendlyfire"]},
+    {nom:"Movement & detection",  ids:["move","enter","spotted","discovered"]},
+  ];
+  const TRIG_LABEL={start:"Start",turn:"Turn start",win:"Victory",lose:"Defeat",
+    attack:"Attack",kill:"Kill",wounded:"Wounded",cracker:"Cracker (explosion)",friendlyfire:"Friendly fire",
+    move:"Move",enter:"Zone entry",spotted:"Pod spotted",discovered:"Pod discovered"};
+  const TRIG_CAT_DE=(()=>{ const m={}; for(const c of TRIG_CATS) for(const id of c.ids) m[id]=c.nom; return m; })();
+  { const sel=document.getElementById("t-on");
+    if(sel)sel.innerHTML=TRIG_CATS.map(c=>`<optgroup label="${c.nom}">`
+      +c.ids.map(id=>`<option value="${id}">${TRIG_LABEL[id]||id}</option>`).join("")+`</optgroup>`).join(""); }
+
   let trigMode="mission";
   const trigArr=()=>trigMode==="camp"?(campTriggers=campTriggers||[]):triggers;
   const trigSave=()=>{ if(trigMode==="camp")saveCampDraft(); else saveDraft(); };
@@ -2742,7 +2764,16 @@
     return bouts.length?" ⟨"+bouts.join(" ")+"⟩":" ⟨all missions⟩"; }
   function renderTrigList(){const el=document.getElementById("triglist");if(!el)return;
     const src=trigArr();
-    el.innerHTML=src.length?src.map((t,i)=>{const mm=Object.entries(t.match||{}).map(([k,v])=>k+":"+fmtMatch(v)).join(" ");const flags=(trigMode==="camp"?fmtPortee(t.portee):"")+(t.id?" #"+t.id:"")+(t.once===false?"":" ⟲1×")+(t.firstAction?" ⚑1st":"")+(t.requires?" ⊳"+t.requires:"")+(t.wake?" ⏰"+t.wake:"")+(t.open?" ⛩"+t.open:"")+(t.close?" ⛔"+t.close:"");const say=t.say?`${t.say[0]||"?"}: "${t.say[1]}"`:(t.lines?t.lines.length+" lines":(t.wake||t.open||t.close?"(action)":""));return `<div><button class="tdel" data-i="${i}">✕</button> <b>${t.on}</b> ${mm}${flags} → 💬 ${say}</div>`;}).join(""):"(no events)";
+    // une ligne, telle qu'elle s'affichait avant — on ne change que le RANGEMENT
+    const ligne=(t,i)=>{const mm=Object.entries(t.match||{}).map(([k,v])=>k+":"+fmtMatch(v)).join(" ");const flags=(trigMode==="camp"?fmtPortee(t.portee):"")+(t.id?" #"+t.id:"")+(t.once===false?"":" ⟲1×")+(t.firstAction?" ⚑1st":"")+(t.requires?" ⊳"+t.requires:"")+(t.wake?" ⏰"+t.wake:"")+(t.open?" ⛩"+t.open:"")+(t.close?" ⛔"+t.close:"");const say=t.say?`${t.say[0]||"?"}: "${t.say[1]}"`:(t.lines?t.lines.length+" lines":(t.wake||t.open||t.close?"(action)":""));return `<div><button class="tdel" data-i="${i}">✕</button> <b>${t.on}</b> ${mm}${flags} → 💬 ${say}</div>`;};
+    if(!src.length){ el.innerHTML=`<i>no event yet</i>`; majTrigCount(); return; }
+    // regroupement par famille : les catégories vides ne s'affichent pas, et une famille inconnue
+    // (déclencheur venu d'un fichier plus ancien) tombe dans « Other » plutôt que de disparaître
+    const par=new Map(); TRIG_CATS.forEach(c=>par.set(c.nom,[]));
+    src.forEach((t,i)=>{ const c=TRIG_CAT_DE[t.on]||"Other"; if(!par.has(c))par.set(c,[]); par.get(c).push([t,i]); });
+    el.innerHTML=[...par.entries()].filter(([,v])=>v.length).map(([nom,v])=>
+      `<div class="tcat">${esc(nom)} <span>${v.length}</span></div>`+v.map(([t,i])=>ligne(t,i)).join("")
+    ).join("");
     el.querySelectorAll(".tdel").forEach(b=>b.onclick=()=>{trigArr().splice(+b.dataset.i,1);renderTrigList();trigSave();majTrigCount();});
     majTrigCount(); }
   function majTrigCount(){ const c=document.getElementById("trig-count");
