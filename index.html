@@ -3823,8 +3823,8 @@
   { const da=document.getElementById("dialog-add"); if(da)da.onclick=()=>{ campDialogs.push({who:"",file:"",text:""}); saveCampDraft(); renderDialogEditor(); }; }
   // detail of the selected node (right of the graph)
   function renderDetail(){ const el=document.getElementById("cdetail"); if(!el)return; const n=campNode(campSel);
-    if(!n){ el.innerHTML='<div class="hint">No node. Add a Text, a Mission or a Choice, then click it in the graph.</div>'; return; }
-    let h=`<h3>${n.type==="mission"?"🗺 Mission":n.type==="choice"?"🔀 Choice":"📝 Text"} <code style="font-size:.7rem;color:#9a8a74">${n.id}</code></h3>`;
+    if(!n){ el.innerHTML='<div class="hint">No node. Add a Text, a Mission, a Choice or a Geoscape, then click it in the graph.</div>'; return; }
+    let h=`<h3>${n.type==="mission"?"🗺 Mission":n.type==="choice"?"🔀 Choice":n.type==="geoscape"?"🌍 Territory":"📝 Text"} <code style="font-size:.7rem;color:#9a8a74">${n.id}</code></h3>`;
     if(n.type==="text") h+=`<div class="row">📄 file <select data-f="file">${txtOpts(n.file,"— text entered below —")}</select></div><input data-f="text" type="text" placeholder="…or full-screen text" value="${esc(n.text)}"><input data-f="mortal" type="text" placeholder="✝ makes mortal (names, commas) — &quot;their role is done&quot;" value="${esc(Array.isArray(n.mortal)?n.mortal.join(', '):(n.mortal||''))}"><input data-f="recruit" type="text" placeholder="➕ recruits (Name:class, … ; * = ★ special)" value="${esc(Array.isArray(n.recruit)?n.recruit.join(', '):(n.recruit||''))}"><div class="row">next → <select data-f="next">${idOpts(n.next,true)}</select></div>`;
     else if(n.type==="mission"&&n.gen) h+=
        `<div class="row"><b style="font-size:.8rem">generated map</b>`
