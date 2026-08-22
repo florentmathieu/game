@@ -90,6 +90,18 @@
   #trig-left{ flex:1 1 44%; min-width:260px; overflow-y:auto; padding-right:14px; border-right:1px solid #3a2c1c }
   #trig-right{ flex:1 1 56%; min-width:320px; overflow-y:auto; padding-left:14px }
   #trigwin-body .row{ margin:5px 0 }
+  /* Le formulaire était une pile de douze rangées sans hiérarchie : impossible de voir ce qui se
+     cumulait. Quatre temps nommés — quand, à quelles conditions, ce qui se passe, à quelle
+     fréquence — et une relecture en clair de ce qu'on vient de composer. */
+  #trig-right .tsec{ margin:14px 0 4px; font-size:.72rem; text-transform:uppercase; letter-spacing:.07em;
+    color:#e0b341; border-bottom:1px solid #3a2c1c; padding-bottom:3px }
+  #trig-right .tsec:first-child{ margin-top:0 }
+  #trig-right .tsec .hint{ text-transform:none; letter-spacing:0; margin-left:6px }
+  #t-conds .row label{ font-size:.85rem; display:flex; align-items:center; gap:5px }
+  #trig-right .tapercu{ margin:12px 0 6px; padding:8px 10px; border-radius:6px; background:rgba(224,179,65,.07);
+    border:1px solid #3a2c1c; font-size:.86rem; line-height:1.45; color:#b8b0a0 }
+  #trig-right .tapercu b{ color:#a8e08a } #trig-right .tapercu i{ color:#9fb8c9 }
+  #trig-right .tapercu .tq{ color:#ffd479; font-weight:600 }
   /* fenêtre étroite : on repasse en une colonne, la liste plafonnée pour laisser voir le formulaire */
   @media (max-width:920px){
     #trigwin-body{ flex-direction:column; overflow-y:auto }
@@ -462,21 +474,29 @@
       <span class="hint" id="ts-st" style="width:100%"></span>
     </div>
     <div class="row" style="align-items:center;gap:8px"><button id="t-foegen" title="One event per enemy type, fired the first time that type is seen. Run it again after the classes sheet changes: what already exists is left untouched.">⚔ One event per enemy type</button><span id="t-foenote" class="hint" style="flex:1"></span></div>
-    <div class="row"><select id="t-on"></select></div>
-    <div class="row"><input id="t-actor" type="text" placeholder="actor (name/class)" style="flex:1"><input id="t-zone" type="text" placeholder="zone (e.g. A)" style="flex:1"></div>
-    <div class="row"><input id="t-target" type="text" placeholder="target (name/class)" style="flex:1"></div>
-    <div class="row"><select id="t-result"><option value="">result —</option><option>hit</option><option>miss</option><option>blocked</option></select><select id="t-killed"><option value="">kills? —</option><option value="true">yes</option><option value="false">no</option></select></div>
-    <div class="row" id="t-cracker-row" style="display:none"><label style="font-size:.85rem;display:flex;align-items:center;gap:5px">💥 enemies hit <input id="t-ehmin" type="number" min="0" placeholder="min" style="width:56px"> to <input id="t-ehmax" type="number" min="0" placeholder="max" style="width:56px"></label></div>
-    <div class="row"><label style="display:flex;align-items:center;gap:5px;font-size:.85rem"><input type="checkbox" id="t-once" checked> once only</label><label style="display:flex;align-items:center;gap:5px;font-size:.85rem"><input type="checkbox" id="t-first"> 1st action of the turn</label></div>
-    <div class="row"><input id="t-id" type="text" placeholder="id (optional)" style="flex:1"><input id="t-requires" type="text" placeholder="requires id…" style="flex:1"><input id="t-forbids" type="text" placeholder="unless id…" style="flex:1"></div>
-    <div class="row"><label style="font-size:.85rem;display:flex;align-items:center;gap:6px" title="When several events match the same moment, only the highest priority plays. On a tie the mission's own events win over the act's.">priority <input id="t-prio" type="number" value="0" style="width:64px"></label>
-      <span class="hint" style="flex:1">One event per moment: the highest priority wins, ties go to the mission's own.</span></div>
-    <div class="row"><input id="t-wake" type="text" placeholder="wake pod N / all" style="flex:1"><select id="t-passmode"><option value="">passage —</option><option value="open">open zone</option><option value="close">close zone</option></select><input id="t-passzone" type="text" placeholder="zone" style="width:64px"></div>
-    <div class="hint">Actions: wake a pod, or open/close a painted zone (makes it passable / blocked).</div>
-    <div class="row"><input id="t-who" type="text" placeholder="who speaks" style="flex:1"><input id="t-text" type="text" placeholder="line…" style="flex:2"><button id="t-addline" title="Stack one more line">＋</button></div>
+    <div class="tsec">1 · When</div>
+    <div class="row"><select id="t-on" style="flex:1"></select></div>
+    <div class="tsec">2 · Only if <span class="hint">each field left empty = no condition on it</span></div>
+    <div id="t-conds"></div>
+    <div class="tsec">3 · What happens <span class="hint">a dialogue, world actions, or both — they all play</span></div>
+    <div class="row"><input id="t-who" type="text" placeholder="who speaks (empty = whoever triggered it)" list="dl-noms" style="flex:1"><input id="t-text" type="text" placeholder="line…" style="flex:2"><button id="t-addline" title="Stack one more line">＋</button></div>
     <div class="row"><span style="font-size:.8rem;white-space:nowrap">📄 written dialogue</span><select id="t-txt" style="flex:1"></select><button id="t-txtload" title="Read the file and stack its lines here — “Name: line” gives the speaker, a lone “_” is skipped">📥 Import the lines</button></div>
     <div class="hint" id="t-txtnote">A whole dialogue from <b>texts/</b> lands in the stack below, then you edit it like any other line.</div>
     <div id="t-lines" class="hint"></div>
+    <div class="row"><label style="font-size:.85rem">😴 wake pod <input id="t-wake" type="text" placeholder="N / all" style="width:74px"></label>
+      <label style="font-size:.85rem">🚪 open zone <input id="t-open" type="text" placeholder="zone" list="dl-zones" style="width:74px"></label>
+      <label style="font-size:.85rem">🧱 close zone <input id="t-close" type="text" placeholder="zone" list="dl-zones" style="width:74px"></label></div>
+    <div class="row"><label style="font-size:.85rem">👾 spawn <input id="t-spcount" type="number" min="1" placeholder="n" style="width:52px"></label>
+      <select id="t-spcls" style="flex:1"></select>
+      <select id="t-spteam"><option value="enemy">enemy</option><option value="neutral">NPC</option><option value="player">ally</option></select>
+      <label style="font-size:.85rem">in <input id="t-spzone" type="text" placeholder="zone" list="dl-zones" style="width:64px"></label>
+      <label style="font-size:.85rem">pod <input id="t-sppod" type="text" placeholder="—" style="width:48px"></label></div>
+    <div class="hint">Spawning needs a painted zone: the units appear on its free tiles.</div>
+    <div class="tsec">4 · How often</div>
+    <div class="row"><label style="display:flex;align-items:center;gap:5px;font-size:.85rem"><input type="checkbox" id="t-once" checked> once only</label><label style="display:flex;align-items:center;gap:5px;font-size:.85rem"><input type="checkbox" id="t-first"> 1st action of the turn</label>
+      <label style="font-size:.85rem;display:flex;align-items:center;gap:6px" title="When several events match the same moment, only the highest priority plays. On a tie the mission's own events win over the act's.">priority <input id="t-prio" type="number" value="0" style="width:64px"></label></div>
+    <div class="row"><input id="t-id" type="text" placeholder="id (optional)" style="flex:1"><input id="t-requires" type="text" placeholder="requires id…" style="flex:1"><input id="t-forbids" type="text" placeholder="unless id…" style="flex:1"></div>
+    <datalist id="dl-noms"></datalist><datalist id="dl-zones"></datalist>
     <div id="trigwin-scope" class="row" style="display:none;flex-wrap:wrap;gap:8px;border:1px solid #3a3428;border-radius:8px;padding:8px;margin-bottom:10px">
       <span style="font-size:.8rem;color:#e0b341;width:100%">Play this event on which generated missions? <span class="hint" style="font-weight:normal">every field left empty = every mission</span></span>
       <label style="font-size:.8rem">rank <input id="t-sc-rang" type="text" placeholder="3 · 2-4 · 1,5" style="width:78px"></label>
@@ -485,6 +505,7 @@
       <label style="font-size:.8rem">objective <input id="t-sc-objectif" type="text" placeholder="harvest" style="width:90px"></label>
       <label style="font-size:.8rem">region <input id="t-sc-region" type="text" placeholder="Bastion" style="width:96px"></label>
     </div>
+    <div class="tapercu" id="t-apercu"></div>
     <div class="row"><button id="t-add">+ Add the event</button><button id="t-cancel" style="display:none">✕ Cancel the edit</button></div>
     </div>
   </div></div></div>
@@ -2784,10 +2805,67 @@
   fetchRepoMissions();
 
   // ===== events editor =====
-  const tOn=document.getElementById("t-on"),tActor=document.getElementById("t-actor"),tZone=document.getElementById("t-zone"),tTarget=document.getElementById("t-target"),tResult=document.getElementById("t-result"),tKilled=document.getElementById("t-killed"),tOnce=document.getElementById("t-once"),tFirst=document.getElementById("t-first"),tId=document.getElementById("t-id"),tRequires=document.getElementById("t-requires"),tWake=document.getElementById("t-wake"),tPassmode=document.getElementById("t-passmode"),tPasszone=document.getElementById("t-passzone"),tWho=document.getElementById("t-who"),tText=document.getElementById("t-text"),tEhMin=document.getElementById("t-ehmin"),tEhMax=document.getElementById("t-ehmax");
-  // the "enemies hit" row only appears for the cracker event
-  function syncTrigFields(){ const r=document.getElementById("t-cracker-row"); if(r)r.style.display=(tOn.value==="cracker")?"":"none"; }
-  tOn.addEventListener("change",syncTrigFields); syncTrigFields();
+  const tOn=document.getElementById("t-on"),tOnce=document.getElementById("t-once"),tFirst=document.getElementById("t-first"),
+    tId=document.getElementById("t-id"),tRequires=document.getElementById("t-requires"),tWake=document.getElementById("t-wake"),
+    tWho=document.getElementById("t-who"),tText=document.getElementById("t-text");
+  // ===== LES CONDITIONS DÉPENDENT DU MOMENT =====
+  // Le formulaire montrait les mêmes douze champs quel que soit l'évènement. « result » ne veut rien
+  // dire au démarrage d'une mission, « zone » n'existe que sur une entrée de zone — et une condition
+  // posée sur un champ que l'évènement ne porte pas ne rate pas bruyamment : trigMatch renvoie faux,
+  // le déclencheur ne part JAMAIS. On n'affiche donc que ce que le moment transporte réellement.
+  // La table ci-dessous suit exactement les ctx passés à emit() ; toute condition offerte ici est
+  // une condition que le moteur sait lire.
+  const COND_SPEC={
+    actor:  {lbl:"actor",       kind:"txt", key:"actor",  dl:"dl-noms",  ph:"anyone (name or class)"},
+    target: {lbl:"target",      kind:"txt", key:"target", dl:"dl-noms",  ph:"anyone (name or class)"},
+    foe:    {lbl:"enemy type",  kind:"sel", key:"target", opts:()=>[["","— any enemy type —"]].concat(classesEnnemies().map(k=>[k,(CLASSES[k]&&CLASSES[k].name)||k]))},
+    zone:   {lbl:"zone",        kind:"txt", key:"zone",   dl:"dl-zones", ph:"any zone"},
+    result: {lbl:"the shot",    kind:"sel", key:"result", opts:()=>[["","— any outcome —"],["hit","hits"],["miss","misses"],["blocked","is blocked / parried"]]},
+    killedB:{lbl:"kills?",      kind:"sel", key:"killed", opts:()=>[["","— either way —"],["true","yes"],["false","no"]], lire:v=>v==="true"},
+    killedN:{lbl:"kills",       kind:"num", key:"killed"},
+    ehit:   {lbl:"enemies hit", kind:"num", key:"enemiesHit"},
+    ahit:   {lbl:"allies hit",  kind:"num", key:"alliesHit"},
+    turnNo: {lbl:"turn",        kind:"num", key:"turn"},
+    hp:     {lbl:"target HP %", kind:"num", key:"targetHpPct"},
+    pod:    {lbl:"pod",         kind:"int", key:"pod", ph:"any pod"},
+    podTeam:{lbl:"whose pod",   kind:"sel", key:"actorTeam", opts:()=>[["","— any —"],["enemy","an enemy pod"],["neutral","a civilian / NPC pod"]]},
+    parQuoi:{lbl:"woken by",    kind:"sel", key:"by", opts:()=>[["","— any —"],["sight","being seen"],["noise","noise"],["alert","an alert"]]} };
+  const CHAMPS_PAR_TYPE={
+    start:[], win:[], lose:[], turn:["turnNo"],
+    attack:["actor","target","result","killedB","hp"],
+    wounded:["actor","target","result","killedB","hp"],
+    kill:["actor","target"],
+    cracker:["actor","ehit","ahit","killedN"],
+    friendlyfire:["actor","target","killedB"],
+    move:["actor"], enter:["actor","zone"],
+    spotted:["pod","podTeam","parQuoi"], discovered:["pod","podTeam"],
+    newfoe:["foe"] };
+  function renderConds(){
+    const el=document.getElementById("t-conds"); if(!el)return;
+    const champs=CHAMPS_PAR_TYPE[tOn.value]||[];
+    if(!champs.length){ el.innerHTML=`<div class="hint">This moment carries nothing to filter on — it fires as it comes.</div>`; return; }
+    el.innerHTML=champs.map(f=>{ const c=COND_SPEC[f]; if(!c)return "";
+      const w=c.kind==="sel"?`<select id="tc-${f}">${c.opts().map(([v,l])=>`<option value="${v}">${l}</option>`).join("")}</select>`
+        :c.kind==="num"?`<input id="tc-${f}-min" type="number" placeholder="min" style="width:62px"> to <input id="tc-${f}-max" type="number" placeholder="max" style="width:62px">`
+        :c.kind==="int"?`<input id="tc-${f}" type="number" placeholder="${c.ph||""}" style="width:76px">`
+        :`<input id="tc-${f}" type="text" placeholder="${c.ph||""}" list="${c.dl||""}" style="flex:1">`;
+      return `<div class="row"><label style="flex:1">${c.lbl} ${w}</label></div>`; }).join(""); }
+  // lecture / écriture génériques : une seule table, donc aucun risque que le formulaire propose un
+  // champ que l'enregistrement oublierait (ou l'inverse)
+  function lireConds(){ const m={};
+    for(const f of (CHAMPS_PAR_TYPE[tOn.value]||[])){ const c=COND_SPEC[f]; if(!c)continue;
+      if(c.kind==="num"){ const a=document.getElementById("tc-"+f+"-min"), b=document.getElementById("tc-"+f+"-max"), r={};
+        if(a&&a.value!=="")r.min=+a.value; if(b&&b.value!=="")r.max=+b.value; if(Object.keys(r).length)m[c.key]=r; continue; }
+      const e=document.getElementById("tc-"+f); const v=e?(e.value||"").trim():""; if(v==="")continue;
+      m[c.key]=c.kind==="int"?+v:(c.lire?c.lire(v):v); }
+    return m; }
+  function ecrireConds(m){ m=m||{};
+    for(const f of (CHAMPS_PAR_TYPE[tOn.value]||[])){ const c=COND_SPEC[f]; if(!c)continue; const v=m[c.key];
+      if(c.kind==="num"){ const a=document.getElementById("tc-"+f+"-min"), b=document.getElementById("tc-"+f+"-max");
+        if(a)a.value=(v&&v.min!=null)?v.min:""; if(b)b.value=(v&&v.max!=null)?v.max:""; continue; }
+      const e=document.getElementById("tc-"+f); if(!e)continue; e.value=(v==null)?"":String(v); } }
+  tOn.addEventListener("change",()=>{ renderConds(); majApercu(); });
+  renderConds();
   const fmtMatch=v=>(v&&typeof v==="object")?[v.min!=null?"≥"+v.min:null,v.max!=null?"≤"+v.max:null].filter(Boolean).join(" "):v;
   // La MÊME fenêtre édite deux listes : celle de la mission ouverte dans l'éditeur, et celle de
   // l'ACTE. Les déclencheurs d'acte portent en plus une PORTÉE, qui dit à quelles missions générées
@@ -2817,50 +2895,55 @@
     const bouts=[]; for(const [k,lbl] of [["rang","rank"],["etoiles","★"],["forme","shape"],["objectif","obj"],["region","region"]])
       if(p[k])bouts.push(lbl+":"+p[k]);
     return bouts.length?" ⟨"+bouts.join(" ")+"⟩":" ⟨all missions⟩"; }
+  // Une ligne se lit comme une PHRASE, pas comme une suite de sigles : « when a pod is spotted ·
+  // Ilm only · once · after intro ». Les symboles (⟲ ⊳ ⊘ ⇧) demandaient une légende que personne
+  // n'a sous les yeux au moment d'écrire. La MÊME phrase sert au récapitulatif et à la relecture
+  // sous le formulaire : ce qu'on lit en composant est mot pour mot ce qu'on lira dans la liste.
+  const QUAND={start:"at the start",turn:"at the start of a turn",win:"on victory",lose:"on defeat",
+    attack:"on an attack",kill:"on a kill",wounded:"when someone is wounded",cracker:"on an explosion",
+    friendlyfire:"on friendly fire",move:"on a move",enter:"when a zone is entered",
+    spotted:"when a pod is spotted",discovered:"when a pod is discovered",
+    newfoe:"the first time an enemy type is seen"};
+  const nomClasse=k=>(CLASSES[k]&&CLASSES[k].name)||k;
+  const unUne=n=>(/^[aeiouAEIOU]/.test(n)?"an ":"a ")+n;
+  const COND={actor:v=>`by ${v}`, target:(v,t)=>t.on==="newfoe"?unUne(nomClasse(v)):`on ${v}`, zone:v=>`in zone ${v}`,
+    result:v=>({hit:"if it hits",miss:"if it misses",blocked:"if it is blocked"}[v]||`if ${v}`),
+    killed:(v,t)=>(v&&typeof v==="object")?`${fmtMatch(v)} killed`:((v===true||v==="true")?"if it kills":"if it does not kill"),
+    enemiesHit:v=>`${fmtMatch(v)} enemies hit`, alliesHit:v=>`${fmtMatch(v)} allies hit`,
+    turn:v=>`turn ${fmtMatch(v)}`, targetHpPct:v=>`target at ${fmtMatch(v)}% HP`,
+    pod:v=>`pod ${v}`, actorTeam:v=>({enemy:"an enemy pod",neutral:"a civilian pod"}[v]||v),
+    by:v=>({sight:"seen",noise:"on noise",alert:"alerted"}[v]||v)};
+  const PORTEE={rang:v=>`mission ${v}`, etoiles:v=>`★${v}`, forme:v=>`${v} maps`,
+    objectif:v=>`${v} missions`, region:v=>`in ${v}`};
+  function phraseTrig(t){
+    const bouts=[];
+    for(const [k,v] of Object.entries(t.match||{})) if(COND[k])bouts.push(COND[k](v,t));
+    if(trigMode==="camp"){ const P=t.portee||{}; const p2=[];
+      for(const k in PORTEE) if(P[k])p2.push(PORTEE[k](P[k]));
+      bouts.push(p2.length?p2.join(", "):"every mission"); }
+    if(t.firstAction)bouts.push("first action of the turn");
+    bouts.push(t.once===false?"every time":"once");
+    if(t.requires)bouts.push(`after ${t.requires}`);
+    if(t.forbids)bouts.push(`unless ${t.forbids}`);
+    if(t.priority)bouts.push(`priority ${t.priority}`);
+    const actes=[]; if(t.wake)actes.push(`wakes pod ${t.wake}`);
+    if(t.open)actes.push(`opens ${t.open}`); if(t.close)actes.push(`closes ${t.close}`);
+    if(t.spawn)actes.push(`spawns ${t.spawn.count||1} ${nomClasse(t.spawn.cls||"brute")} in ${t.spawn.zone||"?"}`);
+    // « 8 lines » ne disait pas LESQUELLES : depuis qu'on importe des dialogues entiers, la
+    // première réplique est ce qui permet de reconnaître l'échange dans la liste.
+    const dit=t.say?`<b>${esc(t.say[0]||"—")}</b> ${esc(t.say[1])}`
+      :((t.lines&&t.lines.length)?`<b>${esc(t.lines[0][0]||"—")}</b> ${esc(t.lines[0][1])}`
+        +(t.lines.length>1?` <i>+${t.lines.length-1} more</i>`:""):"");
+    return {quand:QUAND[t.on]||t.on, bouts, corps:[dit,actes.length?`<i>${esc(actes.join(", "))}</i>`:""].filter(Boolean).join(" · ")}; }
   function renderTrigList(){const el=document.getElementById("triglist");if(!el)return;
     const src=trigArr();
-    // une ligne, telle qu'elle s'affichait avant — on ne change que le RANGEMENT
-    // Une ligne se lit comme une PHRASE, pas comme une suite de sigles : « when a pod is spotted ·
-    // Ilm only · once · after intro ». Les symboles (⟲ ⊳ ⊘ ⇧) demandaient une légende que personne
-    // n'a sous les yeux au moment d'écrire.
-    const QUAND={start:"at the start",turn:"at the start of a turn",win:"on victory",lose:"on defeat",
-      attack:"on an attack",kill:"on a kill",wounded:"when someone is wounded",cracker:"on an explosion",
-      friendlyfire:"on friendly fire",move:"on a move",enter:"when a zone is entered",
-      spotted:"when a pod is spotted",discovered:"when a pod is discovered",
-      newfoe:"the first time an enemy type is seen"};
-    const nomClasse=k=>(CLASSES[k]&&CLASSES[k].name)||k;
-    const unUne=n=>(/^[aeiouAEIOU]/.test(n)?"an ":"a ")+n;
-    const COND={actor:v=>`by ${v}`, target:(v,t)=>t.on==="newfoe"?unUne(nomClasse(v)):`on ${v}`, zone:v=>`in zone ${v}`,
-      result:v=>({hit:"if it hits",miss:"if it misses",blocked:"if it is blocked"}[v]||`if ${v}`),
-      killed:v=>(v===true||v==="true")?"if it kills":"if it does not kill",
-      enemiesHit:v=>`${fmtMatch(v)} enemies hit`};
-    const PORTEE={rang:v=>`mission ${v}`, etoiles:v=>`★${v}`, forme:v=>`${v} maps`,
-      objectif:v=>`${v} missions`, region:v=>`in ${v}`};
-    const ligne=(t,i)=>{
-      const bouts=[];
-      for(const [k,v] of Object.entries(t.match||{})) if(COND[k])bouts.push(COND[k](v,t));
-      if(trigMode==="camp"){ const P=t.portee||{}; const p2=[];
-        for(const k in PORTEE) if(P[k])p2.push(PORTEE[k](P[k]));
-        bouts.push(p2.length?p2.join(", "):"every mission"); }
-      if(t.firstAction)bouts.push("first action of the turn");
-      bouts.push(t.once===false?"every time":"once");
-      if(t.requires)bouts.push(`after ${t.requires}`);
-      if(t.forbids)bouts.push(`unless ${t.forbids}`);
-      if(t.priority)bouts.push(`priority ${t.priority}`);
-      const actes=[]; if(t.wake)actes.push(`wakes pod ${t.wake}`);
-      if(t.open)actes.push(`opens ${t.open}`); if(t.close)actes.push(`closes ${t.close}`);
-      // « 8 lines » ne disait pas LESQUELLES : depuis qu'on importe des dialogues entiers, la
-      // première réplique est ce qui permet de reconnaître l'échange dans la liste.
-      const dit=t.say?`<b>${esc(t.say[0]||"—")}</b> ${esc(t.say[1])}`
-        :((t.lines&&t.lines.length)?`<b>${esc(t.lines[0][0]||"—")}</b> ${esc(t.lines[0][1])}`
-          +(t.lines.length>1?` <i>+${t.lines.length-1} more</i>`:""):"");
-      const corps=[dit,actes.length?`<i>${esc(actes.join(", "))}</i>`:""].filter(Boolean).join(" · ");
+    const ligne=(t,i)=>{ const f=phraseTrig(t);
       return `<div class="tline"><button class="tedit" data-i="${i}" title="Edit this event">✎</button>`
         +`<button class="tdel" data-i="${i}" title="Delete">✕</button>`
-        +`<span class="tq">${esc(QUAND[t.on]||t.on)}</span>`
+        +`<span class="tq">${esc(f.quand)}</span>`
         +(t.id?`<span class="tid">#${esc(t.id)}</span>`:"")
-        +`<span class="tc">${esc(bouts.join(" · "))}</span>`
-        +(corps?`<span class="tsay">${corps}</span>`:"")+`</div>`; };
+        +`<span class="tc">${esc(f.bouts.join(" · "))}</span>`
+        +(f.corps?`<span class="tsay">${f.corps}</span>`:"")+`</div>`; };
     if(!src.length){ el.innerHTML=`<i>no event yet</i>`; majTrigCount(); return; }
     // regroupement par famille : les catégories vides ne s'affichent pas, et une famille inconnue
     // (déclencheur venu d'un fichier plus ancien) tombe dans « Other » plutôt que de disparaître
@@ -2881,22 +2964,46 @@
     el.innerHTML=trigLines.map((l,i)=>`<div><button class="tldel" data-i="${i}">✕</button> <b>${l.who||"—"}</b>: ${l.text}</div>`).join("");
     el.querySelectorAll(".tldel").forEach(b=>b.onclick=()=>{trigLines.splice(+b.dataset.i,1);renderTrigLines();});}
   function addLine(){const text=(tText.value||"").trim();if(!text){alert("Write a line.");return;}trigLines.push({who:(tWho.value||"").trim(),text});tText.value="";tText.focus();renderTrigLines();}
-  function addTrig(){const on=tOn.value,m={};const setF=(el,k)=>{const v=(el.value||"").trim();if(v)m[k]=v;};
-    setF(tActor,"actor");setF(tZone,"zone");setF(tTarget,"target");if(tResult.value)m.result=tResult.value;if(tKilled.value)m.killed=tKilled.value==="true";
-    if(on==="cracker"){ const lo=(tEhMin.value||"").trim(),hi=(tEhMax.value||"").trim(),rng={}; if(lo!=="")rng.min=+lo; if(hi!=="")rng.max=+hi; if(Object.keys(rng).length)m.enemiesHit=rng; }   // cracker: number of enemies hit (min/max bound)
-    const lines=trigLines.slice();const cur=(tText.value||"").trim();if(cur)lines.push({who:(tWho.value||"").trim(),text:cur});
-    const t={on};if(Object.keys(m).length)t.match=m;t.once=tOnce.checked;if(tFirst.checked)t.firstAction=true;
-    const idv=(tId.value||"").trim();if(idv)t.id=idv; const req=(tRequires.value||"").trim();if(req)t.requires=req;
-    { const fb=(document.getElementById("t-forbids").value||"").trim(); if(fb)t.forbids=fb;
-      const pr=+document.getElementById("t-prio").value||0; if(pr)t.priority=pr; }
-    const wk=(tWake.value||"").trim();if(wk)t.wake=wk; if(tPassmode.value&&(tPasszone.value||"").trim())t[tPassmode.value]=tPasszone.value.trim();
-    if(!lines.length&&!(t.wake||t.open||t.close)){alert("Write a line or choose an action (wake / passage).");return;}
-    if(lines.length===1)t.say=[lines[0].who,lines[0].text];else if(lines.length)t.lines=lines.map(l=>[l.who,l.text]);
+  // Composer un déclencheur, c'est remplir un objet à partir de quatre blocs qui se CUMULENT :
+  // le moment, les conditions, ce qui se passe (répliques ET actions), la fréquence. Rien ici n'est
+  // exclusif — sauf ouvrir et fermer la MÊME zone, qui n'aurait pas de sens.
+  // Un déclencheur venu d'un fichier plus ancien peut porter une condition que le type courant
+  // n'expose pas. La rendre invisible passe encore ; la PERDRE au premier ré-enregistrement, non.
+  // On la met de côté à l'ouverture et on la recolle telle quelle.
+  let trigMatchInconnu={};
+  function composerTrig(){
+    const t={on:tOn.value};
+    const m=Object.assign(lireConds(),trigMatchInconnu); if(Object.keys(m).length)t.match=m;
+    t.once=tOnce.checked; if(tFirst.checked)t.firstAction=true;
+    const v=id=>{ const e=document.getElementById(id); return e?(e.value||"").trim():""; };
+    if(v("t-id"))t.id=v("t-id"); if(v("t-requires"))t.requires=v("t-requires"); if(v("t-forbids"))t.forbids=v("t-forbids");
+    const pr=+v("t-prio")||0; if(pr)t.priority=pr;
+    if(v("t-wake"))t.wake=v("t-wake"); if(v("t-open"))t.open=v("t-open"); if(v("t-close"))t.close=v("t-close");
+    if(v("t-spzone")){ const sp={zone:v("t-spzone"),cls:v("t-spcls")||"brute",team:v("t-spteam")||"enemy",count:+v("t-spcount")||1};
+      if(v("t-sppod")!=="")sp.pod=+v("t-sppod"); t.spawn=sp; }
+    const lignes=trigLines.slice(), cur=v("t-text");
+    if(cur)lignes.push({who:v("t-who"),text:cur});
+    if(lignes.length===1)t.say=[lignes[0].who,lignes[0].text]; else if(lignes.length)t.lines=lignes.map(l=>[l.who,l.text]);
     if(trigMode==="camp"){ const P={}; for(const k of ["rang","etoiles","forme","objectif","region"]){
-        const e=document.getElementById("t-sc-"+k), v=e?(e.value||"").trim():""; if(v)P[k]=v; }
+        const x=v("t-sc-"+k); if(x)P[k]=x; }
       if(Object.keys(P).length)t.portee=P; }
+    return t; }
+  const trigAgit=t=>!!(t.say||t.lines||t.wake||t.open||t.close||t.spawn);
+  // RELECTURE EN CLAIR. Le formulaire dit ce qu'on remplit, pas ce qu'on obtient : la même phrase
+  // que dans la liste, mise à jour à chaque frappe, rend le cumul visible avant de valider.
+  function majApercu(){ const el=document.getElementById("t-apercu"); if(!el)return;
+    const t=composerTrig(), f=phraseTrig(t);
+    const garde=Object.keys(trigMatchInconnu);
+    const sup=garde.length?` <i>· carried over from the saved event: ${esc(garde.join(", "))}</i>`:"";
+    el.innerHTML=(trigAgit(t)
+      ? `<span class="tq">${esc(f.quand)}</span> ${esc(f.bouts.join(" · "))}${f.corps?" — "+f.corps:""}`
+      : `<span class="tq">${esc(f.quand)}</span> ${esc(f.bouts.join(" · "))} — <i>nothing happens yet: write a line, import a dialogue, or pick a world action.</i>`)+sup; }
+  function addTrig(){
+    const t=composerTrig();
+    if(!trigAgit(t)){ alert("Nothing would happen: write a line, import a dialogue, or choose a world action (wake / passage / spawn)."); return; }
+    if(t.open&&t.close&&t.open===t.close){ alert("The same zone cannot be opened and closed by one event."); return; }
     if(trigEdit!=null){ trigArr()[trigEdit]=t; finEdition(); } else trigArr().push(t);
-    tText.value="";tId.value="";tRequires.value="";tWake.value="";tPasszone.value="";tPassmode.value="";tActor.value="";tZone.value="";tTarget.value="";document.getElementById("t-forbids").value="";document.getElementById("t-prio").value=0;tResult.value="";tKilled.value="";tEhMin.value="";tEhMax.value="";trigLines=[];renderTrigLines();renderTrigList();saveDraft();}
+    viderForm(); renderTrigList(); trigSave(); majTrigCount(); }
   document.getElementById("t-addline").onclick=addLine;
   document.getElementById("t-add").onclick=addTrig;
   // ÉDITION D'UNE LIGNE. Sans elle, corriger une portée obligeait à supprimer et tout ré-écrire —
@@ -2905,35 +3012,37 @@
   function finEdition(){ trigEdit=null;
     const b=document.getElementById("t-add"); if(b)b.textContent="+ Add the event";
     const c=document.getElementById("t-cancel"); if(c)c.style.display="none"; }
-  function viderForm(){ for(const id of ["t-actor","t-zone","t-target","t-id","t-requires","t-forbids","t-wake","t-passzone","t-who","t-text","t-ehmin","t-ehmax"]){
+  function viderForm(){
+    for(const id of ["t-id","t-requires","t-forbids","t-wake","t-open","t-close","t-who","t-text","t-spzone","t-spcount","t-sppod"]){
       const e=document.getElementById(id); if(e)e.value=""; }
     const pr=document.getElementById("t-prio"); if(pr)pr.value=0;
-    for(const id of ["t-result","t-killed","t-passmode"]){ const e=document.getElementById(id); if(e)e.value=""; }
     const o=document.getElementById("t-once"); if(o)o.checked=true;
     const f=document.getElementById("t-first"); if(f)f.checked=false;
     for(const k of ["rang","etoiles","forme","objectif","region"]){ const e=document.getElementById("t-sc-"+k); if(e)e.value=""; }
     { const ts=document.getElementById("t-txt"); if(ts)ts.value=""; const tn=document.getElementById("t-txtnote"); if(tn)tn.innerHTML=TXTNOTE0; }
-    trigLines=[]; renderTrigLines(); }
+    ecrireConds({}); trigMatchInconnu={}; trigLines=[]; renderTrigLines(); majApercu(); }
   function ouvrirEdition(i){
     const t=trigArr()[i]; if(!t)return;
-    viderForm();
-    const q=id=>document.getElementById(id), set=(id,v)=>{ const e=q(id); if(e&&v!=null)e.value=v; };
-    set("t-on",t.on); q("t-on").dispatchEvent(new Event("change",{bubbles:true}));
-    const m=t.match||{}; set("t-actor",m.actor); set("t-zone",m.zone); set("t-target",m.target);
-    set("t-result",m.result); if(m.killed!=null)set("t-killed",String(m.killed));
-    if(m.enemiesHit){ set("t-ehmin",m.enemiesHit.min); set("t-ehmax",m.enemiesHit.max); }
+    const q=id=>document.getElementById(id), set=(id,v)=>{ const e=q(id); if(e)e.value=(v==null?"":v); };
+    set("t-on",t.on); renderConds(); viderForm();
+    const m=t.match||{}, connus=new Set((CHAMPS_PAR_TYPE[t.on]||[]).map(f=>COND_SPEC[f]&&COND_SPEC[f].key));
+    trigMatchInconnu={}; for(const k in m) if(!connus.has(k))trigMatchInconnu[k]=m[k];
+    ecrireConds(m);
     q("t-once").checked=(t.once!==false); q("t-first").checked=!!t.firstAction;
-    set("t-id",t.id); set("t-requires",t.requires); set("t-wake",t.wake);
-    set("t-forbids",t.forbids); set("t-prio",t.priority||0);
-    if(t.open){ set("t-passmode","open"); set("t-passzone",t.open); }
-    else if(t.close){ set("t-passmode","close"); set("t-passzone",t.close); }
+    set("t-id",t.id); set("t-requires",t.requires); set("t-forbids",t.forbids); set("t-prio",t.priority||0);
+    set("t-wake",t.wake); set("t-open",t.open); set("t-close",t.close);
+    if(t.spawn){ set("t-spzone",t.spawn.zone); set("t-spcls",t.spawn.cls||"brute"); set("t-spteam",t.spawn.team||"enemy");
+      set("t-spcount",t.spawn.count||1); set("t-sppod",t.spawn.pod!=null?t.spawn.pod:""); }
     const P=t.portee||{}; for(const k of ["rang","etoiles","forme","objectif","region"]) set("t-sc-"+k,P[k]||"");
     trigLines=(t.lines||(t.say?[t.say]:[])).map(l=>Array.isArray(l)?{who:l[0]||"",text:l[1]||""}:{who:"",text:String(l)});
-    renderTrigLines();
+    renderTrigLines(); majApercu();
     trigEdit=i;
     const b=q("t-add"); if(b)b.textContent="✓ Update the event";
     const c=q("t-cancel"); if(c)c.style.display="";
     const w=document.getElementById("trig-right"); if(w)w.scrollTop=0; }   // le formulaire est en face, à droite : on le remonte plutôt que de descendre la fenêtre
+  { const r=document.getElementById("trig-right");   // toute frappe dans le formulaire rafraîchit la relecture
+    if(r){ r.addEventListener("input",e=>{ if(!e.target.closest("#trigsets"))majApercu(); });
+           r.addEventListener("change",e=>{ if(!e.target.closest("#trigsets"))majApercu(); }); } }
 
   // ===== DIALOGUE ÉCRIT → PILE DE RÉPLIQUES =====
   // Le formulaire ne savait composer qu'à la réplique : qui parle, ce qu'il dit, une ligne à la
@@ -3066,12 +3175,29 @@
       orphelins.length?`⚠ ${orphelins.join(", ")}: no longer an enemy class — delete by hand`:""].filter(Boolean).join(" · "); }
   { const b=document.getElementById("t-foegen"); if(b)b.onclick=genFoeTriggers; }
 
+  // Les champs libres (qui parle, qui agit, quelle zone) restent libres — un acte parle de missions
+  // qui n'existent pas encore — mais ils proposent ce qu'on connaît : l'escouade de la campagne, les
+  // classes, et les zones peintes sur la carte ouverte. C'est un datalist, pas un menu fermé.
+  function remplirSuggestions(){
+    const noms=new Set();
+    for(const m of (campRoster||[])) if(m&&m.name)noms.add(m.name);
+    for(const k in CLASSES){ if(k==="sergent")continue; noms.add(k); if(CLASSES[k].name)noms.add(CLASSES[k].name); }
+    const dn=document.getElementById("dl-noms");
+    if(dn)dn.innerHTML=[...noms].sort().map(n=>`<option value="${esc(n)}">`).join("");
+    const zones=new Set(); for(const c of cells) if(c.zone)zones.add(c.zone);
+    const dz=document.getElementById("dl-zones");
+    if(dz)dz.innerHTML=[...zones].sort().map(z=>`<option value="${esc(z)}">`).join("");
+    const sc=document.getElementById("t-spcls");
+    if(sc&&!sc.options.length)sc.innerHTML=Object.keys(CLASSES).filter(k=>k!=="sergent")
+      .map(k=>`<option value="${k}"${k==="brute"?" selected":""}>${esc(CLASSES[k].name||k)}</option>`).join(""); }
+
   function ouvrirTriggers(mode){ trigMode=mode||"mission"; viderForm(); finEdition();
     const w=document.getElementById("trigwin"); if(!w)return;
     const sc=document.getElementById("trigwin-scope"); if(sc)sc.style.display=(trigMode==="camp")?"":"none";
     const fn=document.getElementById("t-foenote"); if(fn)fn.textContent="";
     tsSt(""); remplirSets(); listerSetsRepo();   // le dépôt est relu à l'ouverture : une liste publiée ailleurs apparaît
     { const ts=document.getElementById("t-txt"); if(ts)ts.innerHTML=txtOpts("","— a dialogue written in texts/ —"); }
+    remplirSuggestions(); renderConds(); majApercu();
     const t=document.getElementById("trigwin-t"), sub=document.getElementById("trigwin-sub");
     if(t)t.textContent=(trigMode==="camp")?"🎬 Act triggers":"🎬 Mission triggers";
     if(sub)sub.textContent=(trigMode==="camp")
