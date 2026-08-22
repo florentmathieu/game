@@ -3199,7 +3199,7 @@
   const SAVE_PREFIX="mgf_camp_save_";
   const campSlug=n=>(n||"camp").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g,"").replace(/[^a-z0-9]+/g,"-").replace(/(^-|-$)/g,"")||"camp";
   function saveRosterProgress(){ if(!campRun||!campRun.camp)return; try{ localStorage.setItem(SAVE_PREFIX+campSlug(campRun.camp.name),
-    JSON.stringify({roster:campRun.roster.map(m=>({name:m.name,cls:m.cls,xp:m.xp||0,perks:(m.perks||[]).slice(),offered:m.offered||{},track:m.track||null,stress:m.stress||0,fatigue:m.fatigue||0,special:m.special!==false,dead:!!m.dead}))})); }catch(e){} }
+    JSON.stringify({roster:campRun.roster.map(m=>({name:m.name,cls:m.cls,xp:m.xp||0,perks:(m.perks||[]).slice(),offered:m.offered||{},tirage:m.tirage||{},track:m.track||null,stress:m.stress||0,fatigue:m.fatigue||0,special:m.special!==false,dead:!!m.dead}))})); }catch(e){} }
   function loadRosterProgress(name){ try{ const t=localStorage.getItem(SAVE_PREFIX+campSlug(name)); if(t){ const o=JSON.parse(t); if(o&&Array.isArray(o.roster))return o.roster; } }catch(e){} return null; }
   function clearRosterProgress(name){ try{ localStorage.removeItem(SAVE_PREFIX+campSlug(name)); localStorage.removeItem(EVT_PREFIX+campSlug(name)); }catch(e){} }
   // scripted events already triggered (so they don't replay), persisted per campaign
@@ -3284,9 +3284,19 @@
     // À chaque niveau : A et B = les deux perks CONNUS (arbre de classe, ou VOIE aux niveaux 4/6/8), C = un perk ALÉATOIRE.
     // Le choix est irréversible ; on garde les options écartées dans m.offered pour pouvoir les réafficher.
     const rec=(it,offer,took)=>{ it.m.perks=it.m.perks||[]; it.m.perks.push(offer[took].id);
-      it.m.offered=it.m.offered||{}; it.m.offered[it.grade]={a:offer.A&&offer.A.id,b:offer.B&&offer.B.id,c:offer.C&&offer.C.id,took}; };
+      it.m.offered=it.m.offered||{}; it.m.offered[it.grade]={a:offer.A&&offer.A.id,b:offer.B&&offer.B.id,c:offer.C&&offer.C.id,took};
+      if(it.m.tirage)delete it.m.tirage[it.grade]; };   // choix acté : le tirage en attente n'a plus lieu d'être
+    // LE TIRAGE EST FIGÉ, une fois pour toutes, au niveau concerné.
+    // buildOffer retirait un perk à CHAQUE appel : rouvrir l'écran de promotion — ou recharger la
+    // partie — changeait la troisième option. Le tirage n'engageait donc à rien, on pouvait le
+    // relancer jusqu'à tomber sur ce qu'on voulait, et « choisir en conscience » n'avait plus de
+    // sens. Il est désormais mémorisé sur le personnage (m.tirage[niveau]) dès la première fois,
+    // sauvegardé avec le reste, et effacé une fois le choix acté.
     const buildOffer=it=>{ const pair=perkPairFor(it.m,it.lvl);
-      return {A:pair&&pair.A, B:pair&&pair.B, C:randStatPerk()}; };
+      it.m.tirage=it.m.tirage||{};
+      let c=it.m.tirage[it.grade]&&perkById(it.m.cls,it.m.tirage[it.grade]);
+      if(!c){ c=randStatPerk(); it.m.tirage[it.grade]=c.id; saveRosterProgress(); }
+      return {A:pair&&pair.A, B:pair&&pair.B, C:c}; };
     if(autoPromote){
       for(const it of list){
         if(usesTrack(it.m,it.lvl)&&!it.m.track) it.m.track=(autoPromote(it.m,it.grade,null,"track")||"veteran");
