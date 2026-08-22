@@ -451,6 +451,16 @@
   <div id="trigwin-body">
     <div id="trig-left"><div id="triglist" class="hint"></div></div>
     <div id="trig-right">
+    <div class="row" id="trigsets" style="flex-wrap:wrap;gap:6px;align-items:center;border:1px solid #3a3428;border-radius:8px;padding:8px;margin-bottom:10px">
+      <span style="width:100%;font-size:.8rem;color:#e0b341">Saved sets <span class="hint" style="font-weight:normal">keep this list aside, drop it back on the next act</span></span>
+      <select id="ts-sel" style="flex:1 1 150px;min-width:120px"></select>
+      <button id="ts-load" title="Replace the current list with this set">📂 Load</button>
+      <button id="ts-merge" title="Add only the events of this set that are missing here">⊕ Merge</button>
+      <button id="ts-del" title="Delete this set">🗑</button>
+      <input id="ts-name" type="text" placeholder="set name" style="flex:1 1 130px;min-width:110px">
+      <button id="ts-save" title="Save the list currently open under this name">💾 Save</button>
+      <span class="hint" id="ts-st" style="width:100%"></span>
+    </div>
     <div class="row" style="align-items:center;gap:8px"><button id="t-foegen" title="One event per enemy type, fired the first time that type is seen. Run it again after the classes sheet changes: what already exists is left untouched.">⚔ One event per enemy type</button><span id="t-foenote" class="hint" style="flex:1"></span></div>
     <div class="row"><select id="t-on"></select></div>
     <div class="row"><input id="t-actor" type="text" placeholder="actor (name/class)" style="flex:1"><input id="t-zone" type="text" placeholder="zone (e.g. A)" style="flex:1"></div>
@@ -2919,6 +2929,89 @@
     const c=q("t-cancel"); if(c)c.style.display="";
     const w=document.getElementById("trig-right"); if(w)w.scrollTop=0; }   // le formulaire est en face, à droite : on le remonte plutôt que de descendre la fenêtre
 
+  // ===== BIBLIOTHÈQUE DE LISTES =====
+  // Une liste de déclencheurs est écrite pour un acte, mais elle ne lui appartient pas : « premier
+  // contact avec chaque ennemi » vaut pour tous les actes qu'on reconstruira. On la range sous un
+  // nom, on la redépose plus tard.
+  // Deux rangements, parce qu'ils ne servent pas la même chose : le NAVIGATEUR (toujours là, aucun
+  // réglage) et le DÉPÔT (versionné, suit la machine) quand un jeton est configuré. Le menu montre
+  // les deux, les locales suffixées « (local) ».
+  const TRIGSET_KEY="mgf_trigsets";
+  const setsLocaux=()=>{ try{ const o=JSON.parse(localStorage.getItem(TRIGSET_KEY)||"{}"); return (o&&typeof o==="object")?o:{}; }catch(e){ return {}; } };
+  const ecrireSetsLocaux=o=>{ try{ localStorage.setItem(TRIGSET_KEY,JSON.stringify(o)); }catch(e){} };
+  let setsRepo=[];   // [{file,name}] publiés dans triggers-mesh/
+  const slugSet=s=>((s||"").toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/(^-|-$)/g,"")||"set");
+  const tsSt=t=>{ const e=document.getElementById("ts-st"); if(e)e.textContent=t||""; };
+  function remplirSets(garder){
+    const sel=document.getElementById("ts-sel"); if(!sel)return;
+    const loc=setsLocaux();
+    const opts=setsRepo.map(x=>`<option value="r:${x.file}">${esc(x.name)}</option>`)
+      .concat(Object.keys(loc).filter(k=>!setsRepo.some(x=>x.file===k+".json"))
+        .sort().map(k=>`<option value="l:${k}">${esc(loc[k].name||k)} (local)</option>`));
+    sel.innerHTML=opts.length?opts.join(""):`<option value="">(no set yet)</option>`;
+    if(garder)sel.value=garder; }
+  async function listerSetsRepo(){ const t=await fetchText("triggers-mesh/list.json",ghCfg());
+    let list=[]; if(t){try{ const p=JSON.parse(t); if(Array.isArray(p))list=p; }catch(e){}}
+    setsRepo=list; remplirSets(); }
+  async function lireSet(v){ if(!v)return null;
+    if(v.slice(0,2)==="l:"){ const o=setsLocaux()[v.slice(2)]; return o?o.triggers||[]:null; }
+    const t=await fetchText("triggers-mesh/"+v.slice(2),ghCfg()); if(!t)return null;
+    try{ const o=JSON.parse(t); return Array.isArray(o)?o:(o.triggers||[]); }catch(e){ return null; } }
+  // Une liste d'acte porte des PORTÉES, une liste de mission n'en a que faire : on les retire en
+  // arrivant côté mission, sinon on traîne des champs morts que personne ne relira.
+  const adapterSet=arr=>JSON.parse(JSON.stringify(arr)).map(t=>{ if(trigMode!=="camp")delete t.portee; return t; });
+  const cléTrig=t=>t.id?"#"+t.id:JSON.stringify([t.on,t.match||null,t.say||null,t.lines||null,t.wake||null,t.open||null,t.close||null]);
+  async function chargerSet(fusion){
+    const sel=document.getElementById("ts-sel"), v=sel?sel.value:"";
+    const arr0=await lireSet(v); if(!arr0){ tsSt("Set not found."); return; }
+    const arr=trigArr(), entrant=adapterSet(arr0);
+    if(fusion){ const vus=new Set(arr.map(cléTrig)); let n=0;
+      for(const t of entrant){ if(vus.has(cléTrig(t)))continue; vus.add(cléTrig(t)); arr.push(t); n++; }
+      tsSt(n?`${n} event(s) added · ${entrant.length-n} already here`:"nothing to add — all of them are already here"); }
+    else { if(arr.length&&!confirm(`Replace the ${arr.length} event(s) currently in this list?`))return;
+      arr.length=0; for(const t of entrant)arr.push(t); tsSt(`${arr.length} event(s) loaded`); }
+    if(trigEdit!=null)finEdition();
+    renderTrigList(); trigSave(); majTrigCount(); }
+  async function sauverSet(){
+    const nom=((document.getElementById("ts-name")||{}).value||"").trim();
+    if(!nom){ tsSt("Give the set a name."); return; }
+    const arr=trigArr(); if(!arr.length){ tsSt("The list is empty — nothing to save."); return; }
+    const k=slugSet(nom), corps={name:nom,triggers:JSON.parse(JSON.stringify(arr))};
+    const loc=setsLocaux(); loc[k]=corps; ecrireSetsLocaux(loc);
+    remplirSets("l:"+k); tsSt(`✓ "${nom}" saved locally (${arr.length} events)`);
+    const cfg=ghCfg(); if(!cfg.token||!cfg.repo)return;   // sans jeton on s'arrête au navigateur, et on le dit
+    try{ tsSt(`Publishing "${nom}"…`);
+      await ghPut("triggers-mesh/"+k+".json",JSON.stringify(corps),"Trigger set: "+nom,cfg);
+      const cur=await ghGet("triggers-mesh/list.json",cfg.branch,cfg); let list=[];
+      if(cur){try{ const p=JSON.parse(cur.text); if(Array.isArray(p))list=p; }catch(e){}}
+      const file=k+".json";
+      if(list.some(x=>x.file===file))list=list.map(x=>x.file===file?{file,name:nom}:x); else list.push({file,name:nom});
+      await ghPut("triggers-mesh/list.json",JSON.stringify(list),"trigger sets: "+nom,cfg);
+      setsRepo=list; remplirSets("r:"+file); tsSt(`✓ "${nom}" saved (${arr.length} events) — browser + repository`); }
+    catch(e){ tsSt(`Saved locally, repository failed: ${e.message}`); } }
+  async function supprimerSet(){
+    const sel=document.getElementById("ts-sel"), v=sel?sel.value:""; if(!v){ tsSt("No set selected."); return; }
+    const nom=sel.options[sel.selectedIndex]?sel.options[sel.selectedIndex].textContent:v;
+    if(!confirm(`Delete the set "${nom}"?`))return;
+    const k=v.slice(2).replace(/\.json$/,""), loc=setsLocaux();
+    if(loc[k]){ delete loc[k]; ecrireSetsLocaux(loc); }
+    const cfg=ghCfg();
+    if(v.slice(0,2)==="r:"&&cfg.token&&cfg.repo){ try{
+      await ghDelete("triggers-mesh/"+v.slice(2),"Delete trigger set: "+nom,cfg);
+      const cur=await ghGet("triggers-mesh/list.json",cfg.branch,cfg); let list=[];
+      if(cur){try{ const p=JSON.parse(cur.text); if(Array.isArray(p))list=p; }catch(e){}}
+      list=list.filter(x=>x.file!==v.slice(2));
+      await ghPut("triggers-mesh/list.json",JSON.stringify(list),"trigger sets: delete "+nom,cfg);
+      setsRepo=list; }catch(e){ tsSt("Repository deletion failed: "+e.message); } }
+    remplirSets(); tsSt(`✓ "${nom}" deleted`); }
+  { const g=id=>document.getElementById(id);
+    if(g("ts-load"))g("ts-load").onclick=()=>chargerSet(false);
+    if(g("ts-merge"))g("ts-merge").onclick=()=>chargerSet(true);
+    if(g("ts-save"))g("ts-save").onclick=sauverSet;
+    if(g("ts-del"))g("ts-del").onclick=supprimerSet;
+    if(g("ts-sel"))g("ts-sel").onchange=()=>{ const s=g("ts-sel"),o=s.options[s.selectedIndex];
+      if(o&&g("ts-name"))g("ts-name").value=(o.textContent||"").replace(/ \(local\)$/,""); tsSt(""); }; }
+
   // ===== UN ÉVÉNEMENT PAR TYPE D'ENNEMI =====
   // La liste des classes vient du Sheet, recopiée dans CLASSES : le bouton la relit à chaque clic.
   // Relancé après une mise à jour du Sheet, il AJOUTE les nouveaux types et ne touche pas aux
@@ -2948,6 +3041,7 @@
     const w=document.getElementById("trigwin"); if(!w)return;
     const sc=document.getElementById("trigwin-scope"); if(sc)sc.style.display=(trigMode==="camp")?"":"none";
     const fn=document.getElementById("t-foenote"); if(fn)fn.textContent="";
+    tsSt(""); remplirSets(); listerSetsRepo();   // le dépôt est relu à l'ouverture : une liste publiée ailleurs apparaît
     const t=document.getElementById("trigwin-t"), sub=document.getElementById("trigwin-sub");
     if(t)t.textContent=(trigMode==="camp")?"🎬 Act triggers":"🎬 Mission triggers";
     if(sub)sub.textContent=(trigMode==="camp")
