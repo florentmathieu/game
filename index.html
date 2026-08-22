@@ -440,6 +440,7 @@
   <div id="trigwin-hd"><span id="trigwin-t">🎬 Triggers</span><span id="trigwin-sub" class="hint"></span><span id="trigwin-x">✕</span></div>
   <div id="trigwin-body">
     <div id="triglist" class="hint"></div>
+    <div class="row" style="align-items:center;gap:8px"><button id="t-foegen" title="One event per enemy type, fired the first time that type is seen. Run it again after the classes sheet changes: what already exists is left untouched.">⚔ One event per enemy type</button><span id="t-foenote" class="hint" style="flex:1"></span></div>
     <div class="row"><select id="t-on"></select></div>
     <div class="row"><input id="t-actor" type="text" placeholder="actor (name/class)" style="flex:1"><input id="t-zone" type="text" placeholder="zone (e.g. A)" style="flex:1"></div>
     <div class="row"><input id="t-target" type="text" placeholder="target (name/class)" style="flex:1"></div>
@@ -1350,7 +1351,7 @@
     const o={}; for(let i=0;i<d.length;i++) if(d[i]>=0)o[i]=d[i]; return o; }
 
   // ===== units =====
-  let units=[], podAlerted=new Set(), neutralSeen=new Set(), lastSeen=new Map(), curMission=null;
+  let units=[], podAlerted=new Set(), neutralSeen=new Set(), typesVus=new Set(), lastSeen=new Map(), curMission=null;
   function U(team,cls,cell,opts){opts=opts||{};const t=CLASSES[cls];const wtype=t.w.ranged?"ranged":"melee";const w=t.w[wtype];
     const u={team,cls,name:opts.name||t.name,cell,hp:t.hp,max:t.hp,ap:AP_MAX,freeAvail:true,mob:t.mob,facing:opts.facing!=null?opts.facing:(team==="enemy"?Math.PI:0),wtype,flank:w.flank||null,shieldBlock:t.shieldBlock||0,parry:t.parry||0,stealth:!!t.stealth,civ:!!t.civ,w:t.w,overwatch:false,reacted:false,owMode:null};
     if(w.clip!==undefined){u.clip=w.clip;u.ammo=w.clip;} if(t.crackers){u.crackers=t.crackers;u.crackers0=t.crackers;}   // crackers0 = base (incl. perks) that startGame restores
@@ -1376,6 +1377,17 @@
     for(const p of units)if(p.team==="player"&&p.hp>0&&enemySeesP(e,p)){ wakeEnemy(e,"sight",p); break; } } }   // wake on sight (front cone; stealthy = narrow front cone, blind spot otherwise)
   function detectNeutralPods(){ for(const u of units)if(u.team==="neutral"&&u.hp>0&&u.pod!==undefined&&!neutralSeen.has(u.pod)&&visible.has(u.cell)){
     neutralSeen.add(u.pod); log("🔎 NPC/hostage pod discovered","player"); emit("spotted",{pod:u.pod,actorTeam:"neutral",by:"sight"}); emit("discovered",{pod:u.pod,actorTeam:"neutral"}); } }
+  // PREMIÈRE RENCONTRE D'UN TYPE D'ENNEMI. « spotted » parle de POD (un groupe se réveille) : il ne
+  // porte aucune classe, donc on ne peut pas écrire « la première fois qu'on voit un Wrecker ». D'où
+  // un événement séparé, à la maille de l'UNITÉ, tiré une fois par classe. Il se lit sur la clé de
+  // classe (targetCls), pas sur le nom affiché — celui-ci change quand revealTruth() tombe.
+  // Mémoire : la campagne si on en joue une (on ne présente pas deux fois le même ennemi entre deux
+  // missions), sinon la mission seule.
+  function detectNewFoes(){ for(const e of units){ if(e.team!=="enemy"||e.hp<=0||!visible.has(e.cell))continue;
+    if(typesVus.has(e.cls))continue; typesVus.add(e.cls);
+    if(campRun){ campRun.typesSeen=campRun.typesSeen||new Set(); campRun.typesSeen.add(e.cls); }
+    const t=CLASSES[e.cls]||{}; log(`🆕 First sighting: ${t.name||e.cls}`,"enemy");
+    emit("newfoe",{cls:e.cls,targetCls:e.cls,targetName:e.name,actorTeam:"enemy",actorName:e.name}); } }
 
   // ===== distance / range / movement =====
   const mobOf=u=>MOB+(u.mobBonus||0);   // mobility per unit (perks)
@@ -1674,7 +1686,7 @@
   let msgT=null;
   function setMsg(t){const el=document.getElementById("msg");el.textContent=t;if(msgT){clearTimeout(msgT);msgT=null;}if(t)msgT=setTimeout(()=>{el.textContent="";msgT=null;},4000);}   // ephemeral message: clears itself
   function refresh(){ if(geoPlay&&!geoPlay.inMission){ if(typeof drawGeoPlay==="function")drawGeoPlay(); return; }   // back on the strategic map: no "mission" refresh (stale units/cells)
-    if(mode==="play"){computeVis();detectEnemies();detectNeutralPods();updateEnemyMemory();computeEVis();checkBonus();
+    if(mode==="play"){computeVis();detectEnemies();detectNeutralPods();detectNewFoes();updateEnemyMemory();computeEVis();checkBonus();
       if(turn==="player"&&!over&&sel&&(sel.hp<=0||(sel.ap<=0&&!sel.freeAvail))){ const nxt=units.find(u=>u.team==="player"&&u.hp>0&&!(u.ap<=0&&!u.freeAvail)); if(nxt){sel=nxt;amode=null;aimTarget=null;throwing=false;usingItem=false;} }   // exhausted unit → switch to the next one
     } else visible=new Set(cells.map(c=>c.id));
     if(SIMRAPIDE)return;   // simulation : l'état est à jour, on saute l'affichage — et maybeAutoEnd, car c'est le pilote qui mène les tours
@@ -2764,11 +2776,11 @@
   const TRIG_CATS=[
     {nom:"Mission flow",          ids:["start","turn","win","lose"]},
     {nom:"Combat",                ids:["attack","kill","wounded","cracker","friendlyfire"]},
-    {nom:"Movement & detection",  ids:["move","enter","spotted","discovered"]},
+    {nom:"Movement & detection",  ids:["move","enter","spotted","discovered","newfoe"]},
   ];
   const TRIG_LABEL={start:"Start",turn:"Turn start",win:"Victory",lose:"Defeat",
     attack:"Attack",kill:"Kill",wounded:"Wounded",cracker:"Cracker (explosion)",friendlyfire:"Friendly fire",
-    move:"Move",enter:"Zone entry",spotted:"Pod spotted",discovered:"Pod discovered"};
+    move:"Move",enter:"Zone entry",spotted:"Pod spotted",discovered:"Pod discovered",newfoe:"Enemy type first seen"};
   const TRIG_CAT_DE=(()=>{ const m={}; for(const c of TRIG_CATS) for(const id of c.ids) m[id]=c.nom; return m; })();
   { const sel=document.getElementById("t-on");
     if(sel)sel.innerHTML=TRIG_CATS.map(c=>`<optgroup label="${c.nom}">`
@@ -2790,8 +2802,11 @@
     const QUAND={start:"at the start",turn:"at the start of a turn",win:"on victory",lose:"on defeat",
       attack:"on an attack",kill:"on a kill",wounded:"when someone is wounded",cracker:"on an explosion",
       friendlyfire:"on friendly fire",move:"on a move",enter:"when a zone is entered",
-      spotted:"when a pod is spotted",discovered:"when a pod is discovered"};
-    const COND={actor:v=>`by ${v}`, target:v=>`on ${v}`, zone:v=>`in zone ${v}`,
+      spotted:"when a pod is spotted",discovered:"when a pod is discovered",
+      newfoe:"the first time an enemy type is seen"};
+    const nomClasse=k=>(CLASSES[k]&&CLASSES[k].name)||k;
+    const unUne=n=>(/^[aeiouAEIOU]/.test(n)?"an ":"a ")+n;
+    const COND={actor:v=>`by ${v}`, target:(v,t)=>t.on==="newfoe"?unUne(nomClasse(v)):`on ${v}`, zone:v=>`in zone ${v}`,
       result:v=>({hit:"if it hits",miss:"if it misses",blocked:"if it is blocked"}[v]||`if ${v}`),
       killed:v=>(v===true||v==="true")?"if it kills":"if it does not kill",
       enemiesHit:v=>`${fmtMatch(v)} enemies hit`};
@@ -2799,7 +2814,7 @@
       objectif:v=>`${v} missions`, region:v=>`in ${v}`};
     const ligne=(t,i)=>{
       const bouts=[];
-      for(const [k,v] of Object.entries(t.match||{})) if(COND[k])bouts.push(COND[k](v));
+      for(const [k,v] of Object.entries(t.match||{})) if(COND[k])bouts.push(COND[k](v,t));
       if(trigMode==="camp"){ const P=t.portee||{}; const p2=[];
         for(const k in PORTEE) if(P[k])p2.push(PORTEE[k](P[k]));
         bouts.push(p2.length?p2.join(", "):"every mission"); }
@@ -2892,9 +2907,35 @@
     const c=q("t-cancel"); if(c)c.style.display="";
     const w=document.getElementById("trigwin-body"); if(w)w.scrollTop=w.scrollHeight; }
 
+  // ===== UN ÉVÉNEMENT PAR TYPE D'ENNEMI =====
+  // La liste des classes vient du Sheet, recopiée dans CLASSES : le bouton la relit à chaque clic.
+  // Relancé après une mise à jour du Sheet, il AJOUTE les nouveaux types et ne touche pas aux
+  // répliques déjà écrites — sinon on perdrait le texte à chaque nouvelle classe. Les types disparus
+  // du Sheet ne sont pas supprimés d'office (ce serait effacer du texte sans le dire) : ils sont
+  // signalés, à l'auteur de trancher.
+  const classesEnnemies=()=>Object.keys(CLASSES).filter(k=>CLASSES[k].enemyOnly&&k!=="sergent");
+  function genFoeTriggers(){
+    const arr=trigArr(), foes=classesEnnemies(); let ajout=0;
+    const cible=t=>t.on==="newfoe"?((t.match&&t.match.target)||""):null;
+    const deja=new Set(arr.map(cible).filter(Boolean));
+    for(const k of foes){ if(deja.has(k))continue;
+      const c=CLASSES[k], nom=c.name||k;
+      arr.push({on:"newfoe",match:{target:k},once:true,id:"foe_"+k,
+        say:["Intel",`First contact — ${nom}${c.wname?" ("+c.wname+")":""}. Write the briefing line here.`]});
+      ajout++; }
+    const orphelins=[...deja].filter(k=>!CLASSES[k]||!CLASSES[k].enemyOnly);
+    if(trigEdit!=null)finEdition();
+    renderTrigList(); trigSave(); majTrigCount();
+    const n=document.getElementById("t-foenote");
+    if(n)n.textContent=[ajout?`${ajout} added`:"nothing to add",
+      `${foes.length} enemy types in the sheet`,
+      orphelins.length?`⚠ ${orphelins.join(", ")}: no longer an enemy class — delete by hand`:""].filter(Boolean).join(" · "); }
+  { const b=document.getElementById("t-foegen"); if(b)b.onclick=genFoeTriggers; }
+
   function ouvrirTriggers(mode){ trigMode=mode||"mission"; viderForm(); finEdition();
     const w=document.getElementById("trigwin"); if(!w)return;
     const sc=document.getElementById("trigwin-scope"); if(sc)sc.style.display=(trigMode==="camp")?"":"none";
+    const fn=document.getElementById("t-foenote"); if(fn)fn.textContent="";
     const t=document.getElementById("trigwin-t"), sub=document.getElementById("trigwin-sub");
     if(t)t.textContent=(trigMode==="camp")?"🎬 Act triggers":"🎬 Mission triggers";
     if(sub)sub.textContent=(trigMode==="camp")
@@ -3440,7 +3481,7 @@
     try{ const onGeo=!!(geoPlay&&!geoPlay.inMission&&geoPlay.node);
       const s={ nodeId:campRun.nodeId, winCount:campRun.winCount||0, potions:campRun.potions||0, missionN:campRun.missionN||0,
         roster:campRun.roster, carry:campRun.carry||{}, geoStates:campRun.geoStates||{}, primes:campRun.primes||{},
-        seen:[...(campRun.seen||[])], firedEvents:[...(campRun.firedEvents||[])], firedDialogs:[...(campRun.firedDialogs||[])], geoNodeId:onGeo?geoPlay.node.id:null,
+        seen:[...(campRun.seen||[])], firedEvents:[...(campRun.firedEvents||[])], firedDialogs:[...(campRun.firedDialogs||[])], typesSeen:[...(campRun.typesSeen||[])], geoNodeId:onGeo?geoPlay.node.id:null,
         geoSeed:campRun.geoSeed||null, forge:campRun.forge||0, forgeBonus:campRun.forgeBonus||null, forgeDone:campRun.forgeDone||[], lastAttackN:campRun.lastAttackN||0 };
       localStorage.setItem(RUN_PREFIX+campSlug(campRun.camp.name),JSON.stringify(s)); }catch(e){} }
   function loadCampRunSave(name){ try{ const t=localStorage.getItem(RUN_PREFIX+campSlug(name)); if(t)return JSON.parse(t); }catch(e){} return null; }
@@ -3448,7 +3489,7 @@
   function resumeCampaign(camp,save){ campRun={ camp, carry:save.carry||{}, winCount:save.winCount||0,
       roster:Array.isArray(save.roster)?save.roster:[], nodeId:save.nodeId, from:"play", missionN:save.missionN||0,
       seen:new Set(save.seen||[]), potions:save.potions||0, firedEvents:new Set(save.firedEvents||[]),
-      dialogs:(camp.dialogs||[]).slice(), firedDialogs:new Set(save.firedDialogs||[]),
+      dialogs:(camp.dialogs||[]).slice(), firedDialogs:new Set(save.firedDialogs||[]), typesSeen:new Set(save.typesSeen||[]),
       geoStates:save.geoStates||{}, primes:save.primes||{},
       geoSeed:save.geoSeed||null, forge:save.forge||0, forgeBonus:save.forgeBonus||null, forgeDone:save.forgeDone||[], lastAttackN:save.lastAttackN||0 };
     document.body.classList.remove("testing"); setView("play");
@@ -3638,7 +3679,7 @@
     if(v==="campaign"){ if(typeof drawGraph==="function")drawGraph(); }
     if(v==="geoscape"&&typeof geoEnter==="function")geoEnter(); }
   function startCampaign(camp,from,fromNode){ const ephemeral=(from!=="play");   // launched from the editor (test): events (1st arrival…) replay each attempt and aren't remembered
-    campRun={camp,carry:{},winCount:0,roster:(camp.roster||[]).map(m=>({name:m.name,cls:m.cls,xp:m.xp||0,perks:Array.isArray(m.perks)?m.perks.slice():[],offered:{},stress:0,fatigue:0,special:m.special!==false,mortalAfter:m.mortalAfter||null,dead:false})),nodeId:null,from:from||"campaign",seen:new Set(),potions:0,ephemeral,dialogs:(camp.dialogs||[]).slice(),firedDialogs:new Set(),firedEvents:new Set(ephemeral?[]:loadFiredEvents(camp.name))};
+    campRun={camp,carry:{},winCount:0,roster:(camp.roster||[]).map(m=>({name:m.name,cls:m.cls,xp:m.xp||0,perks:Array.isArray(m.perks)?m.perks.slice():[],offered:{},stress:0,fatigue:0,special:m.special!==false,mortalAfter:m.mortalAfter||null,dead:false})),nodeId:null,from:from||"campaign",seen:new Set(),potions:0,ephemeral,dialogs:(camp.dialogs||[]).slice(),firedDialogs:new Set(),typesSeen:new Set(),firedEvents:new Set(ephemeral?[]:loadFiredEvents(camp.name))};
     const saved=loadRosterProgress(camp.name); if(saved){ for(const m of campRun.roster){ const s=saved.find(x=>x.name===m.name&&x.cls===m.cls); if(s){ m.xp=s.xp||0; m.perks=Array.isArray(s.perks)?s.perks.slice():[]; m.offered=s.offered||{}; m.track=s.track||null; m.stress=s.stress||0; m.fatigue=s.fatigue||0; m.special=s.special!==false; m.dead=!!s.dead; } }   // resumes progression + attrition + deaths across games
       for(const s of saved){ if(s.name&&!campRun.roster.some(m=>m.name===s.name))campRun.roster.push({name:s.name,cls:s.cls,xp:s.xp||0,perks:Array.isArray(s.perks)?s.perks.slice():[],offered:s.offered||{},track:s.track||null,stress:s.stress||0,fatigue:s.fatigue||0,special:s.special!==false,mortalAfter:null,dead:!!s.dead}); } }   // scripted recruits (absent from the base roster) kept
     document.body.classList.remove("testing"); setView("play"); runNode(fromNode||camp.start); }
@@ -3751,7 +3792,7 @@
     if(cells.some(c=>c.podAnchor)){ units=units.filter(u=>!u.fromAnchor); spawnAnchorPods(); }   // (re)generates the anchor pods on each (re)launch
     if(!units.some(u=>u.team==="player")||!units.some(u=>u.team==="enemy")){ setMsg("Place at least 1 ally and 1 enemy (Edit mode)."); }
     for(const u of units){u.hp=u.max;u.ap=AP_MAX;u.freeAvail=true;u.overwatch=false;u.reacted=false;u.bracing=false;u.taunt=false;u.hidden=false;u.wallStance=false;u.vanishUsed=false;u.slowed=false;u.stunned=false;u.spellsCast=0;u.cd={};u.dmgTaken=0;u.asleep=!!u._asleep0;if(u.clip!==undefined)u.ammo=u.clip;if(u.freeReload0!==undefined)u.freeReload=u.freeReload0;if(u.crackers!==undefined)u.crackers=(u.crackers0!==undefined?u.crackers0:CLASSES[u.cls].crackers);} smoke=new Map();ability=null; _podCenters=null; turn="player";over=false;sel=null;amode=null;aimTarget=null;throwing=false;usingItem=false;inv={potion:campRun?(campRun.potions||0):0};
-    fired=new Set(); podAlerted=new Set(); neutralSeen=new Set(); lastSeen=new Map(); turnNum=1; turnActions=0; lastOutcome=null; speechQ=[]; speaking=false; if(speechT){clearTimeout(speechT);speechT=null;} document.getElementById("combatline").style.display="none";
+    fired=new Set(); podAlerted=new Set(); neutralSeen=new Set(); typesVus=new Set(campRun&&campRun.typesSeen?campRun.typesSeen:[]); lastSeen=new Map(); turnNum=1; turnActions=0; lastOutcome=null; speechQ=[]; speaking=false; if(speechT){clearTimeout(speechT);speechT=null;} document.getElementById("combatline").style.display="none";
     document.getElementById("over").classList.remove("show");document.getElementById("log").innerHTML="";setMsg("");setupBonus();refresh();
     banner("Player turn","player"); playMusic("missions"); emit("start",{}); emit("turn",{turn:1}); }
   document.getElementById("end").onclick=()=>{if(!over&&turn==="player"&&mode==="play")endTurn();};
