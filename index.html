@@ -98,6 +98,16 @@
   #trig-right .tsec:first-child{ margin-top:0 }
   #trig-right .tsec .hint{ text-transform:none; letter-spacing:0; margin-left:6px }
   #t-conds .row label{ font-size:.85rem; display:flex; align-items:center; gap:5px }
+  /* « Ce qui se passe » contenait tout d'un coup — dialogue, réveil, passage, renforts — alors
+     qu'un évènement n'en utilise presque jamais plus d'un ou deux. On choisit le type d'abord,
+     et chaque effet posé garde sa boîte : le cumul reste possible, il devient délibéré. */
+  #trig-right .teff{ border:1px solid #3a3428; border-radius:8px; padding:6px 9px 8px; margin:6px 0; background:rgba(255,255,255,.018) }
+  #trig-right .tefft{ display:flex; align-items:center; gap:6px; font-size:.78rem; color:#e0b341; margin-bottom:2px }
+  #trig-right .teffx{ margin-left:auto; padding:0 6px; line-height:1.3 }
+  /* La relecture et le bouton restent sous les yeux : avec quatre effets posés, le bas du
+     formulaire sortait de l'écran et on validait sans voir ce qu'on validait. */
+  #trig-right #t-valider{ position:sticky; bottom:0; background:#14100a; padding-bottom:4px;
+    box-shadow:0 -10px 14px -8px rgba(0,0,0,.85) }
   #trig-right .tapercu{ margin:12px 0 6px; padding:8px 10px; border-radius:6px; background:rgba(224,179,65,.07);
     border:1px solid #3a2c1c; font-size:.86rem; line-height:1.45; color:#b8b0a0 }
   #trig-right .tapercu b{ color:#a8e08a } #trig-right .tapercu i{ color:#9fb8c9 }
@@ -478,20 +488,34 @@
     <div class="row"><select id="t-on" style="flex:1"></select></div>
     <div class="tsec">2 · Only if <span class="hint">each field left empty = no condition on it</span></div>
     <div id="t-conds"></div>
-    <div class="tsec">3 · What happens <span class="hint">a dialogue, world actions, or both — they all play</span></div>
-    <div class="row"><input id="t-who" type="text" placeholder="who speaks (empty = whoever triggered it)" list="dl-noms" style="flex:1"><input id="t-text" type="text" placeholder="line…" style="flex:2"><button id="t-addline" title="Stack one more line">＋</button></div>
-    <div class="row"><span style="font-size:.8rem;white-space:nowrap">📄 written dialogue</span><select id="t-txt" style="flex:1"></select><button id="t-txtload" title="Read the file and stack its lines here — “Name: line” gives the speaker, a lone “_” is skipped">📥 Import the lines</button></div>
-    <div class="hint" id="t-txtnote">A whole dialogue from <b>texts/</b> lands in the stack below, then you edit it like any other line.</div>
-    <div id="t-lines" class="hint"></div>
-    <div class="row"><label style="font-size:.85rem">😴 wake pod <input id="t-wake" type="text" placeholder="N / all" style="width:74px"></label>
-      <label style="font-size:.85rem">🚪 open zone <input id="t-open" type="text" placeholder="zone" list="dl-zones" style="width:74px"></label>
-      <label style="font-size:.85rem">🧱 close zone <input id="t-close" type="text" placeholder="zone" list="dl-zones" style="width:74px"></label></div>
-    <div class="row"><label style="font-size:.85rem">👾 spawn <input id="t-spcount" type="number" min="1" placeholder="n" style="width:52px"></label>
-      <select id="t-spcls" style="flex:1"></select>
-      <select id="t-spteam"><option value="enemy">enemy</option><option value="neutral">NPC</option><option value="player">ally</option></select>
-      <label style="font-size:.85rem">in <input id="t-spzone" type="text" placeholder="zone" list="dl-zones" style="width:64px"></label>
-      <label style="font-size:.85rem">pod <input id="t-sppod" type="text" placeholder="—" style="width:48px"></label></div>
-    <div class="hint">Spawning needs a painted zone: the units appear on its free tiles.</div>
+    <div class="tsec">3 · What happens</div>
+    <div class="row"><select id="t-eff-add" style="flex:1"></select><span class="hint" style="flex:1">Add as many as you need — they all play.</span></div>
+    <div class="teff" id="t-eff-dialogue" style="display:none">
+      <div class="tefft">💬 Dialogue<button class="teffx" data-eff="dialogue" title="Remove this effect">✕</button></div>
+      <div class="row"><input id="t-who" type="text" placeholder="who speaks (empty = whoever triggered it)" list="dl-noms" style="flex:1"><input id="t-text" type="text" placeholder="line…" style="flex:2"><button id="t-addline" title="Stack one more line">＋</button></div>
+      <div class="row"><span style="font-size:.8rem;white-space:nowrap">📄 written dialogue</span><select id="t-txt" style="flex:1"></select><button id="t-txtload" title="Read the file and stack its lines here — “Name: line” gives the speaker, a lone “_” is skipped">📥 Import the lines</button></div>
+      <div class="hint" id="t-txtnote">A whole dialogue from <b>texts/</b> lands in the stack below, then you edit it like any other line.</div>
+      <div id="t-lines" class="hint"></div>
+    </div>
+    <div class="teff" id="t-eff-wake" style="display:none">
+      <div class="tefft">😴 Wake a pod<button class="teffx" data-eff="wake" title="Remove this effect">✕</button></div>
+      <div class="row"><label style="font-size:.85rem">pod <input id="t-wake" type="text" placeholder="N / all" style="width:84px"></label><span class="hint" style="flex:1">“all” wakes every sleeping enemy at once.</span></div>
+    </div>
+    <div class="teff" id="t-eff-passage" style="display:none">
+      <div class="tefft">🚪 Open / close a passage<button class="teffx" data-eff="passage" title="Remove this effect">✕</button></div>
+      <div class="row"><label style="font-size:.85rem">open zone <input id="t-open" type="text" placeholder="zone" list="dl-zones" style="width:84px"></label>
+        <label style="font-size:.85rem">close zone <input id="t-close" type="text" placeholder="zone" list="dl-zones" style="width:84px"></label></div>
+      <div class="hint">Opening makes a painted zone walkable, closing walls it off.</div>
+    </div>
+    <div class="teff" id="t-eff-spawn" style="display:none">
+      <div class="tefft">👾 Spawn units<button class="teffx" data-eff="spawn" title="Remove this effect">✕</button></div>
+      <div class="row"><input id="t-spcount" type="number" min="1" placeholder="n" style="width:52px">
+        <select id="t-spcls" style="flex:1"></select>
+        <select id="t-spteam"><option value="enemy">enemy</option><option value="neutral">NPC</option><option value="player">ally</option></select>
+        <label style="font-size:.85rem">in <input id="t-spzone" type="text" placeholder="zone" list="dl-zones" style="width:64px"></label>
+        <label style="font-size:.85rem">pod <input id="t-sppod" type="text" placeholder="—" style="width:48px"></label></div>
+      <div class="hint">Needs a painted zone: the units appear on its free tiles.</div>
+    </div>
     <div class="tsec">4 · How often</div>
     <div class="row"><label style="display:flex;align-items:center;gap:5px;font-size:.85rem"><input type="checkbox" id="t-once" checked> once only</label><label style="display:flex;align-items:center;gap:5px;font-size:.85rem"><input type="checkbox" id="t-first"> 1st action of the turn</label>
       <label style="font-size:.85rem;display:flex;align-items:center;gap:6px" title="When several events match the same moment, only the highest priority plays. On a tie the mission's own events win over the act's.">priority <input id="t-prio" type="number" value="0" style="width:64px"></label></div>
@@ -505,8 +529,10 @@
       <label style="font-size:.8rem">objective <input id="t-sc-objectif" type="text" placeholder="harvest" style="width:90px"></label>
       <label style="font-size:.8rem">region <input id="t-sc-region" type="text" placeholder="Bastion" style="width:96px"></label>
     </div>
-    <div class="tapercu" id="t-apercu"></div>
-    <div class="row"><button id="t-add">+ Add the event</button><button id="t-cancel" style="display:none">✕ Cancel the edit</button></div>
+    <div id="t-valider">
+      <div class="tapercu" id="t-apercu"></div>
+      <div class="row"><button id="t-add">+ Add the event</button><button id="t-cancel" style="display:none">✕ Cancel the edit</button></div>
+    </div>
     </div>
   </div></div></div>
 <div id="promote"><div id="promote-card"><div id="promote-hd"></div><div id="promote-opts"></div></div></div>
@@ -2964,6 +2990,33 @@
     el.innerHTML=trigLines.map((l,i)=>`<div><button class="tldel" data-i="${i}">✕</button> <b>${l.who||"—"}</b>: ${l.text}</div>`).join("");
     el.querySelectorAll(".tldel").forEach(b=>b.onclick=()=>{trigLines.splice(+b.dataset.i,1);renderTrigLines();});}
   function addLine(){const text=(tText.value||"").trim();if(!text){alert("Write a line.");return;}trigLines.push({who:(tWho.value||"").trim(),text});tText.value="";tText.focus();renderTrigLines();}
+  // ===== LES EFFETS SE POSENT UN PAR UN =====
+  // Le bloc « ce qui se passe » montrait les quatre effets à la fois, alors qu'un évènement n'en
+  // utilise presque jamais plus d'un. On choisit le type dans un menu, la boîte correspondante
+  // apparaît, et elle reste : le cumul n'est pas perdu, il devient délibéré. Retirer une boîte vide
+  // ses champs — sinon un effet invisible partirait avec le déclencheur.
+  const EFFETS=[["dialogue","💬 a dialogue"],["wake","😴 wake a pod"],["passage","🚪 open / close a passage"],["spawn","👾 spawn units"]];
+  const CHAMPS_EFFET={ dialogue:["t-who","t-text"], wake:["t-wake"], passage:["t-open","t-close"], spawn:["t-spcount","t-spzone","t-sppod"] };
+  let effetsActifs=new Set();
+  function majEffets(){
+    for(const [k] of EFFETS){ const b=document.getElementById("t-eff-"+k); if(b)b.style.display=effetsActifs.has(k)?"":"none"; }
+    const sel=document.getElementById("t-eff-add"); if(!sel)return;
+    const reste=EFFETS.filter(([k])=>!effetsActifs.has(k));
+    sel.innerHTML=`<option value="">${reste.length?"＋ add an effect…":"— every effect is in —"}</option>`
+      +reste.map(([k,l])=>`<option value="${k}">${l}</option>`).join("");
+    sel.disabled=!reste.length; }
+  function poserEffet(k){ if(!k)return; effetsActifs.add(k); majEffets(); majApercu();
+    const prem=(CHAMPS_EFFET[k]||[])[0], e=prem&&document.getElementById(prem); if(e)e.focus(); }
+  function retirerEffet(k){ effetsActifs.delete(k);
+    for(const id of (CHAMPS_EFFET[k]||[])){ const e=document.getElementById(id); if(e)e.value=""; }
+    if(k==="dialogue"){ trigLines=[]; renderTrigLines();
+      const ts=document.getElementById("t-txt"); if(ts)ts.value="";
+      const tn=document.getElementById("t-txtnote"); if(tn)tn.innerHTML=TXTNOTE0; }
+    majEffets(); majApercu(); }
+  { const sel=document.getElementById("t-eff-add");
+    if(sel)sel.onchange=()=>{ const k=sel.value; sel.value=""; poserEffet(k); };
+    document.querySelectorAll("#trig-right .teffx").forEach(b=>b.onclick=()=>retirerEffet(b.dataset.eff)); }
+
   // Composer un déclencheur, c'est remplir un objet à partir de quatre blocs qui se CUMULENT :
   // le moment, les conditions, ce qui se passe (répliques ET actions), la fréquence. Rien ici n'est
   // exclusif — sauf ouvrir et fermer la MÊME zone, qui n'aurait pas de sens.
@@ -2978,10 +3031,12 @@
     const v=id=>{ const e=document.getElementById(id); return e?(e.value||"").trim():""; };
     if(v("t-id"))t.id=v("t-id"); if(v("t-requires"))t.requires=v("t-requires"); if(v("t-forbids"))t.forbids=v("t-forbids");
     const pr=+v("t-prio")||0; if(pr)t.priority=pr;
-    if(v("t-wake"))t.wake=v("t-wake"); if(v("t-open"))t.open=v("t-open"); if(v("t-close"))t.close=v("t-close");
-    if(v("t-spzone")){ const sp={zone:v("t-spzone"),cls:v("t-spcls")||"brute",team:v("t-spteam")||"enemy",count:+v("t-spcount")||1};
+    const actif=k=>effetsActifs.has(k);
+    if(actif("wake")&&v("t-wake"))t.wake=v("t-wake");
+    if(actif("passage")){ if(v("t-open"))t.open=v("t-open"); if(v("t-close"))t.close=v("t-close"); }
+    if(actif("spawn")&&v("t-spzone")){ const sp={zone:v("t-spzone"),cls:v("t-spcls")||"brute",team:v("t-spteam")||"enemy",count:+v("t-spcount")||1};
       if(v("t-sppod")!=="")sp.pod=+v("t-sppod"); t.spawn=sp; }
-    const lignes=trigLines.slice(), cur=v("t-text");
+    const lignes=actif("dialogue")?trigLines.slice():[], cur=actif("dialogue")?v("t-text"):"";
     if(cur)lignes.push({who:v("t-who"),text:cur});
     if(lignes.length===1)t.say=[lignes[0].who,lignes[0].text]; else if(lignes.length)t.lines=lignes.map(l=>[l.who,l.text]);
     if(trigMode==="camp"){ const P={}; for(const k of ["rang","etoiles","forme","objectif","region"]){
@@ -2997,10 +3052,10 @@
     const sup=garde.length?` <i>· carried over from the saved event: ${esc(garde.join(", "))}</i>`:"";
     el.innerHTML=(trigAgit(t)
       ? `<span class="tq">${esc(f.quand)}</span> ${esc(f.bouts.join(" · "))}${f.corps?" — "+f.corps:""}`
-      : `<span class="tq">${esc(f.quand)}</span> ${esc(f.bouts.join(" · "))} — <i>nothing happens yet: write a line, import a dialogue, or pick a world action.</i>`)+sup; }
+      : `<span class="tq">${esc(f.quand)}</span> ${esc(f.bouts.join(" · "))} — <i>nothing happens yet: pick an effect in step 3.</i>`)+sup; }
   function addTrig(){
     const t=composerTrig();
-    if(!trigAgit(t)){ alert("Nothing would happen: write a line, import a dialogue, or choose a world action (wake / passage / spawn)."); return; }
+    if(!trigAgit(t)){ alert("Nothing would happen: add an effect in step 3 (a dialogue, a pod to wake, a passage, or units to spawn)."); return; }
     if(t.open&&t.close&&t.open===t.close){ alert("The same zone cannot be opened and closed by one event."); return; }
     if(trigEdit!=null){ trigArr()[trigEdit]=t; finEdition(); } else trigArr().push(t);
     viderForm(); renderTrigList(); trigSave(); majTrigCount(); }
@@ -3020,6 +3075,7 @@
     const f=document.getElementById("t-first"); if(f)f.checked=false;
     for(const k of ["rang","etoiles","forme","objectif","region"]){ const e=document.getElementById("t-sc-"+k); if(e)e.value=""; }
     { const ts=document.getElementById("t-txt"); if(ts)ts.value=""; const tn=document.getElementById("t-txtnote"); if(tn)tn.innerHTML=TXTNOTE0; }
+    effetsActifs=new Set(); majEffets();
     ecrireConds({}); trigMatchInconnu={}; trigLines=[]; renderTrigLines(); majApercu(); }
   function ouvrirEdition(i){
     const t=trigArr()[i]; if(!t)return;
@@ -3030,6 +3086,9 @@
     ecrireConds(m);
     q("t-once").checked=(t.once!==false); q("t-first").checked=!!t.firstAction;
     set("t-id",t.id); set("t-requires",t.requires); set("t-forbids",t.forbids); set("t-prio",t.priority||0);
+    if(t.wake)effetsActifs.add("wake"); if(t.open||t.close)effetsActifs.add("passage");
+    if(t.spawn)effetsActifs.add("spawn"); if(t.say||t.lines)effetsActifs.add("dialogue");
+    majEffets();
     set("t-wake",t.wake); set("t-open",t.open); set("t-close",t.close);
     if(t.spawn){ set("t-spzone",t.spawn.zone); set("t-spcls",t.spawn.cls||"brute"); set("t-spteam",t.spawn.team||"enemy");
       set("t-spcount",t.spawn.count||1); set("t-sppod",t.spawn.pod!=null?t.spawn.pod:""); }
