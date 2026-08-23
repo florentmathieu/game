@@ -2524,7 +2524,7 @@
   //     60 -> 30 %                              17 tours   <- la cible
   //     80 -> 39 %                              20 tours
   const PART_ABRI=0.10;   // part des cases en ABRI (couvert plein omnidirectionnel) sur une carte générée
-  let CEL_PAR_POD=60;
+  let CEL_PAR_POD=75;
   // Les formes n'ont pas la même surface à réglages égaux : une croix à 20x16 fait 389 cellules là
   // où un rectangle en fait 806. Mesuré sur les mêmes 560 parties, cellules ~ k x largeur².
   const FORME_K={rect:1.98,L:1.25,S:1.41,croix:0.96,sablier:1.14,anneau:1.40,diag:1.15};
@@ -2550,10 +2550,12 @@
   const DENSITE_REF=44;
   function tailleAuto(forme,pods,densite){
     const k=(FORME_K[forme]||FORME_K.rect)*Math.pow(DENSITE_REF/(densite||DENSITE_REF),1.35);
-    // plancher à 6 et non 8 : à une seule poche la formule demande 5,5, et un plancher trop haut
-    // rendait ★1 plus creuse que ★2 (132 cellules par poche au lieu de 60)
-    const bw=Math.max(6,Math.min(20,Math.round(Math.sqrt(CEL_PAR_POD*Math.max(1,pods)/k))));
-    return {bw,bh:Math.max(5,Math.min(16,Math.round(bw*0.8)))}; }
+    // PLANCHER. À une seule poche la formule demande 6,1 : sans plancher, ★1 tient sur un mouchoir
+    // et ne se joue pas. On le pose à 7 — pas plus haut, parce qu'un plancher gonfle la surface SANS
+    // ajouter d'ennemis : ★1 devient mécaniquement la carte la plus creuse du jeu (voir la mesure
+    // ci-dessous). 7x6 est le compromis retenu ; 8x7 doublait la marche à vide.
+    const bw=Math.max(7,Math.min(20,Math.round(Math.sqrt(CEL_PAR_POD*Math.max(1,pods)/k))));
+    return {bw,bh:Math.max(6,Math.min(16,Math.round(bw*0.8)))}; }
   window.TAILLE_AUTO=(forme,pods,densite)=>tailleAuto(forme,pods,densite);
 
   // P (optional) = generation parameters: cover, diff, squad, podCount, podSpacing, podMinDist, podSize[min,max], classes

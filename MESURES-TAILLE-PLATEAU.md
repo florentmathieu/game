@@ -114,15 +114,43 @@ valeurs :
 médiane. Les deux chiffres — 80 et 60 — sont justes chacun dans ses conditions ; c'est le nombre
 d'ennemis par poche qui les sépare. Si tu remontes `ENNEMIS_PAR_POD` à 3, remonte `CEL_PAR_POD` à 80.
 
+## Révision : 75, sur demande de jeu
+
+Le réglage à 60 tenait la cible des 30 % de marche à vide, mais **★1 se jouait sur un mouchoir** :
+une seule poche, donc 6x6 après plancher, soit une trentaine de cases praticables. Trop petit à
+l'usage. Deux changements, mesurés avant/après sur 25 parties par palier (escouade blindée, forme
+rect, ★1 à ★4) :
+
+- `CEL_PAR_POD` **60 → 75** ;
+- plancher de largeur **6 → 7** (et hauteur 5 → 6), pour ★1 qui est borné par le plancher et non
+  par la formule.
+
+| ★ | cellules/pod 60 → 75 | marche à vide (méd.) | tours (méd.) |
+|---|---|---|---|
+| ★1 | 90 → 90 | 14 % → **13 %** | 11 → 9 |
+| ★2 | 54 → 72 | 33 % → **40 %** | 12 → 14 |
+| ★3 | 62 → 77 | 47 % → **50 %** | 22 → 27 |
+| ★4 | 59 → 72 | 36 % → **39 %** | 28 → 30 |
+
+Coût réel : **+3 à +7 points** de marche à vide et **+2 à +5 tours**. ★1 ne bouge pas, parce qu'il
+était déjà borné par le plancher — l'agrandir ne lui coûte rien, une poche unique se trouve vite.
+
+> Le plancher a été porté à 7 et pas à 8 : il gonfle la surface **sans ajouter d'ennemis**, donc il
+> creuse ★1 mécaniquement. 7x6 est le compromis ; au-delà, ★1 redevient la carte la plus vide du jeu.
+
+(Les taux de cette table sont plus hauts que les 30 % du tableau de calibration : protocole
+différent — escouade blindée, mesure par palier et non agrégée. Seul le **delta** compte ici.)
+
 ## Ce que ça donne en jeu
 
-`largeur = √(60 × pods / k)`, hauteur = 0,8 × largeur :
+`largeur = √(75 × pods / k)`, hauteur = 0,8 × largeur, plancher 7x6 :
 
-| forme | facile (2 pods) | moyen (3 pods) | difficile (4 pods) |
-|---|---|---|---|
-| rect | 8x6 · 104 cel | 10x8 · 185 cel | 11x9 · 238 cel |
-| croix | 11x9 · 109 cel | 14x11 · 185 cel | 16x13 · 247 cel |
-| anneau | 9x7 · 87 cel | 11x9 · 160 cel | 13x10 · 215 cel |
+| forme | ★1 | ★2 | ★3 | ★4 | ★5 |
+|---|---|---|---|---|---|
+| rect | 7x6 | 9x7 | 11x9 | 12x10 | 14x11 |
+| croix | 9x7 | 13x10 | 15x12 | 18x14 | 20x16 |
+| anneau | 7x6 | 10x8 | 13x10 | 15x12 | 16x13 |
+| L | 8x6 | 11x9 | 13x10 | 15x12 | 17x14 |
 
 Mesuré à la génération, toutes formes confondues : **44 à 62 cellules par pod**, un seul secteur
 fortement connexe, toutes les plateformes accessibles, aucun ennemi visible au tour 1, tous les
