@@ -290,7 +290,9 @@ def main():
     try:
         src = open("index.html", encoding="utf-8").read()
         m = re.search(r"const CLASSES=\{(.*?)\n  \};", src, re.S)
-        connues = set(re.findall(r"^\s*(\w+):\{", m.group(1), re.M)) if m else set()
+        # une classe est une ligne de PREMIER niveau (quatre espaces) : sans l ancre, les
+        # emplacements d armes ecrits sur leur propre ligne passaient pour des classes.
+        connues = set(re.findall(r"^    (\w+):\{", m.group(1), re.M)) if m else set()
         civiles = set(re.findall(r"(\w+):\{[^\n]*\bciv:true", src))
         orphelines = sorted(connues - civiles - set(onglets) - {"sergent"})
         if orphelines:

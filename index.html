@@ -601,7 +601,7 @@
       // Elle ne tire qu'un carreau (chargeur 1) mais porte à 9 — et sert de lance-grenade long.
       ranged2:{...bow(75,5,6,9,1), verrou:"arbalest", nom:"crossbow"}}},   // artificier : charges de minage (= "crackers")
     assassin:{name:"Stinger",hp:7,mob:8,parry:35,stealth:true,faded:true,wname:"sword",w:{melee:dagger(90,4,5,2,1),ranged:bow(70,3,4,7,4)}},   // le "nettoyeur" : règle les incidents discrètement (seul rôle de contact du joueur)
-    mage:{name:"Siphoner",hp:6,mob:7,wname:"essence siphon",w:{ranged:bow(72,4,6,7,3),melee:sword(45,2,3)}},   // arcaniste du Consortium : tire l'essence RAFFINÉE extraite du monde (clip 3 = fioles) — sa magie est volée à ce qu'il détruit
+    mage:{name:"Siphoner",hp:6,mob:7,abil:["biscuit"],wname:"green fire",w:{ranged:{type:"ranged",aim:100,dmgMin:4,dmgMax:4,range:7},melee:sword(45,2,3)}},   // arcaniste du Consortium : tire l'essence RAFFINÉE extraite du monde (clip 3 = fioles) — sa magie est volée à ce qu'il détruit
     // ===== RÉSISTANCE LOCALE (ennemis ordinaires) — des gens modernes, pas des sauvages =====
     // Ils ont la MÊME technologie que toi, en version récupérée et remontée : l'écart n'est pas
     // civilisationnel mais LOGISTIQUE (tu as l'usine et les pièces neuves, ils ont la casse et le bricolage).
@@ -661,13 +661,13 @@
             {A:{id:"br2a",name:"Smash",desc:"+3 damage",mod:{dmg:3}}, B:{id:"br2b",name:"Stride",desc:"+1 movement",mod:{mob:1}}},
             {A:{id:"br3a",name:"Thick Hide",desc:"+6 HP",mod:{hp:6}}, B:{id:"br3b",name:"Carnage",desc:"+3 damage",mod:{dmg:3}}},
             {A:{id:"br4a",name:"Reach",desc:"+1 free movement point (no AP)",mod:{freeMp:1}}, B:{id:"br4b",name:"Titan",desc:"+8 HP",mod:{hp:8}}} ],
-    mage:[ {A:{id:"mg1a",name:"Blast",desc:"Area explosion (splash damage)",abil:"blast"}, B:{id:"mg1b",name:"Piercing Bolt",desc:"+2 damage",mod:{dmg:2}}},
-           {A:{id:"mg2a",name:"Mending Draw",desc:"Heals an ally at range",abil:"heal"}, B:{id:"mg2b",name:"Long Range",desc:"+2 range",mod:{range:2}}},
-           {A:{id:"mg3a",name:"Frost",desc:"Slows an enemy (−1 AP on its turn)",abil:"frost"}, B:{id:"mg3b",name:"Vitality",desc:"+5 HP",mod:{hp:5}}},
-           {A:{id:"mg4a",name:"Deep Reserves",desc:"+1 range",mod:{range:1}}, B:{id:"mg4b",name:"Lined Suit",desc:"+4 HP",mod:{hp:4}}},
-           {A:{id:"mg5a",name:"Arcanist",desc:"+2 damage",mod:{dmg:2}}, B:{id:"mg5b",name:"Long Range+",desc:"+2 range",mod:{range:2}}},
-           {A:{id:"mg6a",name:"Refiner",desc:"+3 damage",mod:{dmg:3}}, B:{id:"mg6b",name:"Vital Flow",desc:"+6 HP",mod:{hp:6}}},
-           {A:{id:"mg7a",name:"Cataclysm",desc:"+4 damage",mod:{dmg:4}}, B:{id:"mg7b",name:"Bottomless Reserve",desc:"+2 range",mod:{range:2}}} ],
+    mage:[ {A:{id:"mg1a",name:"Life fire",desc:"Area, 4 damage. May set alight (+1/turn, 2 turns)",abil:"lifefire",endsTurn:true,cd:4}, B:{id:"mg1b",name:"Hammer",desc:"Area stun (50% chance)",abil:"hammer",endsTurn:true,cd:3}},
+          {A:{id:"mg2a",name:"Evade",desc:"Helps a target: +30% defence",abil:"evade",cost:1,cd:2}, B:{id:"mg2b",name:"Teleport",desc:"Teleports someone, friend or foe",abil:"teleport",endsTurn:true,cd:3}},
+          {A:{id:"mg3a",name:"Ray of light",desc:"A line of green fire (6 damage)",abil:"rayoflight",endsTurn:true,cd:3}, B:{id:"mg3b",name:"Remove walls",desc:"Clears every wall within radius 2",abil:"unwall",endsTurn:true,cd:3}},
+          {A:{id:"mg4a",name:"Wave",desc:"Cone (5 damage), 30% chance to stun",abil:"wave",endsTurn:true,cd:5}, B:{id:"mg4b",name:"Invoke spirit",desc:"A sword warrior (4-5 damage, 10 HP) that acts on its own after your turn",abil:"spirit",endsTurn:true,cd:5}},
+          {A:{id:"mg5a",name:"Replenish",desc:"Full heal for an ally",abil:"replenish",cost:1,charges:1}, B:{id:"mg5b",name:"Haven",desc:"A safe zone for allies (radius 2), until their next turn",abil:"haven",cost:1,charges:1}},
+          {A:{id:"mg6a",name:"Magic violence",desc:"+2 damage for all magic abilities",mod:{magieDmg:2}}, B:{id:"mg6b",name:"Fast magic",desc:"−1 cooldown for all magic abilities",mod:{magieCd:1}}},
+          {A:{id:"mg7a",name:"Requiem",desc:"Area. Drags every enemy one tile toward the centre",abil:"requiem",endsTurn:true,cd:5}, B:{id:"mg7b",name:"Solstice",desc:"Allies +15% aim, enemies −15%, for 2 turns",abil:"solstice",endsTurn:true,cd:5}} ],
   };
   PERKS.sergent=PERKS.soldat;   // compat: "sergent" uses the soldier's tree
   // B column (right) of promotions = stat perk drawn AT RANDOM from this pool (useful to all classes)
@@ -758,6 +758,8 @@
     if(m.crackers){u.crackers=(u.crackers||0)+m.crackers;u.crackers0=(u.crackers0||0)+m.crackers;} if(m.mob)u.mobBonus=(u.mobBonus||0)+m.mob; if(m.aim)u.aimBonus=(u.aimBonus||0)+m.aim;
     if(m.dmg)u.dmgBonus=(u.dmgBonus||0)+m.dmg; if(m.range)u.rangeBonus=(u.rangeBonus||0)+m.range; if(m.scatter)u.scatterBonus=(u.scatterBonus||0)+m.scatter; if(m.freeMp)u.freeMpBonus=(u.freeMpBonus||0)+m.freeMp;
     if(m.crackerRange)u.crackerRange=(u.crackerRange||0)+m.crackerRange;
+    if(m.magieDmg)u.magieDmg=(u.magieDmg||0)+m.magieDmg;
+    if(m.magieCd)u.magieCd=(u.magieCd||0)+m.magieCd;
     if(m.dr)u.dr=(u.dr||0)+m.dr; if(m.dodge)u.dodge=(u.dodge||0)+m.dodge; if(m.reload){u.freeReload=(u.freeReload||0)+m.reload;u.freeReload0=(u.freeReload0||0)+m.reload;} } }
   // ===== music: music/ folder + manifest.json; track drawn AT RANDOM per context (missions / interludes / geoscape) =====
   // loops during a context; on each transition: fade out the old + fade in the new (started when the screen shows)
@@ -1632,8 +1634,10 @@
     return Math.round(best); }
   // bonus d'un perk restreint à une arme (« +2 dégât à l'épée ») : nul pour les autres armes.
   const bonusArme=(u,m,k)=>((u.armeBonus&&u.armeBonus[m]&&u.armeBonus[m][k])||0);
-  function chance(att,tgt,m){const w=att.w[m];let cover=0;if(w.type==="ranged"){if(cells[tgt.cell].terr==="cover")cover=HERBE_PEN;cover=Math.max(cover,muretCover(tgt,att));if(units.some(a=>a.hp>0&&a.team===tgt.team&&a!==tgt&&a.wallStance&&adjacent(a.cell,tgt.cell)))cover=Math.max(cover,Math.round(COVER_PEN*0.5));}const dh=Math.max(-3,Math.min(3,cells[att.cell].elev-cells[tgt.cell].elev))*HEIGHT_BONUS;const pb=w.type==="ranged"?(PB[hops(att.cell,tgt.cell)]||0):0;const def=(tgt.bracing?DEF_BRACE:0)+(tgt.dodge||0);if(att.viseeForcee!=null)return att.viseeForcee;   // « Guaranteed hit » : la visée est imposée, le décor ne compte plus
-    return Math.max(5,Math.min(95,Math.round(w.aim+(att.aimBonus||0)+bonusArme(att,m,"aim")+(att.aimTemp||0)-cover+dh-pb-def)));}   // dodge = esquive du défenseur
+  function chance(att,tgt,m){const w=att.w[m];let cover=0;if(w.type==="ranged"){if(cells[tgt.cell].terr==="cover")cover=HERBE_PEN;cover=Math.max(cover,muretCover(tgt,att));if(units.some(a=>a.hp>0&&a.team===tgt.team&&a!==tgt&&a.wallStance&&adjacent(a.cell,tgt.cell)))cover=Math.max(cover,Math.round(COVER_PEN*0.5));}const dh=Math.max(-3,Math.min(3,cells[att.cell].elev-cells[tgt.cell].elev))*HEIGHT_BONUS;const pb=w.type==="ranged"?(PB[hops(att.cell,tgt.cell)]||0):0;let def=(tgt.bracing?DEF_BRACE:0)+(tgt.dodge||0);
+    if(havreDe(tgt))def+=HAVEN_DEF;                                        // le havre protège qui s'y tient
+    let sol=0; if(solstice)sol=(att.team===solstice.team?SOLSTICE_BONUS:-SOLSTICE_BONUS);if(att.viseeForcee!=null)return att.viseeForcee;   // « Guaranteed hit » : la visée est imposée, le décor ne compte plus
+    return Math.max(5,Math.min(95,Math.round(w.aim+(att.aimBonus||0)+bonusArme(att,m,"aim")+(att.aimTemp||0)+sol-cover+dh-pb-def)));}   // dodge = esquive du défenseur
   // « Run and gun » : la posture accorde UNE attaque même à zéro PA. Consommée au premier tir.
   const tirGratuitDispo=u=>!!(u&&u.runGun);
   function doAttack(att,tgt,m,reaction,opts){
@@ -1847,6 +1851,20 @@
     cusser:{icon:"💥",label:"Cusser — reinforced grenade (+2 damage, +2 range)",target:"cell"},
     raisewall:{icon:"🧱",label:"Raise wall — builds up to two wall segments",target:"cell"},
     removewall:{icon:"🕳",label:"Remove wall — takes down one wall segment",target:"cell"},
+    // ===== Siphoner =====
+    lifefire:{icon:"🔥",label:"Life fire — area, 4 damage, may set alight (+1/turn, 2 turns)",target:"cell"},
+    hammer:{icon:"🔨✨",label:"Hammer — area, 50% chance to stun",target:"cell"},
+    evade:{icon:"🌀",label:"Evade — +30% defence to an ally",target:"ally"},
+    teleport:{icon:"🌌",label:"Teleport — moves anyone, friend or foe",target:"enemy"},
+    rayoflight:{icon:"➡✨",label:"Ray of light — a line of green fire (6 damage)",target:"cell"},
+    unwall:{icon:"🌬",label:"Remove walls — clears every wall within radius 2",target:"cell"},
+    wave:{icon:"🔊",label:"Wave — cone (5 damage), 30% chance to stun",target:"cell"},
+    spirit:{icon:"👻",label:"Invoke spirit — a warrior that acts on its own after your turn",target:"cell"},
+    replenish:{icon:"💖",label:"Replenish — heals an ally to full",target:"ally"},
+    haven:{icon:"⛩",label:"Haven — a safe zone for allies until their next turn",target:"cell"},
+    requiem:{icon:"🕯",label:"Requiem — drags every enemy in the area one tile toward its centre",target:"cell"},
+    solstice:{icon:"☀",label:"Solstice — allies +15% aim, enemies −15%, for 2 turns",target:"self"},
+    biscuit:{icon:"🍪",label:"Eat biscuit — clears every cooldown, but it costs you",target:"self"},
     // ===== Stinger =====
     stab:{icon:"🗡",label:"Stab — prepared strike (+2 damage)",target:"enemy"},
     lure:{icon:"🔔",label:"Lure — draws unaware enemies' attention (range 7)",target:"cell"},
@@ -1856,7 +1874,8 @@
   // cooldown (in turns) before an ability can be used again. u.cd[id] = turns remaining (decremented at the start of the turn).
   const COOLDOWN={smoke:3,breach:4,shadowstrike:2,rally:3,taunt:3,holdline:3,wall:3,blast:3,heal:2,frost:2,shove:3,charge:4,
     buttstroke:0,spray:3,rungun:3,precshot:0,surehit:4,burst:3,boomshell:2,
-    smoker:1,cusser:1,raisewall:2,removewall:4, stab:0,lure:1,fear:4,bait:5};
+    smoker:1,cusser:1,raisewall:2,removewall:4, stab:0,lure:1,fear:4,bait:5,
+    lifefire:4,hammer:3,evade:2,teleport:3,rayoflight:3,unwall:3,wave:5,spirit:5,replenish:0,haven:0,requiem:5,solstice:5,biscuit:6};
   let CD_MULT=1;   // global cooldown multiplier (balancing panel)
   const onCd=(u,id)=>!!(u&&u.cd&&u.cd[id]>0);
   // règle effective d'une capacité pour CETTE unité : celle de son perk si elle en a une, sinon
@@ -1874,7 +1893,8 @@
     const r=regleAbil(u,id); if(u.ap<apRequis(u,id))return false;
     if(r.endsTurn){ u.ap=0; } else if(r.cost){ u.ap-=r.cost; if(u.ap<0)u.ap=0; }
     u.freeAvail=false;
-    if(r.cd){ u.cd=u.cd||{}; u.cd[id]=Math.max(1,Math.round(r.cd*CD_MULT)); }
+    if(r.cd){ const rab=MAGIQUES.has(id)?(u.magieCd||0):0;
+      u.cd=u.cd||{}; u.cd[id]=Math.max(1,Math.round((r.cd-rab)*CD_MULT)); }
     if(r.charges){ u.charges=u.charges||{}; u.charges[id]=chargesRestantes(u,id)-1; }
     return true; }
   const coutAbil=(u,id)=>{ const r=regleAbil(u,id); return r.endsTurn?Math.max(1,u.ap):(r.cost||0); };
@@ -2069,6 +2089,162 @@
     const c=U("player",u.cls,id,{name:u.name+" (bait)"}); c.factice=true; c.hp=1; c.max=1; c.ap=0; c.freeAvail=false;
     units.push(c); log(`▲ ${u.name} sets a bait`,"player"); refresh(); return true; }
 
+  // ===== Siphoner : la magie comme dégât de ZONE, et comme contrôle du terrain =====
+  // MAGIE : quatre perks agissent sur « toute la magie » (dégâts, cooldowns). Une capacité est
+  // magique si elle est dans cette liste — le moteur n'avait pas la notion, il lui faut la table.
+  const MAGIQUES=new Set(["blast","heal","frost","lifefire","hammer","evade","teleport","rayoflight",
+    "unwall","wave","spirit","replenish","haven","requiem","solstice"]);
+  const degatMagique=(u,base)=>base+(MAGIQUES.size?(u.magieDmg||0):0);
+  const MAG_RANGE=7;
+  const viseOk=(u,id,portee)=>{ if(hops(u.cell,id)>(portee||MAG_RANGE)||!los(u.cell,id)){setMsg("Out of range / no line of sight.");return false;} return true; };
+  const ennemisDans=(u,ids)=>units.filter(e=>e.hp>0&&hostile(u,e)&&ids.has(e.cell));
+  const boule=(id,r)=>{ const z=new Set(); for(const c of cells)if(hops(id,c.id)<=r)z.add(c.id); return z; };
+
+  // BRÛLURE : des dégâts qui tombent au début du tour de la victime. Le moteur ne connaissait que
+  // l'instantané ; c'est le premier effet qui suit une unité dans le temps.
+  function poser(u,e,tours,par){ e.brule=Math.max(e.brule||0,tours); e.bruleBy=par; }
+  function tickBrulures(team){ for(const u of units){ if(u.hp<=0||u.team!==team||!u.brule)continue;
+      u.hp=Math.max(0,u.hp-1); pushDmg(u.cell,1,u.team); u.brule--;
+      if(u.hp<=0)log(`   🔥 ${u.name} succombe aux brûlures`,u.team); } checkEnd(); }
+
+  const LIFEFIRE_R=1, LIFEFIRE_DMG=4, BRULE_CHANCE=50, BRULE_TOURS=2;
+  function execLifeFire(u,id){ if(!abilDispo(u,"lifefire")||!viseOk(u,id))return false;
+    const z=boule(id,LIFEFIRE_R), cib=ennemisDans(u,z); if(!cib.length){setMsg("Life fire: no enemy in the area.");return false;}
+    payerAbil(u,"lifefire");
+    for(const e of cib){ const d=degatMagique(u,LIFEFIRE_DMG); e.hp=Math.max(0,e.hp-d); pushDmg(e.cell,d,e.team);
+      if(e.hp>0){ if(RND()*100<BRULE_CHANCE)poser(u,e,BRULE_TOURS,u); wakeEnemy(e,"noise"); }
+      else if(u.team==="player")u.kills=(u.kills||0)+1; }
+    pushBlast(id,LIFEFIRE_R); screenShake(4); log(`▲ ${u.name}: life fire`,"player"); checkEnd(); if(!over)refresh(); return true; }
+
+  const HAMMER_R=1, HAMMER_CHANCE=50;
+  function execHammer(u,id){ if(!abilDispo(u,"hammer")||!viseOk(u,id))return false;
+    const cib=ennemisDans(u,boule(id,HAMMER_R)); if(!cib.length){setMsg("Hammer: no enemy in the area.");return false;}
+    payerAbil(u,"hammer"); let n=0;
+    for(const e of cib){ if(RND()*100<HAMMER_CHANCE){ e.stunned=true; e.ap=0; n++; } wakeEnemy(e,"noise"); }
+    pushBlast(id,HAMMER_R); screenShake(5); log(`▲ ${u.name}: hammer — ${n}/${cib.length} stunned`,"player"); if(!over)refresh(); return true; }
+
+  const EVADE_BONUS=30;
+  function execEvade(u,a){ if(!abilDispo(u,"evade"))return false;
+    if(!a||a.team!==u.team||a.hp<=0){setMsg("Evade: choose a visible ally.");return false;}
+    if(!viseOk(u,a.cell))return false;
+    payerAbil(u,"evade"); a.dodgeTemp=EVADE_BONUS; a.dodge=(a.dodge||0)+EVADE_BONUS;
+    log(`▲ ${u.name} shields ${a.name} (+${EVADE_BONUS}% defence)`,"player"); refresh(); return true; }
+
+  function execTeleport(u,tgt){ if(!abilDispo(u,"teleport"))return false;
+    if(!tgt||tgt.hp<=0||!viseOk(u,tgt.cell))return false;
+    // destination : la case libre la plus éloignée de la cible dans sa portée, côté opposé au mage
+    const cand=cells.filter(c=>passable(c.id)&&!uAt(c.id)&&hops(tgt.cell,c.id)<=4&&los(u.cell,c.id));
+    if(!cand.length){setMsg("Teleport: nowhere to send them.");return false;}
+    const loin=cand.sort((a,b)=>hops(u.cell,b.id)-hops(u.cell,a.id))[0];
+    payerAbil(u,"teleport"); pushBlast(tgt.cell,0); tgt.cell=loin.id; pushBlast(loin.id,0);
+    if(tgt.team==="enemy")wakeEnemy(tgt,"noise");
+    log(`▲ ${u.name} teleports ${tgt.name}`,"player"); refresh(); return true; }
+
+  const RAY_LEN=6, RAY_DMG=6, RAY_ANGLE=0.32;   // faisceau étroit : une ligne, pas un cône
+  function execRayOfLight(u,id){ if(!abilDispo(u,"rayoflight"))return false;
+    if(id==null||id===u.cell){setMsg("Ray of light: aim in a direction.");return false;}
+    const a0=Math.atan2(cells[id].cy-cells[u.cell].cy,cells[id].cx-cells[u.cell].cx);
+    const cib=units.filter(e=>e.hp>0&&hostile(u,e)&&hops(u.cell,e.cell)<=RAY_LEN&&los(u.cell,e.cell)
+      &&Math.abs(norm(Math.atan2(cells[e.cell].cy-cells[u.cell].cy,cells[e.cell].cx-cells[u.cell].cx)-a0))<=RAY_ANGLE);
+    if(!cib.length){setMsg("Ray of light: nothing in the beam.");return false;}
+    payerAbil(u,"rayoflight"); u.facing=a0;
+    for(const e of cib){ const d=degatMagique(u,RAY_DMG); e.hp=Math.max(0,e.hp-d); pushDmg(e.cell,d,e.team);
+      if(e.hp<=0){ if(u.team==="player")u.kills=(u.kills||0)+1; } else wakeEnemy(e,"noise"); }
+    screenShake(4); log(`▲ ${u.name}: ray of light (${cib.length})`,"player"); checkEnd(); if(!over)refresh(); return true; }
+
+  const UNWALL_R=2;
+  function execUnwall(u,id){ if(!abilDispo(u,"unwall")||!viseOk(u,id))return false;
+    const z=boule(id,UNWALL_R); let n=0;
+    for(const k of [...walls]){ const ab=k.split("-").map(Number); if(z.has(ab[0])&&z.has(ab[1])){ walls.delete(k); fenetres.delete(k); n++; } }
+    n+=detruireMurs(id,UNWALL_R,u);
+    if(!n){setMsg("Remove walls: nothing to clear here.");return false;}
+    payerAbil(u,"unwall"); pushBlast(id,UNWALL_R); screenShake(5);
+    log(`▲ ${u.name} clears ${n} wall segment${n>1?"s":""}`,"player"); refresh(); return true; }
+
+  const WAVE_RANGE=5, WAVE_ANGLE=0.7, WAVE_DMG=5, WAVE_STUN=30;
+  function execWave(u,id){ if(!abilDispo(u,"wave"))return false;
+    if(id==null||id===u.cell){setMsg("Wave: aim in a direction.");return false;}
+    const a0=Math.atan2(cells[id].cy-cells[u.cell].cy,cells[id].cx-cells[u.cell].cx);
+    const cib=units.filter(e=>e.hp>0&&hostile(u,e)&&hops(u.cell,e.cell)<=WAVE_RANGE&&los(u.cell,e.cell)
+      &&Math.abs(norm(Math.atan2(cells[e.cell].cy-cells[u.cell].cy,cells[e.cell].cx-cells[u.cell].cx)-a0))<=WAVE_ANGLE);
+    if(!cib.length){setMsg("Wave: no enemy in the cone.");return false;}
+    payerAbil(u,"wave"); u.facing=a0; let n=0;
+    for(const e of cib){ const d=degatMagique(u,WAVE_DMG); e.hp=Math.max(0,e.hp-d); pushDmg(e.cell,d,e.team);
+      if(e.hp<=0){ if(u.team==="player")u.kills=(u.kills||0)+1; continue; }
+      if(RND()*100<WAVE_STUN){ e.stunned=true; e.ap=0; n++; } wakeEnemy(e,"noise"); }
+    pushNoise(id,2); screenShake(5); log(`▲ ${u.name}: wave (${cib.length} hit, ${n} stunned)`,"player"); checkEnd(); if(!over)refresh(); return true; }
+
+  // UN ESPRIT QUI JOUE SEUL. Contrairement au leurre du Stinger, il se bat — mais il n'appartient à
+  // personne : il agit APRÈS le tour du joueur, sur sa propre initiative, et disparaît avec elle.
+  const SPIRIT_HP=10, SPIRIT_TOURS=3;
+  function execSpirit(u,id){ if(!abilDispo(u,"spirit"))return false;
+    if(!viseOk(u,id,4))return false;
+    if(!passable(id)||uAt(id)){setMsg("Invoke spirit: choose a free tile.");return false;}
+    payerAbil(u,"spirit");
+    const sp=U("player","soldat",id,{name:"Spirit"});
+    sp.esprit=true; sp.factice=true; sp.espritTours=SPIRIT_TOURS;
+    sp.hp=SPIRIT_HP; sp.max=SPIRIT_HP; sp.w={melee:{type:"melee",aim:75,dmgMin:4,dmgMax:5}}; sp.wtype="melee";
+    sp.clip=undefined; sp.ammo=undefined; sp.abil=null;
+    units.push(sp); pushBlast(id,0); log(`▲ ${u.name} invokes a spirit`,"player"); refresh(); return true; }
+
+  // L'esprit joue entre le tour du joueur et celui de l'ennemi : il avance vers l'ennemi le plus
+  // proche et frappe s'il l'atteint. Trois tours, puis il s'éteint.
+  function tourDesEsprits(){ const sps=units.filter(s=>s.esprit&&s.hp>0); if(!sps.length)return;
+    for(const sp of sps){
+      if(--sp.espritTours<0){ sp.hp=0; log(`👻 ${sp.name} fades`,"player"); continue; }
+      const cib=units.filter(e=>e.hp>0&&e.team==="enemy").sort((a,b)=>hops(sp.cell,a.cell)-hops(sp.cell,b.cell))[0];
+      if(!cib)continue;
+      if(adjacent(sp.cell,cib.cell)){ doAttack(sp,cib,"melee",false,{gratuit:true}); continue; }
+      sp.ap=AP_MAX; sp.freeAvail=true;
+      const d=reach(sp); let best=null,bd=Infinity;
+      for(const n in d){ const h=hops(+n,cib.cell); if(h<bd&&!uAt(+n)){bd=h;best=+n;} }
+      if(best!=null&&best!==sp.cell){ sp.cell=best; sp.facing=ang(sp.cell,cib.cell); }
+      if(adjacent(sp.cell,cib.cell))doAttack(sp,cib,"melee",false,{gratuit:true});
+      sp.ap=0; sp.freeAvail=false; } }
+
+  function execReplenish(u,a){ if(!abilDispo(u,"replenish"))return false;
+    if(!a||a.team!==u.team||a.hp<=0){setMsg("Replenish: choose a visible ally.");return false;}
+    if(a.hp>=a.max){setMsg(`${a.name} is already at full health.`);return false;}
+    if(!viseOk(u,a.cell))return false;
+    payerAbil(u,"replenish"); const av=a.hp; a.hp=a.max; pushHeal(a.cell,a.hp-av);
+    log(`▲ ${u.name} replenishes ${a.name} (+${a.hp-av} HP)`,"player"); refresh(); return true; }
+
+  // ZONE QUI DURE. Le moteur n'avait que la fumée ; le havre est une zone d'un autre genre — elle
+  // protège au lieu d'aveugler, et n'existe que pour un camp.
+  const HAVEN_R=2, HAVEN_DEF=25;
+  let havres=[];   // {cells:Set, team, tours}
+  const havreDe=u=>havres.find(h=>h.team===u.team&&h.cells.has(u.cell))||null;
+  function execHaven(u,id){ if(!abilDispo(u,"haven")||!viseOk(u,id))return false;
+    payerAbil(u,"haven"); havres.push({cells:boule(id,HAVEN_R),team:u.team,tours:1,centre:id});
+    log(`▲ ${u.name} raises a haven`,"player"); refresh(); return true; }
+
+  const REQUIEM_R=3;
+  function execRequiem(u,id){ if(!abilDispo(u,"requiem")||!viseOk(u,id))return false;
+    const cib=ennemisDans(u,boule(id,REQUIEM_R)); if(!cib.length){setMsg("Requiem: no enemy in the area.");return false;}
+    payerAbil(u,"requiem"); let n=0;
+    // chacun avance d'UNE case vers le centre : le regroupement prépare la zone suivante
+    for(const e of cib.sort((a,b)=>hops(a.cell,id)-hops(b.cell,id))){
+      if(e.cell===id)continue;
+      let best=null,bd=hops(e.cell,id);
+      for(const v of cells[e.cell].nb){ if(!passable(v)||uAt(v))continue; const h=hops(v,id); if(h<bd){bd=h;best=v;} }
+      if(best!=null){ e.cell=best; n++; } wakeEnemy(e,"noise"); }
+    pushBlast(id,REQUIEM_R); log(`▲ ${u.name}: requiem — ${n} dragged in`,"player"); refresh(); return true; }
+
+  // EFFET GLOBAL ET DATÉ. Solstice ne vise personne : il incline la visée de tout le monde pendant
+  // deux tours. Il vit dans un état de mission, pas sur une unité.
+  const SOLSTICE_TOURS=2, SOLSTICE_BONUS=15;
+  let solstice=null;   // {team, tours}
+  function execSolstice(u){ if(!abilDispo(u,"solstice"))return false;
+    payerAbil(u,"solstice"); solstice={team:u.team,tours:SOLSTICE_TOURS};
+    log(`▲ ${u.name} calls the solstice`,"player"); refresh(); return true; }
+
+  // « En cas d'urgence » : tous les cooldowns tombent, mais le tour est fini et la fatigue monte.
+  function execBiscuit(u){ if(!abilDispo(u,"biscuit"))return false;
+    const en=u.cd?Object.keys(u.cd).filter(k=>u.cd[k]>0).length:0;
+    if(!en){setMsg("Eat biscuit: nothing on cooldown.");return false;}
+    u.cd={}; payerAbil(u,"biscuit"); u.ap=0; u.fatigueBonus=(u.fatigueBonus||0)+15;   // son propre cooldown survit, sinon il est infini
+    log(`▲ ${u.name} eats a biscuit — ${en} cooldown${en>1?"s":""} cleared`,"player"); refresh(); return true; }
+
   // ===== "shield" abilities: shove + long charge =====
   const CHARGE_RANGE=7;   // max range (hops) of the charge
   // tile "behind" the target, in line with the blow (direction u -> target)
@@ -2097,14 +2273,17 @@
     setMsg(ability?({smoke:"Click a tile to smoke.",breach:"Click a rock/low wall to destroy.",shadowstrike:"Click an enemy to strike.",rally:"Click an adjacent ally.",blast:"Click a tile (area explosion).",heal:"Click a visible ally to heal.",frost:"Click a visible enemy to frost.",shove:"Click an adjacent enemy to shove.",charge:"Click an enemy to charge."}[ability]||""):""); renderActs(); }
   // AIGUILLAGE PAR TABLE. La chaîne de ternaires grossissait d'un maillon à chaque capacité et
   // finissait par en oublier ; une entrée par capacité se lit et se complète.
-  const EXEC_SELF={vanish:execVanish,taunt:execTaunt,holdline:execHoldline,wall:execWall,rungun:execRunGun};
+  const EXEC_SELF={vanish:execVanish,taunt:execTaunt,holdline:execHoldline,wall:execWall,rungun:execRunGun,
+    solstice:execSolstice,biscuit:execBiscuit};
   const EXEC_CELL={smoke:execSmoke,breach:execBreach,blast:execBlast,spray:execSpray,
     smoker:execSmoker,cusser:execCusser,raisewall:execRaiseWall,removewall:execRemoveWall,
-    lure:execLure,fear:execFear,bait:execBait};
-  const EXEC_ALLY={heal:execHeal,rally:execRally};
+    lure:execLure,fear:execFear,bait:execBait,
+    lifefire:execLifeFire,hammer:execHammer,rayoflight:execRayOfLight,unwall:execUnwall,
+    wave:execWave,spirit:execSpirit,haven:execHaven,requiem:execRequiem};
+  const EXEC_ALLY={heal:execHeal,rally:execRally,evade:execEvade,replenish:execReplenish};
   const EXEC_ENEMY={frost:execFrost,shadowstrike:execShadow,shove:execShove,charge:execCharge,
     buttstroke:execButtstroke,precshot:execPrecShot,surehit:execSureHit,burst:execBurst,
-    boomshell:execBoomShell,stab:execStab};
+    boomshell:execBoomShell,stab:execStab,teleport:execTeleport};
   function resolveAbilityClick(id){ const A=ABIL[ability]; if(!A||!sel)return; const tgt=uAt(id); let ok=false;
     if(A.target==="cell")ok=(EXEC_CELL[ability]||(()=>false))(sel,id);
     else if(A.target==="enemy")ok=(tgt&&hostile(sel,tgt)&&tgt.hp>0&&seen(tgt))?((EXEC_ENEMY[ability]||execShadow)(sel,tgt)):(setMsg("Choose a visible enemy."),false);
@@ -2304,13 +2483,20 @@
     if(cur!==e.cell){ e.cell=cur; e.facing=0; }
     if(ez.has(e.cell)){ e.hp=0; e.escaped=true; curMission.escaped=(curMission.escaped||0)+1;
       log(`⇢ ${e.name} s'est échappé !`,"enemy"); } }
-  function endTurn(){harvestTick();turn="enemy";turnActions=0;sel=null;amode=null;aimTarget=null;for(const u of units)if(u.team==="enemy"){u.ap=u.slowed?Math.max(0,AP_MAX-1):AP_MAX;u.slowed=false;u.freeAvail=true;u.overwatch=false;u.reacted=false;u.bracing=false;u.aBouge=false;
+  function endTurn(){harvestTick();
+    tourDesEsprits();                                    // l'esprit agit entre les deux camps
+    tickBrulures("enemy");                               // les brûlures consument avant le tour d'en face
+    // le havre tient jusqu'au prochain tour allié, le solstice compte les tours
+    havres=havres.filter(h=>h.team!=="player"||--h.tours>=0);
+    if(solstice&&--solstice.tours<=0)solstice=null;
+    turn="enemy";turnActions=0;sel=null;amode=null;aimTarget=null;for(const u of units)if(u.team==="enemy"){u.ap=u.slowed?Math.max(0,AP_MAX-1):AP_MAX;u.slowed=false;u.freeAvail=true;u.overwatch=false;u.reacted=false;u.bracing=false;u.aBouge=false;
     if(u.leurreTours>0){u.leurreTours--; if(u.leurreTours<=0&&u.facing0!=null){u.facing=u.facing0;u.facing0=null;} }   // le leurre s'épuise : la cible se retourne
     if(u.stunTours>0){u.ap=0;u.freeAvail=false;u.stunTours--;} else if(u.stunned){u.ap=0;u.freeAvail=false;u.stunned=false;}}banner("Enemy turn","enemy");refresh();const foes=units.filter(u=>u.team==="enemy"&&u.hp>0);let i=0;
-    (function step(){if(over)return;if(i>=foes.length){for(const u of units)if(u.team==="player"){u.ap=u.factice?0:AP_MAX;u.freeAvail=!u.factice;u.overwatch=false;u.reacted=false;u.bracing=false;u.taunt=false;u.hidden=!!u.faded;u.wallStance=false;u.aBouge=false;u.aimTemp=0;u.viseeForcee=null;u.runGun=false;
+    (function step(){if(over)return;if(i>=foes.length){for(const u of units)if(u.team==="player"){u.ap=u.factice?0:AP_MAX;u.freeAvail=!u.factice;u.overwatch=false;u.reacted=false;u.bracing=false;u.taunt=false;u.hidden=!!u.faded;u.wallStance=false;u.aBouge=false;
+      if(u.dodgeTemp){u.dodge=Math.max(0,(u.dodge||0)-u.dodgeTemp);u.dodgeTemp=0;}u.aimTemp=0;u.viseeForcee=null;u.runGun=false;
       // ÉTOURDISSEMENT QUI DURE : « stunned » valait un tour ; « stunTours » en vaut plusieurs
       // (la panique du Stinger en pose deux). Le tour saute tant qu'il en reste.
-      if(u.stunTours>0){u.ap=0;u.freeAvail=false;u.stunTours--;} else if(u.stunned){u.ap=0;u.freeAvail=false;u.stunned=false;}}tickCd("player");for(const[k,v]of smoke){if(v-1<=0)smoke.delete(k);else smoke.set(k,v-1);}turn="player";turnNum++;turnActions=0;setMsg("");checkEnd();if(over)return;banner("Player turn","player");refresh();emit("turn",{turn:turnNum});return;}
+      if(u.stunTours>0){u.ap=0;u.freeAvail=false;u.stunTours--;} else if(u.stunned){u.ap=0;u.freeAvail=false;u.stunned=false;}}tickBrulures("player");tickCd("player");for(const[k,v]of smoke){if(v-1<=0)smoke.delete(k);else smoke.set(k,v-1);}turn="player";turnNum++;turnActions=0;setMsg("");checkEnd();if(over)return;banner("Player turn","player");refresh();emit("turn",{turn:turnNum});return;}
       const e=foes[i++];if(e.hp<=0){step();return;} e.overwatch=false;
       if(e.runner){ try{runnerStep(e);}catch(err){} e.ap=0; refresh(); checkEnd(); if(over)return; differer(step,220); return; }
       if(!enemyActive(e)){ try{patrolStep(e);}catch(err){} e.ap=0; step(); return; }   // not alerted = patrols in its zone
@@ -4927,7 +5113,8 @@
   function startGame(){ resetView(); { const t=document.getElementById("title"); if(t)t.style.display="none"; }   // a game starts: remove the title screen
     if(cells.some(c=>c.podAnchor)){ units=units.filter(u=>!u.fromAnchor); spawnAnchorPods(); }   // (re)generates the anchor pods on each (re)launch
     if(!units.some(u=>u.team==="player")||!units.some(u=>u.team==="enemy")){ setMsg("Place at least 1 ally and 1 enemy (Edit mode)."); }
-    for(const u of units){u.hp=u.max;u.ap=AP_MAX;u.freeAvail=true;u.overwatch=false;u.reacted=false;u.bracing=false;u.taunt=false;u.hidden=false;u.wallStance=false;u.vanishUsed=false;u.slowed=false;u.stunned=false;u.stunTours=0;u.leurreTours=0;u.facing0=null;u.aBouge=false;u.aimTemp=0;u.viseeForcee=null;u.spellsCast=0;u.cd={};
+    havres=[]; solstice=null; units=units.filter(u=>!u.esprit&&!u.factice);
+    for(const u of units){u.hp=u.max;u.ap=AP_MAX;u.freeAvail=true;u.overwatch=false;u.reacted=false;u.bracing=false;u.taunt=false;u.hidden=false;u.wallStance=false;u.vanishUsed=false;u.slowed=false;u.stunned=false;u.stunTours=0;u.leurreTours=0;u.brule=0;u.dodgeTemp=0;u.espritTours=0;u.facing0=null;u.aBouge=false;u.aimTemp=0;u.viseeForcee=null;u.spellsCast=0;u.cd={};
       // les charges se rechargent d'une MISSION à l'autre, jamais pendant : on repart du stock du perk
       if(u.abilRule){ u.charges={}; for(const k in u.abilRule)if(u.abilRule[k].charges)u.charges[k]=u.abilRule[k].charges; }u.dmgTaken=0;u.asleep=!!u._asleep0;if(u.clip!==undefined)u.ammo=u.clip;if(u.freeReload0!==undefined)u.freeReload=u.freeReload0;if(u.crackers!==undefined)u.crackers=(u.crackers0!==undefined?u.crackers0:CLASSES[u.cls].crackers);} smoke=new Map();ability=null; _podCenters=null; turn="player";over=false;sel=null;amode=null;aimTarget=null;throwing=false;usingItem=false;inv={potion:campRun?(campRun.potions||0):0};
     fired=new Set(); podAlerted=new Set(); neutralSeen=new Set(); typesVus=new Set(campRun&&campRun.typesSeen?campRun.typesSeen:[]); lastSeen=new Map(); turnNum=1; turnActions=0; lastOutcome=null; speechQ=[]; speaking=false; if(speechT){clearTimeout(speechT);speechT=null;} document.getElementById("combatline").style.display="none";
