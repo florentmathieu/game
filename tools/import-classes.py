@@ -69,10 +69,14 @@ def parse_turn_ending(v):
     return {"endsTurn": False, "cost": int(m.group(1)) if m else 1, "flou": v}
 
 def parse_cd(v):
+    """Rend (tours, charges). « 3 » = trois tours d attente ; « 1 charge » = une utilisation
+    par combat, ce qui n est PAS un cooldown et se code autrement."""
     s = (v or "").strip().lower()
-    if s in ("", "n/a", "na", "-", "—"): return None
+    if s in ("", "n/a", "na", "-", "—"): return (None, None)
     m = re.search(r"\d+", s)
-    return int(m.group(0)) if m else None
+    n = int(m.group(0)) if m else None
+    if re.search(r"charge", s): return (None, n or 1)
+    return (n or None, None)
 
 # capacites DEJA CODEES : lues dans index.html pour que ce script ne mente jamais
 # sur ce qui existe (l ancien format de Sheet met l identifiant moteur en « effet »).
@@ -142,7 +146,7 @@ def lire_onglet(rows):
     o = {"titre": None, "armes": [], "capacites": [], "arbre": [], "arbre_cols": None}
     for r in rows:
         b = banner(r)
-        if b and o["titre"] is None and "—" in b: o["titre"] = b; break
+        if b and o["titre"] is None and re.search(r"\s[-—]\s", b): o["titre"] = b; break
     i, mode = 0, None
     while i < len(rows):
         r = rows[i]; b = banner(r)
@@ -180,7 +184,8 @@ def perk(o, ligne, cote, key, rang, todo, niveau=None):
     # liste. Ces identifiants sont dans les sauvegardes ; les renumeroter perdrait des perks.
     pid = f"{PREFIXE.get(key, key[:2])}{niveau or rang}{cote.lower()}"
     p = {"id": pid, "name": nom, "desc": g("description")}
-    effet, te, cd = g("effet"), parse_turn_ending(g("turn-ending")), parse_cd(g("Cooldown") or g("cooldown"))
+    effet, te = g("effet"), parse_turn_ending(g("turn-ending"))
+    cd, charges = parse_cd(g("Cooldown") or g("cooldown"))
     mod = parse_effet(effet)
     connue = effet.strip() in ABILS              # ancien format : « effet » = l identifiant moteur
     if te is None and mod:                       # passif chiffre : rien de plus a faire
@@ -191,17 +196,19 @@ def perk(o, ligne, cote, key, rang, todo, niveau=None):
             if te.get("cost") is not None: p["cost"] = te["cost"]
             if te.get("endsTurn"): p["endsTurn"] = True
         if cd: p["cd"] = cd
+        if charges: p["charges"] = charges
     else:
         p["abil"] = "A_CODER"                    # actif : il faudra une entree dans ABIL
         if te:
             if te.get("cost") is not None: p["cost"] = te["cost"]
             if te.get("endsTurn"): p["endsTurn"] = True
         if cd: p["cd"] = cd
+        if charges: p["charges"] = charges
         if mod: p["mod"] = mod
         p["_effet"] = effet
         todo.append({"classe": key, "rang": rang, "cote": cote, "id": pid, "nom": nom,
                      "effet": effet, "cost": p.get("cost"), "endsTurn": p.get("endsTurn"),
-                     "cd": cd, "flou": (te or {}).get("flou")})
+                     "cd": cd, "charges": charges, "flou": (te or {}).get("flou")})
     return p
 
 def js_perk(p):
@@ -213,6 +220,7 @@ def js_perk(p):
     if p.get("cost") is not None: out.append(f'cost:{p["cost"]}')
     if p.get("endsTurn"): out.append("endsTurn:true")
     if p.get("cd"): out.append(f'cd:{p["cd"]}')
+    if p.get("charges"): out.append(f'charges:{p["charges"]}')
     return "{" + ", ".join(out) + "}"
 
 def main():
@@ -241,7 +249,7 @@ def main():
             v = num(st.get(k2)); c[k2] = v if v is not None else 0
         c["stealth"] = (st.get("stealth", "").lower().startswith("o"))
         c["armes"] = o["armes"]; c["capacites"] = o["capacites"]
-        titre = (o.get("titre") or "").split("—")[0].strip()
+        titre = re.split(r"\s[-—]\s", o.get("titre") or "")[0].strip()
         if titre and c["name"] and titre != c["name"]:
             alertes.append(f"{key}: l onglet s appelle « {titre} » mais « nom affiché » dit « {c['name']} »")
         classes[key] = c
@@ -276,6 +284,21 @@ def main():
             alertes.append(f"{key}: {len(arbre)}/{len(niv)} rangs remplis "
                            f"(niveaux de classe attendus : {', '.join(map(str, niv))})")
 
+    # UN ONGLET SUPPRIME NE SE VOIT PAS TOUT SEUL : le Sheet etant la source, une classe que le
+    # moteur connait mais que le classeur n a plus est soit un abandon volontaire, soit une fausse
+    # manoeuvre. Dans les deux cas ca se dit, ca ne se devine pas.
+    try:
+        src = open("index.html", encoding="utf-8").read()
+        m = re.search(r"const CLASSES=\{(.*?)\n  \};", src, re.S)
+        connues = set(re.findall(r"^\s*(\w+):\{", m.group(1), re.M)) if m else set()
+        civiles = set(re.findall(r"(\w+):\{[^\n]*\bciv:true", src))
+        orphelines = sorted(connues - civiles - set(onglets) - {"sergent"})
+        if orphelines:
+            alertes.append("classes du moteur SANS onglet dans le Sheet : "
+                           + ", ".join(orphelines) + " — onglet supprimé ou classe abandonnée ?")
+    except OSError:
+        pass
+
     # ---------------- rapport
     print(f"Onglets lus : {len(onglets)}   ·   classes joueur avec arbre : {len(perks)}\n")
     for key, tree in perks.items():
@@ -292,6 +315,7 @@ def main():
                 if x.get("cost") is not None: d.append(f"{x['cost']} PA")
                 if x.get("endsTurn"): d.append("termine le tour")
                 if x.get("cd"): d.append(f"cd {x['cd']}")
+                if x.get("charges"): d.append(f"{x['charges']} charge(s)")
                 if x.get("mod"): d.append(json.dumps(x["mod"], ensure_ascii=False))
                 print(f"     {cote} : {x['name']:24} [{q}] {' · '.join(d)}")
         print()
@@ -302,7 +326,8 @@ def main():
         for t in todo:
             bits = [f"{t['cost']} PA" if t["cost"] is not None else "coût ?",
                     "termine le tour" if t["endsTurn"] else "ne termine pas le tour",
-                    f"cd {t['cd']}" if t["cd"] else "sans cooldown"]
+                    f"cd {t['cd']}" if t["cd"] else
+                    (f"{t['charges']} charge(s) — PAS un cooldown" if t["charges"] else "sans cooldown")]
             print(f"   {t['id']:6} {t['classe']:9} {t['nom']:24} {' · '.join(bits)}")
             print(f"          effet : {t['effet']}")
             if t["flou"]: print(f"          ⚠ turn-ending illisible : « {t['flou']} »")
