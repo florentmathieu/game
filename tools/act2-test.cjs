@@ -1,7 +1,7 @@
 const fs=require("fs"), path=require("path");
 const { loadMesh } = require("./mesh-engine.cjs");
 const { makeActUnit } = require("./ai.cjs");
-const M = loadMesh(); const actUnit = makeActUnit(M); M.setAutoPromote((m,g,p)=>"A");
+const M = loadMesh(); const actUnit = makeActUnit(M); M.setAutoPromote((m,g,p,quoi)=>quoi==="track"?(m.cls==="soldat"?"officer":"veteran"):"A");
 const geo0=JSON.parse(fs.readFileSync("geoscapes-mesh/acte1.json","utf8"));
 const camp=JSON.parse(fs.readFileSync("campaigns-mesh/acte1.json","utf8"));
 const geoNodes=camp.nodes.filter(n=>n.type==="geoscape");

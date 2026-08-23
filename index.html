@@ -730,7 +730,11 @@
     gradeFromXp,perkPairFor:(m,l)=>perkPairFor(m,l)};
   // source des deux perks CONNUS pour un niveau donné (1-indexé) : la voie, sinon l'arbre de classe
   function perkPairFor(m,lvl){
-    if(usesTrack(m,lvl)){ const t=m.track&&TRACK_PERKS[m.track]; return (t&&t[lvl])||null; }
+    if(usesTrack(m,lvl)){
+      // VOIE INCONNUE : une sauvegarde ancienne ou un outil peut poser n'importe quoi. Sans garde,
+      // le personnage ne reçoit plus RIEN à ses trois niveaux de voie, en silence et pour toujours.
+      if(m.track&&!TRACK_PERKS[m.track])m.track="veteran";
+      const t=m.track&&TRACK_PERKS[m.track]; return (t&&t[lvl])||null; }
     return (PERKS[m.cls]||[])[rangClasse(m,lvl)-1]||null;
   }
   const randStatPerk=()=>RANDOM_PERKS[Math.floor(Math.random()*RANDOM_PERKS.length)];
@@ -5002,7 +5006,7 @@
     const bonus=done.length*HARVEST_XP, solo={};
     for(const c of done) if(c.oreBy) solo[c.oreBy]=(solo[c.oreBy]||0)+HARVEST_XP_SOLO;
     for(const u of units){ if(u.team!=="player")continue; const m=campRun.roster.find(r=>r.name===u.name); if(!m)continue;
-      m.xp=(m.xp||0)+3+(u.kills||0)+bonus+(solo[u.name]||0); }
+      m.xp=(m.xp||0)+XP_MISSION+(u.kills||0)*XP_KILL+bonus+(solo[u.name]||0); }
     if(done.length)log(`⛏ ${done.length} gisement(s) épuisé(s) : +${bonus} XP pour l'escouade`,"player"); }   // mission won: 3 (participation+victory) + 1/kill
   // applies a reward (xp + morale + heals) to the deployed squad; returns the text summary (or null).
   function applyReward(r){ if(!campRun||!campRun.roster||!r)return null;
@@ -5204,7 +5208,7 @@
       return {A:pair&&pair.A, B:pair&&pair.B, C:c}; };
     if(autoPromote){
       for(const it of list){
-        if(usesTrack(it.m,it.lvl)&&!it.m.track) it.m.track=(autoPromote(it.m,it.grade,null,"track")||"veteran");
+        if(usesTrack(it.m,it.lvl)&&!TRACK_PERKS[it.m.track]) it.m.track=(TRACK_PERKS[autoPromote(it.m,it.grade,null,"track")]?autoPromote(it.m,it.grade,null,"track"):"veteran");
         const offer=buildOffer(it); if(!offer.A&&!offer.B){ offer.A=randStatPerk(); }
         let k=autoPromote(it.m,it.grade,offer)||"A"; if(!offer[k])k=offer.A?"A":(offer.B?"B":"C");
         rec(it,offer,k); }
@@ -6108,6 +6112,9 @@
   // Calibré sur les paliers XP_THRESH [0,4,10,18,…] : une victoire ordinaire vaut 3-5 XP,
   // une récolte de 3 gisements en vaut 6-9 — le double, ce que justifie l'immobilisation
   // des unités sous le feu, sans faire sauter trois grades en une mission.
+  // XP DE MISSION. Calibré pour qu'une escouade arrive au Bastion vers le NIVEAU 4 : il faut
+  // garder de la marge pour les actes 2 et 3, qui doivent mener jusqu'au niveau 7 (82 XP).
+  let XP_MISSION=2, XP_KILL=1;
   let HARVEST_XP=1, HARVEST_XP_SOLO=1;
   let PRIME_DIFF_MIN=3, PRIME_XP_MULT=3, PRIME_XP_STEP=2, PRIME_MORALE_STEP=5;   // tunable (balancing panel) — bounty XP = difficulty × PRIME_XP_MULT
   function primeInit(){ if(!campRun||!geoPlay||!geoPlay.map)return; campRun.primes=campRun.primes||{};
@@ -6196,6 +6203,8 @@
       {k:"DEATH_PCT",label:"Death risk (K.O.+defeat)",get:()=>DEATH_PCT,set:v=>DEATH_PCT=v,min:0,max:100,step:5,suffix:"%"} ]},
     {name:"Express bounties", items:[
       {k:"PRIME_DIFF_MIN",label:"Min. difficulty (★)",get:()=>PRIME_DIFF_MIN,set:v=>PRIME_DIFF_MIN=v,min:1,max:5,step:1},
+      {k:"XP_MISSION",label:"XP / mission won",get:()=>XP_MISSION,set:v=>XP_MISSION=v,min:0,max:8,step:1},
+      {k:"XP_KILL",label:"XP / kill",get:()=>XP_KILL,set:v=>XP_KILL=v,min:0,max:4,step:1},
       {k:"HARVEST_XP",label:"XP / deposit (squad)",get:()=>HARVEST_XP,set:v=>HARVEST_XP=v,min:0,max:10,step:1},
       {k:"HARVEST_XP_SOLO",label:"XP / deposit (carrier)",get:()=>HARVEST_XP_SOLO,set:v=>HARVEST_XP_SOLO=v,min:0,max:10,step:1},
       {k:"PRIME_XP_MULT",label:"Bounty XP = ★ ×",get:()=>PRIME_XP_MULT,set:v=>PRIME_XP_MULT=v,min:1,max:8,step:1},
