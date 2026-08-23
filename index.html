@@ -695,7 +695,7 @@
     officer:{
       4:{A:{id:"of4a",name:"Warcry",desc:"Allies within 5, until their next turn: +10 aim, +1 damage, −1 damage taken",abil:"warcry",cost:1,cd:4},
          B:{id:"of4b",name:"Inspire",desc:"+1 AP for an ally",abil:"inspire",cost:0,cd:2}},
-      6:{A:{id:"of6a",name:"Decide",desc:"— to be written —",cd:3},
+      6:{A:{id:"of6a",name:"Decide",desc:"Marks one enemy: +30% damage taken, for 2 turns",abil:"decide",cost:1,cd:3},
          B:{id:"of6b",name:"Insult",desc:"+2 AP to a subordinate (veteran, or below level 4)",abil:"insult",cost:1,cd:4}},
       7:{A:{id:"of8a",name:"Emergency exit",desc:"Pulls an ally off the map, alive",abil:"exfil",cost:1,charges:1},
          B:{id:"of8b",name:"Bruise",desc:"A subordinate within 2 tiles: +30% defence and damage",abil:"bruise",cost:1,cd:3}},
@@ -1694,7 +1694,8 @@
     if(!hit){txt="missed";result="miss";}
     else if(!back&&tgt.shieldBlock&&RND()*100<tgt.shieldBlock){txt="blocked 🛡";result="blocked";}
     else if(!back&&w.type==="melee"&&tgt.parry&&RND()*100<tgt.parry){txt="parried 🗡";result="blocked";}
-    else{result="hit";dmg=w.dmgMin+Math.floor(RND()*(w.dmgMax-w.dmgMin+1))+(att.dmgBonus||0)+(att.dmgTemp||0)+boostDmg(att)+bonusArme(att,m,"dmg")+((opts&&opts.dmg)||0);dmg=Math.max(1,dmg-(tgt.dr||0));   // dr = réduction de dégâts (jamais en dessous de 1)
+    else{result="hit";dmg=w.dmgMin+Math.floor(RND()*(w.dmgMax-w.dmgMin+1))+(att.dmgBonus||0)+(att.dmgTemp||0)+boostDmg(att)+bonusArme(att,m,"dmg")+((opts&&opts.dmg)||0);dmg=Math.max(1,dmg-(tgt.dr||0));
+      if(tgt.designeTours>0)dmg=Math.max(dmg+1,Math.round(dmg*(1+DECIDE_PCT/100)));   // « Decide » : la cible désignée encaisse plus   // dr = réduction de dégâts (jamais en dessous de 1)
       let fb=0,fl="";if(w.flank&&w.type==="melee"){const f=flankOf(att,tgt),fbn=att.flankBonus||{};if(f==="back"){fb=w.flank.back+(fbn.back||0);fl="back";}else if(f==="side"){fb=w.flank.side+(fbn.side||0);fl="flank";}dmg+=fb;}if(att.team==="enemy")dmg=Math.max(1,dmg-1);tgt.hp-=dmg;if(tgt.team==="player")tgt.dmgTaken=(tgt.dmgTaken||0)+dmg;txt=`hit ${dmg}`+(fb?` (${fl} +${fb})`:"")+(tgt.hp<=0?(tgt.team==="player"?" ✚K.O.":" ✝"):"");if(tgt.hp<=0)tgt.hp=0;}
     const killed=tgt.hp<=0&&result==="hit", wn=(CLASSES[att.cls]&&CLASSES[att.cls].wname)||(w.type==="ranged"?(att.clip!==undefined?"crossbow":"bow"):(w.flank?"daggers":"sword"));
     if(killed&&att.team==="player"){ att.kills=(att.kills||0)+1; reactBloodlust(att); }   // for mission XP
@@ -1889,6 +1890,7 @@
     raisewall:{icon:"🧱",label:"Raise wall — builds up to two wall segments",target:"cell"},
     removewall:{icon:"🕳",label:"Remove wall — takes down one wall segment",target:"cell"},
     // ===== voie Officier =====
+    decide:{icon:"🎯💀",label:"Decide — marks an enemy: +30% damage taken, for 2 turns",target:"enemy"},
     warcry:{icon:"📢",label:"Warcry — allies within 5: +10 aim, +1 damage, −1 damage taken",target:"self"},
     inspire:{icon:"⬆",label:"Inspire — +1 AP to an ally",target:"ally"},
     insult:{icon:"🗯",label:"Insult — +2 AP to a subordinate",target:"ally"},
@@ -1921,7 +1923,7 @@
     buttstroke:0,spray:3,rungun:3,precshot:0,surehit:4,burst:3,boomshell:2,
     smoker:1,cusser:1,raisewall:2,removewall:4, stab:0,lure:1,fear:4,bait:5,
     lifefire:4,hammer:3,evade:2,teleport:3,rayoflight:3,unwall:3,wave:5,spirit:5,replenish:0,haven:0,requiem:5,solstice:5,biscuit:0,
-    warcry:4,inspire:2,insult:4,exfil:0,bruise:3, fuckit:3};
+    warcry:4,inspire:2,insult:4,exfil:0,bruise:3,decide:3, fuckit:3};
   let CD_MULT=1;   // global cooldown multiplier (balancing panel)
   const onCd=(u,id)=>!!(u&&u.cd&&u.cd[id]>0);
   // règle effective d'une capacité pour CETTE unité : celle de son perk si elle en a une, sinon
@@ -2304,6 +2306,14 @@
   function estSubordonne(u){ const m=(campRun&&campRun.roster)?campRun.roster.find(r=>r.name===u.name):null;
     if(!m)return true; return m.track==="veteran"||gradeDe(u)<4; }
 
+  const DECIDE_TOURS=2, DECIDE_PCT=30;
+  function execDecide(u,tgt){ if(!abilDispo(u,"decide"))return false;
+    if(!tgt||!hostile(u,tgt)||tgt.hp<=0){setMsg("Decide: choose a visible enemy.");return false;}
+    if(hops(u.cell,tgt.cell)>MAG_RANGE||!los(u.cell,tgt.cell)){setMsg("Decide: out of range / no line of sight.");return false;}
+    payerAbil(u,"decide"); tgt.designeTours=DECIDE_TOURS+1; pushAlert(tgt.cell);
+    log(`▲ ${u.name} marks ${tgt.name} — +${DECIDE_PCT}% damage taken (${DECIDE_TOURS} turns)`,"player");
+    refresh(); return true; }
+
   const WARCRY_R=5;
   function execWarcry(u){ if(!abilDispo(u,"warcry"))return false;
     const amis=units.filter(a=>a.team===u.team&&a.hp>0&&!a.factice&&hops(u.cell,a.cell)<=WARCRY_R);
@@ -2350,8 +2360,9 @@
   // aimTemp/dmgTemp que le début de tour balaie. Un seul créneau par unité : se relancer le
   // rafraîchit au lieu de l'empiler, sinon deux tirs amis feraient un monstre.
   function poserBoost(u,dmg,dodge,tours,nom){ u.boostDmg=dmg; u.boostDodge=dodge; u.boostTours=tours; u.boostNom=nom; }
-  function tickBoosts(team){ for(const u of units){ if(u.team!==team||!u.boostTours)continue;
-      if(--u.boostTours<=0){ u.boostDmg=0; u.boostDodge=0; u.boostNom=null; } } }
+  function tickBoosts(team){ for(const u of units){ if(u.team!==team)continue;
+      if(u.boostTours&&--u.boostTours<=0){ u.boostDmg=0; u.boostDodge=0; u.boostNom=null; }
+      if(u.designeTours)u.designeTours--; } }
   const boostDmg=u=>(u.boostTours>0?(u.boostDmg||0):0);
   const boostDodge=u=>(u.boostTours>0?(u.boostDodge||0):0);
 
@@ -2413,7 +2424,7 @@
     inspire:execInspire,insult:execInsult,exfil:execExfil,bruise:execBruise};
   const EXEC_ENEMY={frost:execFrost,shadowstrike:execShadow,shove:execShove,charge:execCharge,
     buttstroke:execButtstroke,precshot:execPrecShot,surehit:execSureHit,burst:execBurst,
-    boomshell:execBoomShell,stab:execStab,teleport:execTeleport};
+    boomshell:execBoomShell,stab:execStab,teleport:execTeleport,decide:execDecide};
   function resolveAbilityClick(id){ const A=ABIL[ability]; if(!A||!sel)return; const tgt=uAt(id); let ok=false;
     if(A.target==="cell")ok=(EXEC_CELL[ability]||(()=>false))(sel,id);
     else if(A.target==="enemy")ok=(tgt&&hostile(sel,tgt)&&tgt.hp>0&&seen(tgt))?((EXEC_ENEMY[ability]||execShadow)(sel,tgt)):(setMsg("Choose a visible enemy."),false);
@@ -5284,7 +5295,7 @@
     if(!units.some(u=>u.team==="player")||!units.some(u=>u.team==="enemy")){ setMsg("Place at least 1 ally and 1 enemy (Edit mode)."); }
     havres=[]; solstice=null; geosVues=new Set(); units=units.filter(u=>!u.esprit&&!u.factice);
     for(const u of units){u.sorti=false;u.dmgTemp=0;u.drTemp=0;u.boostTours=0;u.boostDmg=0;u.boostDodge=0;}
-    for(const u of units){u.hp=u.max;u.ap=AP_MAX;u.freeAvail=true;u.overwatch=false;u.reacted=false;u.bracing=false;u.taunt=false;u.hidden=false;u.wallStance=false;u.vanishUsed=false;u.slowed=false;u.stunned=false;u.stunTours=0;u.leurreTours=0;u.brule=0;u.dodgeTemp=0;u.espritTours=0;u.facing0=null;u.aBouge=false;u.aimTemp=0;u.viseeForcee=null;u.spellsCast=0;u.cd={};
+    for(const u of units){u.hp=u.max;u.ap=AP_MAX;u.freeAvail=true;u.overwatch=false;u.reacted=false;u.bracing=false;u.taunt=false;u.hidden=false;u.wallStance=false;u.vanishUsed=false;u.slowed=false;u.stunned=false;u.stunTours=0;u.leurreTours=0;u.designeTours=0;u.brule=0;u.dodgeTemp=0;u.espritTours=0;u.facing0=null;u.aBouge=false;u.aimTemp=0;u.viseeForcee=null;u.spellsCast=0;u.cd={};
       // les charges se rechargent d'une MISSION à l'autre, jamais pendant : on repart du stock du perk
       if(u.abilRule){ u.charges={}; for(const k in u.abilRule)if(u.abilRule[k].charges)u.charges[k]=u.abilRule[k].charges; }u.dmgTaken=0;u.asleep=!!u._asleep0;if(u.clip!==undefined)u.ammo=u.clip;if(u.freeReload0!==undefined)u.freeReload=u.freeReload0;if(u.crackers!==undefined)u.crackers=(u.crackers0!==undefined?u.crackers0:CLASSES[u.cls].crackers);} smoke=new Map();ability=null; _podCenters=null; turn="player";over=false;sel=null;amode=null;aimTarget=null;throwing=false;usingItem=false;inv={potion:campRun?(campRun.potions||0):0};
     fired=new Set(); podAlerted=new Set(); neutralSeen=new Set(); typesVus=new Set(campRun&&campRun.typesSeen?campRun.typesSeen:[]); geosVues=new Set(campRun&&campRun.geosSeen?campRun.geosSeen:[]); lastSeen=new Map(); turnNum=1; turnActions=0; lastOutcome=null; speechQ=[]; speaking=false; if(speechT){clearTimeout(speechT);speechT=null;} document.getElementById("combatline").style.display="none";
