@@ -20,6 +20,13 @@ function loadMesh(htmlPath){
     get W(){return W}, get H(){return H}, get COLS(){return COLS}, get ROWS(){return ROWS},
     get AP_MAX(){return AP_MAX}, get MOB(){return MOB}, get FREE_MP(){return FREE_MP},
     get ESCOUADE_BASE(){return ESCOUADE_BASE}, aUnOfficier,
+    // déplace les niveaux de voie sans toucher au fichier : TRACK_LEVELS est un const mais son
+    // contenu est mutable, et les clés de TRACK_PERKS suivent
+    setTrackLevels(arr){ const av=TRACK_LEVELS.slice();
+      for(const tk in TRACK_PERKS){ const old=TRACK_PERKS[tk], neuf={};
+        av.forEach((L,i)=>{ if(old[L])neuf[arr[i]]=old[L]; }); TRACK_PERKS[tk]=neuf; }
+      TRACK_LEVELS.length=0; for(const x of arr)TRACK_LEVELS.push(x); },
+    get TRACK_LEVELS(){return TRACK_LEVELS},
     setXp(mis,kill){ if(mis!=null)XP_MISSION=mis; if(kill!=null)XP_KILL=kill; },
     get XP_THRESH(){return XP_THRESH},
     setMove(mob,ap,free){ if(mob!=null)MOB=mob; if(ap!=null)AP_MAX=ap; if(free!=null)FREE_MP=free; },

@@ -693,10 +693,13 @@
     {id:"rp_reload",name:"Quick Hands",   desc:"1 free reload (rifles)",       mod:{reload:1}},    // [F]
     {id:"rp_range1",name:"Long Sight",    desc:"+1 range",                     mod:{range:1}},     // [H]
   ];
-  // ===== VOIES (ancienneté) : au niveau 4 le soldat choisit OFFICIER ou VÉTÉRAN, définitivement.
-  // Les niveaux 4, 6 et 7 puisent dans la voie choisie ; les autres dans l'arbre de classe.
+  // ===== VOIES (ancienneté) : au niveau 3 le soldat choisit OFFICIER ou VÉTÉRAN, définitivement.
+  // Les niveaux 3, 5 et 7 puisent dans la voie choisie ; les autres dans l'arbre de classe.
   // Contenu repris des onglets « Officer » et « Veteran » du Sheet (23 août 2026).
-  const TRACK_LEVELS=[4,6,7];
+  // LA VOIE SE CHOISIT AU NIVEAU 3. Mesuré sur seize campagnes de quinze missions : le premier
+  // officier arrive à la mission 9 au lieu de 11, et le haut de l'acte s'en trouve mieux tenu.
+  // On choisit sa voie après deux perks de classe plutôt que trois — c'est le prix.
+  const TRACK_LEVELS=[3,5,7];
   const NIV_MAX=7;                  // nombre total de niveaux (4 de classe + 3 de voie)
   const TRACKS={ officer:{name:"Officer",desc:"Command: acts on the squad"},
                  veteran:{name:"Veteran",desc:"Craft: acts on oneself"} };
@@ -704,23 +707,23 @@
     // Les identifiants gardent leur numérotation d'origine (of4/of6/of8, vt4/vt6/vt8) : ils sont
     // dans les sauvegardes, et les renuméroter ferait perdre leurs perks aux escouades existantes.
     officer:{
-      4:{A:{id:"of4a",name:"Warcry",desc:"Allies within 5, until their next turn: +10 aim, +1 damage, −1 damage taken",abil:"warcry",cost:1,cd:4},
+      3:{A:{id:"of4a",name:"Warcry",desc:"Allies within 5, until their next turn: +10 aim, +1 damage, −1 damage taken",abil:"warcry",cost:1,cd:4},
          B:{id:"of4b",name:"Inspire",desc:"+1 AP for an ally",abil:"inspire",cost:0,cd:2}},
-      6:{A:{id:"of6a",name:"Decide",desc:"Marks one enemy: +30% damage taken, for 2 turns",abil:"decide",cost:1,cd:3},
+      5:{A:{id:"of6a",name:"Decide",desc:"Marks one enemy: +30% damage taken, for 2 turns",abil:"decide",cost:1,cd:3},
          B:{id:"of6b",name:"Insult",desc:"+2 AP to a subordinate (veteran, or below level 4)",abil:"insult",cost:1,cd:4}},
       7:{A:{id:"of8a",name:"Emergency exit",desc:"Pulls an ally off the map, alive",abil:"exfil",cost:1,charges:1},
          B:{id:"of8b",name:"Bruise",desc:"A subordinate within 2 tiles: +30% defence and damage",abil:"bruise",cost:1,cd:3}},
     },
     veteran:{
-      4:{A:{id:"vt4a",name:"Hard skin",desc:"−1 damage taken",mod:{dr:1}},
+      3:{A:{id:"vt4a",name:"Hard skin",desc:"−1 damage taken",mod:{dr:1}},
          B:{id:"vt4b",name:"Fuck it",desc:"+30% damage, −20% defence, for 2 turns",abil:"fuckit",cost:0,cd:3}},
-      6:{A:{id:"vt6a",name:"Tough it up",desc:"Never dies for good at 0 HP",drapeau:"toughitup"},
+      5:{A:{id:"vt6a",name:"Tough it up",desc:"Never dies for good at 0 HP",drapeau:"toughitup"},
          B:{id:"vt6b",name:"Scoff",desc:"When insulted or bruised, gives 1 AP back to the officer",drapeau:"scoff"}},
       7:{A:{id:"vt8a",name:"WTF",desc:"When hit by friendly fire, +3 damage for 2 turns",drapeau:"wtf"},
          B:{id:"vt8b",name:"Bloodlust",desc:"Gives back 1 AP for each kill",drapeau:"bloodlust"}},
     },
   };
-  // Classes DISPENSÉES de voie : elles gardent leur arbre de classe aux niveaux 4/6/7.
+  // Classes DISPENSÉES de voie : elles gardent leur arbre de classe aux niveaux 3/5/7.
   // (les mages auront leur propre système de progression — à définir)
   const TRACK_EXEMPT=new Set(["mage"]);
   const isTrackLevel=lvl=>TRACK_LEVELS.includes(lvl);
