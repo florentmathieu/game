@@ -594,9 +594,13 @@
   // (perks, sauvegardes et campagnes existantes restent valides) : seuls les rôles/armes changent.
   const CLASSES={
     // ===== ÉQUIPE D'EXTRACTION (jouable) — le Consortium =====
-    soldat:{name:"Enforcer",hp:10,mob:8,shieldBlock:30,wname:"service rifle",w:{ranged:bow(72,3,5,7,4),melee:sword(70,3,5)}},   // "protection des actifs" : fusil d'ordonnance + plaque pare-balles
-    sapeur:{name:"Blaster",hp:7,mob:8,crackers:1,wname:"charge launcher",w:{ranged:bow(68,3,5,7,3),melee:sword(65,2,4),cracker:{type:"throw",dmgMin:5,dmgMax:9,range:6,radius:2,scatter:2}}},   // artificier : charges de minage (= "crackers")
-    assassin:{name:"Cleaner",hp:7,mob:8,parry:35,stealth:true,wname:"vibroblade",w:{melee:dagger(80,3,4,5,2)}},   // le "nettoyeur" : règle les incidents discrètement (seul rôle de contact du joueur)
+    soldat:{name:"Enforcer",hp:10,mob:8,shieldBlock:30,wname:"service rifle",w:{ranged:bow(72,4,5,7,4),melee:sword(70,3,5)}},   // "protection des actifs" : fusil d'ordonnance + plaque pare-balles
+    sapeur:{name:"Sapper",hp:7,mob:8,crackers:1,wname:"service rifle",w:{ranged:bow(68,4,5,7,4),melee:sword(65,2,4),
+      cracker:{type:"throw",dmgMin:4,dmgMax:5,range:5,radius:2,scatter:2},
+      // ARME CONDITIONNELLE : l'arbalète n'existe que si le perk « Arbalest » l'a débloquée.
+      // Elle ne tire qu'un carreau (chargeur 1) mais porte à 9 — et sert de lance-grenade long.
+      ranged2:{...bow(75,5,6,9,1), verrou:"arbalest", nom:"crossbow"}}},   // artificier : charges de minage (= "crackers")
+    assassin:{name:"Stinger",hp:7,mob:8,parry:35,stealth:true,faded:true,wname:"sword",w:{melee:dagger(90,4,5,2,1),ranged:bow(70,3,4,7,4)}},   // le "nettoyeur" : règle les incidents discrètement (seul rôle de contact du joueur)
     mage:{name:"Siphoner",hp:6,mob:7,wname:"essence siphon",w:{ranged:bow(72,4,6,7,3),melee:sword(45,2,3)}},   // arcaniste du Consortium : tire l'essence RAFFINÉE extraite du monde (clip 3 = fioles) — sa magie est volée à ce qu'il détruit
     // ===== RÉSISTANCE LOCALE (ennemis ordinaires) — des gens modernes, pas des sauvages =====
     // Ils ont la MÊME technologie que toi, en version récupérée et remontée : l'écart n'est pas
@@ -641,18 +645,18 @@
   // qui progresse sur son arbre du début à la fin). C'est voulu : compacter les arbres à quatre
   // paires priverait le mage de sa fin de progression.
   const PERKS={
-    soldat:[ {A:{id:"se1a",name:"Rallying Cry",desc:"Restores 1 AP to an adjacent ally",abil:"rally"}, B:{id:"se1b",name:"Tenacious",desc:"+4 HP",mod:{hp:4}}},
-            {A:{id:"se2a",name:"Taunt",desc:"Enemies target you first",abil:"taunt"}, B:{id:"se2b",name:"Leader",desc:"+1 damage",mod:{dmg:1}}},
-            {A:{id:"se3a",name:"Hold the Line",desc:"Overwatch for adjacent allies",abil:"holdline"}, B:{id:"se3b",name:"Steel Guard",desc:"+15% block",mod:{shieldBlock:15}}},
-            {A:{id:"se5a",name:"Standard-Bearer",desc:"+2 damage",mod:{dmg:2}}, B:{id:"se5b",name:"Unkillable",desc:"+6 HP",mod:{hp:6}}} ],
-    sapeur:[ {A:{id:"sa1a",name:"Smoke Bomb",desc:"Veils line of sight (area, 2 turns)",abil:"smoke"}, B:{id:"sa1b",name:"Lynx Eye",desc:"+10 aim",mod:{aim:10}}},
-            {A:{id:"sa2a",name:"Shaped Charge",desc:"Destroys a rock/low wall (opens a passage)",abil:"breach"}, B:{id:"sa2b",name:"Hardened",desc:"+3 HP",mod:{hp:3}}},
-            {A:{id:"sa3a",name:"Bombardier",desc:"More accurate cracker (less scatter)",mod:{scatter:1}}, B:{id:"sa3b",name:"Heavy Charge",desc:"+2 damage",mod:{dmg:2}}},
-            {A:{id:"sa5a",name:"Sharp Aim",desc:"+15 aim",mod:{aim:15}}, B:{id:"sa5b",name:"Endurance",desc:"+5 HP",mod:{hp:5}}} ],
-    assassin:[ {A:{id:"as1a",name:"Shadow Strike",desc:"Leap to an enemy's flank/back + damage",abil:"shadowstrike"}, B:{id:"as1b",name:"Keen Blade",desc:"+2 damage",mod:{dmg:2}}},
-              {A:{id:"as2a",name:"Fade",desc:"Becomes undetectable again for a turn (1×/fight)",abil:"vanish"}, B:{id:"as2b",name:"Precision",desc:"+10 aim",mod:{aim:10}}},
-              {A:{id:"as3a",name:"Killer",desc:"+2 damage",mod:{dmg:2}}, B:{id:"as3b",name:"Elusive",desc:"+20% parry",mod:{parry:20}}},
-              {A:{id:"as5a",name:"Deadly Shadow",desc:"+3 damage",mod:{dmg:3}}, B:{id:"as5b",name:"Specter",desc:"+20% parry",mod:{parry:20}}} ],
+    soldat:[ {A:{id:"se1a",name:"Buttstroke",desc:"Hit'em with your rifle butt",abil:"buttstroke",cost:1}, B:{id:"se1b",name:"Spray with gunfire",desc:"Hit enemies in a cone. Needs 2 rounds. −10% aim",abil:"spray",endsTurn:true,cd:3}},
+            {A:{id:"se2a",name:"Run and gun",desc:"Activate to shoot after running",abil:"rungun",cost:0,cd:3}, B:{id:"se2b",name:"Precision shot",desc:"If you have not moved, +20% aim",abil:"precshot",endsTurn:true}},
+            {A:{id:"se3a",name:"Guaranteed hit",desc:"You know, for sure",abil:"surehit",endsTurn:true,cd:4}, B:{id:"se3b",name:"Burst of fire",desc:"Hit an enemy twice, −10% aim",abil:"burst",endsTurn:true,cd:3}},
+            {A:{id:"se5a",name:"Explosive shells",desc:"Activate for a boom boom",abil:"boomshell",endsTurn:true,cd:2}, B:{id:"se5b",name:"Violence",desc:"+2 damage",mod:{dmg:2}}} ],
+    sapeur:[ {A:{id:"sa1a",name:"Sharp",desc:"Improve grenade precision",mod:{scatter:1}}, B:{id:"sa1b",name:"Better safe",desc:"+2 grenade range",mod:{crackerRange:2}}},
+            {A:{id:"sa2a",name:"Loaded",desc:"Unlocks an additional grenade",mod:{crackers:1}}, B:{id:"sa2b",name:"Arbalest",desc:"Unlocks a deadly long-range weapon, and throws the grenade further",debloque:"arbalest",mod:{crackerRange:2}}},
+            {A:{id:"sa3a",name:"Smoker",desc:"Smoke charge (benefits from Sharp)",abil:"smoker",endsTurn:true,charges:1}, B:{id:"sa3b",name:"Raise wall",desc:"Builds a wall (two segments maximum)",abil:"raisewall",cost:1,cd:2}},
+            {A:{id:"sa5a",name:"Cusser",desc:"This grenade should be forgotten",abil:"cusser",endsTurn:true,charges:1}, B:{id:"sa5b",name:"Remove wall",desc:"Magically removes a wall segment",abil:"removewall",cost:1,cd:4}} ],
+    assassin:[ {A:{id:"as1a",name:"Fade",desc:"Becomes undetectable again",abil:"vanish",cost:0,cd:4}, B:{id:"as1b",name:"Stab",desc:"Prepared hit, +2 damage",abil:"stab",cost:2,endsTurn:true}},
+              {A:{id:"as2a",name:"Discrete",desc:"Augments back/side bonus (+2/+1)",mod:{flankBack:2,flankSide:1}}, B:{id:"as2b",name:"Lure",desc:"Unaware enemies turn to the lure for a moment. Range 7",abil:"lure",cost:1,charges:1}},
+              {A:{id:"as3a",name:"Impose fear",desc:"Area. 50% chance to panic enemies — stunned for 2 turns",abil:"fear",endsTurn:true,cd:4}, B:{id:"as3b",name:"Shadow Strike",desc:"Leap to an enemy's flank/back + damage. Needs Stab",abil:"shadowstrike",requiert:"as1b",endsTurn:true,cd:4,dmg:2}},
+              {A:{id:"as5a",name:"Bait",desc:"Creates a copy of the Stinger. The copy does not attack",abil:"bait",cost:1,cd:5}, B:{id:"as5b",name:"Sharpen",desc:"+2 damage with swords",mod:{dmg:2},arme:"melee"}} ],
     brute:[ {A:{id:"br1a",name:"Colossus",desc:"+5 HP",mod:{hp:5}}, B:{id:"br1b",name:"Bruiser",desc:"+2 damage",mod:{dmg:2}}},
             {A:{id:"br2a",name:"Smash",desc:"+3 damage",mod:{dmg:3}}, B:{id:"br2b",name:"Stride",desc:"+1 movement",mod:{mob:1}}},
             {A:{id:"br3a",name:"Thick Hide",desc:"+6 HP",mod:{hp:6}}, B:{id:"br3b",name:"Carnage",desc:"+3 damage",mod:{dmg:3}}},
@@ -732,9 +736,15 @@
   // 0 PA avec un cooldown, là où la version historique coûtait 1 PA une seule fois par combat.
   // Les capacités d'ennemis, qui ne viennent d'aucun perk, gardent les valeurs par défaut.
   function applyPerkMods(u,perkIds){ for(const id of (perkIds||[])){ const p=perkById(u.cls,id); if(!p)continue;
+    if(p.debloque){   // perk qui ouvre un emplacement d'arme (« Arbalest »)
+      const t=CLASSES[u.cls]||{}; for(const k in (t.w||{})) if(t.w[k].verrou===p.debloque){
+        u.w[k]=t.w[k]; if(t.w[k].clip!==undefined){ if(k==="ranged2"){u.clip2=t.w[k].clip;u.ammo2=t.w[k].clip;} else {u.clip=t.w[k].clip;u.ammo=t.w[k].clip;} } }
+      if(p.mod){ const mm=p.mod; if(mm.crackerRange)u.crackerRange=(u.crackerRange||0)+mm.crackerRange; }
+      continue; }
+    if(p.requiert&&!(perkIds||[]).includes(p.requiert))continue;   // perk conditionné à un autre
     if(p.abil){ (u.abil||(u.abil=[])).push(p.abil); if(p.abil==="protect")u.protect=true;
-      if(p.cost!=null||p.endsTurn||p.cd||p.charges){ (u.abilRule||(u.abilRule={}))[p.abil]=
-        {cost:p.cost!=null?p.cost:(p.endsTurn?0:1),endsTurn:!!p.endsTurn,cd:p.cd||0,charges:p.charges||0}; }
+      if(p.cost!=null||p.endsTurn||p.cd||p.charges||p.dmg){ (u.abilRule||(u.abilRule={}))[p.abil]=
+        {cost:p.cost!=null?p.cost:(p.endsTurn?0:1),endsTurn:!!p.endsTurn,cd:p.cd||0,charges:p.charges||0,dmg:p.dmg||0}; }
       if(p.charges){ (u.charges||(u.charges={}))[p.abil]=p.charges; }
       continue; }
     const m=p.mod; if(!m)continue;
@@ -747,6 +757,7 @@
     if(m.hp){u.max+=m.hp;u.hp+=m.hp;} if(m.shieldBlock)u.shieldBlock=(u.shieldBlock||0)+m.shieldBlock; if(m.parry)u.parry=(u.parry||0)+m.parry;
     if(m.crackers){u.crackers=(u.crackers||0)+m.crackers;u.crackers0=(u.crackers0||0)+m.crackers;} if(m.mob)u.mobBonus=(u.mobBonus||0)+m.mob; if(m.aim)u.aimBonus=(u.aimBonus||0)+m.aim;
     if(m.dmg)u.dmgBonus=(u.dmgBonus||0)+m.dmg; if(m.range)u.rangeBonus=(u.rangeBonus||0)+m.range; if(m.scatter)u.scatterBonus=(u.scatterBonus||0)+m.scatter; if(m.freeMp)u.freeMpBonus=(u.freeMpBonus||0)+m.freeMp;
+    if(m.crackerRange)u.crackerRange=(u.crackerRange||0)+m.crackerRange;
     if(m.dr)u.dr=(u.dr||0)+m.dr; if(m.dodge)u.dodge=(u.dodge||0)+m.dodge; if(m.reload){u.freeReload=(u.freeReload||0)+m.reload;u.freeReload0=(u.freeReload0||0)+m.reload;} } }
   // ===== music: music/ folder + manifest.json; track drawn AT RANDOM per context (missions / interludes / geoscape) =====
   // loops during a context; on each transition: fade out the old + fade in the new (started when the screen shows)
@@ -1510,15 +1521,30 @@
 
   // ===== units =====
   let units=[], podAlerted=new Set(), neutralSeen=new Set(), typesVus=new Set(), lastSeen=new Map(), curMission=null;
+  // ARMES VERROUILLÉES. Une classe peut décrire une arme que seul un perk débloque (l'arbalète du
+  // Sapper). Elle est retirée à la création et remise par applyPerkMods : rien d'autre dans le
+  // moteur n'a besoin de connaître la notion — une arme absente n'est simplement pas proposée.
+  const armesLibres=t0=>{ const w={}; for(const k in t0.w){ if(t0.w[k].verrou)continue; w[k]=t0.w[k]; } return w; };
+  const modesTir=u=>["ranged","ranged2"].filter(m=>u.w[m]);
+  const clipDe=(u,m)=>m==="ranged2"?u.clip2:u.clip;
+  const ammoDe=(u,m)=>m==="ranged2"?u.ammo2:u.ammo;
+  const setAmmo=(u,m,v)=>{ if(m==="ranged2")u.ammo2=v; else u.ammo=v; };
+  const chargee=(u,m)=>{ const c=clipDe(u,m); return c===undefined||ammoDe(u,m)>0; };
+  const peutTirer=u=>modesTir(u).some(m=>chargee(u,m));
   function U(team,cls,cell,opts){opts=opts||{};const t=CLASSES[cls];const wtype=t.w.ranged?"ranged":"melee";const w=t.w[wtype];
     const u={team,cls,name:opts.name||t.name,cell,hp:t.hp,max:t.hp,ap:AP_MAX,freeAvail:true,mob:t.mob,facing:opts.facing!=null?opts.facing:(team==="enemy"?Math.PI:0),wtype,flank:w.flank||null,shieldBlock:t.shieldBlock||0,parry:t.parry||0,stealth:!!t.stealth,civ:!!t.civ,w:t.w,overwatch:false,reacted:false,owMode:null};
-    if(w.clip!==undefined){u.clip=w.clip;u.ammo=w.clip;} if(t.crackers){u.crackers=t.crackers;u.crackers0=t.crackers;}   // crackers0 = base (incl. perks) that startGame restores
+    u.w=armesLibres(t);   // les armes verrouillées attendent leur perk
+    if(w.clip!==undefined){u.clip=w.clip;u.ammo=w.clip;} if(t.crackers){u.crackers=t.crackers;u.crackers0=t.crackers;}
+    if(t.faded)u.faded=true;   // capacité de classe : commence chaque tour indétectable   // crackers0 = base (incl. perks) that startGame restores
     if(opts.pod!=null&&opts.pod!=="")u.pod=+opts.pod; if(opts.asleep&&team==="enemy"){u.asleep=true;u._asleep0=true;} if(opts.hostage&&team==="neutral")u.hostage=true;
     if(opts.hvt&&team==="enemy")u.hvt=true;   // high-value target ("assassination" objective)
     if(opts.runner&&team==="enemy"){u.runner=true;u.asleep=false;u._asleep0=false;}   // fuyard ("interception") : court vers la sortie, ne combat pas
     if(opts.guard&&team==="neutral")u.civ=false;   // NPC to defend: targeted by the enemy AND counted in the defeat (≠ ambient civilian)
     if(t.abil)u.abil=t.abil.slice();   // abilities built into the class (e.g. enemy mage) — players get them via perks
     return u; }
+  // UNITÉ FACTICE (le leurre du Stinger) : elle occupe une case et attire les regards, mais ne
+  // compte ni dans la défaite, ni dans l'XP, ni dans le décompte de l'escouade.
+  const vraiJoueur=u=>u.team==="player"&&!u.factice;
   const occ=()=>new Set(units.filter(u=>u.hp>0).map(u=>u.cell));
   const uAt=id=>units.find(u=>u.hp>0&&u.cell===id);
   // relations: the enemy targets players + non-hostage NPCs; the player targets the enemy; the neutral attacks no one
@@ -1608,17 +1634,22 @@
   const bonusArme=(u,m,k)=>((u.armeBonus&&u.armeBonus[m]&&u.armeBonus[m][k])||0);
   function chance(att,tgt,m){const w=att.w[m];let cover=0;if(w.type==="ranged"){if(cells[tgt.cell].terr==="cover")cover=HERBE_PEN;cover=Math.max(cover,muretCover(tgt,att));if(units.some(a=>a.hp>0&&a.team===tgt.team&&a!==tgt&&a.wallStance&&adjacent(a.cell,tgt.cell)))cover=Math.max(cover,Math.round(COVER_PEN*0.5));}const dh=Math.max(-3,Math.min(3,cells[att.cell].elev-cells[tgt.cell].elev))*HEIGHT_BONUS;const pb=w.type==="ranged"?(PB[hops(att.cell,tgt.cell)]||0):0;const def=(tgt.bracing?DEF_BRACE:0)+(tgt.dodge||0);if(att.viseeForcee!=null)return att.viseeForcee;   // « Guaranteed hit » : la visée est imposée, le décor ne compte plus
     return Math.max(5,Math.min(95,Math.round(w.aim+(att.aimBonus||0)+bonusArme(att,m,"aim")+(att.aimTemp||0)-cover+dh-pb-def)));}   // dodge = esquive du défenseur
+  // « Run and gun » : la posture accorde UNE attaque même à zéro PA. Consommée au premier tir.
+  const tirGratuitDispo=u=>!!(u&&u.runGun);
   function doAttack(att,tgt,m,reaction,opts){
+    if(!reaction&&att.ap<=0&&!att.freeAvail&&att.runGun&&!(opts&&opts.gratuit))att.runGun=false;
     if(!reaction&&tgt.team==="player"&&!tgt.protect){ const g=units.find(o=>o!==tgt&&o.team==="player"&&o.hp>0&&o.protect&&!o.reacted&&adjacent(o.cell,tgt.cell)); if(g){g.reacted=true;log(`🛡 ${g.name} protects ${tgt.name}`,"player");tgt=g;} }   // Protecting Shield: the guard steps in
     // TOUTE ATTAQUE TERMINE LE TOUR — sauf si on l'a explicitement payée autrement. C'est la règle
     // historique du moteur : opts.cout dit « débite ce nombre de PA et rends la main » (Buttstroke,
     // Stab), opts.gratuit ne débite rien (le second coup d'une rafale, un tir accordé par un
     // déclencheur). Sans rien, on retombe sur ap=0.
     const w=att.w[m];att.facing=ang(att.cell,tgt.cell);
-    if(!reaction){ if(opts&&opts.gratuit){} else if(opts&&opts.cout!=null){ att.ap=Math.max(0,att.ap-opts.cout); }
+    if(!reaction){
+      if(att.hidden&&!att.vanishUsed)att.hidden=false;   // frapper, c'est se montrer
+      if(opts&&opts.gratuit){} else if(opts&&opts.cout!=null){ att.ap=Math.max(0,att.ap-opts.cout); }
       else att.ap=0;
       att.freeAvail=false; turnActions++; }
-    if(w.type==="ranged"&&att.clip!==undefined)att.ammo-=(opts&&opts.munitions)||1;
+    if(w.type==="ranged"&&att.clip!==undefined)att.ammo-=(opts&&opts.munitions!=null)?opts.munitions:1;
     const ch=Math.max(5,chance(att,tgt,m)-(reaction?15:0)),hit=RND()*100<ch,back=flankOf(att,tgt)==="back";let txt,result,dmg=0;
     if(!hit){txt="missed";result="miss";}
     else if(!back&&tgt.shieldBlock&&RND()*100<tgt.shieldBlock){txt="blocked 🛡";result="blocked";}
@@ -1750,7 +1781,7 @@
   // cracker preview: the landing area "trembles" from tile to tile among the possible scatters around the aimed tile
   function crackerJitTick(){ crackerTimer=null; if(!throwing||!sel){ crackerJit=null; return; }
     const cr=sel.w.cracker;
-    if(cr&&hoverCell!=null&&cells[hoverCell]&&hops(sel.cell,hoverCell)<=cr.range&&los(sel.cell,hoverCell)){
+    if(cr&&hoverCell!=null&&cells[hoverCell]&&hops(sel.cell,hoverCell)<=porteeJet(sel)&&los(sel.cell,hoverCell)){
       const cand=cells.filter(c=>passable(c.id)&&hops(hoverCell,c.id)<=Math.max(0,cr.scatter-(sel.scatterBonus||0)));   // scatter (visual random, doesn't touch the game RNG)
       crackerJit=cand.length?cand[Math.floor(Math.random()*cand.length)].id:hoverCell;
     } else crackerJit=null;
@@ -1769,12 +1800,18 @@
     log(`   🧱 ${tombes.length} wall section${tombes.length>1?"s":""} blown open`,par?par.team:"player");
     emit("wallbreak",{actorName:par&&par.name,actorCls:par&&par.cls,actorTeam:par&&par.team,count:tombes.length});
     return tombes.length; }
-  function resolveThrow(thrower,target){ const cr=thrower.w.cracker; thrower.crackers--; thrower.ap=0; thrower.freeAvail=false; throwing=false; turnActions++;
+  const porteeJet=u=>((u.w.cracker&&u.w.cracker.range)||0)+(u.crackerRange||0);
+  // opts : {dmg} pour une grenade renforcée (« Cusser »), {fumigene} pour une charge fumigène
+  function resolveThrow(thrower,target,opts){ opts=opts||{}; const cr=thrower.w.cracker;
+    if(!opts.gratuit)thrower.crackers--;
+    thrower.ap=0; thrower.freeAvail=false; throwing=false; turnActions++;
     const scat=Math.max(0,cr.scatter-(thrower.scatterBonus||0));   // Bombardier reduces the scatter
     const cand=cells.filter(c=>passable(c.id)&&hops(target,c.id)<=scat); const imp=cand.length?cand[Math.floor(RND()*cand.length)].id:target;
     pushBlast(imp,cr.radius); pushNoise(imp,cr.radius+2); screenShake(6);   // explosion + noise wave
     let enemiesHit=0,alliesHit=0,killed=0;
-    for(const u of units){ if(u.hp<=0)continue; if(hops(imp,u.cell)<=cr.radius){ const dmg=cr.dmgMin+Math.floor(RND()*(cr.dmgMax-cr.dmgMin+1)); u.hp-=dmg; if(u.team==="player")u.dmgTaken=(u.dmgTaken||0)+dmg; pushDmg(u.cell,dmg,u.team); if(u.team===thrower.team)alliesHit++; else enemiesHit++;
+    if(opts.fumigene){ for(const c of cells)if(hops(imp,c.id)<=cr.radius)smoke.set(c.id,SMOKE_TURNS);
+      log(`▲ ${thrower.name} throws a smoke charge`,thrower.team); checkEnd(); if(!over)refresh(); return; }
+    for(const u of units){ if(u.hp<=0)continue; if(hops(imp,u.cell)<=cr.radius){ const dmg=cr.dmgMin+(opts.dmg||0)+Math.floor(RND()*(cr.dmgMax-cr.dmgMin+1)); u.hp-=dmg; if(u.team==="player")u.dmgTaken=(u.dmgTaken||0)+dmg; pushDmg(u.cell,dmg,u.team); if(u.team===thrower.team)alliesHit++; else enemiesHit++;
       log(`   💥 ${u.name}: ${dmg} damage`+(u.hp<=0?(u.team==="player"?" ✚K.O.":" ✝"):""),u.team); if(u.hp<=0){u.hp=0;killed++;}
       if(u!==thrower&&!hostile(thrower,u))emit("friendlyfire",{actorName:thrower.name,actorCls:thrower.cls,actorTeam:thrower.team,targetName:u.name,targetCls:u.cls,targetTeam:u.team,weapon:"cracker",dmg,killed:u.hp<=0}); } }
     log(`▲ ${thrower.name} throws a cracker`,thrower.team);
@@ -1797,9 +1834,29 @@
     frost:{icon:"❄",label:"Frost — slows an enemy at range (1 AP)",target:"enemy"},
     shove:{icon:"🛡➡",label:"Shove — pushes the adjacent enemy back one tile, 50% stunned (ends the turn)",target:"enemy"},
     charge:{icon:"🛡⚡",label:"Long Charge — run then attack, impact scales with distance (ends the turn)",target:"enemy"},
+    // ===== Enforcer =====
+    buttstroke:{icon:"🔨",label:"Buttstroke — rifle butt to an adjacent enemy",target:"enemy"},
+    spray:{icon:"🌾",label:"Spray with gunfire — cone of fire, −10% aim, 2 rounds",target:"cell"},
+    rungun:{icon:"🏃",label:"Run and gun — this turn, moving no longer forbids shooting",target:"self"},
+    precshot:{icon:"🎯",label:"Precision shot — +20% aim if you have not moved",target:"enemy"},
+    surehit:{icon:"💯",label:"Guaranteed hit — the shot cannot miss",target:"enemy"},
+    burst:{icon:"🔫",label:"Burst of fire — two shots, −10% aim",target:"enemy"},
+    boomshell:{icon:"🧨",label:"Explosive shells — the shot detonates (radius 2)",target:"enemy"},
+    // ===== Sapper =====
+    smoker:{icon:"🌫",label:"Smoker — smoke charge (uses the grenade launcher)",target:"cell"},
+    cusser:{icon:"💥",label:"Cusser — reinforced grenade (+2 damage, +2 range)",target:"cell"},
+    raisewall:{icon:"🧱",label:"Raise wall — builds up to two wall segments",target:"cell"},
+    removewall:{icon:"🕳",label:"Remove wall — takes down one wall segment",target:"cell"},
+    // ===== Stinger =====
+    stab:{icon:"🗡",label:"Stab — prepared strike (+2 damage)",target:"enemy"},
+    lure:{icon:"🔔",label:"Lure — draws unaware enemies' attention (range 7)",target:"cell"},
+    fear:{icon:"😱",label:"Impose fear — area, 50% panic (stunned 2 turns)",target:"cell"},
+    bait:{icon:"👥",label:"Bait — a decoy copy of you, which never attacks",target:"cell"},
   };
   // cooldown (in turns) before an ability can be used again. u.cd[id] = turns remaining (decremented at the start of the turn).
-  const COOLDOWN={smoke:3,breach:4,shadowstrike:2,rally:3,taunt:3,holdline:3,wall:3,blast:3,heal:2,frost:2,shove:3,charge:4};
+  const COOLDOWN={smoke:3,breach:4,shadowstrike:2,rally:3,taunt:3,holdline:3,wall:3,blast:3,heal:2,frost:2,shove:3,charge:4,
+    buttstroke:0,spray:3,rungun:3,precshot:0,surehit:4,burst:3,boomshell:2,
+    smoker:1,cusser:1,raisewall:2,removewall:4, stab:0,lure:1,fear:4,bait:5};
   let CD_MULT=1;   // global cooldown multiplier (balancing panel)
   const onCd=(u,id)=>!!(u&&u.cd&&u.cd[id]>0);
   // règle effective d'une capacité pour CETTE unité : celle de son perk si elle en a une, sinon
@@ -1812,8 +1869,9 @@
     return (u.charges&&u.charges[id]!=null)?u.charges[id]:r.charges; };
   const abilDispo=(u,id)=>!onCd(u,id)&&chargesRestantes(u,id)>0;
   // dépense : PA, fin de tour, cooldown et charge, d'un seul geste. Rend false si indisponible.
+  const apRequis=(u,id)=>{ const r=regleAbil(u,id); return Math.max(r.cost||0, r.endsTurn?1:0); };
   function payerAbil(u,id){ if(!abilDispo(u,id))return false;
-    const r=regleAbil(u,id);
+    const r=regleAbil(u,id); if(u.ap<apRequis(u,id))return false;
     if(r.endsTurn){ u.ap=0; } else if(r.cost){ u.ap-=r.cost; if(u.ap<0)u.ap=0; }
     u.freeAvail=false;
     if(r.cd){ u.cd=u.cd||{}; u.cd[id]=Math.max(1,Math.round(r.cd*CD_MULT)); }
@@ -1865,6 +1923,152 @@
   function execFrost(u,tgt){ if(!abilDispo(u,"frost"))return false; if(!tgt||!hostile(u,tgt)||tgt.hp<=0){setMsg("Frost: choose a visible enemy.");return false;}
     if(hops(u.cell,tgt.cell)>FROST_RANGE||!los(u.cell,tgt.cell)){setMsg("Frost: out of range / no line of sight.");return false;}
     tgt.slowed=true; tgt.ap=Math.max(0,(tgt.ap||0)-1); pushFrost(tgt.cell); u.spellsCast=(u.spellsCast||0)+1; payerAbil(u,"frost"); log(`▲ ${u.name} frosts ${tgt.name} — slowed`,"player"); refresh(); return true; }
+  // ===== Enforcer : le fusil comme outil, décliné =====
+  // Toutes ces capacités passent par doAttack : c'est lui qui connaît le couvert, le flanc, le
+  // blocage et les déclencheurs. On ne recopie pas la résolution, on la paramètre.
+  const armeTir=u=>modesTir(u).find(m=>chargee(u,m))||null;
+
+  function execButtstroke(u,tgt){ if(!abilDispo(u,"buttstroke"))return false;
+    if(!tgt||!hostile(u,tgt)||tgt.hp<=0||!adjacent(u.cell,tgt.cell)){setMsg("Buttstroke: choose an adjacent enemy.");return false;}
+    const r=regleAbil(u,"buttstroke"); if(u.ap<(r.cost||0)){setMsg("Buttstroke: not enough AP.");return false;}
+    // la crosse frappe au contact avec les dégâts du fusil : pas de mêlée dédiée à inventer
+    const w=u.w.ranged||u.w.melee; const sauve=u.w.melee;
+    u.w.melee={type:"melee",aim:w.aim,dmgMin:w.dmgMin,dmgMax:w.dmgMax};
+    payerAbil(u,"buttstroke");
+    doAttack(u,tgt,"melee",false,{gratuit:true});
+    u.w.melee=sauve; log(`▲ ${u.name}: rifle butt`,"player"); if(!over)refresh(); return true; }
+
+  const SPRAY_ANGLE=0.7, SPRAY_RANGE=5;   // cône : un demi-angle d'environ 40°
+  function execSpray(u,id){ if(!abilDispo(u,"spray"))return false;
+    const w=u.w.ranged; if(!w){setMsg("Spray: no rifle.");return false;}
+    if(ammoDe(u,"ranged")<2){setMsg("Spray: needs 2 rounds.");return false;}
+    if(id==null||id===u.cell){setMsg("Spray: aim in a direction.");return false;}
+    const a0=Math.atan2(cells[id].cy-cells[u.cell].cy,cells[id].cx-cells[u.cell].cx);
+    const cibles=units.filter(e=>e.hp>0&&hostile(u,e)&&hops(u.cell,e.cell)<=SPRAY_RANGE&&los(u.cell,e.cell)
+      &&Math.abs(norm(Math.atan2(cells[e.cell].cy-cells[u.cell].cy,cells[e.cell].cx-cells[u.cell].cx)-a0))<=SPRAY_ANGLE);
+    if(!cibles.length){setMsg("Spray: no enemy in the cone.");return false;}
+    payerAbil(u,"spray"); u.facing=a0; setAmmo(u,"ranged",ammoDe(u,"ranged")-2);
+    u.aimTemp=-10; for(const e of cibles) if(e.hp>0) doAttack(u,e,"ranged",false,{gratuit:true,munitions:0});
+    u.aimTemp=0; u.ap=0; log(`▲ ${u.name} sprays the cone (${cibles.length} target${cibles.length>1?"s":""})`,"player");
+    if(!over)refresh(); return true; }
+
+  // POSTURE, pas action : « Run and gun » ne rend pas de PA, il lève l'interdiction de tirer après
+  // avoir couru. Sans ça, la capacité vaudrait un tour entier et déséquilibrerait tout le reste.
+  function execRunGun(u){ if(!abilDispo(u,"rungun"))return false;
+    payerAbil(u,"rungun"); u.runGun=true; log(`▲ ${u.name}: run and gun`,"player"); refresh(); return true; }
+
+  function tirParametre(u,tgt,id,opts){   // socle commun aux tirs spéciaux
+    const m=armeTir(u); if(!m){setMsg("Out of ammo.");return false;}
+    if(!tgt||!hostile(u,tgt)||tgt.hp<=0||!inRange(u,tgt,m)){setMsg("Out of range / no line of sight.");return false;}
+    if(!abilDispo(u,id))return false;
+    payerAbil(u,id); opts.avant&&opts.avant();
+    doAttack(u,tgt,m,false,{gratuit:true,dmg:opts.dmg||0});
+    opts.apres&&opts.apres(); u.aimTemp=0; u.viseeForcee=null; u.ap=0; if(!over)refresh(); return true; }
+
+  function execPrecShot(u,tgt){ if(u.aBouge){setMsg("Precision shot: only if you have not moved.");return false;}
+    return tirParametre(u,tgt,"precshot",{avant:()=>{u.aimTemp=20;}}); }
+
+  function execSureHit(u,tgt){ return tirParametre(u,tgt,"surehit",{avant:()=>{u.viseeForcee=100;}}); }
+
+  function execBurst(u,tgt){ const m=armeTir(u); if(!m)return (setMsg("Burst: out of ammo."),false);
+    if(ammoDe(u,m)<2&&clipDe(u,m)!==undefined){setMsg("Burst: needs 2 rounds.");return false;}
+    if(!tgt||!hostile(u,tgt)||tgt.hp<=0||!inRange(u,tgt,m)){setMsg("Burst: out of range.");return false;}
+    if(!abilDispo(u,"burst"))return false;
+    payerAbil(u,"burst"); u.aimTemp=-10;
+    doAttack(u,tgt,m,false,{gratuit:true});
+    if(!over&&tgt.hp>0)doAttack(u,tgt,m,false,{gratuit:true});   // le second coup ne part pas sur un mort
+    u.aimTemp=0; u.ap=0; if(!over)refresh(); return true; }
+
+  const BOOM_RADIUS=2, BOOM_MIN=3, BOOM_MAX=5;
+  function execBoomShell(u,tgt){ const m=armeTir(u); if(!m)return (setMsg("Explosive shells: out of ammo."),false);
+    if(!tgt||!hostile(u,tgt)||tgt.hp<=0||!inRange(u,tgt,m)){setMsg("Explosive shells: out of range.");return false;}
+    if(!abilDispo(u,"boomshell"))return false;
+    const ou=tgt.cell; payerAbil(u,"boomshell");
+    doAttack(u,tgt,m,false,{gratuit:true});
+    // le souffle part même si le tir a manqué : l'obus explose là où il tombe
+    for(const e of units){ if(e.hp<=0||!hostile(u,e)||hops(ou,e.cell)>BOOM_RADIUS)continue;
+      const d=BOOM_MIN+Math.floor(RND()*(BOOM_MAX-BOOM_MIN+1)); e.hp=Math.max(0,e.hp-d); pushDmg(e.cell,d,e.team);
+      if(e.hp<=0){ if(u.team==="player")u.kills=(u.kills||0)+1; } else if(e.team==="enemy")wakeEnemy(e,"noise"); }
+    detruireMurs(ou,BOOM_RADIUS,u); pushBlast(ou,BOOM_RADIUS); screenShake(6);
+    log(`▲ ${u.name}: explosive shell`,"player"); u.ap=0; checkEnd(); if(!over)refresh(); return true; }
+
+  // ===== Sapper : le lance-charges, décliné — et le premier décor qu'on AJOUTE =====
+  function execSmoker(u,id){ if(!abilDispo(u,"smoker"))return false;
+    if(!u.w.cracker){setMsg("Smoker: no launcher.");return false;}
+    if(hops(u.cell,id)>porteeJet(u)||!los(u.cell,id)){setMsg("Smoker: out of range / no line of sight.");return false;}
+    payerAbil(u,"smoker"); resolveThrow(u,id,{fumigene:true,gratuit:true}); return true; }
+
+  function execCusser(u,id){ if(!abilDispo(u,"cusser"))return false;
+    if(!u.w.cracker){setMsg("Cusser: no launcher.");return false;}
+    if(hops(u.cell,id)>porteeJet(u)+2||!los(u.cell,id)){setMsg("Cusser: out of range / no line of sight.");return false;}
+    payerAbil(u,"cusser"); resolveThrow(u,id,{dmg:2,gratuit:true}); return true; }
+
+  // BÂTIR. Le moteur savait détruire du décor, jamais en poser. On monte jusqu'à deux segments de
+  // MURET (couvert directionnel, franchissable) entre la case visée et ses voisines : un mur plein
+  // couperait les chemins et la ligne de vue au milieu d'un tour, ce qu'aucune IA n'anticipe.
+  const RAISE_RANGE=4, RAISE_SEGMENTS=2;
+  function execRaiseWall(u,id){ if(!abilDispo(u,"raisewall"))return false;
+    if(hops(u.cell,id)>RAISE_RANGE||!los(u.cell,id)){setMsg("Raise wall: out of range / no line of sight.");return false;}
+    // on choisit les segments les plus exposés : ceux qui font face aux ennemis vus
+    const foes=units.filter(e=>e.hp>0&&hostile(u,e)&&seen(e));
+    const cand=cells[id].nb.filter(n=>{ const k=wkey(id,n); return !walls.has(k)&&!murs.has(k)&&!portes.has(k); })
+      .sort((a,b)=>{ const da=Math.min(...foes.map(f=>hops(a,f.cell)),99), db=Math.min(...foes.map(f=>hops(b,f.cell)),99); return da-db; });
+    if(!cand.length){setMsg("Raise wall: nothing to build here.");return false;}
+    payerAbil(u,"raisewall");
+    // wallSeg connaît déjà l'arête de toute paire voisine : bâtir, c'est juste marquer l'arête
+    let n=0; for(const v of cand.slice(0,RAISE_SEGMENTS)){ const k=wkey(id,v); if(!wallSeg.has(k))continue; walls.add(k); n++; }
+    if(!n){setMsg("Raise wall: no usable edge here.");return false;}
+    log(`▲ ${u.name} raises ${n} wall segment${n>1?"s":""}`,"player"); refresh(); return true; }
+
+  function execRemoveWall(u,id){ if(!abilDispo(u,"removewall"))return false;
+    if(hops(u.cell,id)>RAISE_RANGE||!los(u.cell,id)){setMsg("Remove wall: out of range / no line of sight.");return false;}
+    // le segment le plus proche de la case visée, muret ou mur de bâtiment
+    let cible=null; for(const n of cells[id].nb){ const k=wkey(id,n); if(murs.has(k)||walls.has(k)){cible=k;break;} }
+    if(!cible){setMsg("Remove wall: no wall segment there.");return false;}
+    payerAbil(u,"removewall");
+    if(murs.has(cible)){ murs.delete(cible); breches.add(cible);
+      emit("wallbreak",{actorName:u.name,actorCls:u.cls,actorTeam:u.team,count:1}); }
+    else { walls.delete(cible); fenetres.delete(cible); }
+    log(`▲ ${u.name} takes down a wall segment`,"player"); refresh(); return true; }
+
+  // ===== Stinger : le contact préparé, et la peur =====
+  function execStab(u,tgt){ if(!abilDispo(u,"stab"))return false;
+    if(!tgt||!hostile(u,tgt)||tgt.hp<=0||!adjacent(u.cell,tgt.cell)){setMsg("Stab: choose an adjacent enemy.");return false;}
+    const r=regleAbil(u,"stab"); if(u.ap<(r.cost||0)){setMsg("Stab: not enough AP.");return false;}
+    payerAbil(u,"stab"); doAttack(u,tgt,"melee",false,{gratuit:true,dmg:2});
+    u.ap=0; if(!over)refresh(); return true; }
+
+  // LE LEURRE NE MARCHE QUE SUR QUI NE T'A PAS VU. Sur un ennemi éveillé il n'a aucun effet — c'est
+  // un outil d'infiltration, pas de combat : il ouvre un flanc pendant un tour, puis la cible se
+  // retourne d'où elle regardait.
+  const LURE_RANGE=7, LURE_TOURS=1;
+  function execLure(u,id){ if(!abilDispo(u,"lure"))return false;
+    if(hops(u.cell,id)>LURE_RANGE){setMsg("Lure: out of range.");return false;}
+    const cibles=units.filter(e=>e.hp>0&&e.team==="enemy"&&e.asleep&&hops(e.cell,id)<=3);
+    if(!cibles.length){setMsg("Lure: no unaware enemy nearby (it has no effect on alerted foes).");return false;}
+    payerAbil(u,"lure");
+    for(const e of cibles){ if(e.facing0==null)e.facing0=e.facing; e.facing=ang(e.cell,id); e.leurreTours=LURE_TOURS; }
+    pushNoise(id,2); log(`▲ ${u.name} throws a lure — ${cibles.length} head${cibles.length>1?"":"s"} turn${cibles.length>1?"":"s"}`,"player");
+    refresh(); return true; }
+
+  const FEAR_RADIUS=2, FEAR_CHANCE=50, PANIC_TOURS=2;
+  function execFear(u,id){ if(!abilDispo(u,"fear"))return false;
+    if(hops(u.cell,id)>LURE_RANGE||!los(u.cell,id)){setMsg("Impose fear: out of range / no line of sight.");return false;}
+    const cibles=units.filter(e=>e.hp>0&&hostile(u,e)&&hops(id,e.cell)<=FEAR_RADIUS);
+    if(!cibles.length){setMsg("Impose fear: no enemy in the area.");return false;}
+    payerAbil(u,"fear"); let n=0;
+    for(const e of cibles){ if(RND()*100<FEAR_CHANCE){ e.stunTours=PANIC_TOURS; e.ap=0; n++; } wakeEnemy(e,"noise"); }
+    pushNoise(id,FEAR_RADIUS+1); screenShake(3);
+    log(`▲ ${u.name} imposes fear — ${n}/${cibles.length} panicked`,"player"); u.ap=0; refresh(); return true; }
+
+  // UN LEURRE VIVANT. La copie est une unité joueur qui n'attaque jamais et ne rapporte rien ; elle
+  // est marquée « factice » pour que la défaite, le compte de l'escouade et l'XP l'ignorent.
+  function execBait(u,id){ if(!abilDispo(u,"bait"))return false;
+    if(hops(u.cell,id)>3||!los(u.cell,id)||!passable(id)||uAt(id)){setMsg("Bait: choose a free, visible tile nearby.");return false;}
+    payerAbil(u,"bait");
+    const c=U("player",u.cls,id,{name:u.name+" (bait)"}); c.factice=true; c.hp=1; c.max=1; c.ap=0; c.freeAvail=false;
+    units.push(c); log(`▲ ${u.name} sets a bait`,"player"); refresh(); return true; }
+
   // ===== "shield" abilities: shove + long charge =====
   const CHARGE_RANGE=7;   // max range (hops) of the charge
   // tile "behind" the target, in line with the blow (direction u -> target)
@@ -1888,13 +2092,23 @@
     doAttack(u,tgt,"melee",false,{gratuit:true}); u.dmgBonus-=bonus; u.ap=0; log(`▲ ${u.name}: long charge! (+${bonus} on impact)`,"player"); if(!over)refresh(); return true; }
   function armOrExec(id){ if(!sel||sel.ap<=0)return; const A=ABIL[id]; if(!A)return;
     if(onCd(sel,id)){ setMsg("Ability on cooldown — "+sel.cd[id]+" turn"+(sel.cd[id]>1?"s":"")+"."); return; }
-    if(A.target==="self"){ ({vanish:execVanish,taunt:execTaunt,holdline:execHoldline,wall:execWall}[id])(sel); ability=null; renderActs(); return; }
+    if(A.target==="self"){ (EXEC_SELF[id]||(()=>false))(sel); ability=null; renderActs(); return; }
     ability=(ability===id)?null:id; amode=null;throwing=false;usingItem=false;
     setMsg(ability?({smoke:"Click a tile to smoke.",breach:"Click a rock/low wall to destroy.",shadowstrike:"Click an enemy to strike.",rally:"Click an adjacent ally.",blast:"Click a tile (area explosion).",heal:"Click a visible ally to heal.",frost:"Click a visible enemy to frost.",shove:"Click an adjacent enemy to shove.",charge:"Click an enemy to charge."}[ability]||""):""); renderActs(); }
+  // AIGUILLAGE PAR TABLE. La chaîne de ternaires grossissait d'un maillon à chaque capacité et
+  // finissait par en oublier ; une entrée par capacité se lit et se complète.
+  const EXEC_SELF={vanish:execVanish,taunt:execTaunt,holdline:execHoldline,wall:execWall,rungun:execRunGun};
+  const EXEC_CELL={smoke:execSmoke,breach:execBreach,blast:execBlast,spray:execSpray,
+    smoker:execSmoker,cusser:execCusser,raisewall:execRaiseWall,removewall:execRemoveWall,
+    lure:execLure,fear:execFear,bait:execBait};
+  const EXEC_ALLY={heal:execHeal,rally:execRally};
+  const EXEC_ENEMY={frost:execFrost,shadowstrike:execShadow,shove:execShove,charge:execCharge,
+    buttstroke:execButtstroke,precshot:execPrecShot,surehit:execSureHit,burst:execBurst,
+    boomshell:execBoomShell,stab:execStab};
   function resolveAbilityClick(id){ const A=ABIL[ability]; if(!A||!sel)return; const tgt=uAt(id); let ok=false;
-    if(A.target==="cell")ok=(ability==="smoke")?execSmoke(sel,id):(ability==="breach")?execBreach(sel,id):(ability==="blast")?execBlast(sel,id):false;
-    else if(A.target==="enemy")ok=(tgt&&hostile(sel,tgt)&&tgt.hp>0&&seen(tgt))?(({frost:execFrost,shadowstrike:execShadow,shove:execShove,charge:execCharge}[ability]||execShadow)(sel,tgt)):(setMsg("Choose a visible enemy."),false);
-    else if(A.target==="ally")ok=(tgt&&tgt.team==="player")?((ability==="heal")?execHeal(sel,tgt):execRally(sel,tgt)):(setMsg("Choose an ally."),false);
+    if(A.target==="cell")ok=(EXEC_CELL[ability]||(()=>false))(sel,id);
+    else if(A.target==="enemy")ok=(tgt&&hostile(sel,tgt)&&tgt.hp>0&&seen(tgt))?((EXEC_ENEMY[ability]||execShadow)(sel,tgt)):(setMsg("Choose a visible enemy."),false);
+    else if(A.target==="ally")ok=(tgt&&tgt.team==="player")?((EXEC_ALLY[ability]||execRally)(sel,tgt)):(setMsg("Choose an ally."),false);
     if(ok)ability=null; renderActs(); }
   // ===== item: potion (self or adjacent ally) =====
   function applyItem(u){ if(!sel||u.team!=="player"||u.hp<=0||sel.ap<=0)return; if(u!==sel&&hops(sel.cell,u.cell)>1){setMsg("Potion: yourself or an adjacent ally.");return;} if(inv.potion<=0){setMsg("Out of potions.");return;} if(u.hp>=u.max){setMsg(`${u.name} is already at max.`);return;}
@@ -1929,7 +2143,7 @@
     if(units.some(u=>u.team==="neutral"&&u.hostage&&u.hp<=0))return end("Defeat — the hostage has fallen…");   // hostage/VIP killed = failure
     const guard=units.filter(u=>u.team==="neutral"&&!u.hostage&&!u.civ);   // NPCs to defend (excluding ambient civilians)
     if(guard.length){ const alive=guard.filter(u=>u.hp>0).length, need=(curMission&&curMission.protect!=null)?curMission.protect:guard.length; if(alive<need)return end("Defeat — too many NPCs to defend have fallen…"); }
-    if(!units.some(u=>u.team==="player"&&u.hp>0))return end("Defeat…");
+    if(!units.some(u=>vraiJoueur(u)&&u.hp>0))return end("Defeat…");
     const noEnemies=!units.some(u=>u.team==="enemy"&&u.hp>0&&!u.bonus);   // the bonus officer (✦) doesn't block victory: it's optional
     // --- victories by objective ---
     if(obj==="assassinate"){ if(!units.some(u=>u.team==="enemy"&&u.hvt&&u.hp>0))return end("Victory — target eliminated!"); return; }
@@ -1980,7 +2194,7 @@
   function setMsg(t){const el=document.getElementById("msg");el.textContent=t;if(msgT){clearTimeout(msgT);msgT=null;}if(t)msgT=setTimeout(()=>{el.textContent="";msgT=null;},4000);}   // ephemeral message: clears itself
   function refresh(){ if(geoPlay&&!geoPlay.inMission){ if(typeof drawGeoPlay==="function")drawGeoPlay(); return; }   // back on the strategic map: no "mission" refresh (stale units/cells)
     if(mode==="play"){computeVis();detectEnemies();detectNeutralPods();detectNewFoes();updateEnemyMemory();computeEVis();checkBonus();
-      if(turn==="player"&&!over&&sel&&(sel.hp<=0||(sel.ap<=0&&!sel.freeAvail))){ const nxt=units.find(u=>u.team==="player"&&u.hp>0&&!(u.ap<=0&&!u.freeAvail)); if(nxt){sel=nxt;amode=null;aimTarget=null;throwing=false;usingItem=false;} }   // exhausted unit → switch to the next one
+      if(turn==="player"&&!over&&sel&&(sel.hp<=0||(sel.ap<=0&&!sel.freeAvail))){ const nxt=units.find(u=>vraiJoueur(u)&&u.hp>0&&!(u.ap<=0&&!u.freeAvail)); if(nxt){sel=nxt;amode=null;aimTarget=null;throwing=false;usingItem=false;} }   // exhausted unit → switch to the next one
     } else visible=new Set(cells.map(c=>c.id));
     if(SIMRAPIDE)return;   // simulation : l'état est à jour, on saute l'affichage — et maybeAutoEnd, car c'est le pilote qui mène les tours
     majBarreCase();   // le terrain a pu changer sous le curseur (un mur qui tombe, une zone qui s'ouvre)
@@ -2011,7 +2225,7 @@
   function hasPotentialShot(e){ const w=e.w[e.wtype]; return units.some(p=>p.team==="player"&&p.hp>0&&enemySeesP(e,p)&&hops(e.cell,p.cell)<=(w.range||1)&&los(e.cell,p.cell)); }
 
   function bestGrenadeCell(e){ const cr=e.w.cracker; if(!cr||!(e.crackers>0))return null; let best=null,bs=0;
-    for(const c of cells){ if(!passable(c.id)||hops(e.cell,c.id)>cr.range||!los(e.cell,c.id))continue;
+    for(const c of cells){ if(!passable(c.id)||hops(e.cell,c.id)>porteeJet(e)||!los(e.cell,c.id))continue;
       // une grenade se justifie contre un VRAI couvert (elle l'ignore), pas contre des herbes
       let pl=0,al=0,cov=false; for(const u of units){ if(u.hp<=0||hops(c.id,u.cell)>cr.radius)continue; if(u.team==="player"){pl++; if((cells[u.cell].terr==="cover"?HERBE_PEN:0)>=20||muretCover(u,e)>=20)cov=true;} else al++; }
       const sc=pl-1.5*al; if(pl>=1&&(sc>=2||(sc>=1&&cov))&&sc>bs){bs=sc;best=c.id;} } return best; }
@@ -2093,7 +2307,7 @@
   function endTurn(){harvestTick();turn="enemy";turnActions=0;sel=null;amode=null;aimTarget=null;for(const u of units)if(u.team==="enemy"){u.ap=u.slowed?Math.max(0,AP_MAX-1):AP_MAX;u.slowed=false;u.freeAvail=true;u.overwatch=false;u.reacted=false;u.bracing=false;u.aBouge=false;
     if(u.leurreTours>0){u.leurreTours--; if(u.leurreTours<=0&&u.facing0!=null){u.facing=u.facing0;u.facing0=null;} }   // le leurre s'épuise : la cible se retourne
     if(u.stunTours>0){u.ap=0;u.freeAvail=false;u.stunTours--;} else if(u.stunned){u.ap=0;u.freeAvail=false;u.stunned=false;}}banner("Enemy turn","enemy");refresh();const foes=units.filter(u=>u.team==="enemy"&&u.hp>0);let i=0;
-    (function step(){if(over)return;if(i>=foes.length){for(const u of units)if(u.team==="player"){u.ap=AP_MAX;u.freeAvail=true;u.overwatch=false;u.reacted=false;u.bracing=false;u.taunt=false;u.hidden=false;u.wallStance=false;u.aBouge=false;u.aimTemp=0;u.viseeForcee=null;
+    (function step(){if(over)return;if(i>=foes.length){for(const u of units)if(u.team==="player"){u.ap=u.factice?0:AP_MAX;u.freeAvail=!u.factice;u.overwatch=false;u.reacted=false;u.bracing=false;u.taunt=false;u.hidden=!!u.faded;u.wallStance=false;u.aBouge=false;u.aimTemp=0;u.viseeForcee=null;u.runGun=false;
       // ÉTOURDISSEMENT QUI DURE : « stunned » valait un tour ; « stunTours » en vaut plusieurs
       // (la panique du Stinger en pose deux). Le tour saute tant qu'il en reste.
       if(u.stunTours>0){u.ap=0;u.freeAvail=false;u.stunTours--;} else if(u.stunned){u.ap=0;u.freeAvail=false;u.stunned=false;}}tickCd("player");for(const[k,v]of smoke){if(v-1<=0)smoke.delete(k);else smoke.set(k,v-1);}turn="player";turnNum++;turnActions=0;setMsg("");checkEnd();if(over)return;banner("Player turn","player");refresh();emit("turn",{turn:turnNum});return;}
@@ -2176,7 +2390,7 @@
   }
   function playClick(X,Y){if(over||turn!=="player"||introBlocking||speaking)return;const cell=cellAtXY(X,Y);if(!cell)return;const id=cell.id;const u=uAt(id);
     if(ability&&sel){ resolveAbilityClick(id); return; }   // a special ability is armed: this click resolves it
-    if(throwing&&sel){const cr=sel.w.cracker;if(cr&&sel.crackers>0&&sel.ap>0&&hops(sel.cell,id)<=cr.range&&los(sel.cell,id))resolveThrow(sel,id);else setMsg("Cracker: out of range / no line of sight.");return;}
+    if(throwing&&sel){const cr=sel.w.cracker;if(cr&&sel.crackers>0&&sel.ap>0&&hops(sel.cell,id)<=porteeJet(sel)&&los(sel.cell,id))resolveThrow(sel,id);else setMsg("Cracker: out of range / no line of sight.");return;}
     if(usingItem&&sel){if(u&&u.team==="player")applyItem(u);else setMsg("Choose an ally (self or adjacent).");return;}
     if(u&&u.team==="player"){ if(u===sel&&!throwing&&!usingItem){u.facing=norm((u.facing||0)+Math.PI/4);refresh();return;}   // re-clicking your selected unit = rotate it (45°, free)
       sel=u;amode=null;aimTarget=null;throwing=false;usingItem=false;ability=null;refresh();return;}if(!sel)return;
@@ -2353,7 +2567,7 @@
       if(amode&&aimTarget&&aimTarget.hp>0&&cells[aimTarget.cell]){ const A=cells[sel.cell],B=cells[aimTarget.cell]; ctx.strokeStyle="#ff7a6a"; ctx.lineWidth=2.5; ctx.setLineDash([7,5]); ctx.beginPath(); ctx.moveTo(A.cx,A.cy); ctx.lineTo(B.cx,B.cy); ctx.stroke(); ctx.setLineDash([]); } }
     // cracker preview: landing area (radius) trembling from tile to tile around the aimed tile
     if(mode==="play"&&throwing&&sel&&hoverCell!=null&&cells[hoverCell]){ const cr=sel.w.cracker;
-      if(cr&&hops(sel.cell,hoverCell)<=cr.range&&los(sel.cell,hoverCell)){ const center=(crackerJit!=null&&cells[crackerJit])?crackerJit:hoverCell;
+      if(cr&&hops(sel.cell,hoverCell)<=porteeJet(sel)&&los(sel.cell,hoverCell)){ const center=(crackerJit!=null&&cells[crackerJit])?crackerJit:hoverCell;
         ctx.fillStyle="rgba(232,99,95,.32)"; for(const c of cells)if(hops(center,c.id)<=cr.radius){ poly(c); ctx.fill(); }
         poly(cells[hoverCell]); ctx.strokeStyle="#ffd479"; ctx.lineWidth=2.5; ctx.setLineDash([6,4]); ctx.stroke(); ctx.setLineDash([]); } }
     // low walls (partial cover) drawn on the shared edges
@@ -4695,7 +4909,7 @@
                  +(ch<Infinity?` · ×${ch}`:"")+(rg.cd?` · cd ${rg.cd}`:"");
         const cd=(sel.cd&&sel.cd[aid])||0;
         if(cd>0){ const b=document.createElement("button"); b.className="cd"; b.disabled=true; b.title=A.label+" — on cooldown ("+cd+" turn"+(cd>1?"s":"")+")"; b.innerHTML=`<span class="bi" style="opacity:.4">${A.icon}</span><span class="cdn">${cd}</span>`; el.appendChild(b); continue; }   // on cooldown: grayed-out button + turns remaining
-        if(sel.ap>=(rg.endsTurn?1:(rg.cost||0))&&(sel.ap>0||rg.cost===0))btn(A.icon,A.label+sfx,ability===aid,()=>armOrExec(aid)); }   // special abilities (active perks)
+        if(sel.ap>=apRequis(sel,aid)&&(sel.ap>0||rg.cost===0))btn(A.icon,A.label+sfx,ability===aid,()=>armOrExec(aid)); }   // special abilities (active perks)
     }
     // End turn = button 0, always last
     const e=document.createElement("button");e.id="act-end";e.innerHTML=`<span class="bn">0</span><span class="bi">🙅</span>`;e.title="End turn";e.onclick=()=>{if(!over&&turn==="player")endTurn();};el.appendChild(e);}
