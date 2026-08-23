@@ -857,10 +857,13 @@
     const seeds=[];
     for(let j=-1;j*Math.min(g,h)<H+g;j++)for(let i=-1;i*g<W+g;i++){
       let x=i*g,y=j*g; let t=typeAt(Math.max(0,Math.min(W-1,i*g)),Math.max(0,Math.min(H-1,j*g))),amp=dist*g*0.42;
+      // la ZONE PEINTE, gardée avant le tirage de « mix » : c'est elle que l'auteur a dessinée,
+      // et donc elle que les déclencheurs doivent voir. Une zone « mix » reste « mix ».
+      const zoneGeo=t;
       if(t==="mix"){const pick=Math.floor(rnd()*3);t=["square","hex","pentagon"][pick];}
       if(t==="hex"){x=i*g+(j&1?g/2:0);y=j*h;}else if(t==="pentagon"){x=i*g+(j&1?g/2:0);amp+=g*0.16;}   // pentagons jittered less
       x+=jit(amp);y+=jit(amp);
-      if(x>-g&&x<W+g&&y>-g&&y<H+g){ const md2=(g*0.5)**2; let ok=true; for(const s of seeds){const dx=s[0]-x,dy=s[1]-y;if(dx*dx+dy*dy<md2){ok=false;break;}} if(ok)seeds.push([x,y]); }   // reject seeds that are too close → no more shattered cells
+      if(x>-g&&x<W+g&&y>-g&&y<H+g){ const md2=(g*0.5)**2; let ok=true; for(const s of seeds){const dx=s[0]-x,dy=s[1]-y;if(dx*dx+dy*dy<md2){ok=false;break;}} if(ok)seeds.push([x,y,zoneGeo]); }   // reject seeds that are too close → no more shattered cells
     }
     const box=[[0,0],[W,0],[W,H],[0,H]];
     function clip(poly,p,q){const mx=(p[0]+q[0])/2,my=(p[1]+q[1])/2,nx=p[0]-q[0],ny=p[1]-q[1],ins=v=>(v[0]-mx)*nx+(v[1]-my)*ny>=0,out=[];
@@ -868,7 +871,7 @@
     const R=g*2.8; cells=[];
     for(let i=0;i<seeds.length;i++){const p=seeds[i];let poly=box;for(let k=0;k<seeds.length;k++){if(k===i)continue;const q=seeds[k];if(Math.abs(q[0]-p[0])>R||Math.abs(q[1]-p[1])>R)continue;poly=clip(poly,p,q);if(poly.length<3)break;}
       if(poly.length>=3){const cl=[];for(let v=0;v<poly.length;v++){const a=poly[v],b=cl[cl.length-1];if(!b||Math.hypot(a[0]-b[0],a[1]-b[1])>0.8)cl.push(a);}if(cl.length>=2&&Math.hypot(cl[0][0]-cl[cl.length-1][0],cl[0][1]-cl[cl.length-1][1])<0.8)cl.pop();
-        if(cl.length>=3){const ct=polyCentroid(cl);cells.push({id:cells.length,poly:cl,cx:ct[0],cy:ct[1],nb:[],terr:"plain",elev:0});}}}
+        if(cl.length>=3){const ct=polyCentroid(cl);cells.push({id:cells.length,poly:cl,cx:ct[0],cy:ct[1],nb:[],terr:"plain",elev:0,geo:p[2]});}}}
     if(islandTrim){ const EPS=0.6; cells=cells.filter(c=>!c.poly.some(p=>p[0]<=EPS||p[0]>=W-EPS||p[1]<=EPS||p[1]>=H-EPS)); cells.forEach((c,i)=>c.id=i); }   // "island" effect: removes cells touching the edge → jagged outline
     buildAdj();
   }
@@ -1586,6 +1589,27 @@
     if(campRun){ campRun.typesSeen=campRun.typesSeen||new Set(); campRun.typesSeen.add(e.cls); }
     const t=CLASSES[e.cls]||{}; log(`🆕 First sighting: ${t.name||e.cls}`,"enemy");
     emit("newfoe",{cls:e.cls,targetCls:e.cls,targetName:e.name,actorTeam:"enemy",actorName:e.name}); } }
+
+  // PREMIÈRE VUE D'UNE ZONE DE MAILLAGE. L'auteur peint des zones « hex » ou « pentagon » dans
+  // l'éditeur ; le jeu prévient la première fois qu'un soldat en voit une. On ne regarde PAS le
+  // nombre de côtés des cases : sur un plateau ordinaire quatre cases sur cinq sont déjà des
+  // pentagones ou des hexagones, le déclencheur partirait au premier tour de chaque mission.
+  // Une zone « mix » ne compte pas : elle tire les trois géométries au hasard, elle ne dit rien.
+  const GEOS_NOTABLES={hex:"hexagonal",pentagon:"pentagonal"};
+  // Une mission enregistrée garde sa grille de zones (m.form.infl) mais pas la géométrie case par
+  // case. On la relit depuis la grille au chargement : les missions déjà écrites en profitent, et
+  // rien n'est stocké en double.
+  function poserGeoDepuisZones(){ if(!infl||!infl.length)return;
+    for(const c of cells){ const r=Math.min(infl.length-1,Math.max(0,Math.floor(c.cy/MC)));
+      const li=infl[r]||[]; const co=Math.min(li.length-1,Math.max(0,Math.floor(c.cx/MC)));
+      c.geo=li[co]||c.geo; } }
+  let geosVues=new Set();
+  function detectNewGeo(){ for(const id of visible){ const c=cells[id]; if(!c||!c.geo)continue;
+    const nom=GEOS_NOTABLES[c.geo]; if(!nom||geosVues.has(c.geo))continue;
+    geosVues.add(c.geo);
+    if(campRun){ campRun.geosSeen=campRun.geosSeen||new Set(); campRun.geosSeen.add(c.geo); }
+    log(`🔷 First sighting: ${nom} ground`,"player");
+    emit("newgeo",{geo:c.geo,forme:c.geo,zone:c.zone||"",cell:id}); } }
 
   // ===== distance / range / movement =====
   const mobOf=u=>MOB+(u.mobBonus||0);   // mobility per unit (perks)
@@ -2480,7 +2504,7 @@
   let msgT=null;
   function setMsg(t){const el=document.getElementById("msg");el.textContent=t;if(msgT){clearTimeout(msgT);msgT=null;}if(t)msgT=setTimeout(()=>{el.textContent="";msgT=null;},4000);}   // ephemeral message: clears itself
   function refresh(){ if(geoPlay&&!geoPlay.inMission){ if(typeof drawGeoPlay==="function")drawGeoPlay(); return; }   // back on the strategic map: no "mission" refresh (stale units/cells)
-    if(mode==="play"){computeVis();detectEnemies();detectNeutralPods();detectNewFoes();updateEnemyMemory();computeEVis();checkBonus();
+    if(mode==="play"){computeVis();detectEnemies();detectNeutralPods();detectNewFoes();detectNewGeo();updateEnemyMemory();computeEVis();checkBonus();
       if(turn==="player"&&!over&&sel&&(sel.hp<=0||(sel.ap<=0&&!sel.freeAvail))){ const nxt=units.find(u=>vraiJoueur(u)&&u.hp>0&&!(u.ap<=0&&!u.freeAvail)); if(nxt){sel=nxt;amode=null;aimTarget=null;throwing=false;usingItem=false;} }   // exhausted unit → switch to the next one
     } else visible=new Set(cells.map(c=>c.id));
     if(SIMRAPIDE)return;   // simulation : l'état est à jour, on saute l'affichage — et maybeAutoEnd, car c'est le pilote qui mène les tours
@@ -3752,6 +3776,7 @@
         const bw=document.getElementById("bw"),bh=document.getElementById("bh"); if(bw)bw.value=COLS; if(bh)bh.value=ROWS; }
       if(m.form.dist!=null){distEl.value=m.form.dist;document.getElementById("distv").textContent=m.form.dist+"%";} if(m.form.dens!=null){dens.value=m.form.dens;document.getElementById("densv").textContent=m.form.dens;} if(m.form.seed!=null)seed=m.form.seed;
       { const mt=document.getElementById("mesh-type"); if(mt&&m.form.meshType)mt.value=m.form.meshType; } { const mf=document.getElementById("mesh-fractal"); if(mf)mf.checked=!!m.form.meshFractal; } }
+    poserGeoDepuisZones();   // la géométrie des cases se relit dans la grille de zones
     if(!noDraw)refresh();   // in a "live" load (campaign), skip this pre-deployment draw so the map isn't shown before the fog; startGame() draws the 1st frame, already veiled
   }
   function saveDraft(){ try{ localStorage.setItem("mgf_mesh_draft", JSON.stringify(exportObj())); localStorage.setItem("mgf_mesh_mname", (mname.value||"")); }catch(e){} }
@@ -3846,7 +3871,8 @@
     pod:    {lbl:"pod",         kind:"int", key:"pod", ph:"any pod"},
     podTeam:{lbl:"whose pod",   kind:"sel", key:"actorTeam", opts:()=>[["","— any —"],["enemy","an enemy pod"],["neutral","a civilian / NPC pod"]]},
     parQuoi:{lbl:"woken by",    kind:"sel", key:"by", opts:()=>[["","— any —"],["sight","being seen"],["noise","noise"],["alert","an alert"]]},
-    sections:{lbl:"sections down", kind:"num", key:"count"} };
+    sections:{lbl:"sections down", kind:"num", key:"count"},
+    forme:  {lbl:"mesh zone",   kind:"sel", key:"geo", opts:()=>[["","— hexagonal or pentagonal —"],["hex","hexagonal ground"],["pentagon","pentagonal ground"]]} };
   const CHAMPS_PAR_TYPE={
     start:[], win:[], lose:[], turn:["turnNo"],
     attack:["actor","target","result","killedB","hp"],
@@ -3856,7 +3882,7 @@
     friendlyfire:["actor","target","killedB"],
     move:["actor"], enter:["actor","zone"],
     spotted:["pod","podTeam","parQuoi"], discovered:["pod","podTeam"],
-    newfoe:["foe"], wallbreak:["actor","sections"] };
+    newfoe:["foe"], wallbreak:["actor","sections"], newgeo:["forme"] };
   function renderConds(){
     const el=document.getElementById("t-conds"); if(!el)return;
     const champs=CHAMPS_PAR_TYPE[tOn.value]||[];
@@ -3896,12 +3922,12 @@
     {nom:"Mission flow",          ids:["start","turn","win","lose"]},
     {nom:"Combat",                ids:["attack","kill","wounded","cracker","friendlyfire"]},
     {nom:"Movement & detection",  ids:["move","enter","spotted","discovered","newfoe"]},
-    {nom:"Terrain",               ids:["wallbreak"]},
+    {nom:"Terrain",               ids:["wallbreak","newgeo"]},
   ];
   const TRIG_LABEL={start:"Start",turn:"Turn start",win:"Victory",lose:"Defeat",
     attack:"Attack",kill:"Kill",wounded:"Wounded",cracker:"Cracker (explosion)",friendlyfire:"Friendly fire",
     move:"Move",enter:"Zone entry",spotted:"Pod spotted",discovered:"Pod discovered",newfoe:"Enemy type first seen",
-    wallbreak:"Building wall destroyed"};
+    wallbreak:"Building wall destroyed",newgeo:"Mesh zone first seen"};
   const TRIG_CAT_DE=(()=>{ const m={}; for(const c of TRIG_CATS) for(const id of c.ids) m[id]=c.nom; return m; })();
   { const sel=document.getElementById("t-on");
     if(sel)sel.innerHTML=TRIG_CATS.map(c=>`<optgroup label="${c.nom}">`
@@ -3930,6 +3956,7 @@
     const k=m[1]?+m[1]:1; return k===1?"the highest-ranked":`the #${k} by rank`; };
   const unUne=n=>(/^[aeiouAEIOU]/.test(n)?"an ":"a ")+n;
   const COND={actor:v=>`by ${v}`, target:(v,t)=>t.on==="newfoe"?unUne(nomClasse(v)):`on ${v}`, zone:v=>`in zone ${v}`,
+    geo:v=>v==="hex"?"hexagonal ground":v==="pentagon"?"pentagonal ground":`${v} ground`,
     result:v=>({hit:"if it hits",miss:"if it misses",blocked:"if it is blocked"}[v]||`if ${v}`),
     killed:(v,t)=>(v&&typeof v==="object")?`${fmtMatch(v)} killed`:((v===true||v==="true")?"if it kills":"if it does not kill"),
     enemiesHit:v=>`${fmtMatch(v)} enemies hit`, alliesHit:v=>`${fmtMatch(v)} allies hit`,
@@ -5255,12 +5282,12 @@
   function startGame(){ resetView(); { const t=document.getElementById("title"); if(t)t.style.display="none"; }   // a game starts: remove the title screen
     if(cells.some(c=>c.podAnchor)){ units=units.filter(u=>!u.fromAnchor); spawnAnchorPods(); }   // (re)generates the anchor pods on each (re)launch
     if(!units.some(u=>u.team==="player")||!units.some(u=>u.team==="enemy")){ setMsg("Place at least 1 ally and 1 enemy (Edit mode)."); }
-    havres=[]; solstice=null; units=units.filter(u=>!u.esprit&&!u.factice);
+    havres=[]; solstice=null; geosVues=new Set(); units=units.filter(u=>!u.esprit&&!u.factice);
     for(const u of units){u.sorti=false;u.dmgTemp=0;u.drTemp=0;u.boostTours=0;u.boostDmg=0;u.boostDodge=0;}
     for(const u of units){u.hp=u.max;u.ap=AP_MAX;u.freeAvail=true;u.overwatch=false;u.reacted=false;u.bracing=false;u.taunt=false;u.hidden=false;u.wallStance=false;u.vanishUsed=false;u.slowed=false;u.stunned=false;u.stunTours=0;u.leurreTours=0;u.brule=0;u.dodgeTemp=0;u.espritTours=0;u.facing0=null;u.aBouge=false;u.aimTemp=0;u.viseeForcee=null;u.spellsCast=0;u.cd={};
       // les charges se rechargent d'une MISSION à l'autre, jamais pendant : on repart du stock du perk
       if(u.abilRule){ u.charges={}; for(const k in u.abilRule)if(u.abilRule[k].charges)u.charges[k]=u.abilRule[k].charges; }u.dmgTaken=0;u.asleep=!!u._asleep0;if(u.clip!==undefined)u.ammo=u.clip;if(u.freeReload0!==undefined)u.freeReload=u.freeReload0;if(u.crackers!==undefined)u.crackers=(u.crackers0!==undefined?u.crackers0:CLASSES[u.cls].crackers);} smoke=new Map();ability=null; _podCenters=null; turn="player";over=false;sel=null;amode=null;aimTarget=null;throwing=false;usingItem=false;inv={potion:campRun?(campRun.potions||0):0};
-    fired=new Set(); podAlerted=new Set(); neutralSeen=new Set(); typesVus=new Set(campRun&&campRun.typesSeen?campRun.typesSeen:[]); lastSeen=new Map(); turnNum=1; turnActions=0; lastOutcome=null; speechQ=[]; speaking=false; if(speechT){clearTimeout(speechT);speechT=null;} document.getElementById("combatline").style.display="none";
+    fired=new Set(); podAlerted=new Set(); neutralSeen=new Set(); typesVus=new Set(campRun&&campRun.typesSeen?campRun.typesSeen:[]); geosVues=new Set(campRun&&campRun.geosSeen?campRun.geosSeen:[]); lastSeen=new Map(); turnNum=1; turnActions=0; lastOutcome=null; speechQ=[]; speaking=false; if(speechT){clearTimeout(speechT);speechT=null;} document.getElementById("combatline").style.display="none";
     document.getElementById("over").classList.remove("show");document.getElementById("log").innerHTML="";setMsg("");setupBonus();refresh();
     banner("Player turn","player"); playMusic("missions"); emit("start",{}); emit("turn",{turn:1}); }
   document.getElementById("end").onclick=()=>{if(!over&&turn==="player"&&mode==="play")endTurn();};
