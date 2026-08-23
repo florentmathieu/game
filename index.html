@@ -1893,7 +1893,9 @@
     raisewall:{icon:"🧱",label:"Raise wall — builds up to two wall segments",target:"cell"},
     removewall:{icon:"🕳",label:"Remove wall — takes down one wall segment",target:"cell"},
     // ===== ennemis =====
-    opportunist:{icon:"⚡🗡",label:"Opportunist — strikes anyone who leaves its reach",target:"self"},
+    // PASSIF : pas de bouton, pas d'exécution — il se déclenche tout seul quand on le quitte.
+    // « protect » suit la même règle mais n'est pas listé ici ; celui-ci l'est pour son libellé.
+    opportunist:{icon:"⚡🗡",label:"Opportunist — strikes anyone who leaves its reach",passif:true},
     firecloud:{icon:"☁🔥",label:"Fire cloud — area (radius 3), 4 damage",target:"cell"},
     cold:{icon:"🧊",label:"Cold — 3 damage and −2 movement",target:"enemy"},
     coldarmor:{icon:"🧊🛡",label:"Cold armor — a barrier for an ally (−1 damage taken)",target:"ally"},
@@ -5389,7 +5391,7 @@
       if(inv.potion>0&&sel.ap>0)btn("🧪","Potion ×"+inv.potion+" (1 AP, doesn't end the turn)",usingItem,()=>{usingItem=!usingItem;throwing=false;amode=null;setMsg(usingItem?"Click an ally (self/adjacent).":"");renderActs();});
       if(sel.clip!==undefined&&sel.ammo<sel.clip&&(sel.ap>0||sel.freeReload>0))btn("🔄",sel.freeReload>0?"Reload (FREE, "+sel.freeReload+" left)":"Reload (1 AP, doesn't end the turn)",false,()=>{if(sel.freeReload>0)sel.freeReload--;else sel.ap--;sel.ammo=sel.clip;refresh();});
       if(sel.shieldBlock>0&&sel.ap>0&&!sel.bracing)btn("🛡","Brace (+def., 1 AP, doesn't end the turn)",false,()=>{sel.ap--;sel.freeAvail=false;sel.bracing=true;setMsg("Bracing — reinforced defense this turn.");refresh();});
-      if(sel.abil)for(const aid of sel.abil){ const A=ABIL[aid]; if(!A)continue;
+      if(sel.abil)for(const aid of sel.abil){ const A=ABIL[aid]; if(!A||A.passif)continue;
         const rg=regleAbil(sel,aid);
         if(aid==="vanish"&&sel.vanishUsed&&!rg.cd&&!rg.charges)continue;   // ancienne règle : une fois par combat
         const ch=chargesRestantes(sel,aid);
