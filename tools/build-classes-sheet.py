@@ -57,7 +57,7 @@ CAMP = {}
 for k,v in CL.items():
     CAMP[k] = 'civil' if v.get('civ') else ('ennemi' if v.get('enemyOnly') else 'joueur')
 
-WEIGHTS = {'archer':3,'emage':2,'brute':2,'shieldbearer':1,'rival':0,'contact':0}
+WEIGHTS = {'archer':3,'bastard':2,'brute':2,'shieldbearer':1,'touched':0}
 
 EFF_LABEL = {'hp':'pv','dmg':'dégât','aim':'visée','range':'portée','mob':'déplacement',
              'shieldBlock':'blocage %','parry':'parade %','crackers':'grenade',
@@ -86,9 +86,9 @@ def perk_effect(p):
 
 TABS = {  # key -> nom d'onglet
  'soldat':'Enforcer','sapeur':'Sapper','assassin':'Stinger','mage':'Siphoner',
- 'archer':'Irregular','brute':'Wrecker','shieldbearer':'Barricade','emage':'WildSiphoner',
- 'rival':'Counterparty'}
-ORDER = ['soldat','sapeur','assassin','mage','archer','brute','shieldbearer','emage','rival']
+ 'archer':'Irregular','brute':'Brute','shieldbearer':'Barricade','bastard':'Bastard',
+ 'touched':'Touched'}
+ORDER = ['soldat','sapeur','assassin','mage','archer','brute','shieldbearer','bastard','touched']
 
 # nouvelles pistes (univers Ore) — onglets vierges
 NOUVELLES = [

@@ -540,7 +540,7 @@ func _spawn_enemy_pods(pass_cells: Array, used: Dictionary) -> void:
 	var pn: int = max(1, anchors.size())
 	var sizes := []
 	for i in pn: sizes.append(int(n_enemies / pn) + (1 if i < n_enemies % pn else 0))
-	var epool := ["shieldbearer", "archer", "shieldbearer", "emage", "brute", "archer", "shieldbearer", "brute"]
+	var epool := ["shieldbearer", "archer", "shieldbearer", "bastard", "brute", "archer", "shieldbearer", "brute"]
 	var ei := 0
 	for pi in anchors.size():
 		var anc: int = anchors[pi]

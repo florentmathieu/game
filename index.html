@@ -607,13 +607,13 @@
     // civilisationnel mais LOGISTIQUE (tu as l'usine et les pièces neuves, ils ont la casse et le bricolage).
     // `name` = la désignation du Consortium (vocabulaire d'inventaire) ; `trueName` = leur propre nom.
     archer:{name:"Irregular",trueName:"Hunter",hp:6,mob:6,enemyOnly:true,wname:"salvaged rifle",w:{ranged:bow(70,3,4,9)}},   // fusil de récup, une génération derrière le tien — portée 9 quand même
-    brute:{name:"Wrecker",trueName:"Defender",hp:13,mob:8,enemyOnly:true,wname:"breaker arm",w:{melee:sword(70,5,7)}},   // bras hydraulique de minage détourné en arme : il te démonte avec TON matériel
+    brute:{name:"Brute",trueName:"Defender",hp:13,mob:8,enemyOnly:true,wname:"breaker arm",w:{melee:sword(70,5,7)}},   // bras hydraulique de minage détourné en arme : il te démonte avec TON matériel
     shieldbearer:{name:"Barricade",trueName:"Warden",hp:12,mob:6,shieldBlock:45,enemyOnly:true,abil:["shove","charge"],wname:"hull plate",w:{melee:sword(60,3,5)}},   // plaque de coque découpée dans une navette abattue : encaisse ~45% des tirs de face/flanc
-    emage:{name:"Wild Siphoner",trueName:"Keeper",hp:7,mob:7,enemyOnly:true,abil:["blast","frost"],wname:"jury-rigged siphon",w:{ranged:bow(70,4,6,7,3),melee:sword(45,2,3)}},   // le chamane du futur : MÊME métier que ton Siphoner, siphon remonté à la main. Le Consortium ne lui reproche pas d'être arriéré — il lui reproche de ne pas avoir de licence
+    bastard:{name:"Bastard",trueName:"Keeper",hp:7,mob:7,enemyOnly:true,abil:["blast","frost"],wname:"jury-rigged siphon",w:{ranged:bow(70,4,6,7,3),melee:sword(45,2,3)}},   // le chamane du futur : MÊME métier que ton Siphoner, siphon remonté à la main. Le Consortium ne lui reproche pas d'être arriéré — il lui reproche de ne pas avoir de licence
     // ===== LA CONTREPARTIE (rival) — l'autre puissance venue prendre le monde ; l'alibi moral du Consortium =====
     // Volontairement MAL CONNUE : désignations administratives, pas de noms propres. Absente par défaut
     // des missions générées (poids 0) → elle n'apparaît que quand la campagne la convoque.
-    rival:{name:"Counterparty",hp:10,mob:8,shieldBlock:25,enemyOnly:true,wname:"issued rifle",w:{ranged:bow(74,4,6,8,4),melee:sword(68,3,5)}},   // miroir de ton Enforcer : même métier, autre drapeau
+    touched:{name:"Touched",hp:10,mob:8,shieldBlock:25,enemyOnly:true,wname:"issued rifle",w:{ranged:bow(74,4,6,8,4),melee:sword(68,3,5)}},   // miroir de ton Enforcer : même métier, autre drapeau
     // ===== CONTACT (ennemi final) — les visiteurs. Le twist : ce sont eux, "les gentils" =====
     // ===== POPULATION LOCALE (civils) =====
     homme:{name:"Man",hp:6,mob:6,civ:true,wname:"bare hands",w:{melee:{type:"melee",aim:40,dmgMin:1,dmgMax:2,bare:true}}},
@@ -1541,7 +1541,7 @@
   const setAmmo=(u,m,v)=>{ if(m==="ranged2")u.ammo2=v; else u.ammo=v; };
   const chargee=(u,m)=>{ const c=clipDe(u,m); return c===undefined||ammoDe(u,m)>0; };
   const peutTirer=u=>modesTir(u).some(m=>chargee(u,m));
-  function U(team,cls,cell,opts){opts=opts||{};const t=CLASSES[cls];const wtype=t.w.ranged?"ranged":"melee";const w=t.w[wtype];
+  function U(team,cls,cell,opts){opts=opts||{};cls=clsVive(cls);const t=CLASSES[cls];const wtype=t.w.ranged?"ranged":"melee";const w=t.w[wtype];
     const u={team,cls,name:opts.name||t.name,cell,hp:t.hp,max:t.hp,ap:AP_MAX,freeAvail:true,mob:t.mob,facing:opts.facing!=null?opts.facing:(team==="enemy"?Math.PI:0),wtype,flank:w.flank||null,shieldBlock:t.shieldBlock||0,parry:t.parry||0,stealth:!!t.stealth,civ:!!t.civ,w:t.w,overwatch:false,reacted:false,owMode:null};
     u.w=armesLibres(t);   // les armes verrouillées attendent leur perk
     if(w.clip!==undefined){u.clip=w.clip;u.ammo=w.clip;} if(t.crackers){u.crackers=t.crackers;u.crackers0=t.crackers;}
@@ -3053,13 +3053,21 @@
   const REGLES_ENNEMIS={
     brute:        {acte:1, etoiles:1, maxPoche:1},
     shieldbearer: {acte:1, etoiles:2, maxPoche:1},
+    touched:      {acte:1, etoiles:3, maxPoche:1},
     relay:        {acte:1, etoiles:4, maxPoche:1},
+    bastard:      {acte:2, etoiles:3, maxPoche:1},
+    voice:        {acte:2, etoiles:4, maxPoche:1},
+    flare:        {acte:3, etoiles:1, maxPoche:1},
   };
   const seuilEnnemi=k=>{ const r=REGLES_ENNEMIS[k]; return r?rangDiff(r.acte,r.etoiles):1; };
   const maxParPoche=k=>{ const r=REGLES_ENNEMIS[k]; return (r&&r.maxPoche)||99; };
   // La réserve se DÉDUIT des classes marquées « ennemi seulement » au lieu d'être recopiée à côté :
   // il n'y a plus deux listes à tenir d'accord quand on ajoute un ennemi.
   const ENEMY_POOL=Object.keys(CLASSES).filter(k=>CLASSES[k].enemyOnly);
+  // COMPATIBILITÉ DES CLÉS. Le Sheet a renommé deux ennemis ; les missions déjà écrites citent
+  // encore l'ancienne clé. On les traduit au chargement plutôt que de laisser U() lever.
+  const CLS_ALIAS={emage:"bastard", rival:"touched", garde:"soldat", contact:"archer"};
+  const clsVive=k=>(CLASSES[k]?k:(CLS_ALIAS[k]||k));
   // classes réellement autorisées ici : la réserve cochée, filtrée par le rang de la région
   function classesPourMission(cochees){
     const rang=rangDiff(CTX_MISSION.acte,CTX_MISSION.etoiles);
@@ -3079,7 +3087,7 @@
   { const box=document.getElementById("gen-eclasses"); if(box){ box.innerHTML=ENEMY_POOL.map(k=>`<label style="font-size:.82rem;display:inline-flex;align-items:center;gap:3px"><input type="checkbox" data-ecls="${k}"${["archer","emage","brute","shieldbearer"].includes(k)?" checked":""}>${(CLASSES[k]&&CLASSES[k].name)||k}</label>`).join(""); } }
   function chosenEnemyClasses(){ const box=document.getElementById("gen-eclasses"); if(!box)return null; const sel=[...box.querySelectorAll("input[data-ecls]:checked")].map(c=>c.dataset.ecls).filter(k=>CLASSES[k]); return sel.length?sel:null; }
   // composition weights of the anchor pods (per mission)
-  const DEF_EWEIGHTS={archer:3,emage:2,brute:2,shieldbearer:1,rival:0};   // la Contrepartie à 0 : on la convoque mission par mission   // biosphère majoritairement À DISTANCE (cracheurs + coeurs de sève), le contact reste minoritaire
+  const DEF_EWEIGHTS={archer:3,bastard:2,brute:2,shieldbearer:1,touched:0};   // la Contrepartie à 0 : on la convoque mission par mission   // biosphère majoritairement À DISTANCE (cracheurs + coeurs de sève), le contact reste minoritaire
   { const box=document.getElementById("m-eweights"); if(box){ box.innerHTML=ENEMY_POOL.map(k=>`<label style="font-size:.8rem;display:inline-flex;align-items:center;gap:2px">${(CLASSES[k]&&CLASSES[k].name)||k}<input type="number" min="0" max="9" data-ew="${k}" value="${DEF_EWEIGHTS[k]||0}" style="width:36px"></label>`).join(""); box.querySelectorAll("input[data-ew]").forEach(i=>i.oninput=()=>saveDraft()); } }
   function missionEWeights(){ const box=document.getElementById("m-eweights"); const w={}; if(box)box.querySelectorAll("input[data-ew]").forEach(i=>{ const v=+i.value||0; if(v>0&&CLASSES[i.dataset.ew])w[i.dataset.ew]=v; }); return w; }
   function setMissionEWeights(w){ const box=document.getElementById("m-eweights"); if(!box)return; box.querySelectorAll("input[data-ew]").forEach(i=>{ i.value=(w&&w[i.dataset.ew]!=null)?w[i.dataset.ew]:(w?0:(DEF_EWEIGHTS[i.dataset.ew]||0)); }); }

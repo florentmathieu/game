@@ -30,7 +30,7 @@ static func classes() -> Dictionary:
 		"archer":   {"name":"Archer", "hp":6, "mob":6, "w":{"ranged":bow(70,2,3,8)}},
 		"brute":    {"name":"Brute",  "hp":13,"mob":8, "w":{"melee":sword(70,5,7)}},
 		"shieldbearer":{"name":"Porteur de bouclier","hp":12,"mob":6,"shieldBlock":45,"enemyOnly":true,"abil":["shove","charge"],"w":{"melee":sword(60,3,5)}},
-		"emage":    {"name":"Mage noir","hp":7,"mob":7,"enemyOnly":true,"abil":["blast","frost"],"w":{"ranged":bow(70,4,6,7,3),"melee":sword(45,2,3)}},
+		"bastard":    {"name":"Bastard","hp":7,"mob":7,"enemyOnly":true,"abil":["blast","frost"],"w":{"ranged":bow(70,4,6,7,3),"melee":sword(45,2,3)}},
 		"mage":     {"name":"Mage",   "hp":6, "mob":7, "w":{"ranged":bow(72,4,6,7,3),"melee":sword(45,2,3)}},
 		"homme":    {"name":"Homme",  "hp":6, "mob":6,"civ":true, "w":{"melee":{"type":"melee","aim":40,"dmg_min":1,"dmg_max":2,"bare":true}}},
 		"femme":    {"name":"Femme",  "hp":5, "mob":6,"civ":true, "w":{"melee":{"type":"melee","aim":40,"dmg_min":1,"dmg_max":2,"bare":true}}},
