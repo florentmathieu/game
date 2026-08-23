@@ -37,7 +37,72 @@ function makeActUnit(M){
     if(u.abil.includes("taunt")&&u.ap>0&&!u.taunt&&awakeNear&&u.hp>=u.max*0.6)M.execTaunt(u);
     if(u.abil.includes("wall")&&u.ap>0&&!u.wallStance&&awakeNear&&adjAlly())M.execWall(u);
     if(u.abil.includes("vanish")&&u.ap>0&&!u.vanishUsed&&u.hp<u.max*0.4&&awakeNear)M.execVanish(u);
+    // ===== capacites des arbres reecrits (Sheet 2026-08) =====
+    // Sans elles l escouade joue a mains nues et toute mesure d equilibrage est fausse : le
+    // camp d en face, lui, se sert des siennes. On ne cherche pas le jeu optimal, juste un
+    // usage RAISONNABLE — celui d un joueur qui appuie sur ses boutons quand ils servent.
+    const dispo=id=>u.abil.includes(id)&&M.abilDispo&&M.abilDispo(u,id);
+    const cout=id=>{ const r=M.regleAbil?M.regleAbil(u,id):null; return r?Math.max(r.cost||0,r.endsTurn?1:0):1; };
+    const peut=id=>dispo(id)&&u.ap>=cout(id);
+    const groupe=(r,portee)=>{ let best=null;   // la case qui prend le plus d ennemis
+      for(const p of foes){ if(M.hops(u.cell,p.cell)>portee||!M.los(u.cell,p.cell))continue;
+        let c=0; for(const q of foes)if(q.hp>0&&M.hops(p.cell,q.cell)<=r)c++;
+        if(!best||c>best.c)best={cell:p.cell,c}; } return best; };
+    const proche=(p)=>foes.filter(t=>M.hops(u.cell,t.cell)<=p&&M.los(u.cell,t.cell))
+      .sort((a,b)=>a.hp-b.hp)[0];
+    const blesse=()=>M.units.filter(a=>a.team===u.team&&a!==u&&a.hp>0&&a.hp<a.max*0.55)
+      .sort((a,b)=>(a.hp/a.max)-(b.hp/b.max))[0];
+
+    // --- posture et soutien, d abord : ce qui ne coute pas le tour ---
+    if(peut("warcry")&&awakeNear&&adjAlly())M.execWarcry(u);
+    if(peut("inspire")){ const a=M.units.find(x=>x.team===u.team&&x!==u&&x.hp>0&&x.ap<=0&&!x.freeAvail&&M.hops(u.cell,x.cell)<=7&&M.los(u.cell,x.cell)); if(a)M.execInspire(u,a); }
+    if(peut("evade")){ const a=blesse(); if(a)M.execEvade(u,a); }
+    if(peut("replenish")){ const a=M.units.filter(x=>x.team===u.team&&x.hp>0&&x.hp<x.max*0.4).sort((a,b)=>a.hp-b.hp)[0]; if(a)M.execReplenish(u,a); }
+    if(peut("fuckit")&&awakeNear&&u.hp>u.max*0.5)M.execFuckIt(u);
+    if(peut("rungun")&&awakeNear)M.execRunGun(u);
+    if(peut("decide")){ const t=proche(7); if(t&&!t.designeTours)M.execDecide(u,t); }
+    if(peut("spirit")&&awakeNear){ const libre=M.cells.filter(c=>M.passable(c.id)&&!M.uAt(c.id)&&M.hops(u.cell,c.id)<=4&&M.los(u.cell,c.id))[0];
+      if(libre)M.execSpirit(u,libre.id); }
   }
+  // Une capacite OFFENSIVE vaut-elle mieux qu un tir ordinaire ? On les essaie dans l ordre du
+  // plus fort au plus faible ; la premiere qui part remplace l attaque.
+  function attaqueSpeciale(u){
+    if(!u.abil||!u.abil.length)return false;
+    const dispo=id=>u.abil.includes(id)&&M.abilDispo&&M.abilDispo(u,id);
+    const cout=id=>{ const r=M.regleAbil?M.regleAbil(u,id):null; return r?Math.max(r.cost||0,r.endsTurn?1:0):1; };
+    const peut=id=>dispo(id)&&u.ap>=cout(id);
+    const foes=M.units.filter(t=>M.hostile(u,t)&&t.hp>0&&(t.team!=="enemy"||M.enemyActive(t)));
+    if(!foes.length)return false;
+    const zone=(r,portee)=>{ let best=null;
+      for(const p of foes){ if(M.hops(u.cell,p.cell)>portee||!M.los(u.cell,p.cell))continue;
+        let c=0; for(const q of foes)if(M.hops(p.cell,q.cell)<=r)c++;
+        if(!best||c>best.c)best={cell:p.cell,c}; } return best; };
+    const vue=p=>foes.filter(t=>M.hops(u.cell,t.cell)<=p&&M.los(u.cell,t.cell)).sort((a,b)=>a.hp-b.hp)[0];
+    const adj=()=>foes.find(t=>M.adjacent(u.cell,t.cell));
+    // zones d abord, quand elles prennent au moins deux cibles
+    if(peut("lifefire")){ const z=zone(1,7); if(z&&z.c>=2&&M.execLifeFire(u,z.cell))return true; }
+    if(peut("firecloud")){ const z=zone(3,7); if(z&&z.c>=2&&M.execFireCloud(u,z.cell))return true; }
+    if(peut("hammer")){ const z=zone(1,7); if(z&&z.c>=2&&M.execHammer(u,z.cell))return true; }
+    if(peut("wave")){ const z=zone(1,5); if(z&&z.c>=2&&M.execWave(u,z.cell))return true; }
+    if(peut("fear")){ const z=zone(2,7); if(z&&z.c>=2&&M.execFear(u,z.cell))return true; }
+    if(peut("spray")){ const z=zone(1,5); if(z&&z.c>=2&&M.execSpray(u,z.cell))return true; }
+    if(peut("boomshell")){ const z=zone(2,7); if(z&&z.c>=2){ const t=M.uAt(z.cell); if(t&&M.execBoomShell(u,t))return true; } }
+    if(peut("cusser")&&u.crackers>0){ const z=zone(2,7); if(z&&z.c>=2&&M.execCusser(u,z.cell))return true; }
+    // puis les coups simples, du plus fort au plus faible
+    const t=vue(8);
+    if(t){
+      if(peut("burst")&&M.inRange(u,t,"ranged")&&M.execBurst(u,t))return true;
+      if(peut("surehit")&&M.inRange(u,t,"ranged")&&M.execSureHit(u,t))return true;
+      if(peut("rayoflight")&&M.execRayOfLight(u,t.cell))return true;
+      if(peut("precshot")&&!u.aBouge&&M.inRange(u,t,"ranged")&&M.execPrecShot(u,t))return true;
+      if(peut("cold")&&M.execCold(u,t))return true;
+    }
+    const a=adj();
+    if(a){
+      if(peut("stab")&&M.execStab(u,a))return true;
+      if(peut("buttstroke")&&M.execButtstroke(u,a))return true;
+    }
+    return false; }
   return function actUnit(u){
     let guard=0;
     const extracting = u.team==="player" && M.curMission && M.curMission.objective==="extract";
@@ -52,6 +117,7 @@ function makeActUnit(M){
       }
       // Mage (une seule décision spéciale par tour, au 1er passage) : déflagration si ≥2 ennemis groupés (termine le tour),
       // sinon soin d'un allié critique, sinon givre d'une menace ; puis on enchaîne sur un tir avec le PA restant.
+      if(guard===1&&u.ap>0&&attaqueSpeciale(u))return;
       if(u.abil&&guard===1&&u.ap>0){
         if(u.abil.includes("blast")){ const bl=bestBlast(u); if(bl&&bl.count>=2&&M.execBlast(u,bl.cell))return; }
         if(u.abil.includes("heal")){ const a=healTarget(u); if(a&&M.execHeal(u,a))continue; }

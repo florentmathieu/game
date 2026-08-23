@@ -43,11 +43,26 @@ function loadMesh(htmlPath){
     get smoke(){return smoke},
     execSmoke, execBreach, execShadow, execRally, execVanish, execTaunt, execHoldline, execWall,
     execBlast, execHeal, execFrost, execShove, execCharge, onCd, setCd, tickCd, enemyUseAbil,
+    // capacités des arbres réécrits (Sheet 2026-08) : sans elles le banc d'essai fait jouer
+    // l'escouade à mains nues, et toute mesure d'équilibrage est fausse
+    execButtstroke, execSpray, execRunGun, execPrecShot, execSureHit, execBurst, execBoomShell,
+    execSmoker, execCusser, execRaiseWall, execRemoveWall,
+    execStab, execLure, execFear, execBait,
+    execLifeFire, execHammer, execEvade, execTeleport, execRayOfLight, execUnwall, execWave,
+    execSpirit, execReplenish, execHaven, execRequiem, execSolstice, execBiscuit,
+    execWarcry, execInspire, execInsult, execExfil, execBruise, execDecide, execFuckIt,
+    abilDispo, regleAbil, chargesRestantes, tourDesEsprits, tickBrulures, tickBoosts,
     corruptLevel, distortTerrain, polyCentroid,
     get infl(){return infl}, setInfl(v){ infl=v; ROWS=infl.length; COLS=(infl[0]&&infl[0].length)||COLS; W=COLS*MC; H=ROWS*MC; },
     get wallSeg(){return wallSeg},
     setDist(p){ distEl.value=String(p); }, setDens(g){ dens.value=String(g); },
     get MC(){return MC},
+    // contexte stratégique de la mission (acte + étoiles) : sans lui le banc d'essai tire
+    // toujours dans la réserve d'un milieu d'acte 1, et n'affronte jamais les ennemis tardifs
+    get CTX(){return CTX_MISSION}, setCtx(a,e){ CTX_MISSION={acte:a||1,etoiles:e||3}; },
+    get REGLES(){return REGLES_ENNEMIS}, classesPourMission, rangDiff,
+    // leviers d'équilibrage
+    get CLS(){return CLASSES},
   };
   `;
   src = src.replace(/\}\)\(\);\s*$/, EXPORT + "\n})();");
@@ -80,6 +95,13 @@ function loadMesh(htmlPath){
     location:{ search:"" }, navigator:{ userAgent:"node" },
     localStorage:(()=>{ const m=new Map(); return { getItem:k=>m.has(k)?m.get(k):null, setItem:(k,v)=>m.set(k,String(v)), removeItem:k=>m.delete(k), clear:()=>m.clear() }; })(),
     setTimeout:noop, clearTimeout:noop, setInterval:noop, clearInterval:noop,
+    // le moteur a gagné de la musique et des effets depuis l'écriture de ce banc : on les rend muets
+    Audio: function(){ return { loop:false, preload:"", volume:0, paused:true, src:"", currentTime:0,
+      play(){ return Promise.resolve(); }, pause:noop, addEventListener:noop }; },
+    requestAnimationFrame:noop, cancelAnimationFrame:noop,
+    performance:{ now:()=>0 },
+    TextEncoder, TextDecoder, btoa:s=>Buffer.from(s,"binary").toString("base64"),
+    atob:s=>Buffer.from(s,"base64").toString("binary"),
     fetch:()=>Promise.reject(new Error("no fetch")),
     URLSearchParams, alert:noop, prompt:()=>null, confirm:()=>true,
     Math, JSON, Set, Map, Array, Object, String, Number, Boolean, console, Date, isNaN, parseInt, parseFloat, Infinity, NaN,

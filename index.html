@@ -613,7 +613,10 @@
     // ===== LA CONTREPARTIE (rival) — l'autre puissance venue prendre le monde ; l'alibi moral du Consortium =====
     // Volontairement MAL CONNUE : désignations administratives, pas de noms propres. Absente par défaut
     // des missions générées (poids 0) → elle n'apparaît que quand la campagne la convoque.
-    touched:{name:"Touched",hp:10,mob:8,shieldBlock:25,enemyOnly:true,abil:["firecloud","cold","coldarmor"],wname:"fire bolt",w:{ranged:{type:"ranged",aim:100,dmgMin:4,dmgMax:4,range:8}}},   // miroir de ton Enforcer : même métier, autre drapeau
+    touched:{name:"Touched",hp:10,mob:8,shieldBlock:25,enemyOnly:true,abil:["firecloud","cold","coldarmor"],wname:"fire bolt",w:{ranged:{type:"ranged",aim:100,dmgMin:4,dmgMax:4,range:8}}},
+    // RELAY : sa fiche n'est pas écrite. On lui prête les stats du Touched en attendant, pour
+    // qu'il puisse au moins sortir — son rôle (booster les alliés dans un rayon de 7) reste à coder.
+    relay:{name:"Relay",hp:10,mob:8,shieldBlock:25,enemyOnly:true,wname:"fire bolt",w:{ranged:{type:"ranged",aim:100,dmgMin:4,dmgMax:4,range:8}}},   // miroir de ton Enforcer : même métier, autre drapeau
     // ===== CONTACT (ennemi final) — les visiteurs. Le twist : ce sont eux, "les gentils" =====
     // ===== POPULATION LOCALE (civils) =====
     homme:{name:"Man",hp:6,mob:6,civ:true,wname:"bare hands",w:{melee:{type:"melee",aim:40,dmgMin:1,dmgMax:2,bare:true}}},
