@@ -601,7 +601,7 @@
       // Elle ne tire qu'un carreau (chargeur 1) mais porte à 9 — et sert de lance-grenade long.
       ranged2:{...bow(75,5,6,9,1), verrou:"arbalest", nom:"crossbow"}}},   // artificier : charges de minage (= "crackers")
     assassin:{name:"Stinger",hp:7,mob:8,parry:35,stealth:true,faded:true,wname:"sword",w:{melee:dagger(90,4,5,2,1),ranged:bow(70,3,4,7,4)}},   // le "nettoyeur" : règle les incidents discrètement (seul rôle de contact du joueur)
-    mage:{name:"Siphoner",hp:6,mob:7,abil:["biscuit"],wname:"green fire",w:{ranged:{type:"ranged",aim:100,dmgMin:4,dmgMax:4,range:7},melee:sword(45,2,3)}},   // arcaniste du Consortium : tire l'essence RAFFINÉE extraite du monde (clip 3 = fioles) — sa magie est volée à ce qu'il détruit
+    mage:{name:"Mage",hp:6,mob:7,abil:["biscuit"],abilRegles:{biscuit:{charges:1}},wname:"green fire",w:{ranged:{type:"ranged",aim:100,dmgMin:4,dmgMax:4,range:7},melee:sword(45,2,3)}},   // arcaniste du Consortium : tire l'essence RAFFINÉE extraite du monde (clip 3 = fioles) — sa magie est volée à ce qu'il détruit
     // ===== RÉSISTANCE LOCALE (ennemis ordinaires) — des gens modernes, pas des sauvages =====
     // Ils ont la MÊME technologie que toi, en version récupérée et remontée : l'écart n'est pas
     // civilisationnel mais LOGISTIQUE (tu as l'usine et les pièces neuves, ils ont la casse et le bricolage).
@@ -1543,6 +1543,12 @@
     if(opts.runner&&team==="enemy"){u.runner=true;u.asleep=false;u._asleep0=false;}   // fuyard ("interception") : court vers la sortie, ne combat pas
     if(opts.guard&&team==="neutral")u.civ=false;   // NPC to defend: targeted by the enemy AND counted in the defeat (≠ ambient civilian)
     if(t.abil)u.abil=t.abil.slice();   // abilities built into the class (e.g. enemy mage) — players get them via perks
+    // une capacité de classe peut porter ses propres règles, comme un perk : « Eat biscuit » n'a
+    // pas de cooldown mais une charge par mission
+    if(t.abilRegles){ u.abilRule=u.abilRule||{}; u.charges=u.charges||{};
+      for(const k in t.abilRegles){ const r=t.abilRegles[k];
+        u.abilRule[k]={cost:r.cost!=null?r.cost:(r.endsTurn?0:1),endsTurn:!!r.endsTurn,cd:r.cd||0,charges:r.charges||0,dmg:r.dmg||0};
+        if(r.charges)u.charges[k]=r.charges; } }
     return u; }
   // UNITÉ FACTICE (le leurre du Stinger) : elle occupe une case et attire les regards, mais ne
   // compte ni dans la défaite, ni dans l'XP, ni dans le décompte de l'escouade.
@@ -1875,7 +1881,7 @@
   const COOLDOWN={smoke:3,breach:4,shadowstrike:2,rally:3,taunt:3,holdline:3,wall:3,blast:3,heal:2,frost:2,shove:3,charge:4,
     buttstroke:0,spray:3,rungun:3,precshot:0,surehit:4,burst:3,boomshell:2,
     smoker:1,cusser:1,raisewall:2,removewall:4, stab:0,lure:1,fear:4,bait:5,
-    lifefire:4,hammer:3,evade:2,teleport:3,rayoflight:3,unwall:3,wave:5,spirit:5,replenish:0,haven:0,requiem:5,solstice:5,biscuit:6};
+    lifefire:4,hammer:3,evade:2,teleport:3,rayoflight:3,unwall:3,wave:5,spirit:5,replenish:0,haven:0,requiem:5,solstice:5,biscuit:0};
   let CD_MULT=1;   // global cooldown multiplier (balancing panel)
   const onCd=(u,id)=>!!(u&&u.cd&&u.cd[id]>0);
   // règle effective d'une capacité pour CETTE unité : celle de son perk si elle en a une, sinon
@@ -2189,9 +2195,10 @@
 
   // L'esprit joue entre le tour du joueur et celui de l'ennemi : il avance vers l'ennemi le plus
   // proche et frappe s'il l'atteint. Trois tours, puis il s'éteint.
-  function tourDesEsprits(){ const sps=units.filter(s=>s.esprit&&s.hp>0); if(!sps.length)return;
+  function tourDesEsprits(){ for(const s of units)if(s.esprit&&s.hp<=0&&!s._puff){ s._puff=1; pushPuff(s.cell,"#b9e6d0"); }
+    const sps=units.filter(s=>s.esprit&&s.hp>0); if(!sps.length)return;
     for(const sp of sps){
-      if(--sp.espritTours<0){ sp.hp=0; log(`👻 ${sp.name} fades`,"player"); continue; }
+      if(--sp.espritTours<0){ pushPuff(sp.cell,"#b9e6d0"); sp._puff=1; sp.hp=0; log(`👻 ${sp.name} fades`,"player"); continue; }
       const cib=units.filter(e=>e.hp>0&&e.team==="enemy").sort((a,b)=>hops(sp.cell,a.cell)-hops(sp.cell,b.cell))[0];
       if(!cib)continue;
       if(adjacent(sp.cell,cib.cell)){ doAttack(sp,cib,"melee",false,{gratuit:true}); continue; }
@@ -2242,7 +2249,10 @@
   function execBiscuit(u){ if(!abilDispo(u,"biscuit"))return false;
     const en=u.cd?Object.keys(u.cd).filter(k=>u.cd[k]>0).length:0;
     if(!en){setMsg("Eat biscuit: nothing on cooldown.");return false;}
-    u.cd={}; payerAbil(u,"biscuit"); u.ap=0; u.fatigueBonus=(u.fatigueBonus||0)+15;   // son propre cooldown survit, sinon il est infini
+    // UNE CHARGE PAR MISSION. La charge est décomptée avant l'effacement, sinon le biscuit
+    // s'effacerait lui-même — et une capacité qui remet à zéro tous les cooldowns dont le sien
+    // rend la notion de cooldown décorative.
+    payerAbil(u,"biscuit"); u.cd={}; u.ap=0; u.fatigueBonus=(u.fatigueBonus||0)+15;
     log(`▲ ${u.name} eats a biscuit — ${en} cooldown${en>1?"s":""} cleared`,"player"); refresh(); return true; }
 
   // ===== "shield" abilities: shove + long charge =====
@@ -2677,6 +2687,12 @@
   function pushBlast(id,radius){ const[x,y]=pcx(id); fx.push({blast:true,bx:x,by:y,rad:(radius+0.5)*TILEPX,t0:fxNow(),dur:FX_DUR}); ensureFxLoop(); }
   function pushHeal(id,val){ const[x,y]=pcx(id); fx.push({heal:true,x,y:y-16,val,t0:fxNow(),dur:950}); ensureFxLoop(); }
   function pushFrost(id){ const[x,y]=pcx(id); fx.push({frost:true,x,y,t0:fxNow(),dur:850}); ensureFxLoop(); }
+  // BOUFFÉE : le petit nuage qui reste quand quelque chose cesse d'exister (l'esprit qui s'éteint).
+  // Les flocons sont tirés une fois, à la création : sinon ils grouilleraient d'une image à l'autre.
+  function pushPuff(id,teinte){ const[x,y]=pcx(id);
+    const bouf=[]; for(let i=0;i<9;i++){ const a=(i/9)*TWO+Math.random()*0.5;
+      bouf.push({a,d:10+Math.random()*16,r:9+Math.random()*8,dy:-6-Math.random()*12}); }
+    fx.push({puff:true,x,y,bouf,col:teinte||"#cfe3ef",t0:fxNow(),dur:900}); ensureFxLoop(); }
   function pushShot(att,tgt,melee){ const[ax,ay]=pcx(att.cell),[bx,by]=pcx(tgt.cell); fx.push({melee,ax,ay,bx,by,t0:fxNow(),dur:melee?260:300}); if(fx.length>24)fx.shift(); ensureFxLoop(); }
   function screenShake(mag){ shakeUntil=fxNow()+260; shakeMag=mag; ensureFxLoop(); }
   function drawFx(){ const now=fxNow();
@@ -2688,6 +2704,16 @@
       else if(f.melee){ ctx.globalAlpha=1-p; ctx.strokeStyle="#fff0c0"; ctx.lineWidth=3; const ang=Math.atan2(f.by-f.ay,f.bx-f.ax); ctx.beginPath(); ctx.arc(f.bx,f.by,14,ang-0.9,ang+0.9); ctx.stroke(); }
       else if(f.heal){ ctx.globalAlpha=1-p; ctx.font="bold 15px 'Trebuchet MS',sans-serif"; ctx.textAlign="center"; ctx.textBaseline="middle"; ctx.lineWidth=3; ctx.strokeStyle="rgba(0,0,0,0.7)"; ctx.fillStyle="#7fe6a0"; const yy=f.y-22*p; ctx.strokeText("+"+f.val,f.x,yy); ctx.fillText("+"+f.val,f.x,yy);   // ✨ heal: green +HP rising + ring
         ctx.globalAlpha=(1-p)*0.6; ctx.strokeStyle="#7fe6a0"; ctx.lineWidth=2; ctx.beginPath(); ctx.arc(f.x,f.y+16,8+16*p,0,TWO); ctx.stroke(); }
+      else if(f.puff){ const e=1-Math.pow(1-p,2);   // départ vif, dissipation lente
+        // un contour sombre sous les flocons : sans lui, du pâle sur de l'herbe ne se voit pas
+        ctx.globalAlpha=(1-p)*0.35; ctx.fillStyle="rgba(14,26,22,1)";
+        for(const b of f.bouf){ ctx.beginPath();
+          ctx.arc(f.x+Math.cos(b.a)*b.d*e, f.y+Math.sin(b.a)*b.d*e*0.6+b.dy*e, b.r*(0.6+0.9*e)+1.5, 0, TWO); ctx.fill(); }
+        ctx.globalAlpha=(1-p)*0.9; ctx.fillStyle=f.col;
+        for(const b of f.bouf){ ctx.beginPath();
+          ctx.arc(f.x+Math.cos(b.a)*b.d*e, f.y+Math.sin(b.a)*b.d*e*0.6+b.dy*e, b.r*(0.6+0.9*e), 0, TWO); ctx.fill(); }
+        ctx.globalAlpha=(1-p)*0.5; ctx.strokeStyle=f.col; ctx.lineWidth=2;
+        ctx.beginPath(); ctx.arc(f.x,f.y,12+26*e,0,TWO); ctx.stroke(); }
       else if(f.frost){ const pop=p<0.3?p/0.3:1; ctx.globalAlpha=(1-p)*0.7; ctx.strokeStyle="#9fd8ff"; ctx.lineWidth=2; ctx.beginPath(); ctx.arc(f.x,f.y,22*(1-0.45*p),0,TWO); ctx.stroke();   // ❄ frost: snowflake + icy ring closing in
         ctx.globalAlpha=(1-p)*0.95; ctx.fillStyle="#dff1ff"; ctx.font=`bold ${14+9*pop}px 'Trebuchet MS',sans-serif`; ctx.textAlign="center"; ctx.textBaseline="middle"; ctx.lineWidth=3; ctx.strokeStyle="rgba(20,40,70,0.7)"; ctx.strokeText("❄",f.x,f.y-18); ctx.fillText("❄",f.x,f.y-18); }
       else { const x=f.ax+(f.bx-f.ax)*p,y=f.ay+(f.by-f.ay)*p; const xp=f.ax+(f.bx-f.ax)*Math.max(0,p-0.18),yp=f.ay+(f.by-f.ay)*Math.max(0,p-0.18); ctx.globalAlpha=0.5; ctx.strokeStyle="#caa64a"; ctx.lineWidth=2; ctx.beginPath(); ctx.moveTo(xp,yp); ctx.lineTo(x,y); ctx.stroke(); ctx.globalAlpha=1; ctx.fillStyle="#ffe08a"; ctx.beginPath(); ctx.arc(x,y,3,0,TWO); ctx.fill(); }
