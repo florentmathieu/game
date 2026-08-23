@@ -231,10 +231,24 @@ def main():
     a = ap.parse_args()
     raw = fix_mojibake(json.load(open(a.fichier, encoding="utf-8"))["fileContent"])
 
-    onglets = {}
+    onglets, regles, bonus = {}, [], []
     for block in raw.split("\n\n"):
         rows = parse_rows(block)
         if not rows: continue
+        # ONGLETS SANS « key » : les tables transverses (regles d apparition, bonus aleatoire).
+        # On les reconnait a leur ligne d entete, pas a leur position — un onglet deplace ne doit
+        # pas changer ce qu on lit.
+        tete = [c.strip().lower() for c in rows[0]]
+        if tete[:2] == ["classe", "difficulté mini"] or (tete and tete[0]=="classe" and "acte" in tete):
+            for r in rows[1:]:
+                if not r or not r[0]: continue
+                num = lambda i: (int(r[i]) if i < len(r) and re.fullmatch(r"\d+", (r[i] or "").strip()) else None)
+                regles.append({"nom": r[0], "etoiles": num(1), "acte": num(2), "maxPoche": num(3)})
+            continue
+        if tete[:2] == ["nom", "bonus"]:
+            for r in rows[1:]:
+                if r and r[0] and len(r) > 1: bonus.append({"lettre": r[0], "effet": r[1]})
+            continue
         o = lire_onglet(rows)
         k = o.get("key")
         if k and k != "<clé>": onglets[k] = o
@@ -321,6 +335,27 @@ def main():
                 if x.get("mod"): d.append(json.dumps(x["mod"], ensure_ascii=False))
                 print(f"     {cote} : {x['name']:24} [{q}] {' · '.join(d)}")
         print()
+    if regles:
+        print("=" * 68); print("RÈGLES ENNEMIS"); print("=" * 68)
+        # le SEUIL est un rang absolu : les etoiles ne se comparent qu a l interieur d un acte
+        noms = {c.get("name",""): k for k, c in classes.items()}
+        for r in regles:
+            k = noms.get(r["nom"]) or (r["nom"].lower() if r["nom"].lower() in classes else None)
+            seuil = ((r["acte"] or 1) - 1) * 5 + (r["etoiles"] or 1)
+            etat = f"→ {k}" if k else "❌ aucune classe de ce nom"
+            print(f"   {r['nom']:14} acte {r['acte']} ★{r['etoiles']}  (rang {seuil:2})"
+                  f"  max/poche {r['maxPoche'] or '—'}   {etat}")
+            if not k: alertes.append(f"règles ennemis : « {r['nom'] } » ne correspond à aucun onglet")
+        sansRegle = [k for k, c in classes.items()
+                     if c.get("camp") == "ennemi" and not any(
+                         (noms.get(r["nom"]) == k) or r["nom"].lower() == k for r in regles)]
+        if sansRegle:
+            alertes.append("classes ennemies sans règle d apparition : " + ", ".join(sansRegle))
+        print()
+    if bonus:
+        print("=" * 68); print("BONUS ALÉATOIRE"); print("=" * 68)
+        for x in bonus: print(f"   {x['lettre']:3} {x['effet']}")
+        print()
     if alertes:
         print("⚠  À VÉRIFIER"); [print("   ·", x) for x in alertes]; print()
     if todo:
@@ -345,7 +380,8 @@ def main():
             print(" " + (",\n              ".join(lignes)) + " ],")
         print()
     if a.out:
-        json.dump({"classes": classes, "perks": perks, "todo": todo, "alertes": alertes},
+        json.dump({"classes": classes, "perks": perks, "regles": regles, "bonus": bonus,
+                   "todo": todo, "alertes": alertes},
                   open(a.out, "w", encoding="utf-8"), ensure_ascii=False, indent=1)
         print("→", a.out)
 

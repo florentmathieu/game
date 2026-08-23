@@ -674,13 +674,15 @@
   // Pool ALÉATOIRE (3e option proposée à chaque niveau) — reprend l'onglet « bonus random » du Sheet.
   // Les ids sont stables (ils sont stockés en sauvegarde) ; les NOMS sont provisoires tant que la liste
   // n'est pas écrite. Les lettres entre crochets renvoient à la colonne « Nom » de l'onglet.
+  // Les lettres renvoient à la colonne « Nom » de l'onglet « bonus random » du Sheet.
   const RANDOM_PERKS=[
-    {id:"rp_hp2",   name:"Constitution",  desc:"+2 HP",                        mod:{hp:2}},        // [À]
+    {id:"rp_hp2",   name:"Constitution",  desc:"+2 HP",                        mod:{hp:2}},        // [A]
     {id:"rp_dmg1",  name:"Force",         desc:"+1 damage",                    mod:{dmg:1}},       // [B]
     {id:"rp_dr1",   name:"Thick Hide",    desc:"−1 damage taken",              mod:{dr:1}},        // [C]
     {id:"rp_dodge10",name:"Evasive",      desc:"−10% chance to be hit",        mod:{dodge:10}},    // [D]
-    {id:"rp_aim10", name:"Steady Aim",    desc:"+10 aim",                      mod:{aim:10}},      // [Z]
-    {id:"rp_reload",name:"Quick Hands",   desc:"1 free reload per fight",      mod:{reload:1}},    // [E]
+    {id:"rp_aim10", name:"Steady Aim",    desc:"+10 aim",                      mod:{aim:10}},      // [E]
+    {id:"rp_reload",name:"Quick Hands",   desc:"1 free reload (rifles)",       mod:{reload:1}},    // [F]
+    {id:"rp_range1",name:"Long Sight",    desc:"+1 range",                     mod:{range:1}},     // [H]
   ];
   // ===== VOIES (ancienneté) : au niveau 4 le soldat choisit OFFICIER ou VÉTÉRAN, définitivement.
   // Les niveaux 4, 6 et 7 puisent dans la voie choisie ; les autres dans l'arbre de classe.
@@ -3032,7 +3034,48 @@
     const gb=document.getElementById("gen-bats"); if(gb)gb.oninput=()=>{document.getElementById("gen-batsv").textContent=gb.value;};
     const gbs=document.getElementById("gen-batsize"); if(gbs)gbs.oninput=()=>{document.getElementById("gen-batsizev").textContent=gbs.value;}; }
   // enemy class selection for generation (checkboxes)
-  const ENEMY_POOL=["archer","emage","brute","shieldbearer","rival"];   // résistance locale + Contrepartie   // classes offered for generated enemies (= la biosphère)
+  // ÉCHELLE ABSOLUE DE DIFFICULTÉ. Les étoiles ne se comparent qu'À L'INTÉRIEUR d'un acte : une
+  // région ★1 de l'acte 2 est plus dure qu'une ★5 de l'acte 1. On met donc les actes bout à bout,
+  // et tout ce qui compare des difficultés compare des RANGS, pas des étoiles.
+  //   acte 1 ★1..5 → 1..5 · acte 2 ★1..5 → 6..10 · acte 3 ★1..5 → 11..15
+  const ETOILES_PAR_ACTE=5, ACTE_MAX=3;
+  const rangDiff=(acte,etoiles)=>(Math.max(1,Math.min(ACTE_MAX,acte||1))-1)*ETOILES_PAR_ACTE
+    +Math.max(1,Math.min(ETOILES_PAR_ACTE,etoiles||1));
+  // Contexte de la mission en cours : d'où elle vient sur la carte stratégique. Hors campagne
+  // (éditeur, partie libre) on prend un milieu d'acte 1 — sinon rien ne sortirait jamais.
+  let CTX_MISSION={acte:1,etoiles:3};
+
+  // RÈGLES D'APPARITION — onglet « Règles ennemis » du Sheet. Chaque classe dit l'acte et la
+  // difficulté à partir desquels elle peut sortir, et combien au plus dans une même poche.
+  // Le seuil est converti en rang absolu, donc « acte 2 ★1 » (6) passe après « acte 1 ★5 » (5).
+  // Une classe SANS règle reste disponible partout et sans plafond : c'est le comportement
+  // d'avant, on ne fait pas disparaître un ennemi par omission.
+  const REGLES_ENNEMIS={
+    brute:        {acte:1, etoiles:1, maxPoche:1},
+    shieldbearer: {acte:1, etoiles:2, maxPoche:1},
+    relay:        {acte:1, etoiles:4, maxPoche:1},
+  };
+  const seuilEnnemi=k=>{ const r=REGLES_ENNEMIS[k]; return r?rangDiff(r.acte,r.etoiles):1; };
+  const maxParPoche=k=>{ const r=REGLES_ENNEMIS[k]; return (r&&r.maxPoche)||99; };
+  // La réserve se DÉDUIT des classes marquées « ennemi seulement » au lieu d'être recopiée à côté :
+  // il n'y a plus deux listes à tenir d'accord quand on ajoute un ennemi.
+  const ENEMY_POOL=Object.keys(CLASSES).filter(k=>CLASSES[k].enemyOnly);
+  // classes réellement autorisées ici : la réserve cochée, filtrée par le rang de la région
+  function classesPourMission(cochees){
+    const rang=rangDiff(CTX_MISSION.acte,CTX_MISSION.etoiles);
+    const base=(cochees&&cochees.length)?cochees:ENEMY_POOL;
+    const ok=base.filter(k=>CLASSES[k]&&seuilEnnemi(k)<=rang);
+    return ok.length?ok:base;   // jamais vide : une carte sans ennemi n'est pas une carte
+  }
+  // tirage qui respecte le plafond par poche : on écarte les classes déjà au complet
+  function tirerPourPoche(dispo,dejaDansLaPoche,poids,pi,j){
+    const libres=dispo.filter(k=>(dejaDansLaPoche[k]||0)<maxParPoche(k));
+    const src=libres.length?libres:dispo;   // plafonds tous atteints : on relâche plutôt que de laisser un trou
+    let k=null;
+    if(poids){ const w={}; for(const c of src)if(poids[c]>0)w[c]=poids[c]; k=weightedPick(w); }
+    if(!k)k=src[(pi+j)%src.length];
+    dejaDansLaPoche[k]=(dejaDansLaPoche[k]||0)+1; return k;
+  }
   { const box=document.getElementById("gen-eclasses"); if(box){ box.innerHTML=ENEMY_POOL.map(k=>`<label style="font-size:.82rem;display:inline-flex;align-items:center;gap:3px"><input type="checkbox" data-ecls="${k}"${["archer","emage","brute","shieldbearer"].includes(k)?" checked":""}>${(CLASSES[k]&&CLASSES[k].name)||k}</label>`).join(""); } }
   function chosenEnemyClasses(){ const box=document.getElementById("gen-eclasses"); if(!box)return null; const sel=[...box.querySelectorAll("input[data-ecls]:checked")].map(c=>c.dataset.ecls).filter(k=>CLASSES[k]); return sel.length?sel:null; }
   // composition weights of the anchor pods (per mission)
@@ -3636,7 +3679,13 @@
         if(best==null||Math.min(...podAnchors.map(a=>hops(a,best)))<2)break;   // avoids clumping
         podAnchors.push(best); } }
     if(!podAnchors.length&&far.length)podAnchors.push(far[0]);
-    const ecls=P.enemyClasses||(typeof chosenEnemyClasses==="function"&&chosenEnemyClasses())||["shieldbearer","archer","brute"], occSet=new Set(units.map(u=>u.cell));
+    // Les missions GÉNÉRÉES ignoraient les poids par classe : elles tournaient en rotation pure,
+    // donc le réglage « biosphère majoritairement à distance » ne s'appliquait qu'aux cartes
+    // écrites à la main — c'est-à-dire presque jamais. Elles suivent la même règle désormais.
+    const ecls=classesPourMission(P.enemyClasses||(typeof chosenEnemyClasses==="function"&&chosenEnemyClasses())||null);
+    const Wg=P.enemyWeights||(typeof missionEWeights==="function"&&missionEWeights())||null;
+    const hasWg=Wg&&Object.keys(Wg).some(k=>Wg[k]>0);
+    const occSet=new Set(units.map(u=>u.cell));
     // TARGET ENEMY COUNT = the real difficulty dial (the sim shows the total dominates the pod count).
     // Distribute it deterministically across the pods (low variance) instead of random sizes.
     const genEn=document.getElementById("gen-enemies"); const enFromDom=genEn&&genEn.value!==""?+genEn.value:null;
@@ -3653,7 +3702,8 @@
       for(const id of pool){ if(chosen.length>=n)break; if(!chosen.includes(id))chosen.push(id); }
       // the leader (awake) = the most open tile, so it can always engage
       chosen.sort((a,b)=>cells[b].nb.filter(x=>passable(x)).length-cells[a].nb.filter(x=>passable(x)).length);
-      chosen.forEach((id,j)=>{ units.push(U("enemy",ecls[(pi+j)%ecls.length],id,{pod:pi,asleep:j>0})); occSet.add(id); }); });
+      const deja={};
+      chosen.forEach((id,j)=>{ units.push(U("enemy",tirerPourPoche(ecls,deja,hasWg?Wg:null,pi,j),id,{pod:pi,asleep:j>0})); occSet.add(id); }); });
     // CONTRAINTE DE DÉPART : aucun ennemi ne doit être visible par l'escouade au début du tour 1.
     // La visibilité du joueur = distance <= 8 ET ligne de vue ; le filtre de placement ne testait
     // qu'une seule cellule de déploiement et ignorait la portée. On déplace les fautifs.
@@ -5282,15 +5332,16 @@
   // populates the enemy pods around the anchors (on each game launch): a normal group (all awake)
   function spawnAnchorPods(){ const anchors=cells.filter(c=>c.podAnchor).map(c=>({cell:c.id,sleep:c.podAnchor==="asleep"})); if(!anchors.length)return;
     const W=(curMission&&curMission.enemyWeights)||null; const hasW=W&&Object.keys(W).some(k=>W[k]>0);   // per-mission weights?
-    const ecls=(typeof chosenEnemyClasses==="function"&&chosenEnemyClasses())||["shieldbearer","archer","brute"];   // otherwise fallback: checked pool, cycling
-    const pick=(pi,j)=>(hasW?(weightedPick(W)||ecls[(pi+j)%ecls.length]):ecls[(pi+j)%ecls.length]);
+    const ecls=classesPourMission((typeof chosenEnemyClasses==="function"&&chosenEnemyClasses())||null);
     const per=Math.max(1,(curMission&&curMission.podSize)||2); const occSet=new Set(units.map(u=>u.cell));
     anchors.forEach((a,pi)=>{ const anc=a.cell; if(!cells[anc])return; const ball=bfsBall(anc,2);
       const pool=Object.keys(ball).map(Number).filter(id=>passable(id)&&!occSet.has(id)).sort((x,y)=>ball[x]-ball[y]);
       const chosen=[]; for(const id of pool){ if(chosen.length>=per)break; if(chosen.every(c=>hops(c,id)>=2))chosen.push(id); }
       for(const id of pool){ if(chosen.length>=per)break; if(!chosen.includes(id))chosen.push(id); }
-      chosen.forEach((id,j)=>{ const u=U("enemy",pick(pi,j),id,{pod:pi,asleep:a.sleep}); u.fromAnchor=true; units.push(u); occSet.add(id); }); }); }
+      const deja={};
+      chosen.forEach((id,j)=>{ const u=U("enemy",tirerPourPoche(ecls,deja,hasW?W:null,pi,j),id,{pod:pi,asleep:a.sleep}); u.fromAnchor=true; units.push(u); occSet.add(id); }); }); }
   function startGame(){ resetView(); { const t=document.getElementById("title"); if(t)t.style.display="none"; }   // a game starts: remove the title screen
+    if(!geoPlay||!geoPlay.inMission)CTX_MISSION={acte:1,etoiles:3};   // partie libre / éditeur : milieu d'acte 1
     if(cells.some(c=>c.podAnchor)){ units=units.filter(u=>!u.fromAnchor); spawnAnchorPods(); }   // (re)generates the anchor pods on each (re)launch
     if(!units.some(u=>u.team==="player")||!units.some(u=>u.team==="enemy")){ setMsg("Place at least 1 ally and 1 enemy (Edit mode)."); }
     havres=[]; solstice=null; geosVues=new Set(); units=units.filter(u=>!u.esprit&&!u.factice);
@@ -5940,6 +5991,9 @@
       if(!t){ geoBanner("mission not found: "+ref); return; }
       try{ m=JSON.parse(t); }catch(e){ geoBanner("unreadable mission"); return; } }
     const etoiles=Math.max(1,Math.min(6,(cel&&cel.gdiff)||3));
+    // LE CONTEXTE STRATÉGIQUE DESCEND DANS LA MISSION. L'acte vient du geoscape généré, les
+    // étoiles de la région : c'est ce couple qui décide quels ennemis ont le droit de sortir.
+    CTX_MISSION={acte:(geoPlay&&geoPlay.map&&geoPlay.map.act)||1, etoiles};
     const slots=gen?(etoiles<=2?3:4):((m.units||[]).filter(u=>u.team==="player").length||1);
     const regionName=(cel&&cel.gname)||"Mission";
     showSquadSelect(slots, regionName, (chosen)=>{ if(!chosen){ geoBanner("departure cancelled"); return; }   // Cancel = stay at camp
