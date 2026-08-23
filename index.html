@@ -606,14 +606,14 @@
     // Ils ont la MÊME technologie que toi, en version récupérée et remontée : l'écart n'est pas
     // civilisationnel mais LOGISTIQUE (tu as l'usine et les pièces neuves, ils ont la casse et le bricolage).
     // `name` = la désignation du Consortium (vocabulaire d'inventaire) ; `trueName` = leur propre nom.
-    archer:{name:"Irregular",trueName:"Hunter",hp:6,mob:6,enemyOnly:true,wname:"salvaged rifle",w:{ranged:bow(70,3,4,9)}},   // fusil de récup, une génération derrière le tien — portée 9 quand même
-    brute:{name:"Brute",trueName:"Defender",hp:13,mob:8,enemyOnly:true,wname:"breaker arm",w:{melee:sword(70,5,7)}},   // bras hydraulique de minage détourné en arme : il te démonte avec TON matériel
-    shieldbearer:{name:"Barricade",trueName:"Warden",hp:12,mob:6,shieldBlock:45,enemyOnly:true,abil:["shove","charge"],wname:"hull plate",w:{melee:sword(60,3,5)}},   // plaque de coque découpée dans une navette abattue : encaisse ~45% des tirs de face/flanc
+    archer:{name:"Irregular",trueName:"Hunter",hp:6,mob:6,enemyOnly:true,wname:"salvaged rifle",w:{ranged:bow(70,3,4,7,3)}},   // fusil de récup, une génération derrière le tien — portée 9 quand même
+    brute:{name:"Brute",trueName:"Defender",hp:13,mob:8,enemyOnly:true,abil:["opportunist"],wname:"breaker arm",w:{melee:sword(70,5,7)}},   // bras hydraulique de minage détourné en arme : il te démonte avec TON matériel
+    shieldbearer:{name:"Barricade",trueName:"Warden",hp:12,mob:6,shieldBlock:45,enemyOnly:true,abil:["shove","charge"],wname:"hull plate",w:{ranged:bow(60,3,5,7),melee:sword(60,3,5)}},   // plaque de coque découpée dans une navette abattue : encaisse ~45% des tirs de face/flanc
     bastard:{name:"Bastard",trueName:"Keeper",hp:7,mob:7,enemyOnly:true,abil:["blast","frost"],wname:"jury-rigged siphon",w:{ranged:bow(70,4,6,7,3),melee:sword(45,2,3)}},   // le chamane du futur : MÊME métier que ton Siphoner, siphon remonté à la main. Le Consortium ne lui reproche pas d'être arriéré — il lui reproche de ne pas avoir de licence
     // ===== LA CONTREPARTIE (rival) — l'autre puissance venue prendre le monde ; l'alibi moral du Consortium =====
     // Volontairement MAL CONNUE : désignations administratives, pas de noms propres. Absente par défaut
     // des missions générées (poids 0) → elle n'apparaît que quand la campagne la convoque.
-    touched:{name:"Touched",hp:10,mob:8,shieldBlock:25,enemyOnly:true,wname:"issued rifle",w:{ranged:bow(74,4,6,8,4),melee:sword(68,3,5)}},   // miroir de ton Enforcer : même métier, autre drapeau
+    touched:{name:"Touched",hp:10,mob:8,shieldBlock:25,enemyOnly:true,abil:["firecloud","cold","coldarmor"],wname:"fire bolt",w:{ranged:{type:"ranged",aim:100,dmgMin:4,dmgMax:4,range:8}}},   // miroir de ton Enforcer : même métier, autre drapeau
     // ===== CONTACT (ennemi final) — les visiteurs. Le twist : ce sont eux, "les gentils" =====
     // ===== POPULATION LOCALE (civils) =====
     homme:{name:"Man",hp:6,mob:6,civ:true,wname:"bare hands",w:{melee:{type:"melee",aim:40,dmgMin:1,dmgMax:2,bare:true}}},
@@ -1614,7 +1614,7 @@
     emit("newgeo",{geo:c.geo,forme:c.geo,zone:c.zone||"",cell:id}); } }
 
   // ===== distance / range / movement =====
-  const mobOf=u=>MOB+(u.mobBonus||0);   // mobility per unit (perks)
+  const mobOf=u=>Math.max(1,MOB+(u.mobBonus||0)-(u.mobTemp||0));   // mobility per unit (perks, moins le gel du tour)
   const freeMpOf=u=>FREE_MP+(u.freeMpBonus||0);   // free movement per unit ("Reach" perk)
   function budget(u){return (u.freeAvail?freeMpOf(u):0)+u.ap*mobOf(u);}
   function apForMove(u,cost){return Math.max(0,Math.ceil((cost-(u.freeAvail?freeMpOf(u):0))/mobOf(u)));}
@@ -1782,6 +1782,7 @@
     u.ap-=apForMove(u,cost); if(u.ap<0)u.ap=0; u.freeAvail=false; u.aBouge=true; const visited=[u.cell];
     for(let k=1;k<path.length;k++){ u.facing=ang(u.cell,path[k]); u.cell=path[k]; visited.push(path[k]);
       { const zc=cells[u.cell]; if(zc&&zc.zone&&u.team==="player")emit("enter",{zone:zc.zone,actorName:u.name,actorCls:u.cls,actorTeam:u.team}); }   // zone entry: only for an ally
+      if(opportunite(u,path[k-1])){startAnim(u,visited);return;}   // sortir de la portée d'une Brute coûte un coup
       if(reactTo(u)){startAnim(u,visited);return;} if(over){startAnim(u,visited);return;} }
     startAnim(u,visited); }
   // FRANCHISSEMENT. Le déplacement défilait à vitesse constante : enjamber un muret, escalader une
@@ -1891,6 +1892,11 @@
     cusser:{icon:"💥",label:"Cusser — reinforced grenade (+2 damage, +2 range)",target:"cell"},
     raisewall:{icon:"🧱",label:"Raise wall — builds up to two wall segments",target:"cell"},
     removewall:{icon:"🕳",label:"Remove wall — takes down one wall segment",target:"cell"},
+    // ===== ennemis =====
+    opportunist:{icon:"⚡🗡",label:"Opportunist — strikes anyone who leaves its reach",target:"self"},
+    firecloud:{icon:"☁🔥",label:"Fire cloud — area (radius 3), 4 damage",target:"cell"},
+    cold:{icon:"🧊",label:"Cold — 3 damage and −2 movement",target:"enemy"},
+    coldarmor:{icon:"🧊🛡",label:"Cold armor — a barrier for an ally (−1 damage taken)",target:"ally"},
     // ===== voie Officier =====
     decide:{icon:"🎯💀",label:"Decide — marks an enemy: +30% damage taken, for 2 turns",target:"enemy"},
     warcry:{icon:"📢",label:"Warcry — allies within 5: +10 aim, +1 damage, −1 damage taken",target:"self"},
@@ -1925,7 +1931,8 @@
     buttstroke:0,spray:3,rungun:3,precshot:0,surehit:4,burst:3,boomshell:2,
     smoker:1,cusser:1,raisewall:2,removewall:4, stab:0,lure:1,fear:4,bait:5,
     lifefire:4,hammer:3,evade:2,teleport:3,rayoflight:3,unwall:3,wave:5,spirit:5,replenish:0,haven:0,requiem:5,solstice:5,biscuit:0,
-    warcry:4,inspire:2,insult:4,exfil:0,bruise:3,decide:3, fuckit:3};
+    warcry:4,inspire:2,insult:4,exfil:0,bruise:3,decide:3, fuckit:3,
+    opportunist:0,firecloud:3,cold:2,coldarmor:3};
   let CD_MULT=1;   // global cooldown multiplier (balancing panel)
   const onCd=(u,id)=>!!(u&&u.cd&&u.cd[id]>0);
   // règle effective d'une capacité pour CETTE unité : celle de son perk si elle en a une, sinon
@@ -2387,6 +2394,52 @@
   function reactBloodlust(u){ if(!u.bloodlust)return; u.ap=Math.min(AP_MAX,u.ap+1);
     log(`   🩸 ${u.name}: blood calls (+1 AP)`,"player"); }
 
+  // ===== capacités d'ennemis =====
+  // TOUCHED : un mage d'en face. Son trait de feu ne rate jamais (visée 100), et ses trois
+  // capacités reprennent les briques du Mage joueur — zone, ralentissement, protection d'un allié.
+  const FIRECLOUD_R=3, FIRECLOUD_DMG=4, COLD_DMG=3, COLD_MOB=2, COLDARMOR_DR=1;
+  function execFireCloud(u,id){ if(!abilDispo(u,"firecloud"))return false;
+    if(hops(u.cell,id)>MAG_RANGE||!los(u.cell,id)){setMsg("Fire cloud: out of range.");return false;}
+    const cib=units.filter(e=>e.hp>0&&hostile(u,e)&&hops(id,e.cell)<=FIRECLOUD_R);
+    if(!cib.length)return false;
+    payerAbil(u,"firecloud"); u.ap=0;
+    for(const e of cib){ const d=FIRECLOUD_DMG; e.hp=Math.max(0,e.hp-d); pushDmg(e.cell,d,e.team);
+      if(e.team==="player")e.dmgTaken=(e.dmgTaken||0)+d;
+      if(e.hp<=0&&u.team==="player")u.kills=(u.kills||0)+1; }
+    pushBlast(id,FIRECLOUD_R); screenShake(5);
+    log(`${u.team==="player"?"▲":"▼"} ${u.name}: fire cloud (${cib.length})`,u.team); checkEnd(); if(!over)refresh(); return true; }
+
+  function execCold(u,tgt){ if(!abilDispo(u,"cold"))return false;
+    if(!tgt||!hostile(u,tgt)||tgt.hp<=0)return false;
+    if(hops(u.cell,tgt.cell)>MAG_RANGE||!los(u.cell,tgt.cell)){setMsg("Cold: out of range.");return false;}
+    payerAbil(u,"cold"); u.ap=0;
+    tgt.hp=Math.max(0,tgt.hp-COLD_DMG); pushDmg(tgt.cell,COLD_DMG,tgt.team); pushFrost(tgt.cell);
+    if(tgt.team==="player")tgt.dmgTaken=(tgt.dmgTaken||0)+COLD_DMG;
+    // −2 de déplacement pour le tour : le gel mord sur la mobilité, pas sur les PA
+    tgt.mobTemp=(tgt.mobTemp||0)+COLD_MOB;
+    log(`${u.team==="player"?"▲":"▼"} ${u.name} chills ${tgt.name} (−${COLD_MOB} movement)`,u.team);
+    checkEnd(); if(!over)refresh(); return true; }
+
+  function execColdArmor(u,a){ if(!abilDispo(u,"coldarmor"))return false;
+    if(!a||a.team!==u.team||a.hp<=0||a.factice)return false;
+    if(hops(u.cell,a.cell)>MAG_RANGE||!los(u.cell,a.cell))return false;
+    if(a.drTemp)return false;   // déjà couvert : on ne cumule pas les barrières
+    payerAbil(u,"coldarmor"); a.drTemp=(a.drTemp||0)+COLDARMOR_DR; a.dr=(a.dr||0)+COLDARMOR_DR;
+    pushFrost(a.cell); log(`${u.team==="player"?"▲":"▼"} ${u.name} shields ${a.name} (−${COLDARMOR_DR} damage taken)`,u.team);
+    refresh(); return true; }
+
+  // BRUTE : attaque d'opportunité. Ce n'est pas une action mais une RÉACTION — quitter sa portée
+  // coûte un coup. Le moteur avait déjà la vigilance (overwatch) : c'en est la version passive,
+  // qui ne se prépare pas et ne s'épuise qu'une fois par tour.
+  function opportunite(mover,avant){ if(mover.hp<=0)return false;
+    for(const e of units){ if(e.hp<=0||!hostile(e,mover)||e.oppUsed)continue;
+      if(!(e.abil&&e.abil.includes("opportunist")))continue;
+      if(!adjacent(avant,e.cell)||adjacent(mover.cell,e.cell))continue;   // il SORT de la portée
+      if(e.asleep||!e.w.melee)continue;
+      e.oppUsed=true; log(`▼ ${e.name} strikes as ${mover.name} slips away`,"enemy");
+      doAttack(e,mover,"melee",true); if(mover.hp<=0||over)return true; }
+    return false; }
+
   // ===== "shield" abilities: shove + long charge =====
   const CHARGE_RANGE=7;   // max range (hops) of the charge
   // tile "behind" the target, in line with the blow (direction u -> target)
@@ -2420,13 +2473,13 @@
   const EXEC_CELL={smoke:execSmoke,breach:execBreach,blast:execBlast,spray:execSpray,
     smoker:execSmoker,cusser:execCusser,raisewall:execRaiseWall,removewall:execRemoveWall,
     lure:execLure,fear:execFear,bait:execBait,
-    lifefire:execLifeFire,hammer:execHammer,rayoflight:execRayOfLight,unwall:execUnwall,
+    lifefire:execLifeFire,hammer:execHammer,rayoflight:execRayOfLight,unwall:execUnwall,firecloud:execFireCloud,
     wave:execWave,spirit:execSpirit,haven:execHaven,requiem:execRequiem};
-  const EXEC_ALLY={heal:execHeal,rally:execRally,evade:execEvade,replenish:execReplenish,
+  const EXEC_ALLY={heal:execHeal,rally:execRally,evade:execEvade,replenish:execReplenish,coldarmor:execColdArmor,
     inspire:execInspire,insult:execInsult,exfil:execExfil,bruise:execBruise};
   const EXEC_ENEMY={frost:execFrost,shadowstrike:execShadow,shove:execShove,charge:execCharge,
     buttstroke:execButtstroke,precshot:execPrecShot,surehit:execSureHit,burst:execBurst,
-    boomshell:execBoomShell,stab:execStab,teleport:execTeleport,decide:execDecide};
+    boomshell:execBoomShell,stab:execStab,teleport:execTeleport,decide:execDecide,cold:execCold};
   function resolveAbilityClick(id){ const A=ABIL[ability]; if(!A||!sel)return; const tgt=uAt(id); let ok=false;
     if(A.target==="cell")ok=(EXEC_CELL[ability]||(()=>false))(sel,id);
     else if(A.target==="enemy")ok=(tgt&&hostile(sel,tgt)&&tgt.hp>0&&seen(tgt))?((EXEC_ENEMY[ability]||execShadow)(sel,tgt)):(setMsg("Choose a visible enemy."),false);
@@ -2591,6 +2644,21 @@
         let cnt=0; for(const q of units)if(hostile(e,q)&&q.hp>0&&hops(p.cell,q.cell)<=BLAST_RADIUS)cnt++; if(!best||cnt>best.cnt)best={cell:p.cell,cnt}; }
       if(best&&best.cnt>=2&&execBlast(e,best.cell))return true; }
     if(e.abil.includes("frost")&&!onCd(e,"frost")){ const t=bestEnemyTarget(e); if(t&&!t.slowed&&hops(e.cell,t.cell)<=FROST_RANGE&&los(e.cell,t.cell))execFrost(e,t); }
+    // TOUCHED. Même logique que le mage sauvage : la zone d'abord si elle prend du monde, sinon le
+    // gel sur une cible, sinon une barrière sur un camarade qui encaisse. Le trait de feu (visée
+    // 100) reste son attaque par défaut : ces capacités ne valent que si elles font mieux.
+    if(e.abil.includes("firecloud")&&abilDispo(e,"firecloud")){ let best=null;
+      for(const p of units){ if(!hostile(e,p)||p.hp<=0)continue; if(hops(e.cell,p.cell)>MAG_RANGE||!los(e.cell,p.cell))continue;
+        let cnt=0; for(const q of units)if(hostile(e,q)&&q.hp>0&&hops(p.cell,q.cell)<=FIRECLOUD_R)cnt++;
+        if(!best||cnt>best.cnt)best={cell:p.cell,cnt}; }
+      if(best&&best.cnt>=2&&execFireCloud(e,best.cell))return true; }
+    if(e.abil.includes("cold")&&abilDispo(e,"cold")){ const t=bestEnemyTarget(e);
+      // on gèle qui approche : ralentir un tireur posté ne sert à rien
+      if(t&&!t.mobTemp&&hops(e.cell,t.cell)<=MAG_RANGE&&los(e.cell,t.cell)&&execCold(e,t))return true; }
+    if(e.abil.includes("coldarmor")&&abilDispo(e,"coldarmor")){
+      const ami=units.filter(a=>a.team===e.team&&a.hp>0&&a!==e&&!a.drTemp&&hops(e.cell,a.cell)<=MAG_RANGE&&los(e.cell,a.cell))
+        .sort((a,b)=>(a.hp/a.max)-(b.hp/b.max))[0];
+      if(ami&&execColdArmor(e,ami))return true; }
     return false; }
   // enemy shieldbearer: long charge to engage, otherwise shove an entrenched player (cover/height)
   function enemyShieldAct(e,tgts){ if(!e.abil||e.ap<=0||!tgts.length)return false;
@@ -2635,10 +2703,10 @@
     // le havre tient jusqu'au prochain tour allié, le solstice compte les tours
     havres=havres.filter(h=>h.team!=="player"||--h.tours>=0);
     if(solstice&&--solstice.tours<=0)solstice=null;
-    turn="enemy";turnActions=0;sel=null;amode=null;aimTarget=null;for(const u of units)if(u.team==="enemy"){u.ap=u.slowed?Math.max(0,AP_MAX-1):AP_MAX;u.slowed=false;u.freeAvail=true;u.overwatch=false;u.reacted=false;u.bracing=false;u.aBouge=false;
+    turn="enemy";turnActions=0;sel=null;amode=null;aimTarget=null;for(const u of units)if(u.team==="enemy"){u.ap=u.slowed?Math.max(0,AP_MAX-1):AP_MAX;u.slowed=false;u.freeAvail=true;u.overwatch=false;u.reacted=false;u.bracing=false;u.aBouge=false;u.mobTemp=0;u.oppUsed=false;
     if(u.leurreTours>0){u.leurreTours--; if(u.leurreTours<=0&&u.facing0!=null){u.facing=u.facing0;u.facing0=null;} }   // le leurre s'épuise : la cible se retourne
     if(u.stunTours>0){u.ap=0;u.freeAvail=false;u.stunTours--;} else if(u.stunned){u.ap=0;u.freeAvail=false;u.stunned=false;}}banner("Enemy turn","enemy");refresh();const foes=units.filter(u=>u.team==="enemy"&&u.hp>0);let i=0;
-    (function step(){if(over)return;if(i>=foes.length){for(const u of units)if(u.team==="player"){u.ap=u.factice?0:AP_MAX;u.freeAvail=!u.factice;u.overwatch=false;u.reacted=false;u.bracing=false;u.taunt=false;u.hidden=!!u.faded;u.wallStance=false;u.aBouge=false;
+    (function step(){if(over)return;if(i>=foes.length){for(const u of units)if(u.team==="player"){u.ap=u.factice?0:AP_MAX;u.freeAvail=!u.factice;u.overwatch=false;u.reacted=false;u.bracing=false;u.taunt=false;u.hidden=!!u.faded;u.wallStance=false;u.aBouge=false;u.mobTemp=0;u.oppUsed=false;
       if(u.dodgeTemp){u.dodge=Math.max(0,(u.dodge||0)-u.dodgeTemp);u.dodgeTemp=0;}
       if(u.drTemp){u.dr=Math.max(0,(u.dr||0)-u.drTemp);u.drTemp=0;}
       u.dmgTemp=0;u.aimTemp=0;u.viseeForcee=null;u.runGun=false;
@@ -5354,7 +5422,7 @@
     if(!units.some(u=>u.team==="player")||!units.some(u=>u.team==="enemy")){ setMsg("Place at least 1 ally and 1 enemy (Edit mode)."); }
     havres=[]; solstice=null; geosVues=new Set(); units=units.filter(u=>!u.esprit&&!u.factice);
     for(const u of units){u.sorti=false;u.dmgTemp=0;u.drTemp=0;u.boostTours=0;u.boostDmg=0;u.boostDodge=0;}
-    for(const u of units){u.hp=u.max;u.ap=AP_MAX;u.freeAvail=true;u.overwatch=false;u.reacted=false;u.bracing=false;u.taunt=false;u.hidden=false;u.wallStance=false;u.vanishUsed=false;u.slowed=false;u.stunned=false;u.stunTours=0;u.leurreTours=0;u.designeTours=0;u.brule=0;u.dodgeTemp=0;u.espritTours=0;u.facing0=null;u.aBouge=false;u.aimTemp=0;u.viseeForcee=null;u.spellsCast=0;u.cd={};
+    for(const u of units){u.hp=u.max;u.ap=AP_MAX;u.freeAvail=true;u.overwatch=false;u.reacted=false;u.bracing=false;u.taunt=false;u.hidden=false;u.wallStance=false;u.vanishUsed=false;u.slowed=false;u.stunned=false;u.stunTours=0;u.leurreTours=0;u.designeTours=0;u.brule=0;u.mobTemp=0;u.oppUsed=false;u.dodgeTemp=0;u.espritTours=0;u.facing0=null;u.aBouge=false;u.aimTemp=0;u.viseeForcee=null;u.spellsCast=0;u.cd={};
       // les charges se rechargent d'une MISSION à l'autre, jamais pendant : on repart du stock du perk
       if(u.abilRule){ u.charges={}; for(const k in u.abilRule)if(u.abilRule[k].charges)u.charges[k]=u.abilRule[k].charges; }u.dmgTaken=0;u.asleep=!!u._asleep0;if(u.clip!==undefined)u.ammo=u.clip;if(u.freeReload0!==undefined)u.freeReload=u.freeReload0;if(u.crackers!==undefined)u.crackers=(u.crackers0!==undefined?u.crackers0:CLASSES[u.cls].crackers);} smoke=new Map();ability=null; _podCenters=null; turn="player";over=false;sel=null;amode=null;aimTarget=null;throwing=false;usingItem=false;inv={potion:campRun?(campRun.potions||0):0};
     fired=new Set(); podAlerted=new Set(); neutralSeen=new Set(); typesVus=new Set(campRun&&campRun.typesSeen?campRun.typesSeen:[]); geosVues=new Set(campRun&&campRun.geosSeen?campRun.geosSeen:[]); lastSeen=new Map(); turnNum=1; turnActions=0; lastOutcome=null; speechQ=[]; speaking=false; if(speechT){clearTimeout(speechT);speechT=null;} document.getElementById("combatline").style.display="none";
