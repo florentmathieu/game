@@ -65,7 +65,8 @@ function loadMesh(htmlPath){
     abilDispo, regleAbil, chargesRestantes, tourDesEsprits, tickBrulures, tickBoosts,
     corruptLevel, distortTerrain, polyCentroid,
     get infl(){return infl}, setInfl(v){ infl=v; ROWS=infl.length; COLS=(infl[0]&&infl[0].length)||COLS; W=COLS*MC; H=ROWS*MC; },
-    get wallSeg(){return wallSeg},
+    get wallSeg(){return wallSeg}, get murs(){return murs}, get portes(){return portes},
+    murBetween, enterCost,
     setDist(p){ distEl.value=String(p); }, setDens(g){ dens.value=String(g); },
     get MC(){return MC},
     // contexte stratégique de la mission (acte + étoiles) : sans lui le banc d'essai tire
