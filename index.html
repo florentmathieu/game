@@ -607,8 +607,8 @@
     // civilisationnel mais LOGISTIQUE (tu as l'usine et les pièces neuves, ils ont la casse et le bricolage).
     // `name` = la désignation du Consortium (vocabulaire d'inventaire) ; `trueName` = leur propre nom.
     archer:{name:"Irregular",trueName:"Hunter",hp:6,mob:6,enemyOnly:true,wname:"salvaged rifle",w:{ranged:bow(70,3,4,7,3)}},   // fusil de récup, une génération derrière le tien — portée 9 quand même
-    brute:{name:"Brute",trueName:"Defender",hp:13,mob:8,enemyOnly:true,abil:["opportunist"],wname:"breaker arm",w:{melee:sword(70,5,7)}},   // bras hydraulique de minage détourné en arme : il te démonte avec TON matériel
-    shieldbearer:{name:"Barricade",trueName:"Warden",hp:12,mob:6,shieldBlock:45,enemyOnly:true,abil:["shove","charge"],wname:"hull plate",w:{ranged:bow(60,3,5,7),melee:sword(60,3,5)}},   // plaque de coque découpée dans une navette abattue : encaisse ~45% des tirs de face/flanc
+    brute:{name:"Brute",trueName:"Defender",hp:11,mob:8,enemyOnly:true,abil:["opportunist"],wname:"breaker arm",w:{melee:sword(70,5,7)}},   // bras hydraulique de minage détourné en arme : il te démonte avec TON matériel
+    shieldbearer:{name:"Barricade",trueName:"Warden",hp:10,mob:6,shieldBlock:35,enemyOnly:true,abil:["shove","charge"],wname:"hull plate",w:{ranged:bow(60,3,5,7),melee:sword(60,3,5)}},   // plaque de coque découpée dans une navette abattue : encaisse ~45% des tirs de face/flanc
     bastard:{name:"Bastard",trueName:"Keeper",hp:7,mob:7,enemyOnly:true,abil:["blast","frost"],wname:"jury-rigged siphon",w:{ranged:bow(70,4,6,7,3),melee:sword(45,2,3)}},   // le chamane du futur : MÊME métier que ton Siphoner, siphon remonté à la main. Le Consortium ne lui reproche pas d'être arriéré — il lui reproche de ne pas avoir de licence
     // ===== LA CONTREPARTIE (rival) — l'autre puissance venue prendre le monde ; l'alibi moral du Consortium =====
     // Volontairement MAL CONNUE : désignations administratives, pas de noms propres. Absente par défaut
@@ -1661,7 +1661,7 @@
     const A=cells[a],B=cells[b]; if(!A||!B||!A.nb||!A.nb.length)return false;   // otherwise: close enough (≤ 1.6× the average distance to real neighbors)
     let sum=0; for(const n of A.nb)sum+=Math.hypot(cells[n].cx-A.cx,cells[n].cy-A.cy); const avg=sum/A.nb.length;
     return Math.hypot(B.cx-A.cx,B.cy-A.cy)<=avg*1.6; }
-  function inRange(att,tgt,m){const w=att.w[m];if(!w)return false;return w.type==="ranged"?(hops(att.cell,tgt.cell)<=((w.range||1)+(att.rangeBonus||0))&&los(att.cell,tgt.cell)):adjacent(att.cell,tgt.cell);}
+  function inRange(att,tgt,m){const w=att.w[m];if(!w)return false;if(!cells[att.cell]||!cells[tgt.cell])return false;return w.type==="ranged"?(hops(att.cell,tgt.cell)<=((w.range||1)+(att.rangeBonus||0))&&los(att.cell,tgt.cell)):adjacent(att.cell,tgt.cell);}
 
   // ===== combat =====
   function flankOf(att,tgt){const diff=Math.abs(norm(Math.atan2(cells[att.cell].cy-cells[tgt.cell].cy,cells[att.cell].cx-cells[tgt.cell].cx)-tgt.facing));return diff>2.2?"back":diff>1.0?"side":"front";}
@@ -1682,6 +1682,10 @@
   // « Run and gun » : la posture accorde UNE attaque même à zéro PA. Consommée au premier tir.
   const tirGratuitDispo=u=>!!(u&&u.runGun);
   function doAttack(att,tgt,m,reaction,opts){
+    // UN EXFILTRÉ N'EST PLUS SUR LA CARTE. Il n'a plus de case : ni cible, ni tireur. Le ciblage
+    // passe par surPlateau() partout, mais un déclencheur ou une IA peuvent viser une référence
+    // gardée avant l'extraction — on refuse ici plutôt que de lever sur cells[-1].
+    if(!att||!tgt||!cells[att.cell]||!cells[tgt.cell])return;
     if(!reaction&&att.ap<=0&&!att.freeAvail&&att.runGun&&!(opts&&opts.gratuit))att.runGun=false;
     if(!reaction&&tgt.team==="player"&&!tgt.protect){ const g=units.find(o=>o!==tgt&&o.team==="player"&&o.hp>0&&o.protect&&!o.reacted&&adjacent(o.cell,tgt.cell)); if(g){g.reacted=true;log(`🛡 ${g.name} protects ${tgt.name}`,"player");tgt=g;} }   // Protecting Shield: the guard steps in
     // TOUTE ATTAQUE TERMINE LE TOUR — sauf si on l'a explicitement payée autrement. C'est la règle
@@ -2591,7 +2595,7 @@
       d.onclick=()=>{ if(u.hp>0&&turn==="player"&&!over){ sel=u; amode=null;throwing=false;usingItem=false; refresh(); } };
       el.appendChild(d); }); }
   // hit chance that `att` (positioned at fromCell) would have on a target at tgtCell — used for offense AND threat
-  function shotFrom(fromCell,att,tgtCell,m){ const w=att.w&&att.w[m]; if(!w)return 0;
+  function shotFrom(fromCell,att,tgtCell,m){ if(!cells[fromCell]||!cells[tgtCell])return 0; const w=att.w&&att.w[m]; if(!w)return 0;
     if(w.type==="ranged"){ if(hops(fromCell,tgtCell)>(w.range||1)||!los(fromCell,tgtCell))return 0; } else if(hops(fromCell,tgtCell)>1)return 0;
     return chance({cell:fromCell,w:att.w,clip:att.clip,ammo:att.ammo,team:att.team},{cell:tgtCell},m); }
   function bestEnemyTarget(e){ let best=null,bk=-1e9; for(const p of units){ if(!hostile(e,p)||p.hp<=0||!inRange(e,p,e.wtype))continue; const k=shotFrom(e.cell,e,p.cell,e.wtype)*1000-p.hp+(p.taunt?100000:0); if(k>bk){bk=k;best=p;} } return best; }   // Taunt: strong priority on the taunter if in range

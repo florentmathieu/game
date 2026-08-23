@@ -51,6 +51,7 @@ function loadMesh(htmlPath){
     execLifeFire, execHammer, execEvade, execTeleport, execRayOfLight, execUnwall, execWave,
     execSpirit, execReplenish, execHaven, execRequiem, execSolstice, execBiscuit,
     execWarcry, execInspire, execInsult, execExfil, execBruise, execDecide, execFuckIt,
+    execFireCloud, execCold, execColdArmor, opportunite,
     abilDispo, regleAbil, chargesRestantes, tourDesEsprits, tickBrulures, tickBoosts,
     corruptLevel, distortTerrain, polyCentroid,
     get infl(){return infl}, setInfl(v){ infl=v; ROWS=infl.length; COLS=(infl[0]&&infl[0].length)||COLS; W=COLS*MC; H=ROWS*MC; },
