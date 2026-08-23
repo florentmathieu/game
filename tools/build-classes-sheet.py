@@ -63,6 +63,20 @@ EFF_LABEL = {'hp':'pv','dmg':'dégât','aim':'visée','range':'portée','mob':'d
              'shieldBlock':'blocage %','parry':'parade %','crackers':'grenade',
              'scatter':'précision de jet','freeMp':'déplacement gratuit'}
 
+# Une classe soumise a une VOIE ne pioche dans son arbre qu aux niveaux 1, 2, 3 et 5.
+NIV_VOIE   = [4, 6, 7]
+DISPENSEES = {'mage'}
+
+def turn_ending(p):
+    """Ce que le moteur sait aujourd hui d une paire : un perk a `mod` est passif, un perk a
+    `abil` est actif. Le cout exact vient des exec* et n est pas lisible ici : on laisse la
+    cellule a remplir plutot que d y ecrire une valeur inventee."""
+    if not p: return ''
+    return '' if p.get('abil') else ('N/A' if p.get('mod') else '')
+
+def cd_of(p):
+    return '' if not p else ('' if p.get('abil') else ('N/A' if p.get('mod') else ''))
+
 def perk_effect(p):
     if p.get('abil'): return p['abil']
     m = p.get('mod') or {}
@@ -155,25 +169,37 @@ def build_class_tab(key, tabname, data, perks, pitch=None, blank=False):
     n.font = MUTE; r += 2
 
     if CAMP.get(key) == 'joueur':
-        r = section(ws, r, "ARBRE DE COMPÉTENCES  —  7 grades, choix A ou B, irréversible")
-        r = colheads(ws, r, ["grade","A : nom","A : description","A : effet","B : nom","B : description","B : effet"])
-        for g in range(7):
+        # Sept niveaux, dont trois viennent de la VOIE (4, 6, 7) : une classe soumise à la voie ne
+        # choisit dans son arbre qu'aux niveaux 1, 2, 3 et 5 — quatre lignes, pas sept. Le mage,
+        # dispensé de voie, garde les sept. La colonne « grade » numérote les CHOIX, pas les niveaux.
+        niv = list(range(1,8)) if key in DISPENSEES else [l for l in range(1,8) if l not in NIV_VOIE]
+        r = section(ws, r, f"ARBRE DE COMPÉTENCES  —  {len(niv)} choix de classe, A ou B, irréversible",
+                    span=11)
+        r = colheads(ws, r, ["grade","A : nom","A : description","A : effet","A : turn-ending","A : Cooldown",
+                                     "B : nom","B : description","B : effet","B : turn-ending","B : Cooldown"])
+        for g,lvl in enumerate(niv):
             p = perks[g] if perks and g < len(perks) else None
             A = (p or {}).get('A') or {}; B = (p or {}).get('B') or {}
-            vals = [g+1, A.get('name',''), A.get('desc',''), perk_effect(A),
-                          B.get('name',''), B.get('desc',''), perk_effect(B)]
+            vals = [g+1, A.get('name',''), A.get('desc',''), perk_effect(A), turn_ending(A), cd_of(A),
+                          B.get('name',''), B.get('desc',''), perk_effect(B), turn_ending(B), cd_of(B)]
             for i,v in enumerate(vals,1):
                 c = ws.cell(r,i,v); c.font = BODY; c.border = BOX; c.alignment = WRAP
                 c.fill = FILL_LK if i==1 else FILL_IN
             ws.row_dimensions[r].height = 28
             r += 1
-        n = ws.cell(r,1,"Les 7 grades doivent être remplis : un grade vide bloque la montée du personnage à ce palier.")
+        n = ws.cell(r,1,f"Les {len(niv)} lignes doivent être remplies : une ligne vide bloque la montée "
+                        f"du personnage. « grade » = le RANG du choix — le rang {len(niv)} est le niveau {niv[-1]}."
+                        + ("" if key in DISPENSEES else f"  Les niveaux {', '.join(map(str,NIV_VOIE))} viennent de la voie (Officier / Vétéran), pas d'ici."))
+        n.font = MUTE
+        r += 1
+        n = ws.cell(r,1,"« turn-ending » : Yes = termine le tour · No (1AP) / No (0AP) = coût en PA · "
+                        "N/A = perk passif (rien à activer).   « Cooldown » : nombre de tours, 0 ou N/A si aucun.")
         n.font = MUTE
     else:
         n = ws.cell(r,1,"Classe ennemie : pas d'arbre de compétences (les perks ne concernent que les classes joueur).")
         n.font = MUTE
 
-    for col,wid in zip("ABCDEFGHI",[20,30,34,16,26,34,16,12,22]):
+    for col,wid in zip("ABCDEFGHIJK",[20,30,34,16,14,11,26,34,16,14,11]):
         ws.column_dimensions[col].width = wid
     ws.freeze_panes = 'A3'
     return ws
@@ -216,7 +242,9 @@ r += 1
 r = section(ws, r, "RÈGLES À CONNAÎTRE", span=4)
 for t in ["La colonne A (les intitulés) ne doit pas être renommée : c'est elle qui me permet de relire les onglets.",
           "La ligne « key » ne doit jamais changer : elle relie la classe à ses perks et aux sauvegardes existantes.",
-          "Une classe JOUEUR a besoin de 7 grades × (A et B). Une classe ENNEMIE n'a pas d'arbre.",
+          "Une classe JOUEUR à voie a besoin de 4 choix × (A et B) — les niveaux 4, 6 et 7 viennent de la voie. Le mage, dispensé, en a 7. Une classe ENNEMIE n'a pas d'arbre.",
+          "« turn-ending » : Yes = la capacité termine le tour · No (1AP) ou No (0AP) = son coût en PA · N/A = perk passif.",
+          "« Cooldown » : le nombre de tours avant réutilisation. 0 ou N/A = aucun.",
           "Tout effet ou capacité hors des listes ci-dessus est possible, mais demande du code : écris-le et marque À CODER.",
           "Portées de référence : équipe joueur 7 · Irregular 9 · Contact 10. La portée est le levier le plus expressif.",
           "Cellules jaunes = à remplir. Cellules grises = structure, ne pas toucher."]:
@@ -247,7 +275,7 @@ for key, tab, camp, etat, note in rows:
     ws.cell(r,6,note).font = MUTE
     for i in range(1,7): ws.cell(r,i).border = BOX; ws.cell(r,i).alignment = WRAP
     r += 1
-ws.cell(r+1,1,"« grades remplis » compte les noms de perk du côté A : il doit afficher 7 pour une classe joueur terminée.").font = MUTE
+ws.cell(r+1,1,"« grades remplis » compte les noms de perk du côté A : 4 pour une classe à voie (niveaux 1, 2, 3, 5), 7 pour le mage.").font = MUTE
 for col,wid in zip("ABCDEF",[16,18,12,34,22,34]): ws.column_dimensions[col].width = wid
 ws.freeze_panes = 'A5'
 

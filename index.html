@@ -644,33 +644,21 @@
   // paires priverait le mage de sa fin de progression.
   const PERKS={
     soldat:[ {A:{id:"se1a",name:"Rallying Cry",desc:"Restores 1 AP to an adjacent ally",abil:"rally"}, B:{id:"se1b",name:"Tenacious",desc:"+4 HP",mod:{hp:4}}},
-              {A:{id:"se2a",name:"Taunt",desc:"Enemies target you first",abil:"taunt"}, B:{id:"se2b",name:"Leader",desc:"+1 damage",mod:{dmg:1}}},
-              {A:{id:"se3a",name:"Hold the Line",desc:"Overwatch for adjacent allies",abil:"holdline"}, B:{id:"se3b",name:"Steel Guard",desc:"+15% block",mod:{shieldBlock:15}}},
-              {A:{id:"se4a",name:"Reach",desc:"+1 free movement point (no AP)",mod:{freeMp:1}}, B:{id:"se4b",name:"Veteran",desc:"+2 damage",mod:{dmg:2}}},
-              {A:{id:"se5a",name:"Standard-Bearer",desc:"+2 damage",mod:{dmg:2}}, B:{id:"se5b",name:"Unkillable",desc:"+6 HP",mod:{hp:6}}},
-              {A:{id:"se6a",name:"Weapon Master",desc:"+20 aim",mod:{aim:20}}, B:{id:"se6b",name:"Living Bastion",desc:"+20% block",mod:{shieldBlock:20}}},
-              {A:{id:"se7a",name:"War Hero",desc:"+3 damage",mod:{dmg:3}}, B:{id:"se7b",name:"Steel Colossus",desc:"+8 HP",mod:{hp:8}}} ],
+            {A:{id:"se2a",name:"Taunt",desc:"Enemies target you first",abil:"taunt"}, B:{id:"se2b",name:"Leader",desc:"+1 damage",mod:{dmg:1}}},
+            {A:{id:"se3a",name:"Hold the Line",desc:"Overwatch for adjacent allies",abil:"holdline"}, B:{id:"se3b",name:"Steel Guard",desc:"+15% block",mod:{shieldBlock:15}}},
+            {A:{id:"se5a",name:"Standard-Bearer",desc:"+2 damage",mod:{dmg:2}}, B:{id:"se5b",name:"Unkillable",desc:"+6 HP",mod:{hp:6}}} ],
     sapeur:[ {A:{id:"sa1a",name:"Smoke Bomb",desc:"Veils line of sight (area, 2 turns)",abil:"smoke"}, B:{id:"sa1b",name:"Lynx Eye",desc:"+10 aim",mod:{aim:10}}},
-             {A:{id:"sa2a",name:"Shaped Charge",desc:"Destroys a rock/low wall (opens a passage)",abil:"breach"}, B:{id:"sa2b",name:"Hardened",desc:"+3 HP",mod:{hp:3}}},
-             {A:{id:"sa3a",name:"Bombardier",desc:"More accurate cracker (less scatter)",mod:{scatter:1}}, B:{id:"sa3b",name:"Heavy Charge",desc:"+2 damage",mod:{dmg:2}}},
-             {A:{id:"sa4a",name:"Ammo",desc:"+1 cracker",mod:{crackers:1}}, B:{id:"sa4b",name:"Nimble",desc:"+1 movement",mod:{mob:1}}},
-             {A:{id:"sa5a",name:"Sharp Aim",desc:"+15 aim",mod:{aim:15}}, B:{id:"sa5b",name:"Endurance",desc:"+5 HP",mod:{hp:5}}},
-             {A:{id:"sa6a",name:"Demolisher",desc:"+3 damage",mod:{dmg:3}}, B:{id:"sa6b",name:"Elite Bombardier",desc:"+1 cracker",mod:{crackers:1}}},
-             {A:{id:"sa7a",name:"Rain of Fire",desc:"+1 cracker",mod:{crackers:1}}, B:{id:"sa7b",name:"Master Bombardier",desc:"+2 damage",mod:{dmg:2}}} ],
+            {A:{id:"sa2a",name:"Shaped Charge",desc:"Destroys a rock/low wall (opens a passage)",abil:"breach"}, B:{id:"sa2b",name:"Hardened",desc:"+3 HP",mod:{hp:3}}},
+            {A:{id:"sa3a",name:"Bombardier",desc:"More accurate cracker (less scatter)",mod:{scatter:1}}, B:{id:"sa3b",name:"Heavy Charge",desc:"+2 damage",mod:{dmg:2}}},
+            {A:{id:"sa5a",name:"Sharp Aim",desc:"+15 aim",mod:{aim:15}}, B:{id:"sa5b",name:"Endurance",desc:"+5 HP",mod:{hp:5}}} ],
     assassin:[ {A:{id:"as1a",name:"Shadow Strike",desc:"Leap to an enemy's flank/back + damage",abil:"shadowstrike"}, B:{id:"as1b",name:"Keen Blade",desc:"+2 damage",mod:{dmg:2}}},
-               {A:{id:"as2a",name:"Fade",desc:"Becomes undetectable again for a turn (1×/fight)",abil:"vanish"}, B:{id:"as2b",name:"Precision",desc:"+10 aim",mod:{aim:10}}},
-               {A:{id:"as3a",name:"Killer",desc:"+2 damage",mod:{dmg:2}}, B:{id:"as3b",name:"Elusive",desc:"+20% parry",mod:{parry:20}}},
-               {A:{id:"as4a",name:"Reach",desc:"+1 free movement point (no AP)",mod:{freeMp:1}}, B:{id:"as4b",name:"Hamstring",desc:"+2 damage",mod:{dmg:2}}},
-               {A:{id:"as5a",name:"Deadly Shadow",desc:"+3 damage",mod:{dmg:3}}, B:{id:"as5b",name:"Specter",desc:"+20% parry",mod:{parry:20}}},
-               {A:{id:"as6a",name:"Stalker",desc:"+1 free movement point (no AP)",mod:{freeMp:1}}, B:{id:"as6b",name:"Cutthroat",desc:"+20 aim",mod:{aim:20}}},
-               {A:{id:"as7a",name:"Dance of Blades",desc:"+3 damage",mod:{dmg:3}}, B:{id:"as7b",name:"Absolute Shadow",desc:"+25% parry",mod:{parry:25}}} ],
+              {A:{id:"as2a",name:"Fade",desc:"Becomes undetectable again for a turn (1×/fight)",abil:"vanish"}, B:{id:"as2b",name:"Precision",desc:"+10 aim",mod:{aim:10}}},
+              {A:{id:"as3a",name:"Killer",desc:"+2 damage",mod:{dmg:2}}, B:{id:"as3b",name:"Elusive",desc:"+20% parry",mod:{parry:20}}},
+              {A:{id:"as5a",name:"Deadly Shadow",desc:"+3 damage",mod:{dmg:3}}, B:{id:"as5b",name:"Specter",desc:"+20% parry",mod:{parry:20}}} ],
     garde:[ {A:{id:"ga1a",name:"Protecting Shield",desc:"Intercepts a blow aimed at an adjacent ally",abil:"protect"}, B:{id:"ga1b",name:"Robust",desc:"+4 HP",mod:{hp:4}}},
-            {A:{id:"ga2a",name:"Mobile Wall",desc:"Gives cover to adjacent allies",abil:"wall"}, B:{id:"ga2b",name:"Shove",desc:"Pushes the adjacent enemy back one tile (50% stunned)",abil:"shove"}},
-            {A:{id:"ga3a",name:"Stride",desc:"+1 movement",mod:{mob:1}}, B:{id:"ga3b",name:"Bastion",desc:"+5 HP",mod:{hp:5}}},
-            {A:{id:"ga4a",name:"Long Charge",desc:"Run then attack; impact scales with distance covered",abil:"charge"}, B:{id:"ga4b",name:"Rampart",desc:"+15% block",mod:{shieldBlock:15}}},
-            {A:{id:"ga5a",name:"Fortress",desc:"+6 HP",mod:{hp:6}}, B:{id:"ga5b",name:"Tower Shield",desc:"+20% block",mod:{shieldBlock:20}}},
-            {A:{id:"ga6a",name:"Unshakable",desc:"+8 HP",mod:{hp:8}}, B:{id:"ga6b",name:"Counter-Charge",desc:"+2 damage",mod:{dmg:2}}},
-            {A:{id:"ga7a",name:"Impassable Wall",desc:"+25% block",mod:{shieldBlock:25}}, B:{id:"ga7b",name:"Titan",desc:"+10 HP",mod:{hp:10}}} ],
+           {A:{id:"ga2a",name:"Mobile Wall",desc:"Gives cover to adjacent allies",abil:"wall"}, B:{id:"ga2b",name:"Shove",desc:"Pushes the adjacent enemy back one tile (50% stunned)",abil:"shove"}},
+           {A:{id:"ga3a",name:"Stride",desc:"+1 movement",mod:{mob:1}}, B:{id:"ga3b",name:"Bastion",desc:"+5 HP",mod:{hp:5}}},
+           {A:{id:"ga5a",name:"Fortress",desc:"+6 HP",mod:{hp:6}}, B:{id:"ga5b",name:"Tower Shield",desc:"+20% block",mod:{shieldBlock:20}}} ],
     brute:[ {A:{id:"br1a",name:"Colossus",desc:"+5 HP",mod:{hp:5}}, B:{id:"br1b",name:"Bruiser",desc:"+2 damage",mod:{dmg:2}}},
             {A:{id:"br2a",name:"Smash",desc:"+3 damage",mod:{dmg:3}}, B:{id:"br2b",name:"Stride",desc:"+1 movement",mod:{mob:1}}},
             {A:{id:"br3a",name:"Thick Hide",desc:"+6 HP",mod:{hp:6}}, B:{id:"br3b",name:"Carnage",desc:"+3 damage",mod:{dmg:3}}},
@@ -700,6 +688,7 @@
   // Les niveaux 4, 6 et 7 puisent dans la voie choisie ; les autres dans l'arbre de classe.
   // Contenu PROVISOIRE : à remplacer par les onglets « Officer » / « Vétéran » du Sheet (colonnes Niveau/Nom/Perk/Effet).
   const TRACK_LEVELS=[4,6,7];
+  const NIV_MAX=7;                  // nombre total de niveaux (4 de classe + 3 de voie)
   const TRACKS={ officer:{name:"Officer",desc:"Command: acts on the squad"},
                  veteran:{name:"Veteran",desc:"Craft: acts on oneself"} };
   const TRACK_PERKS={
@@ -725,13 +714,19 @@
   const TRACK_EXEMPT=new Set(["mage"]);
   const isTrackLevel=lvl=>TRACK_LEVELS.includes(lvl);
   const usesTrack=(m,lvl)=>isTrackLevel(lvl)&&!TRACK_EXEMPT.has(m.cls);
+  // L'arbre de classe est indexé par RANG DE CHOIX, pas par niveau. Une classe soumise à la voie
+  // ne pioche dedans qu'aux niveaux 1, 2, 3 et 5 : son arbre compte donc quatre paires, pas sept,
+  // et le niveau 5 lit la 4e. C'est aussi la numérotation du Sheet (« grade 1..4 »), ce qui permet
+  // à tools/import-classes.py de coller un arbre sans décalage. Rend 0 sur un niveau de voie.
+  const rangClasse=(m,lvl)=>{ if(usesTrack(m,lvl))return 0;
+    let r=0; for(let l=1;l<=lvl;l++)if(!usesTrack(m,l))r++; return r; };
   // point d'accès pour les tests et les outils d'équilibrage (tools/)
-  window.PROGRESSION={GRADES,XP_THRESH,PERKS,RANDOM_PERKS,TRACKS,TRACK_PERKS,TRACK_LEVELS,TRACK_EXEMPT,isTrackLevel,usesTrack,
+  window.PROGRESSION={GRADES,XP_THRESH,PERKS,RANDOM_PERKS,TRACKS,TRACK_PERKS,TRACK_LEVELS,TRACK_EXEMPT,isTrackLevel,usesTrack,rangClasse,
     gradeFromXp,perkPairFor:(m,l)=>perkPairFor(m,l)};
   // source des deux perks CONNUS pour un niveau donné (1-indexé) : la voie, sinon l'arbre de classe
   function perkPairFor(m,lvl){
     if(usesTrack(m,lvl)){ const t=m.track&&TRACK_PERKS[m.track]; return (t&&t[lvl])||null; }
-    return (PERKS[m.cls]||[])[lvl-1]||null;
+    return (PERKS[m.cls]||[])[rangClasse(m,lvl)-1]||null;
   }
   const randStatPerk=()=>RANDOM_PERKS[Math.floor(Math.random()*RANDOM_PERKS.length)];
   const perkById=(cls,id)=>{ for(const g of (PERKS[cls]||[])){ if(g.A.id===id)return g.A; if(g.B.id===id)return g.B; }
@@ -3829,8 +3824,10 @@
   function renderRosterEditor(){ const el=document.getElementById("rosterlist"); if(!el)return;
     el.innerHTML=campRoster.length?campRoster.map((m,i)=>{
       const tiers=PERKS[m.cls]||[]; const perks=Array.isArray(m.perks)?m.perks:[];
-      const perkSel=tiers.map((g,gi)=>{ const cur=perks.find(id=>id===g.A.id||id===g.B.id)||"";
-        return `<select data-rperk="${gi}" title="Grade ${gi+1} ability"><option value="">— grade ${gi+1} —</option><option value="${g.A.id}"${cur===g.A.id?" selected":""}>${esc(g.A.name)}</option><option value="${g.B.id}"${cur===g.B.id?" selected":""}>${esc(g.B.name)}</option></select>`; }).join("");
+      // l'arbre est indexé par RANG de choix : le rang 4 d'une classe à voie est le NIVEAU 5
+      const nivDeRang=r=>{ const f={cls:m.cls}; let n=0; for(let l=1;l<=NIV_MAX;l++){ if(usesTrack(f,l))continue; if(++n===r)return l; } return r; };
+      const perkSel=tiers.map((g,gi)=>{ const cur=perks.find(id=>id===g.A.id||id===g.B.id)||"", niv=nivDeRang(gi+1);
+        return `<select data-rperk="${gi}" title="Level ${niv} ability"><option value="">— level ${niv} —</option><option value="${g.A.id}"${cur===g.A.id?" selected":""}>${esc(g.A.name)}</option><option value="${g.B.id}"${cur===g.B.id?" selected":""}>${esc(g.B.name)}</option></select>`; }).join("");
       return `<div data-ri="${i}" style="border:1px solid #2c2f3a;border-radius:8px;padding:6px 8px;margin:4px 0">
         <div class="row" style="flex-wrap:wrap">
           <input data-rf="name" type="text" value="${esc(m.name||"")}" placeholder="name" style="flex:1;min-width:90px">
@@ -4328,7 +4325,7 @@
     for(const m of campRun.roster){ const reach=gradeFromXp(m.xp), have=(m.perks||[]).length;
       for(let g=have; g<reach; g++){ const lvl=g+1;
         if(isTrackLevel(lvl)) list.push({m,grade:g,lvl});                       // niveau de VOIE : la paire vient de la voie (choisie au niveau 4)
-        else if(PERKS[m.cls]&&PERKS[m.cls][g]) list.push({m,grade:g,lvl}); } }   // niveau de CLASSE
+        else if(PERKS[m.cls]&&PERKS[m.cls][rangClasse(m,lvl)-1]) list.push({m,grade:g,lvl}); } }   // niveau de CLASSE
     return list; }
   // CROSS-GAME persistence: keep the roster's progression (xp/perks), per campaign, in localStorage
   const SAVE_PREFIX="mgf_camp_save_";
@@ -5158,8 +5155,8 @@
   // camp : on relit ses décisions dans le décor où on les a prises.
   // LES NIVEAUX À VENIR SONT MASQUÉS. On voit combien il en reste, pas ce qu'ils contiennent : on
   // ne planifie pas sa montée, on la subit. Le tirage (colonne C) ne peut de toute façon pas être
-  // annoncé — il est tiré au moment de la promotion.
-  const NIV_MAX=7;
+  // annoncé — il est tiré au moment de la promotion. (NIV_MAX est déclaré avec les autres
+  // constantes de progression, plus haut : l'éditeur d'escouade s'en sert aussi.)
   function celPerk(pk,cls,tag){
     if(!pk)return `<div class="cel vide"></div>`;
     return `<div class="cel ${cls||""}">${tag?`<div class="tag">${esc(tag)}</div>`:""}`
