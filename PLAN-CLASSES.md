@@ -2,7 +2,9 @@
 
 _Ce que le classeur « Classes » demande au moteur, dans l'ordre où ça se construit. Lu par `tools/import-classes.py`, dont le rapport est la référence à jour ; ce document ne fait qu'en tirer un ordre de travail._
 
-**État du Sheet au 23 août 2026 :** Enforcer, Sapper et Stinger réécrits (nouvelles colonnes `turn-ending` et `Cooldown`), Siphoner encore à l'ancien format, Foreman et Contact **supprimés du classeur**.
+> **FAIT — 23 août 2026.** Les quatre classes joueur sont intégrées : Enforcer, Sapper, Stinger et Siphoner, soit trente-et-une capacités dont vingt-huit écrites pour l'occasion, plus leurs stats et leurs armes. Le Foreman et le Contact ont quitté le jeu. Ce qui suit est conservé comme trace du plan ; les questions ouvertes en bas ont toutes été tranchées.
+
+**État du Sheet au 23 août 2026 :** les quatre onglets joueur réécrits avec les colonnes `turn-ending` et `Cooldown`. Foreman et Contact supprimés du classeur — et donc du jeu, avec migration des cinquante unités qui les nommaient dans les missions écrites.
 
 ---
 
@@ -83,11 +85,11 @@ Le Sheet ne réécrit pas que les arbres. À intégrer en même temps, sinon les
 
 ---
 
-## À trancher avant de coder
+## Ce qui a été tranché
 
-- **Foreman et Contact n'ont plus d'onglet.** Classes abandonnées, ou onglets supprimés par accident ? Le moteur les connaît encore ; l'import les signale mais n'y touche pas.
-- **« 1 charge »** — une utilisation par mission, ou par campagne ?
-- **`Lure` dure « 5 secondes »** — dans un jeu au tour par tour, il faut un nombre de tours.
-- **`Spray with gunfire` demande « 2 charges »** — deux munitions du chargeur, ou un stock à part ?
-- **Le Stinger a deux lignes « arme 2 »** (épée et fusil léger). Un emplacement par arme, ou l'épée en arme 1 ?
-- **Les pitchs de Sapper et Stinger sont vides** ; ceux du moteur seront écrasés à l'import.
+- **Foreman et Contact** : abandon. Leurs unités sont migrées (Foreman ennemi → Barricade, Foreman joueur → Enforcer).
+- **« 1 charge »** : une utilisation **par mission**, rechargée entre deux missions.
+- **`Lure`** : n'agit que sur les ennemis qui ne t'ont pas vu ; aucun effet sur un éveillé. Un tour de flanc ouvert, puis la cible se retourne d'où elle regardait.
+- **`Spray with gunfire`** : deux munitions du chargeur.
+- **Les armes du Stinger** : épée en contact, fusil léger à distance.
+- **Les pitchs** : retirés partout, classeur compris.
