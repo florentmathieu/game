@@ -27,7 +27,6 @@ static func classes() -> Dictionary:
 		"soldat":   {"name":"Soldat", "hp":10,"mob":8,"shieldBlock":30, "w":{"melee":sword(75,4,6)}},
 		"sapeur":   {"name":"Sapeur", "hp":7, "mob":8,"crackers":1, "w":{"ranged":bow(65,3,4,6,1),"melee":sword(70,3,5),"cracker":{"type":"throw","dmg_min":5,"dmg_max":9,"range":6,"radius":2,"scatter":2}}},
 		"assassin": {"name":"Assassin","hp":7,"mob":8,"parry":35,"stealth":true, "w":{"melee":dagger(80,3,4,5,2)}},
-		"garde":    {"name":"Garde",  "hp":8, "mob":6,"shieldBlock":20, "w":{"melee":sword(65,3,4)}},
 		"archer":   {"name":"Archer", "hp":6, "mob":6, "w":{"ranged":bow(70,2,3,8)}},
 		"brute":    {"name":"Brute",  "hp":13,"mob":8, "w":{"melee":sword(70,5,7)}},
 		"shieldbearer":{"name":"Porteur de bouclier","hp":12,"mob":6,"shieldBlock":45,"enemyOnly":true,"abil":["shove","charge"],"w":{"melee":sword(60,3,5)}},
@@ -73,11 +72,6 @@ static func perks() -> Dictionary:
 			{"A":{"id":"as2a","name":"Estompe","abil":"vanish"}, "B":{"id":"as2b","name":"Précision","mod":{"aim":10}}},
 			{"A":{"id":"as3a","name":"Tueur","mod":{"dmg":2}}, "B":{"id":"as3b","name":"Insaisissable","mod":{"parry":20}}},
 			{"A":{"id":"as4a","name":"Allonge","mod":{"freeMp":1}}, "B":{"id":"as4b","name":"Coupe-jarret","mod":{"dmg":2}}}],
-		"garde": [
-			{"A":{"id":"ga1a","name":"Bouclier protecteur","abil":"protect"}, "B":{"id":"ga1b","name":"Robuste","mod":{"hp":4}}},
-			{"A":{"id":"ga2a","name":"Mur mobile","abil":"wall"}, "B":{"id":"ga2b","name":"Repousser","abil":"shove"}},
-			{"A":{"id":"ga3a","name":"Foulée","mod":{"mob":1}}, "B":{"id":"ga3b","name":"Bastion","mod":{"hp":5}}},
-			{"A":{"id":"ga4a","name":"Charge longue","abil":"charge"}, "B":{"id":"ga4b","name":"Rempart","mod":{"shieldBlock":15}}}],
 		"brute": [
 			{"A":{"id":"br1a","name":"Colosse","mod":{"hp":5}}, "B":{"id":"br1b","name":"Bourrin","mod":{"dmg":2}}},
 			{"A":{"id":"br2a","name":"Fracasse","mod":{"dmg":3}}, "B":{"id":"br2b","name":"Foulée","mod":{"mob":1}}},

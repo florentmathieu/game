@@ -1158,7 +1158,7 @@
    "facing": 1.0471975511965976
   },
   {
-   "cls": "garde",
+   "cls": "shieldbearer",
    "team": "enemy",
    "col": 15,
    "row": 11,
@@ -1182,7 +1182,7 @@
    "facing": 2.0943951023931953
   },
   {
-   "cls": "garde",
+   "cls": "shieldbearer",
    "team": "enemy",
    "col": 9,
    "row": 17,
@@ -1205,7 +1205,7 @@
    "pod": 0
   },
   {
-   "cls": "garde",
+   "cls": "shieldbearer",
    "team": "enemy",
    "col": 14,
    "row": 10,
@@ -1213,7 +1213,7 @@
    "facing": 2.0943951023931953
   },
   {
-   "cls": "garde",
+   "cls": "soldat",
    "team": "player",
    "col": 0,
    "row": 22,

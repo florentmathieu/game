@@ -21,7 +21,7 @@ func _initialize() -> void:
 	for n in mesh.cells[start].nb:
 		if mesh.passable(n) and mesh.los(start, n): tgt = n; break
 	# pose un ennemi sur la case visée
-	B._make_unit("enemy", "garde", tgt)
+	B._make_unit("enemy", "shieldbearer", tgt)
 	var foe = B.units[-1]; foe.hp = foe.max
 	sap.ap = B.AP_MAX
 	var hp0: int = foe.hp

@@ -23,7 +23,7 @@ const SPELL_FATIGUE := 6
 const STARTER := [
 	{"name":"Aldric", "cls":"soldat",   "special":true},
 	{"name":"Vesna",  "cls":"assassin", "special":false},
-	{"name":"Brom",   "cls":"garde",    "special":false},
+	{"name":"Brom",   "cls":"soldat",    "special":false},
 	{"name":"Lys",    "cls":"mage",     "special":false},
 	{"name":"Cael",   "cls":"archer",   "special":false},
 	{"name":"Doran",  "cls":"brute",    "special":false},

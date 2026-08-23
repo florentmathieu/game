@@ -279,7 +279,7 @@ func _spawn_authored(mp: Dictionary) -> void:
 	for ud in mp.get("units", []):
 		var team := String(ud.get("team", "enemy"))
 		if team == "player": player_cells.append(int(ud.get("cell", 0))); continue
-		_make_unit(team, String(ud.get("cls", "garde")), int(ud.get("cell", 0)))
+		_make_unit(team, String(ud.get("cls", "soldat")), int(ud.get("cell", 0)))
 		var u = units[-1]
 		if bool(ud.get("asleep", false)): u.asleep = true
 		if bool(ud.get("hvt", false)): u["hvt"] = true
@@ -457,7 +457,7 @@ func _deploy_squad() -> Array:
 			var dh: Dictionary = r.mem_deploy_hp(m, bool(mis.get("bonus", false)))
 			out.append({"cls":m.cls, "mem":{"name":m.name, "perks":r.member_perks(m), "maxHp":int(dh.max), "deployHp":int(dh.hp)}})
 		if not out.is_empty(): return out
-	return [{"cls":"soldat"}, {"cls":"assassin"}, {"cls":"garde"}, {"cls":"mage"}]
+	return [{"cls":"soldat"}, {"cls":"assassin"}, {"cls":"sapeur"}, {"cls":"mage"}]
 
 # rapport de fin (par nom) : PV, usure, kills, sorts, K.O. — consommé par Run.resolve_mission
 func build_report() -> Dictionary:
@@ -540,7 +540,7 @@ func _spawn_enemy_pods(pass_cells: Array, used: Dictionary) -> void:
 	var pn: int = max(1, anchors.size())
 	var sizes := []
 	for i in pn: sizes.append(int(n_enemies / pn) + (1 if i < n_enemies % pn else 0))
-	var epool := ["shieldbearer", "archer", "garde", "emage", "brute", "archer", "garde", "brute"]
+	var epool := ["shieldbearer", "archer", "shieldbearer", "emage", "brute", "archer", "shieldbearer", "brute"]
 	var ei := 0
 	for pi in anchors.size():
 		var anc: int = anchors[pi]

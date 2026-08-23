@@ -597,7 +597,6 @@
     soldat:{name:"Enforcer",hp:10,mob:8,shieldBlock:30,wname:"service rifle",w:{ranged:bow(72,3,5,7,4),melee:sword(70,3,5)}},   // "protection des actifs" : fusil d'ordonnance + plaque pare-balles
     sapeur:{name:"Blaster",hp:7,mob:8,crackers:1,wname:"charge launcher",w:{ranged:bow(68,3,5,7,3),melee:sword(65,2,4),cracker:{type:"throw",dmgMin:5,dmgMax:9,range:6,radius:2,scatter:2}}},   // artificier : charges de minage (= "crackers")
     assassin:{name:"Cleaner",hp:7,mob:8,parry:35,stealth:true,wname:"vibroblade",w:{melee:dagger(80,3,4,5,2)}},   // le "nettoyeur" : règle les incidents discrètement (seul rôle de contact du joueur)
-    garde:{name:"Foreman",hp:8,mob:6,shieldBlock:20,wname:"scatter gun",w:{ranged:bow(66,3,5,4,2),melee:sword(65,3,4)}},   // chef d'équipe : bouclier de chantier + fusil à dispersion (courte portée)
     mage:{name:"Siphoner",hp:6,mob:7,wname:"essence siphon",w:{ranged:bow(72,4,6,7,3),melee:sword(45,2,3)}},   // arcaniste du Consortium : tire l'essence RAFFINÉE extraite du monde (clip 3 = fioles) — sa magie est volée à ce qu'il détruit
     // ===== RÉSISTANCE LOCALE (ennemis ordinaires) — des gens modernes, pas des sauvages =====
     // Ils ont la MÊME technologie que toi, en version récupérée et remontée : l'écart n'est pas
@@ -612,7 +611,6 @@
     // des missions générées (poids 0) → elle n'apparaît que quand la campagne la convoque.
     rival:{name:"Counterparty",hp:10,mob:8,shieldBlock:25,enemyOnly:true,wname:"issued rifle",w:{ranged:bow(74,4,6,8,4),melee:sword(68,3,5)}},   // miroir de ton Enforcer : même métier, autre drapeau
     // ===== CONTACT (ennemi final) — les visiteurs. Le twist : ce sont eux, "les gentils" =====
-    contact:{name:"Contact",trueName:"Witness",hp:7,mob:10,enemyOnly:true,wname:"unlogged weapon",w:{ranged:bow(78,3,5,10,2)}},   // PORTÉE 10 : il te touche avant que tu ne puisses répondre. Il n'attaque jamais de civils — personne ne le remarque avant la fin
     // ===== POPULATION LOCALE (civils) =====
     homme:{name:"Man",hp:6,mob:6,civ:true,wname:"bare hands",w:{melee:{type:"melee",aim:40,dmgMin:1,dmgMax:2,bare:true}}},
     femme:{name:"Woman",hp:5,mob:6,civ:true,wname:"bare hands",w:{melee:{type:"melee",aim:40,dmgMin:1,dmgMax:2,bare:true}}},
@@ -655,10 +653,6 @@
               {A:{id:"as2a",name:"Fade",desc:"Becomes undetectable again for a turn (1×/fight)",abil:"vanish"}, B:{id:"as2b",name:"Precision",desc:"+10 aim",mod:{aim:10}}},
               {A:{id:"as3a",name:"Killer",desc:"+2 damage",mod:{dmg:2}}, B:{id:"as3b",name:"Elusive",desc:"+20% parry",mod:{parry:20}}},
               {A:{id:"as5a",name:"Deadly Shadow",desc:"+3 damage",mod:{dmg:3}}, B:{id:"as5b",name:"Specter",desc:"+20% parry",mod:{parry:20}}} ],
-    garde:[ {A:{id:"ga1a",name:"Protecting Shield",desc:"Intercepts a blow aimed at an adjacent ally",abil:"protect"}, B:{id:"ga1b",name:"Robust",desc:"+4 HP",mod:{hp:4}}},
-           {A:{id:"ga2a",name:"Mobile Wall",desc:"Gives cover to adjacent allies",abil:"wall"}, B:{id:"ga2b",name:"Shove",desc:"Pushes the adjacent enemy back one tile (50% stunned)",abil:"shove"}},
-           {A:{id:"ga3a",name:"Stride",desc:"+1 movement",mod:{mob:1}}, B:{id:"ga3b",name:"Bastion",desc:"+5 HP",mod:{hp:5}}},
-           {A:{id:"ga5a",name:"Fortress",desc:"+6 HP",mod:{hp:6}}, B:{id:"ga5b",name:"Tower Shield",desc:"+20% block",mod:{shieldBlock:20}}} ],
     brute:[ {A:{id:"br1a",name:"Colossus",desc:"+5 HP",mod:{hp:5}}, B:{id:"br1b",name:"Bruiser",desc:"+2 damage",mod:{dmg:2}}},
             {A:{id:"br2a",name:"Smash",desc:"+3 damage",mod:{dmg:3}}, B:{id:"br2b",name:"Stride",desc:"+1 movement",mod:{mob:1}}},
             {A:{id:"br3a",name:"Thick Hide",desc:"+6 HP",mod:{hp:6}}, B:{id:"br3b",name:"Carnage",desc:"+3 damage",mod:{dmg:3}}},
@@ -2407,11 +2401,11 @@
     const gb=document.getElementById("gen-bats"); if(gb)gb.oninput=()=>{document.getElementById("gen-batsv").textContent=gb.value;};
     const gbs=document.getElementById("gen-batsize"); if(gbs)gbs.oninput=()=>{document.getElementById("gen-batsizev").textContent=gbs.value;}; }
   // enemy class selection for generation (checkboxes)
-  const ENEMY_POOL=["archer","emage","brute","shieldbearer","rival","contact"];   // résistance locale + Contrepartie + Contact   // classes offered for generated enemies (= la biosphère)
+  const ENEMY_POOL=["archer","emage","brute","shieldbearer","rival"];   // résistance locale + Contrepartie   // classes offered for generated enemies (= la biosphère)
   { const box=document.getElementById("gen-eclasses"); if(box){ box.innerHTML=ENEMY_POOL.map(k=>`<label style="font-size:.82rem;display:inline-flex;align-items:center;gap:3px"><input type="checkbox" data-ecls="${k}"${["archer","emage","brute","shieldbearer"].includes(k)?" checked":""}>${(CLASSES[k]&&CLASSES[k].name)||k}</label>`).join(""); } }
   function chosenEnemyClasses(){ const box=document.getElementById("gen-eclasses"); if(!box)return null; const sel=[...box.querySelectorAll("input[data-ecls]:checked")].map(c=>c.dataset.ecls).filter(k=>CLASSES[k]); return sel.length?sel:null; }
   // composition weights of the anchor pods (per mission)
-  const DEF_EWEIGHTS={archer:3,emage:2,brute:2,shieldbearer:1,rival:0,contact:0};   // la Contrepartie à 0 : on la convoque mission par mission   // biosphère majoritairement À DISTANCE (cracheurs + coeurs de sève), le contact reste minoritaire
+  const DEF_EWEIGHTS={archer:3,emage:2,brute:2,shieldbearer:1,rival:0};   // la Contrepartie à 0 : on la convoque mission par mission   // biosphère majoritairement À DISTANCE (cracheurs + coeurs de sève), le contact reste minoritaire
   { const box=document.getElementById("m-eweights"); if(box){ box.innerHTML=ENEMY_POOL.map(k=>`<label style="font-size:.8rem;display:inline-flex;align-items:center;gap:2px">${(CLASSES[k]&&CLASSES[k].name)||k}<input type="number" min="0" max="9" data-ew="${k}" value="${DEF_EWEIGHTS[k]||0}" style="width:36px"></label>`).join(""); box.querySelectorAll("input[data-ew]").forEach(i=>i.oninput=()=>saveDraft()); } }
   function missionEWeights(){ const box=document.getElementById("m-eweights"); const w={}; if(box)box.querySelectorAll("input[data-ew]").forEach(i=>{ const v=+i.value||0; if(v>0&&CLASSES[i.dataset.ew])w[i.dataset.ew]=v; }); return w; }
   function setMissionEWeights(w){ const box=document.getElementById("m-eweights"); if(!box)return; box.querySelectorAll("input[data-ew]").forEach(i=>{ i.value=(w&&w[i.dataset.ew]!=null)?w[i.dataset.ew]:(w?0:(DEF_EWEIGHTS[i.dataset.ew]||0)); }); }
@@ -2982,7 +2976,7 @@
     const sortedSlots=reachIds.slice().sort((a,b)=>dist[a]-dist[b]); const slots=[];
     for(const id of sortedSlots){ if(slots.length>=S)break; if(slots.every(s=>hops(s,id)>=2))slots.push(id); }
     for(const id of sortedSlots){ if(slots.length>=S)break; if(!slots.includes(id))slots.push(id); }
-    units=[]; const pcls=P.squadClasses||["soldat","sapeur","assassin","garde"]; slots.forEach((id,i)=>units.push(U("player",pcls[i%pcls.length],id)));
+    units=[]; const pcls=P.squadClasses||["soldat","sapeur","assassin","mage"]; slots.forEach((id,i)=>units.push(U("player",pcls[i%pcls.length],id)));
     const genPods=document.getElementById("gen-pods"); const podsFromDom=genPods&&genPods.value!==""?+genPods.value:null;
     // En mode auto la surface a été DÉDUITE des pods : la remettre à l'échelle de la surface serait
     // circulaire. En mode manuel, la mise à l'échelle garde son sens (le joueur a fixé la taille).
@@ -3011,7 +3005,7 @@
         if(best==null||Math.min(...podAnchors.map(a=>hops(a,best)))<2)break;   // avoids clumping
         podAnchors.push(best); } }
     if(!podAnchors.length&&far.length)podAnchors.push(far[0]);
-    const ecls=P.enemyClasses||(typeof chosenEnemyClasses==="function"&&chosenEnemyClasses())||["garde","archer","brute"], occSet=new Set(units.map(u=>u.cell));
+    const ecls=P.enemyClasses||(typeof chosenEnemyClasses==="function"&&chosenEnemyClasses())||["shieldbearer","archer","brute"], occSet=new Set(units.map(u=>u.cell));
     // TARGET ENEMY COUNT = the real difficulty dial (the sim shows the total dominates the pod count).
     // Distribute it deterministically across the pods (low variance) instead of random sizes.
     const genEn=document.getElementById("gen-enemies"); const enFromDom=genEn&&genEn.value!==""?+genEn.value:null;
@@ -4643,7 +4637,7 @@
   // populates the enemy pods around the anchors (on each game launch): a normal group (all awake)
   function spawnAnchorPods(){ const anchors=cells.filter(c=>c.podAnchor).map(c=>({cell:c.id,sleep:c.podAnchor==="asleep"})); if(!anchors.length)return;
     const W=(curMission&&curMission.enemyWeights)||null; const hasW=W&&Object.keys(W).some(k=>W[k]>0);   // per-mission weights?
-    const ecls=(typeof chosenEnemyClasses==="function"&&chosenEnemyClasses())||["garde","archer","brute"];   // otherwise fallback: checked pool, cycling
+    const ecls=(typeof chosenEnemyClasses==="function"&&chosenEnemyClasses())||["shieldbearer","archer","brute"];   // otherwise fallback: checked pool, cycling
     const pick=(pi,j)=>(hasW?(weightedPick(W)||ecls[(pi+j)%ecls.length]):ecls[(pi+j)%ecls.length]);
     const per=Math.max(1,(curMission&&curMission.podSize)||2); const occSet=new Set(units.map(u=>u.cell));
     anchors.forEach((a,pi)=>{ const anc=a.cell; if(!cells[anc])return; const ball=bfsBall(anc,2);
@@ -4664,7 +4658,7 @@
   document.getElementById("overbtn").onclick=()=>{ if(mode==="play")startGame(); };
   // test squad: placed on the deployment zone for the duration of a trial, removed on exit (never saved)
   function spawnTestSquad(){ const dz=cells.filter(c=>c.deploy&&passable(c.id)&&!uAt(c.id)).sort((a,b)=>(a.cy-b.cy)||(a.cx-b.cx));
-    const kinds=["soldat","sapeur","assassin","garde"]; for(let i=0;i<dz.length&&i<4;i++){ const u=U("player",kinds[i%kinds.length],dz[i].id,{name:"Test "+(i+1)}); u.test=true; units.push(u); } }
+    const kinds=["soldat","sapeur","assassin","mage"]; for(let i=0;i<dz.length&&i<4;i++){ const u=U("player",kinds[i%kinds.length],dz[i].id,{name:"Test "+(i+1)}); u.test=true; units.push(u); } }
   document.getElementById("mode").onclick=()=>{ const btn=document.getElementById("mode");
     if(document.body.classList.contains("testing")){ document.body.classList.remove("testing"); campRun=null; sel=null; units=units.filter(u=>!u.test&&!u.fromAnchor); setView("mission"); btn.textContent="▶ Test the mission"; refresh(); }
     else { document.body.classList.add("testing"); setView("play");
@@ -4703,7 +4697,7 @@
     const L=byX.slice().sort((a,b)=>a.cx-b.cx).slice(0,16).sort((a,b)=>a.cy-b.cy);
     const Rr=byX.slice().sort((a,b)=>b.cx-a.cx).slice(0,16).sort((a,b)=>a.cy-b.cy);
     units=[U("player","soldat",L[2].i,{name:"Stiff"}),U("player","sapeur",L[6].i,{name:"Merry"}),U("player","assassin",L[10].i,{name:"Gizzard"}),
-           U("enemy","garde",Rr[2].i,{pod:0}),U("enemy","archer",Rr[6].i,{pod:0,asleep:true}),U("enemy","brute",Rr[10].i,{pod:1,asleep:true})];
+           U("enemy","shieldbearer",Rr[2].i,{pod:0}),U("enemy","archer",Rr[6].i,{pod:0,asleep:true}),U("enemy","brute",Rr[10].i,{pod:1,asleep:true})];
   }
 
   // ===================== GEOSCAPE — territory editor =====================

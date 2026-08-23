@@ -497,7 +497,7 @@
    "pod": 0
   },
   {
-   "cls": "garde",
+   "cls": "shieldbearer",
    "team": "enemy",
    "col": 14,
    "row": 11,
@@ -521,7 +521,7 @@
    "pod": 1
   },
   {
-   "cls": "garde",
+   "cls": "shieldbearer",
    "team": "enemy",
    "col": 15,
    "row": 1,

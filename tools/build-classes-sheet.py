@@ -83,27 +83,14 @@ def perk_effect(p):
     return ' · '.join(f"+{v} {EFF_LABEL.get(kk,kk)}" for kk,v in m.items()) or ''
 
 
-PITCHES = {
- 'soldat':"« Protection des actifs ». Fusil d'ordonnance et plaque pare-balles : le métier de base, celui qu'on ne remarque pas.",
- 'sapeur':"Artificier. Pose et lance les charges de minage — l'outil de production reconverti en arme.",
- 'assassin':"Le « nettoyeur ». Règle les incidents discrètement. Seul rôle de contact du joueur.",
- 'garde':"Chef d'équipe : bouclier de chantier et fusil à dispersion. Encadre autant qu'il combat.",
- 'mage':"Arcaniste. Tire l'essence RAFFINÉE extraite du monde : sa magie est volée à ce qu'il détruit.",
- 'archer':"Fusil de récupération, une génération derrière le tien — et il te touche quand même à portée 9.",
- 'brute':"Bras hydraulique de minage détourné en arme : il te démonte avec ton propre matériel.",
- 'shieldbearer':"Plaque de coque découpée dans une navette abattue. Ferme les couloirs.",
- 'emage':"Même métier que ton arcaniste, siphon remonté à la main. On ne lui reproche pas d'être arriéré : on lui reproche de ne pas avoir de licence.",
- 'rival':"Miroir exact de ton Enforcer : même métier, autre drapeau. Rien ne le distingue de toi.",
- 'contact':"Portée 10, très mobile, fragile — il te touche avant que tu ne puisses répondre. Et il n'attaque jamais de civils.",
-}
 
 TABS = {  # key -> nom d'onglet
- 'soldat':'Enforcer','sapeur':'Blaster','assassin':'Cleaner','garde':'Foreman','mage':'Siphoner',
+ 'soldat':'Enforcer','sapeur':'Sapper','assassin':'Stinger','mage':'Siphoner',
  'archer':'Irregular','brute':'Wrecker','shieldbearer':'Barricade','emage':'WildSiphoner',
- 'rival':'Counterparty','contact':'Contact'}
-ORDER = ['soldat','sapeur','assassin','garde','mage','archer','brute','shieldbearer','emage','rival','contact']
+ 'rival':'Counterparty'}
+ORDER = ['soldat','sapeur','assassin','mage','archer','brute','shieldbearer','emage','rival']
 
-# nouvelles pistes (univers Ore) — onglets vierges avec le pitch pré-écrit
+# nouvelles pistes (univers Ore) — onglets vierges
 NOUVELLES = [
  ('seer','Seer','ennemi',"Ore-touché. Voit à travers le brouillard et le décor, et tire dessus. Aveugle au corps à corps."),
  ('relay','Relay','ennemi',"Ore-touché. Ne t'attaque pas : il alimente les autres (portée/dégâts). Cible prioritaire, sans défense."),
@@ -113,7 +100,7 @@ NOUVELLES = [
  ('leech','Leech','ennemi',"Ore-touché. Draine l'Ore ou l'équipement de tes soldats. Le vol te vole."),
 ]
 
-def build_class_tab(key, tabname, data, perks, pitch=None, blank=False):
+def build_class_tab(key, tabname, data, perks, blank=False):
     ws = wb.create_sheet(tabname)
     title(ws, f"{data.get('name',tabname)}   —   {CAMP.get(key,'ennemi')}")
     r = 3
@@ -122,8 +109,6 @@ def build_class_tab(key, tabname, data, perks, pitch=None, blank=False):
     r = kv(ws, r, "nom affiché", data.get('name',''), note="la désignation officielle de l'État")
     r = kv(ws, r, "vrai nom", data.get('trueName',''), note="pour la bascule de fin (revealTruth)")
     r = kv(ws, r, "camp", CAMP.get(key,'ennemi'), note="joueur / ennemi / civil")
-    r = kv(ws, r, "pitch", pitch or PITCHES.get(key,''), note="une phrase : qui c'est, pourquoi il se bat")
-    ws.row_dimensions[r-1].height = 30
     r += 1
     r = section(ws, r, "STATS")
     r = kv(ws, r, "pv", '' if blank else data.get('hp',''))
@@ -207,14 +192,13 @@ def build_class_tab(key, tabname, data, perks, pitch=None, blank=False):
 # ---------- onglets de classes ----------
 for k in ORDER:
     build_class_tab(k, TABS[k], CL[k], PK.get(k))
-for key, tab, camp, pitch in NOUVELLES:
+for key, tab, camp, _ in NOUVELLES:
     CAMP[key] = camp
-    build_class_tab(key, tab, {'name':tab,'trueName':'','w':{}}, None, pitch=pitch, blank=True)
+    build_class_tab(key, tab, {'name':tab,'trueName':'','w':{}}, None, blank=True)
 
 # ---------- MODÈLE ----------
 CAMP['<clé>'] = 'joueur'
-mod = build_class_tab('<clé>', 'MODÈLE', {'name':'<nom affiché>','trueName':'','w':{}}, None,
-                      pitch="<une phrase>", blank=True)
+mod = build_class_tab('<clé>', 'MODÈLE', {'name':'<nom affiché>','trueName':'','w':{}}, None, blank=True)
 mod.cell(2,1,"Onglet vierge à dupliquer pour toute nouvelle classe. Remplace <clé> par un identifiant court sans accent.").font = MUTE
 
 # ---------- RÉFÉRENCE ----------

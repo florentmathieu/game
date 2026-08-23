@@ -696,7 +696,7 @@
    "name": "Stiff"
   },
   {
-   "cls": "garde",
+   "cls": "shieldbearer",
    "team": "enemy",
    "col": 14,
    "row": 8,
@@ -705,7 +705,7 @@
    "facing": -2.0943951023931957
   },
   {
-   "cls": "garde",
+   "cls": "shieldbearer",
    "team": "enemy",
    "col": 12,
    "row": 4,

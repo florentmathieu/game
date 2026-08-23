@@ -138,7 +138,7 @@ PREFIXE = {"soldat":"se","sapeur":"sa","assassin":"as","garde":"ga","mage":"mg",
            "sergent":"se","brute":"br"}
 
 # ---------------------------------------------------------------- lecture d un onglet
-LIG_ID = {"key":"key","nom affiché":"name","vrai nom":"trueName","camp":"camp","pitch":"pitch"}
+LIG_ID = {"key":"key","nom affiché":"name","vrai nom":"trueName","camp":"camp"}
 LIG_ST = {"pv":"hp","déplacement":"mob","blocage %":"shieldBlock","parade %":"parry",
           "furtif":"stealth","poids génération":"weight"}
 
@@ -243,7 +243,7 @@ def main():
     for key, o in onglets.items():
         st = o.get("stats", {})
         num = lambda v: (int(v) if re.fullmatch(r"-?\d+", (v or "").strip()) else None)
-        c = {"name": o.get("name", ""), "camp": o.get("camp", ""), "pitch": o.get("pitch", "")}
+        c = {"name": o.get("name", ""), "camp": o.get("camp", "")}
         if o.get("trueName"): c["trueName"] = o["trueName"]
         for k2 in ("hp", "mob", "shieldBlock", "parry"):
             v = num(st.get(k2)); c[k2] = v if v is not None else 0
