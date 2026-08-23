@@ -630,11 +630,18 @@
   window.revealTruth=revealTruth; window.CLASSES=CLASSES;
   // ===== progression: discrete grades + exclusive A/B perks (engine = mission XP) =====
   // Advancement is HORIZONTAL (a perk = a qualitative edge), XP is just a capped gate.
-  const GRADES=["Recruit","Seasoned","Veteran","Elite","Champion","Master","Legend","Myth","Paragon"];   // grade 0..8 (grade = nombre de perks choisis) — 8 choix, dont 3 de voie (niv. 4/6/8)
-  const XP_THRESH=[0,4,10,18,28,42,60,82,108];              // XP cumulée pour atteindre le grade i (paliers de plus en plus espacés)
+  // SEPT niveaux, pas huit : quatre choix de CLASSE (1, 2, 3, 5) et trois de VOIE (4, 6, 7).
+  // Cinq choix de classe faisaient un arbre plus long que ce qu'une campagne permet de parcourir,
+  // et diluaient la voie — qui est censée être ce qui distingue deux vétérans de même métier.
+  const GRADES=["Recruit","Seasoned","Veteran","Elite","Champion","Master","Legend","Myth"];   // grade 0..7 (grade = nombre de perks choisis)
+  const XP_THRESH=[0,4,10,18,28,42,60,82];                  // XP cumulée pour atteindre le grade i (paliers de plus en plus espacés)
   const gradeFromXp=xp=>{ let g=0; for(let i=0;i<XP_THRESH.length;i++)if((xp||0)>=XP_THRESH[i])g=i; return g; };
   // catalog: per class, one A/B pair per grade (index 0 = 1st grade). mod = bonuses applied at deployment.
   // A = special ability (verb), B = numeric bonus. abil = id of an active ability (cf. ABIL).
+  // Chaque arbre garde SEPT paires, mais une classe soumise à la voie n'en voit que quatre —
+  // les niveaux 1, 2, 3 et 5. Les paires 4, 6 et 7 ne servent qu'aux classes dispensées (le mage,
+  // qui progresse sur son arbre du début à la fin). C'est voulu : compacter les arbres à quatre
+  // paires priverait le mage de sa fin de progression.
   const PERKS={
     soldat:[ {A:{id:"se1a",name:"Rallying Cry",desc:"Restores 1 AP to an adjacent ally",abil:"rally"}, B:{id:"se1b",name:"Tenacious",desc:"+4 HP",mod:{hp:4}}},
               {A:{id:"se2a",name:"Taunt",desc:"Enemies target you first",abil:"taunt"}, B:{id:"se2b",name:"Leader",desc:"+1 damage",mod:{dmg:1}}},
@@ -690,9 +697,9 @@
     {id:"rp_reload",name:"Quick Hands",   desc:"1 free reload per fight",      mod:{reload:1}},    // [E]
   ];
   // ===== VOIES (ancienneté) : au niveau 4 le soldat choisit OFFICIER ou VÉTÉRAN, définitivement.
-  // Les niveaux 4, 6 et 8 puisent dans la voie choisie ; les autres dans l'arbre de classe.
+  // Les niveaux 4, 6 et 7 puisent dans la voie choisie ; les autres dans l'arbre de classe.
   // Contenu PROVISOIRE : à remplacer par les onglets « Officer » / « Vétéran » du Sheet (colonnes Niveau/Nom/Perk/Effet).
-  const TRACK_LEVELS=[4,6,8];
+  const TRACK_LEVELS=[4,6,7];
   const TRACKS={ officer:{name:"Officer",desc:"Command: acts on the squad"},
                  veteran:{name:"Veteran",desc:"Craft: acts on oneself"} };
   const TRACK_PERKS={
@@ -701,19 +708,19 @@
          B:{id:"of4b",name:"Hold the Line",desc:"Overwatch for adjacent allies",abil:"holdline"}},
       6:{A:{id:"of6a",name:"Covering Shout",desc:"Gives cover to adjacent allies",abil:"wall"},
          B:{id:"of6b",name:"Standard",desc:"+2 damage",mod:{dmg:2}}},
-      8:{A:{id:"of8a",name:"Bodyguard",desc:"Intercepts a blow aimed at an adjacent ally",abil:"protect"},
-         B:{id:"of8b",name:"Command Presence",desc:"+20 aim",mod:{aim:20}}},
+      7:{A:{id:"of8a",name:"Bodyguard",desc:"Intercepts a blow aimed at an adjacent ally",abil:"protect"},
+         B:{id:"of8b",name:"Command Presence",desc:"+20 aim",mod:{aim:20}}},   // ids inchangés : les renommer perdrait les perks des escouades sauvegardées
     },
     veteran:{
       4:{A:{id:"vt4a",name:"Dig In",desc:"+15% block",mod:{shieldBlock:15}},
          B:{id:"vt4b",name:"Hardened",desc:"+4 HP",mod:{hp:4}}},
       6:{A:{id:"vt6a",name:"Old Scars",desc:"−1 damage taken",mod:{dr:1}},
          B:{id:"vt6b",name:"Marksman",desc:"+15 aim",mod:{aim:15}}},
-      8:{A:{id:"vt8a",name:"Unbreakable",desc:"+8 HP",mod:{hp:8}},
+      7:{A:{id:"vt8a",name:"Unbreakable",desc:"+8 HP",mod:{hp:8}},
          B:{id:"vt8b",name:"Killer Instinct",desc:"+3 damage",mod:{dmg:3}}},
     },
   };
-  // Classes DISPENSÉES de voie : elles gardent leur arbre de classe aux niveaux 4/6/8.
+  // Classes DISPENSÉES de voie : elles gardent leur arbre de classe aux niveaux 4/6/7.
   // (les mages auront leur propre système de progression — à définir)
   const TRACK_EXEMPT=new Set(["mage"]);
   const isTrackLevel=lvl=>TRACK_LEVELS.includes(lvl);
@@ -5152,7 +5159,7 @@
   // LES NIVEAUX À VENIR SONT MASQUÉS. On voit combien il en reste, pas ce qu'ils contiennent : on
   // ne planifie pas sa montée, on la subit. Le tirage (colonne C) ne peut de toute façon pas être
   // annoncé — il est tiré au moment de la promotion.
-  const NIV_MAX=8;
+  const NIV_MAX=7;
   function celPerk(pk,cls,tag){
     if(!pk)return `<div class="cel vide"></div>`;
     return `<div class="cel ${cls||""}">${tag?`<div class="tag">${esc(tag)}</div>`:""}`
@@ -5199,8 +5206,8 @@
       const etat=k=>{ if(!choisi&&!o)return estActif?"choix":"";
         const pk=({A,B,C})[k]; if(!pk)return "";
         return (o&&o.took===k)||(pk.id===choisi)?"pris":"ecarte"; };
-      if(!A&&!B&&!choisi){   // l'arbre de cette classe s'arrête avant ce niveau (les mages n'ont pas de
-        // niveau 8) : on le DIT, au lieu de laisser une ligne vide qui passe pour un défaut d'affichage
+      if(!A&&!B&&!choisi){   // l'arbre de cette classe s'arrête avant ce niveau (la brute n'a que
+        // quatre paires) : on le DIT, au lieu de laisser une ligne vide qui passe pour un défaut d'affichage
         h+=`<div class="cel vide" style="grid-column:2/4;display:flex;align-items:center"><span class="tag">no perk defined at this level for this class</span></div>`
           +`<div class="cel vide"><div class="tag">🎲 draw</div></div></div>`; continue; }
       h+=celPerk(A,etat("A"))+celPerk(B,etat("B"))
