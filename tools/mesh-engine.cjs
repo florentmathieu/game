@@ -19,7 +19,7 @@ function loadMesh(htmlPath){
     get mode(){return mode}, set mode(v){mode=v},
     get W(){return W}, get H(){return H}, get COLS(){return COLS}, get ROWS(){return ROWS},
     get AP_MAX(){return AP_MAX}, get MOB(){return MOB}, get FREE_MP(){return FREE_MP},
-    get ESCOUADE_BASE(){return ESCOUADE_BASE}, aUnOfficier,
+    get ESCOUADE_BASE(){return ESCOUADE_BASE}, set ESCOUADE_BASE(v){ESCOUADE_BASE=v}, aUnOfficier,
     // déplace les niveaux de voie sans toucher au fichier : TRACK_LEVELS est un const mais son
     // contenu est mutable, et les clés de TRACK_PERKS suivent
     setTrackLevels(arr){ const av=TRACK_LEVELS.slice();

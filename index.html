@@ -1774,7 +1774,7 @@
   // forcément sur quelqu'un qui est là. Le grade se lit comme dans la fiche d'escouade (XP ou perks
   // choisis, le plus élevé des deux) ; à égalité le plus expérimenté, puis l'ordre alphabétique
   // pour que deux parties identiques donnent la même distribution.
-  const ESCOUADE_BASE=3;
+  let ESCOUADE_BASE=3;
   const aUnOfficier=()=>!!(campRun&&campRun.roster&&campRun.roster.some(m=>!m.dead&&m.track==="officer"));
   function classement(){ return units.filter(u=>u.team==="player"&&u.hp>0).map(u=>{
       const m=(campRun&&campRun.roster)?campRun.roster.find(r=>r.name===u.name):null;
