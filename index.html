@@ -639,7 +639,10 @@
   // Cinq choix de classe faisaient un arbre plus long que ce qu'une campagne permet de parcourir,
   // et diluaient la voie — qui est censée être ce qui distingue deux vétérans de même métier.
   const GRADES=["Recruit","Seasoned","Veteran","Elite","Champion","Master","Legend","Myth"];   // grade 0..7 (grade = nombre de perks choisis)
-  const XP_THRESH=[0,4,10,18,28,42,60,82];                  // XP cumulée pour atteindre le grade i (paliers de plus en plus espacés)
+  // Le palier 3 est celui du CHOIX DE VOIE. À 18 XP l'officier arrivait à la mission 7 sur 8 —
+  // après la bataille qu'il devait aider à gagner. À 13 il arrive au milieu de l'acte, et le
+  // palier 4 reste à 28 : c'est lui qui borne l'acte 1.
+  const XP_THRESH=[0,4,10,13,28,42,60,82];                  // XP cumulée pour atteindre le grade i
   const gradeFromXp=xp=>{ let g=0; for(let i=0;i<XP_THRESH.length;i++)if((xp||0)>=XP_THRESH[i])g=i; return g; };
   // catalog: per class, one A/B pair per grade (index 0 = 1st grade). mod = bonuses applied at deployment.
   // A = special ability (verb), B = numeric bonus. abil = id of an active ability (cf. ABIL).
@@ -1604,6 +1607,14 @@
   // nombre de côtés des cases : sur un plateau ordinaire quatre cases sur cinq sont déjà des
   // pentagones ou des hexagones, le déclencheur partirait au premier tour de chaque mission.
   // Une zone « mix » ne compte pas : elle tire les trois géométries au hasard, elle ne dit rien.
+  // PREMIER OFFICIER. Le moment où l'escouade gagne sa quatrième place : ça se dit, sinon le
+  // joueur découvre un slot de plus sans savoir pourquoi. Une seule fois par campagne.
+  function detectPremierOfficier(){ if(!campRun||officierVu||!aUnOfficier())return;
+    officierVu=true; campRun.officierVu=true;
+    const off=campRun.roster.find(m=>!m.dead&&m.track==="officer");
+    log(`🎖 ${off?off.name:"An officer"} takes command — the squad can now deploy ${ESCOUADE_BASE+1}`,"player");
+    emit("newofficer",{actorName:off?off.name:"",actorCls:off?off.cls:"",actorTeam:"player",places:ESCOUADE_BASE+1}); }
+  let officierVu=false;
   const GEOS_NOTABLES={hex:"hexagonal",pentagon:"pentagonal"};
   // Une mission enregistrée garde sa grille de zones (m.form.infl) mais pas la géométrie case par
   // case. On la relit depuis la grille au chargement : les missions déjà écrites en profitent, et
@@ -1757,6 +1768,8 @@
   // forcément sur quelqu'un qui est là. Le grade se lit comme dans la fiche d'escouade (XP ou perks
   // choisis, le plus élevé des deux) ; à égalité le plus expérimenté, puis l'ordre alphabétique
   // pour que deux parties identiques donnent la même distribution.
+  const ESCOUADE_BASE=3;
+  const aUnOfficier=()=>!!(campRun&&campRun.roster&&campRun.roster.some(m=>!m.dead&&m.track==="officer"));
   function classement(){ return units.filter(u=>u.team==="player"&&u.hp>0).map(u=>{
       const m=(campRun&&campRun.roster)?campRun.roster.find(r=>r.name===u.name):null;
       return {n:u.name, g:m?Math.max(gradeFromXp(m.xp||0),(m.perks||[]).length):0, x:m?(m.xp||0):0}; })
@@ -2583,7 +2596,7 @@
   let msgT=null;
   function setMsg(t){const el=document.getElementById("msg");el.textContent=t;if(msgT){clearTimeout(msgT);msgT=null;}if(t)msgT=setTimeout(()=>{el.textContent="";msgT=null;},4000);}   // ephemeral message: clears itself
   function refresh(){ if(geoPlay&&!geoPlay.inMission){ if(typeof drawGeoPlay==="function")drawGeoPlay(); return; }   // back on the strategic map: no "mission" refresh (stale units/cells)
-    if(mode==="play"){computeVis();detectEnemies();detectNeutralPods();detectNewFoes();detectNewGeo();updateEnemyMemory();computeEVis();checkBonus();
+    if(mode==="play"){computeVis();detectEnemies();detectNeutralPods();detectNewFoes();detectNewGeo();detectPremierOfficier();updateEnemyMemory();computeEVis();checkBonus();
       if(turn==="player"&&!over&&sel&&(sel.hp<=0||(sel.ap<=0&&!sel.freeAvail))){ const nxt=units.find(u=>vraiJoueur(u)&&u.hp>0&&!(u.ap<=0&&!u.freeAvail)); if(nxt){sel=nxt;amode=null;aimTarget=null;throwing=false;usingItem=false;} }   // exhausted unit → switch to the next one
     } else visible=new Set(cells.map(c=>c.id));
     if(SIMRAPIDE)return;   // simulation : l'état est à jour, on saute l'affichage — et maybeAutoEnd, car c'est le pilote qui mène les tours
@@ -3030,8 +3043,10 @@
     // le bâti est du terrain : on l'a vu à l'arrivée, il s'atténue seulement hors du champ
     murs.forEach(k=>{ const sg=wallSeg.get(k); if(!sg)return; ctx.globalAlpha=vuA(k)?1:0.55; drawMurSeg(sg); });
     ctx.globalAlpha=1;
-    portes.forEach(k=>{ const sg=wallSeg.get(k); if(sg&&vuArete(k))drawPorteSeg(sg); });
-    breches.forEach(k=>{ const sg=wallSeg.get(k); if(sg&&vuArete(k))drawBrecheSeg(sg); });
+    // portes et brèches : même règle que le reste du bâti — dessinées partout, atténuées hors vue
+    portes.forEach(k=>{ const sg=wallSeg.get(k); if(!sg)return; ctx.globalAlpha=vuA(k)?1:0.55; drawPorteSeg(sg); });
+    breches.forEach(k=>{ const sg=wallSeg.get(k); if(!sg)return; ctx.globalAlpha=vuA(k)?1:0.55; drawBrecheSeg(sg); });
+    ctx.globalAlpha=1;
     // l'arête qu'on est en train d'enjamber s'allume : on voit CE QUI coûte du temps
     if(anim&&anim.franchit){ const sg=wallSeg.get(anim.franchit);
       if(sg){ ctx.save(); ctx.lineCap="round"; ctx.strokeStyle="rgba(255,212,121,.75)"; ctx.lineWidth=7;
@@ -4032,7 +4047,7 @@
     friendlyfire:["actor","target","killedB"],
     move:["actor"], enter:["actor","zone"],
     spotted:["pod","podTeam","parQuoi"], discovered:["pod","podTeam"],
-    newfoe:["foe"], wallbreak:["actor","sections"], newgeo:["forme"] };
+    newfoe:["foe"], wallbreak:["actor","sections"], newgeo:["forme"], newofficer:["actor"] };
   function renderConds(){
     const el=document.getElementById("t-conds"); if(!el)return;
     const champs=CHAMPS_PAR_TYPE[tOn.value]||[];
@@ -4073,11 +4088,13 @@
     {nom:"Combat",                ids:["attack","kill","wounded","cracker","friendlyfire"]},
     {nom:"Movement & detection",  ids:["move","enter","spotted","discovered","newfoe"]},
     {nom:"Terrain",               ids:["wallbreak","newgeo"]},
+    {nom:"Squad",                 ids:["newofficer"]},
   ];
   const TRIG_LABEL={start:"Start",turn:"Turn start",win:"Victory",lose:"Defeat",
     attack:"Attack",kill:"Kill",wounded:"Wounded",cracker:"Cracker (explosion)",friendlyfire:"Friendly fire",
     move:"Move",enter:"Zone entry",spotted:"Pod spotted",discovered:"Pod discovered",newfoe:"Enemy type first seen",
-    wallbreak:"Building wall destroyed",newgeo:"Mesh zone first seen"};
+    wallbreak:"Building wall destroyed",newgeo:"Mesh zone first seen",
+    newofficer:"First officer takes command"};
   const TRIG_CAT_DE=(()=>{ const m={}; for(const c of TRIG_CATS) for(const id of c.ids) m[id]=c.nom; return m; })();
   { const sel=document.getElementById("t-on");
     if(sel)sel.innerHTML=TRIG_CATS.map(c=>`<optgroup label="${c.nom}">`
@@ -5298,6 +5315,11 @@
     let chosen=ready;   // player selection if provided (squad screen), otherwise the first ready ones (auto / sim)
     if(campRun.deploySel&&campRun.deploySel.length){ chosen=campRun.deploySel.map(n=>ready.find(m=>m.name===n)).filter(Boolean); }
     campRun.deploySel=null;
+    // LA TAILLE DE L'ESCOUADE EST UNE RÈGLE, PAS UN ÉCRAN : elle vit ici pour valoir partout —
+    // jeu, simulation, mission de nœud. Une mission ÉCRITE garde ses cases (« hard ») : ses
+    // emplacements sont composés à la main, les rogner déséquilibre ce que l'auteur a posé.
+    // Sur une région générée, l'escouade part à trois, et le premier officier ouvre la quatrième.
+    if(!hard)chosen=chosen.slice(0,ESCOUADE_BASE+(aUnOfficier()?1:0));
     // hard-placed slots = typed by class: each slot first gets a squad member of ITS class (the soldier goes on the soldier's tile…), then fill in order
     let order=chosen;
     if(hard){ const pool=chosen.slice(); order=slots.map(s=>{ if(!pool.length)return null; let k=pool.findIndex(m=>m.cls===s.cls); return pool.splice(k<0?0:k,1)[0]; }); }
@@ -5438,7 +5460,7 @@
     for(const u of units){u.hp=u.max;u.ap=AP_MAX;u.freeAvail=true;u.overwatch=false;u.reacted=false;u.bracing=false;u.taunt=false;u.hidden=false;u.wallStance=false;u.vanishUsed=false;u.slowed=false;u.stunned=false;u.stunTours=0;u.leurreTours=0;u.designeTours=0;u.brule=0;u.mobTemp=0;u.oppUsed=false;u.dodgeTemp=0;u.espritTours=0;u.facing0=null;u.aBouge=false;u.aimTemp=0;u.viseeForcee=null;u.spellsCast=0;u.cd={};
       // les charges se rechargent d'une MISSION à l'autre, jamais pendant : on repart du stock du perk
       if(u.abilRule){ u.charges={}; for(const k in u.abilRule)if(u.abilRule[k].charges)u.charges[k]=u.abilRule[k].charges; }u.dmgTaken=0;u.asleep=!!u._asleep0;if(u.clip!==undefined)u.ammo=u.clip;if(u.freeReload0!==undefined)u.freeReload=u.freeReload0;if(u.crackers!==undefined)u.crackers=(u.crackers0!==undefined?u.crackers0:CLASSES[u.cls].crackers);} smoke=new Map();ability=null; _podCenters=null; turn="player";over=false;sel=null;amode=null;aimTarget=null;throwing=false;usingItem=false;inv={potion:campRun?(campRun.potions||0):0};
-    fired=new Set(); podAlerted=new Set(); neutralSeen=new Set(); typesVus=new Set(campRun&&campRun.typesSeen?campRun.typesSeen:[]); geosVues=new Set(campRun&&campRun.geosSeen?campRun.geosSeen:[]); lastSeen=new Map(); turnNum=1; turnActions=0; lastOutcome=null; speechQ=[]; speaking=false; if(speechT){clearTimeout(speechT);speechT=null;} document.getElementById("combatline").style.display="none";
+    fired=new Set(); podAlerted=new Set(); neutralSeen=new Set(); typesVus=new Set(campRun&&campRun.typesSeen?campRun.typesSeen:[]); geosVues=new Set(campRun&&campRun.geosSeen?campRun.geosSeen:[]); officierVu=!!(campRun&&campRun.officierVu); lastSeen=new Map(); turnNum=1; turnActions=0; lastOutcome=null; speechQ=[]; speaking=false; if(speechT){clearTimeout(speechT);speechT=null;} document.getElementById("combatline").style.display="none";
     document.getElementById("over").classList.remove("show");document.getElementById("log").innerHTML="";setMsg("");setupBonus();refresh();
     banner("Player turn","player"); playMusic("missions"); emit("start",{}); emit("turn",{turn:1}); }
   document.getElementById("end").onclick=()=>{if(!over&&turn==="player"&&mode==="play")endTurn();};
@@ -6083,7 +6105,11 @@
     // LE CONTEXTE STRATÉGIQUE DESCEND DANS LA MISSION. L'acte vient du geoscape généré, les
     // étoiles de la région : c'est ce couple qui décide quels ennemis ont le droit de sortir.
     CTX_MISSION={acte:(geoPlay&&geoPlay.map&&geoPlay.map.act)||1, etoiles};
-    const slots=gen?(etoiles<=2?3:4):((m.units||[]).filter(u=>u.team==="player").length||1);
+    // UN OFFICIER COMMANDE PLUS DE MONDE. Sans lui l'escouade part à trois ; le premier
+    // personnage qui prend la voie Officier ouvre la quatrième place, pour toute la campagne.
+    // La mission écrite garde le dernier mot : on ne déploie jamais plus qu'elle n'a de cases.
+    const places=(m.units||[]).filter(u=>u.team==="player").length||1;
+    const slots=gen?(ESCOUADE_BASE+(aUnOfficier()?1:0)):places;
     const regionName=(cel&&cel.gname)||"Mission";
     showSquadSelect(slots, regionName, (chosen)=>{ if(!chosen){ geoBanner("departure cancelled"); return; }   // Cancel = stay at camp
       campRun.deploySel=chosen; campRun.geoReturn={nodeId:geoPlay.node.id,cellId}; campRun.missionN=(campRun.missionN||0)+1; geoPlay.inMission=true; document.body.classList.remove("geomap");
