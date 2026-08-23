@@ -684,27 +684,29 @@
   ];
   // ===== VOIES (ancienneté) : au niveau 4 le soldat choisit OFFICIER ou VÉTÉRAN, définitivement.
   // Les niveaux 4, 6 et 7 puisent dans la voie choisie ; les autres dans l'arbre de classe.
-  // Contenu PROVISOIRE : à remplacer par les onglets « Officer » / « Vétéran » du Sheet (colonnes Niveau/Nom/Perk/Effet).
+  // Contenu repris des onglets « Officer » et « Veteran » du Sheet (23 août 2026).
   const TRACK_LEVELS=[4,6,7];
   const NIV_MAX=7;                  // nombre total de niveaux (4 de classe + 3 de voie)
   const TRACKS={ officer:{name:"Officer",desc:"Command: acts on the squad"},
                  veteran:{name:"Veteran",desc:"Craft: acts on oneself"} };
   const TRACK_PERKS={
+    // Les identifiants gardent leur numérotation d'origine (of4/of6/of8, vt4/vt6/vt8) : ils sont
+    // dans les sauvegardes, et les renuméroter ferait perdre leurs perks aux escouades existantes.
     officer:{
-      4:{A:{id:"of4a",name:"Field Orders",desc:"Restores 1 AP to an adjacent ally",abil:"rally"},
-         B:{id:"of4b",name:"Hold the Line",desc:"Overwatch for adjacent allies",abil:"holdline"}},
-      6:{A:{id:"of6a",name:"Covering Shout",desc:"Gives cover to adjacent allies",abil:"wall"},
-         B:{id:"of6b",name:"Standard",desc:"+2 damage",mod:{dmg:2}}},
-      7:{A:{id:"of8a",name:"Bodyguard",desc:"Intercepts a blow aimed at an adjacent ally",abil:"protect"},
-         B:{id:"of8b",name:"Command Presence",desc:"+20 aim",mod:{aim:20}}},   // ids inchangés : les renommer perdrait les perks des escouades sauvegardées
+      4:{A:{id:"of4a",name:"Warcry",desc:"Allies within 5, until their next turn: +10 aim, +1 damage, −1 damage taken",abil:"warcry",cost:1,cd:4},
+         B:{id:"of4b",name:"Inspire",desc:"+1 AP for an ally",abil:"inspire",cost:0,cd:2}},
+      6:{A:{id:"of6a",name:"Decide",desc:"— to be written —",cd:3},
+         B:{id:"of6b",name:"Insult",desc:"+2 AP to a subordinate (veteran, or below level 4)",abil:"insult",cost:1,cd:4}},
+      7:{A:{id:"of8a",name:"Emergency exit",desc:"Pulls an ally off the map, alive",abil:"exfil",cost:1,charges:1},
+         B:{id:"of8b",name:"Bruise",desc:"A subordinate within 2 tiles: +30% defence and damage",abil:"bruise",cost:1,cd:3}},
     },
     veteran:{
-      4:{A:{id:"vt4a",name:"Dig In",desc:"+15% block",mod:{shieldBlock:15}},
-         B:{id:"vt4b",name:"Hardened",desc:"+4 HP",mod:{hp:4}}},
-      6:{A:{id:"vt6a",name:"Old Scars",desc:"−1 damage taken",mod:{dr:1}},
-         B:{id:"vt6b",name:"Marksman",desc:"+15 aim",mod:{aim:15}}},
-      7:{A:{id:"vt8a",name:"Unbreakable",desc:"+8 HP",mod:{hp:8}},
-         B:{id:"vt8b",name:"Killer Instinct",desc:"+3 damage",mod:{dmg:3}}},
+      4:{A:{id:"vt4a",name:"Hard skin",desc:"−1 damage taken",mod:{dr:1}},
+         B:{id:"vt4b",name:"Fuck it",desc:"+30% damage, −20% defence, for 2 turns",abil:"fuckit",cost:0,cd:3}},
+      6:{A:{id:"vt6a",name:"Tough it up",desc:"Never dies for good at 0 HP",drapeau:"toughitup"},
+         B:{id:"vt6b",name:"Scoff",desc:"When insulted or bruised, gives 1 AP back to the officer",drapeau:"scoff"}},
+      7:{A:{id:"vt8a",name:"WTF",desc:"When hit by friendly fire, +3 damage for 2 turns",drapeau:"wtf"},
+         B:{id:"vt8b",name:"Bloodlust",desc:"Gives back 1 AP for each kill",drapeau:"bloodlust"}},
     },
   };
   // Classes DISPENSÉES de voie : elles gardent leur arbre de classe aux niveaux 4/6/7.
@@ -742,6 +744,7 @@
       if(p.mod){ const mm=p.mod; if(mm.crackerRange)u.crackerRange=(u.crackerRange||0)+mm.crackerRange; }
       continue; }
     if(p.requiert&&!(perkIds||[]).includes(p.requiert))continue;   // perk conditionné à un autre
+    if(p.drapeau){ u[p.drapeau]=true; if(!p.mod&&!p.abil)continue; }   // passif réactif (voie Vétéran)
     if(p.abil){ (u.abil||(u.abil=[])).push(p.abil); if(p.abil==="protect")u.protect=true;
       if(p.cost!=null||p.endsTurn||p.cd||p.charges||p.dmg){ (u.abilRule||(u.abilRule={}))[p.abil]=
         {cost:p.cost!=null?p.cost:(p.endsTurn?0:1),endsTurn:!!p.endsTurn,cd:p.cd||0,charges:p.charges||0,dmg:p.dmg||0}; }
@@ -1552,9 +1555,12 @@
     return u; }
   // UNITÉ FACTICE (le leurre du Stinger) : elle occupe une case et attire les regards, mais ne
   // compte ni dans la défaite, ni dans l'XP, ni dans le décompte de l'escouade.
-  const vraiJoueur=u=>u.team==="player"&&!u.factice;
-  const occ=()=>new Set(units.filter(u=>u.hp>0).map(u=>u.cell));
-  const uAt=id=>units.find(u=>u.hp>0&&u.cell===id);
+  const vraiJoueur=u=>u.team==="player"&&!u.factice&&!u.sorti;
+  // SORTI : extrait vivant par l'officier. Ni mort ni disparu — il compte encore dans l'escouade
+  // au débriefing, mais il n'est plus une cible ni un joueur pour le reste de la mission.
+  const surPlateau=u=>u.hp>0&&!u.sorti;
+  const occ=()=>new Set(units.filter(u=>surPlateau(u)).map(u=>u.cell));
+  const uAt=id=>units.find(u=>surPlateau(u)&&u.cell===id);
   // relations: the enemy targets players + non-hostage NPCs; the player targets the enemy; the neutral attacks no one
   function hostile(a,b){ if(a.team==="enemy")return b.team==="player"||(b.team==="neutral"&&!b.hostage); if(a.team==="player")return b.team==="enemy"; return false; }
   const enemyActive=e=>!e.asleep&&(e.pod===undefined||podAlerted.has(e.pod));
@@ -1640,7 +1646,7 @@
     return Math.round(best); }
   // bonus d'un perk restreint à une arme (« +2 dégât à l'épée ») : nul pour les autres armes.
   const bonusArme=(u,m,k)=>((u.armeBonus&&u.armeBonus[m]&&u.armeBonus[m][k])||0);
-  function chance(att,tgt,m){const w=att.w[m];let cover=0;if(w.type==="ranged"){if(cells[tgt.cell].terr==="cover")cover=HERBE_PEN;cover=Math.max(cover,muretCover(tgt,att));if(units.some(a=>a.hp>0&&a.team===tgt.team&&a!==tgt&&a.wallStance&&adjacent(a.cell,tgt.cell)))cover=Math.max(cover,Math.round(COVER_PEN*0.5));}const dh=Math.max(-3,Math.min(3,cells[att.cell].elev-cells[tgt.cell].elev))*HEIGHT_BONUS;const pb=w.type==="ranged"?(PB[hops(att.cell,tgt.cell)]||0):0;let def=(tgt.bracing?DEF_BRACE:0)+(tgt.dodge||0);
+  function chance(att,tgt,m){const w=att.w[m];let cover=0;if(w.type==="ranged"){if(cells[tgt.cell].terr==="cover")cover=HERBE_PEN;cover=Math.max(cover,muretCover(tgt,att));if(units.some(a=>a.hp>0&&a.team===tgt.team&&a!==tgt&&a.wallStance&&adjacent(a.cell,tgt.cell)))cover=Math.max(cover,Math.round(COVER_PEN*0.5));}const dh=Math.max(-3,Math.min(3,cells[att.cell].elev-cells[tgt.cell].elev))*HEIGHT_BONUS;const pb=w.type==="ranged"?(PB[hops(att.cell,tgt.cell)]||0):0;let def=(tgt.bracing?DEF_BRACE:0)+(tgt.dodge||0)+boostDodge(tgt);
     if(havreDe(tgt))def+=HAVEN_DEF;                                        // le havre protège qui s'y tient
     let sol=0; if(solstice)sol=(att.team===solstice.team?SOLSTICE_BONUS:-SOLSTICE_BONUS);if(att.viseeForcee!=null)return att.viseeForcee;   // « Guaranteed hit » : la visée est imposée, le décor ne compte plus
     return Math.max(5,Math.min(95,Math.round(w.aim+(att.aimBonus||0)+bonusArme(att,m,"aim")+(att.aimTemp||0)+sol-cover+dh-pb-def)));}   // dodge = esquive du défenseur
@@ -1664,10 +1670,10 @@
     if(!hit){txt="missed";result="miss";}
     else if(!back&&tgt.shieldBlock&&RND()*100<tgt.shieldBlock){txt="blocked 🛡";result="blocked";}
     else if(!back&&w.type==="melee"&&tgt.parry&&RND()*100<tgt.parry){txt="parried 🗡";result="blocked";}
-    else{result="hit";dmg=w.dmgMin+Math.floor(RND()*(w.dmgMax-w.dmgMin+1))+(att.dmgBonus||0)+bonusArme(att,m,"dmg")+((opts&&opts.dmg)||0);dmg=Math.max(1,dmg-(tgt.dr||0));   // dr = réduction de dégâts (jamais en dessous de 1)
+    else{result="hit";dmg=w.dmgMin+Math.floor(RND()*(w.dmgMax-w.dmgMin+1))+(att.dmgBonus||0)+(att.dmgTemp||0)+boostDmg(att)+bonusArme(att,m,"dmg")+((opts&&opts.dmg)||0);dmg=Math.max(1,dmg-(tgt.dr||0));   // dr = réduction de dégâts (jamais en dessous de 1)
       let fb=0,fl="";if(w.flank&&w.type==="melee"){const f=flankOf(att,tgt),fbn=att.flankBonus||{};if(f==="back"){fb=w.flank.back+(fbn.back||0);fl="back";}else if(f==="side"){fb=w.flank.side+(fbn.side||0);fl="flank";}dmg+=fb;}if(att.team==="enemy")dmg=Math.max(1,dmg-1);tgt.hp-=dmg;if(tgt.team==="player")tgt.dmgTaken=(tgt.dmgTaken||0)+dmg;txt=`hit ${dmg}`+(fb?` (${fl} +${fb})`:"")+(tgt.hp<=0?(tgt.team==="player"?" ✚K.O.":" ✝"):"");if(tgt.hp<=0)tgt.hp=0;}
     const killed=tgt.hp<=0&&result==="hit", wn=(CLASSES[att.cls]&&CLASSES[att.cls].wname)||(w.type==="ranged"?(att.clip!==undefined?"crossbow":"bow"):(w.flank?"daggers":"sword"));
-    if(killed&&att.team==="player")att.kills=(att.kills||0)+1;   // for mission XP
+    if(killed&&att.team==="player"){ att.kills=(att.kills||0)+1; reactBloodlust(att); }   // for mission XP
     pushShot(att,tgt,w.type==="melee"); if(dmg>0){pushDmg(tgt.cell,dmg,tgt.team);screenShake(killed?4:2);}   // combat juice
     log(`${att.team==="player"?"▲":"▼"} ${att.name} ${w.type==="ranged"?"shoots":"strikes"} ${tgt.name} (${ch}%): ${txt}`,att.team);
     const ctx={actorName:att.name,actorCls:att.cls,actorTeam:att.team,targetName:tgt.name,targetCls:tgt.cls,targetTeam:tgt.team,weapon:wn,result,killed,dmg,reaction:!!reaction,targetHpPct:Math.round(100*Math.max(0,tgt.hp)/tgt.max)};
@@ -1823,6 +1829,7 @@
       log(`▲ ${thrower.name} throws a smoke charge`,thrower.team); checkEnd(); if(!over)refresh(); return; }
     for(const u of units){ if(u.hp<=0)continue; if(hops(imp,u.cell)<=cr.radius){ const dmg=cr.dmgMin+(opts.dmg||0)+Math.floor(RND()*(cr.dmgMax-cr.dmgMin+1)); u.hp-=dmg; if(u.team==="player")u.dmgTaken=(u.dmgTaken||0)+dmg; pushDmg(u.cell,dmg,u.team); if(u.team===thrower.team)alliesHit++; else enemiesHit++;
       log(`   💥 ${u.name}: ${dmg} damage`+(u.hp<=0?(u.team==="player"?" ✚K.O.":" ✝"):""),u.team); if(u.hp<=0){u.hp=0;killed++;}
+      if(u!==thrower&&!hostile(thrower,u)){ reactWtf(u); }
       if(u!==thrower&&!hostile(thrower,u))emit("friendlyfire",{actorName:thrower.name,actorCls:thrower.cls,actorTeam:thrower.team,targetName:u.name,targetCls:u.cls,targetTeam:u.team,weapon:"cracker",dmg,killed:u.hp<=0}); } }
     log(`▲ ${thrower.name} throws a cracker`,thrower.team);
     detruireMurs(imp,cr.radius,thrower);
@@ -1857,6 +1864,14 @@
     cusser:{icon:"💥",label:"Cusser — reinforced grenade (+2 damage, +2 range)",target:"cell"},
     raisewall:{icon:"🧱",label:"Raise wall — builds up to two wall segments",target:"cell"},
     removewall:{icon:"🕳",label:"Remove wall — takes down one wall segment",target:"cell"},
+    // ===== voie Officier =====
+    warcry:{icon:"📢",label:"Warcry — allies within 5: +10 aim, +1 damage, −1 damage taken",target:"self"},
+    inspire:{icon:"⬆",label:"Inspire — +1 AP to an ally",target:"ally"},
+    insult:{icon:"🗯",label:"Insult — +2 AP to a subordinate",target:"ally"},
+    exfil:{icon:"🚪",label:"Emergency exit — pulls an ally off the map, alive",target:"ally"},
+    bruise:{icon:"💪",label:"Bruise — a subordinate within 2: +30% defence and damage",target:"ally"},
+    // ===== voie Vétéran =====
+    fuckit:{icon:"🩸",label:"Fuck it — +30% damage, −20% defence, for 2 turns",target:"self"},
     // ===== Siphoner =====
     lifefire:{icon:"🔥",label:"Life fire — area, 4 damage, may set alight (+1/turn, 2 turns)",target:"cell"},
     hammer:{icon:"🔨✨",label:"Hammer — area, 50% chance to stun",target:"cell"},
@@ -1881,7 +1896,8 @@
   const COOLDOWN={smoke:3,breach:4,shadowstrike:2,rally:3,taunt:3,holdline:3,wall:3,blast:3,heal:2,frost:2,shove:3,charge:4,
     buttstroke:0,spray:3,rungun:3,precshot:0,surehit:4,burst:3,boomshell:2,
     smoker:1,cusser:1,raisewall:2,removewall:4, stab:0,lure:1,fear:4,bait:5,
-    lifefire:4,hammer:3,evade:2,teleport:3,rayoflight:3,unwall:3,wave:5,spirit:5,replenish:0,haven:0,requiem:5,solstice:5,biscuit:0};
+    lifefire:4,hammer:3,evade:2,teleport:3,rayoflight:3,unwall:3,wave:5,spirit:5,replenish:0,haven:0,requiem:5,solstice:5,biscuit:0,
+    warcry:4,inspire:2,insult:4,exfil:0,bruise:3, fuckit:3};
   let CD_MULT=1;   // global cooldown multiplier (balancing panel)
   const onCd=(u,id)=>!!(u&&u.cd&&u.cd[id]>0);
   // règle effective d'une capacité pour CETTE unité : celle de son perk si elle en a une, sinon
@@ -2255,6 +2271,85 @@
     payerAbil(u,"biscuit"); u.cd={}; u.ap=0; u.fatigueBonus=(u.fatigueBonus||0)+15;
     log(`▲ ${u.name} eats a biscuit — ${en} cooldown${en>1?"s":""} cleared`,"player"); refresh(); return true; }
 
+  // ===== voie Officier : on ne frappe pas, on fait frapper les autres =====
+  // SUBORDONNÉ. Le Sheet dit « veteran or lvl<4 » : un officier commande ceux qui n'ont pas son
+  // ancienneté, pas ses pairs. Le grade se lit dans le roster de campagne ; hors campagne (test,
+  // mission isolée) tout le monde est subordonné, faute de hiérarchie.
+  function gradeDe(u){ const m=(campRun&&campRun.roster)?campRun.roster.find(r=>r.name===u.name):null;
+    return m?Math.max(gradeFromXp(m.xp||0),(m.perks||[]).length):0; }
+  function estSubordonne(u){ const m=(campRun&&campRun.roster)?campRun.roster.find(r=>r.name===u.name):null;
+    if(!m)return true; return m.track==="veteran"||gradeDe(u)<4; }
+
+  const WARCRY_R=5;
+  function execWarcry(u){ if(!abilDispo(u,"warcry"))return false;
+    const amis=units.filter(a=>a.team===u.team&&a.hp>0&&!a.factice&&hops(u.cell,a.cell)<=WARCRY_R);
+    if(!amis.length)return false;
+    payerAbil(u,"warcry");
+    // aura jusqu'au prochain tour allié : les trois bonus sont posés en TEMPORAIRE, et repris
+    // en début de tour — sinon ils s'empileraient d'un cri à l'autre.
+    for(const a of amis){ a.aimTemp=(a.aimTemp||0)+10; a.dmgTemp=(a.dmgTemp||0)+1; a.drTemp=(a.drTemp||0)+1; a.dr=(a.dr||0)+1; }
+    pushNoise(u.cell,WARCRY_R); log(`▲ ${u.name}: "On me suit !" (${amis.length} allies)`,"player"); refresh(); return true; }
+
+  function donnerPa(u,a,n,id,exigeSubordonne){ if(!abilDispo(u,id))return false;
+    if(!a||a.team!==u.team||a.hp<=0||a===u||a.factice){setMsg("Choose a visible ally.");return false;}
+    if(!los(u.cell,a.cell)||hops(u.cell,a.cell)>MAG_RANGE){setMsg("Out of range / no line of sight.");return false;}
+    if(exigeSubordonne&&!estSubordonne(a)){setMsg(`${a.name} is not your subordinate.`);return false;}
+    payerAbil(u,id); a.ap=Math.min(AP_MAX,a.ap+n); a.freeAvail=true;
+    log(`▲ ${u.name} ${id==="insult"?"berates":"inspires"} ${a.name} (+${n} AP)`,"player");
+    if(id==="insult")reactScoff(a,u);
+    refresh(); return true; }
+  const execInspire=(u,a)=>donnerPa(u,a,1,"inspire",false);
+  const execInsult =(u,a)=>donnerPa(u,a,2,"insult",true);
+
+  // EXFILTRATION. L'allié quitte la carte VIVANT : ce n'est ni une mort ni une disparition, et il
+  // doit rester dans l'escouade au débriefing. On le marque « sorti » et on le retire du plateau.
+  function execExfil(u,a){ if(!abilDispo(u,"exfil"))return false;
+    if(!a||a.team!==u.team||a.hp<=0||a===u||a.factice){setMsg("Emergency exit: choose a visible ally.");return false;}
+    if(!los(u.cell,a.cell)||hops(u.cell,a.cell)>MAG_RANGE){setMsg("Emergency exit: out of range / no line of sight.");return false;}
+    payerAbil(u,"exfil"); pushPuff(a.cell,"#d8c79a");
+    a.sorti=true; a.cell=-1; a.ap=0; a.freeAvail=false;
+    log(`▲ ${u.name} pulls ${a.name} out — extracted`,"player"); refresh(); checkEnd(); return true; }
+
+  const BRUISE_R=2, BRUISE_PCT=30;
+  function execBruise(u,a){ if(!abilDispo(u,"bruise"))return false;
+    if(!a||a.team!==u.team||a.hp<=0||a===u||a.factice){setMsg("Bruise: choose an ally.");return false;}
+    if(hops(u.cell,a.cell)>BRUISE_R){setMsg("Bruise: the subordinate must be within 2 tiles.");return false;}
+    if(!estSubordonne(a)){setMsg(`${a.name} is not your subordinate.`);return false;}
+    payerAbil(u,"bruise");
+    a.dodgeTemp=(a.dodgeTemp||0)+BRUISE_PCT; a.dodge=(a.dodge||0)+BRUISE_PCT;
+    a.dmgTemp=(a.dmgTemp||0)+Math.max(1,Math.round((a.w[a.wtype].dmgMax||3)*BRUISE_PCT/100));
+    log(`▲ ${u.name} braces ${a.name} (+${BRUISE_PCT}% defence and damage)`,"player");
+    reactScoff(a,u); refresh(); return true; }
+
+  // ===== voie Vétéran : on encaisse, et on s'en sert =====
+  // BONUS DATÉ. « Fuck it » et « WTF » durent deux tours — au-delà du tour courant, donc hors des
+  // aimTemp/dmgTemp que le début de tour balaie. Un seul créneau par unité : se relancer le
+  // rafraîchit au lieu de l'empiler, sinon deux tirs amis feraient un monstre.
+  function poserBoost(u,dmg,dodge,tours,nom){ u.boostDmg=dmg; u.boostDodge=dodge; u.boostTours=tours; u.boostNom=nom; }
+  function tickBoosts(team){ for(const u of units){ if(u.team!==team||!u.boostTours)continue;
+      if(--u.boostTours<=0){ u.boostDmg=0; u.boostDodge=0; u.boostNom=null; } } }
+  const boostDmg=u=>(u.boostTours>0?(u.boostDmg||0):0);
+  const boostDodge=u=>(u.boostTours>0?(u.boostDodge||0):0);
+
+  const FUCKIT_TOURS=2;
+  function execFuckIt(u){ if(!abilDispo(u,"fuckit"))return false;
+    payerAbil(u,"fuckit");
+    // +30 % de dégâts et −20 % de défense, en points : le moteur compte en plat, pas en pourcentage
+    const w=u.w[u.wtype]||{dmgMax:4};
+    poserBoost(u, Math.max(1,Math.round((w.dmgMax||4)*0.30)), -20, FUCKIT_TOURS+1, "fuckit");
+    log(`▲ ${u.name}: "Fuck it." (+damage, −defence, 2 turns)`,"player"); refresh(); return true; }
+
+  // RÉACTIONS. Le moteur ne savait rien faire « quand ceci m'arrive » ; la voie Vétéran en demande
+  // trois. Elles sont posées comme des drapeaux et lues aux trois endroits qui les déclenchent.
+  function reactScoff(cible,officier){ if(!cible.scoff||!officier)return;
+    officier.ap=Math.min(AP_MAX,officier.ap+1);
+    log(`   🗯 ${cible.name} scoffs — ${officier.name} gets 1 AP back`,"player"); }
+  const WTF_DMG=3, WTF_TOURS=2;
+  function reactWtf(u){ if(!u.wtf)return; poserBoost(u,WTF_DMG,0,WTF_TOURS+1,"wtf");
+    log(`   😤 ${u.name} takes it badly (+${WTF_DMG} damage, ${WTF_TOURS} turns)`,"player"); }
+  function reactBloodlust(u){ if(!u.bloodlust)return; u.ap=Math.min(AP_MAX,u.ap+1);
+    log(`   🩸 ${u.name}: blood calls (+1 AP)`,"player"); }
+
   // ===== "shield" abilities: shove + long charge =====
   const CHARGE_RANGE=7;   // max range (hops) of the charge
   // tile "behind" the target, in line with the blow (direction u -> target)
@@ -2284,13 +2379,14 @@
   // AIGUILLAGE PAR TABLE. La chaîne de ternaires grossissait d'un maillon à chaque capacité et
   // finissait par en oublier ; une entrée par capacité se lit et se complète.
   const EXEC_SELF={vanish:execVanish,taunt:execTaunt,holdline:execHoldline,wall:execWall,rungun:execRunGun,
-    solstice:execSolstice,biscuit:execBiscuit};
+    solstice:execSolstice,biscuit:execBiscuit,warcry:execWarcry,fuckit:execFuckIt};
   const EXEC_CELL={smoke:execSmoke,breach:execBreach,blast:execBlast,spray:execSpray,
     smoker:execSmoker,cusser:execCusser,raisewall:execRaiseWall,removewall:execRemoveWall,
     lure:execLure,fear:execFear,bait:execBait,
     lifefire:execLifeFire,hammer:execHammer,rayoflight:execRayOfLight,unwall:execUnwall,
     wave:execWave,spirit:execSpirit,haven:execHaven,requiem:execRequiem};
-  const EXEC_ALLY={heal:execHeal,rally:execRally,evade:execEvade,replenish:execReplenish};
+  const EXEC_ALLY={heal:execHeal,rally:execRally,evade:execEvade,replenish:execReplenish,
+    inspire:execInspire,insult:execInsult,exfil:execExfil,bruise:execBruise};
   const EXEC_ENEMY={frost:execFrost,shadowstrike:execShadow,shove:execShove,charge:execCharge,
     buttstroke:execButtstroke,precshot:execPrecShot,surehit:execSureHit,burst:execBurst,
     boomshell:execBoomShell,stab:execStab,teleport:execTeleport};
@@ -2332,7 +2428,9 @@
     if(units.some(u=>u.team==="neutral"&&u.hostage&&u.hp<=0))return end("Defeat — the hostage has fallen…");   // hostage/VIP killed = failure
     const guard=units.filter(u=>u.team==="neutral"&&!u.hostage&&!u.civ);   // NPCs to defend (excluding ambient civilians)
     if(guard.length){ const alive=guard.filter(u=>u.hp>0).length, need=(curMission&&curMission.protect!=null)?curMission.protect:guard.length; if(alive<need)return end("Defeat — too many NPCs to defend have fallen…"); }
-    if(!units.some(u=>vraiJoueur(u)&&u.hp>0))return end("Defeat…");
+    if(!units.some(u=>vraiJoueur(u)&&u.hp>0)){
+      // tout le monde extrait n'est pas tout le monde mort : on le dit autrement
+      return end(units.some(u=>u.team==="player"&&u.sorti&&u.hp>0)?"Withdrawn — the squad pulled out.":"Defeat…"); }
     const noEnemies=!units.some(u=>u.team==="enemy"&&u.hp>0&&!u.bonus);   // the bonus officer (✦) doesn't block victory: it's optional
     // --- victories by objective ---
     if(obj==="assassinate"){ if(!units.some(u=>u.team==="enemy"&&u.hvt&&u.hp>0))return end("Victory — target eliminated!"); return; }
@@ -2496,6 +2594,7 @@
   function endTurn(){harvestTick();
     tourDesEsprits();                                    // l'esprit agit entre les deux camps
     tickBrulures("enemy");                               // les brûlures consument avant le tour d'en face
+    tickBoosts("enemy");
     // le havre tient jusqu'au prochain tour allié, le solstice compte les tours
     havres=havres.filter(h=>h.team!=="player"||--h.tours>=0);
     if(solstice&&--solstice.tours<=0)solstice=null;
@@ -2503,10 +2602,12 @@
     if(u.leurreTours>0){u.leurreTours--; if(u.leurreTours<=0&&u.facing0!=null){u.facing=u.facing0;u.facing0=null;} }   // le leurre s'épuise : la cible se retourne
     if(u.stunTours>0){u.ap=0;u.freeAvail=false;u.stunTours--;} else if(u.stunned){u.ap=0;u.freeAvail=false;u.stunned=false;}}banner("Enemy turn","enemy");refresh();const foes=units.filter(u=>u.team==="enemy"&&u.hp>0);let i=0;
     (function step(){if(over)return;if(i>=foes.length){for(const u of units)if(u.team==="player"){u.ap=u.factice?0:AP_MAX;u.freeAvail=!u.factice;u.overwatch=false;u.reacted=false;u.bracing=false;u.taunt=false;u.hidden=!!u.faded;u.wallStance=false;u.aBouge=false;
-      if(u.dodgeTemp){u.dodge=Math.max(0,(u.dodge||0)-u.dodgeTemp);u.dodgeTemp=0;}u.aimTemp=0;u.viseeForcee=null;u.runGun=false;
+      if(u.dodgeTemp){u.dodge=Math.max(0,(u.dodge||0)-u.dodgeTemp);u.dodgeTemp=0;}
+      if(u.drTemp){u.dr=Math.max(0,(u.dr||0)-u.drTemp);u.drTemp=0;}
+      u.dmgTemp=0;u.aimTemp=0;u.viseeForcee=null;u.runGun=false;
       // ÉTOURDISSEMENT QUI DURE : « stunned » valait un tour ; « stunTours » en vaut plusieurs
       // (la panique du Stinger en pose deux). Le tour saute tant qu'il en reste.
-      if(u.stunTours>0){u.ap=0;u.freeAvail=false;u.stunTours--;} else if(u.stunned){u.ap=0;u.freeAvail=false;u.stunned=false;}}tickBrulures("player");tickCd("player");for(const[k,v]of smoke){if(v-1<=0)smoke.delete(k);else smoke.set(k,v-1);}turn="player";turnNum++;turnActions=0;setMsg("");checkEnd();if(over)return;banner("Player turn","player");refresh();emit("turn",{turn:turnNum});return;}
+      if(u.stunTours>0){u.ap=0;u.freeAvail=false;u.stunTours--;} else if(u.stunned){u.ap=0;u.freeAvail=false;u.stunned=false;}}tickBrulures("player");tickBoosts("player");tickCd("player");for(const[k,v]of smoke){if(v-1<=0)smoke.delete(k);else smoke.set(k,v-1);}turn="player";turnNum++;turnActions=0;setMsg("");checkEnd();if(over)return;banner("Player turn","player");refresh();emit("turn",{turn:turnNum});return;}
       const e=foes[i++];if(e.hp<=0){step();return;} e.overwatch=false;
       if(e.runner){ try{runnerStep(e);}catch(err){} e.ap=0; refresh(); checkEnd(); if(over)return; differer(step,220); return; }
       if(!enemyActive(e)){ try{patrolStep(e);}catch(err){} e.ap=0; step(); return; }   // not alerted = patrols in its zone
@@ -4772,7 +4873,9 @@
       if(deployed.has(m.name)&&u){ m.fatigue=Math.min(100,(m.fatigue||0)+FATIGUE_MISSION+(u.spellsCast||0)*SPELL_FATIGUE);   // mages exhaust themselves channeling: +fatigue based on the number of spells cast
         const selfKO=u.hp<=0; m.stress=Math.min(100,(m.stress||0)+(u.dmgTaken||0)*STRESS_DMG+(selfKO?STRESS_SELF_KO:0)+Math.max(0,koCount-(selfKO?1:0))*STRESS_KO_ALLY);
         // permanent death of a non-special: only if they go K.O. AND the mission is LOST AND on a roll (winning = you recover your K.O.s)
-        if(selfKO&&!m.special&&!win&&RND()*100<DEATH_PCT){ m.dead=true; deaths.push(m.name); log&&log(`✝ ${m.name} has fallen for good.`,"enemy"); }
+        // « Tough it up » : le vétéran tombe, mais ne meurt jamais pour de bon — même effet
+        // que le statut « spécial », par un perk plutôt que par le scénario.
+        if(selfKO&&!m.special&&!u.toughitup&&!win&&RND()*100<DEATH_PCT){ m.dead=true; deaths.push(m.name); log&&log(`✝ ${m.name} has fallen for good.`,"enemy"); }
       } else if(!isMini){ m.fatigue=Math.max(0,(m.fatigue||0)-Math.ceil((m.fatigue||0)*REST_FRAC)); m.stress=Math.max(0,(m.stress||0)-Math.ceil((m.stress||0)*REST_FRAC)); if(campRun.carry)delete campRun.carry[m.name]; }   // rest at camp: PARTIAL stress/fatigue recovery (≈ half) + FULL HP heal. In a mini-mission: nothing (no camp).
     } return deaths; }
   // scripted removal of the special status: "their role is done" -> the character becomes mortal (a campaign node can trigger it)
@@ -5140,6 +5243,7 @@
     if(cells.some(c=>c.podAnchor)){ units=units.filter(u=>!u.fromAnchor); spawnAnchorPods(); }   // (re)generates the anchor pods on each (re)launch
     if(!units.some(u=>u.team==="player")||!units.some(u=>u.team==="enemy")){ setMsg("Place at least 1 ally and 1 enemy (Edit mode)."); }
     havres=[]; solstice=null; units=units.filter(u=>!u.esprit&&!u.factice);
+    for(const u of units){u.sorti=false;u.dmgTemp=0;u.drTemp=0;u.boostTours=0;u.boostDmg=0;u.boostDodge=0;}
     for(const u of units){u.hp=u.max;u.ap=AP_MAX;u.freeAvail=true;u.overwatch=false;u.reacted=false;u.bracing=false;u.taunt=false;u.hidden=false;u.wallStance=false;u.vanishUsed=false;u.slowed=false;u.stunned=false;u.stunTours=0;u.leurreTours=0;u.brule=0;u.dodgeTemp=0;u.espritTours=0;u.facing0=null;u.aBouge=false;u.aimTemp=0;u.viseeForcee=null;u.spellsCast=0;u.cd={};
       // les charges se rechargent d'une MISSION à l'autre, jamais pendant : on repart du stock du perk
       if(u.abilRule){ u.charges={}; for(const k in u.abilRule)if(u.abilRule[k].charges)u.charges[k]=u.abilRule[k].charges; }u.dmgTaken=0;u.asleep=!!u._asleep0;if(u.clip!==undefined)u.ammo=u.clip;if(u.freeReload0!==undefined)u.freeReload=u.freeReload0;if(u.crackers!==undefined)u.crackers=(u.crackers0!==undefined?u.crackers0:CLASSES[u.cls].crackers);} smoke=new Map();ability=null; _podCenters=null; turn="player";over=false;sel=null;amode=null;aimTarget=null;throwing=false;usingItem=false;inv={potion:campRun?(campRun.potions||0):0};
