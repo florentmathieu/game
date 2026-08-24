@@ -312,6 +312,7 @@
       <button id="zauto" title="Lay out random zones (squares, hexagons, pentagons)">🎲 Auto zones</button></div>
     <div class="row" id="zones"></div>
     <div class="row"><label style="flex:1">Distortion <input id="dist" type="range" min="0" max="100" value="28"></label><span id="distv">28%</span></div>
+    <div class="row"><label style="font-size:.85rem"><input id="carres-stricts" type="checkbox" checked> Square tiles stay square (distortion applies to hex/pentagon only)</label></div>
     <div class="row"><label style="flex:1">Density <input id="dens" type="range" min="30" max="64" value="44"></label><span id="densv">44</span> <button id="regen">↻</button></div>
     <div class="row"><label>Shape <select id="board-shape">
       <option value="rect">rectangle (full)</option>
@@ -954,6 +955,11 @@
       const zoneGeo=t;
       if(t==="mix"){const pick=Math.floor(rnd()*3);t=["square","hex","pentagon"][pick];}
       if(t==="hex"){x=i*g+(j&1?g/2:0);y=j*h;}else if(t==="pentagon"){x=i*g+(j&1?g/2:0);amp+=g*0.16;}   // pentagons jittered less
+      // UN CARRÉ RESTE UN CARRÉ. Les graines d'une zone « square » sont posées sur une grille
+      // régulière — le Voronoï en tire des carrés parfaits — puis la Distortion les secouait, ce qui
+      // rendait tous les quadrilatères tordus. Elle ne s'applique plus qu'aux zones hex et pentagone,
+      // sauf à décocher expressément la case « Square tiles stay square ».
+      if(t==="square"&&carresStricts())amp=0;
       x+=jit(amp);y+=jit(amp);
       if(x>-g&&x<W+g&&y>-g&&y<H+g){ const md2=(g*0.5)**2; let ok=true; for(const s of seeds){const dx=s[0]-x,dy=s[1]-y;if(dx*dx+dy*dy<md2){ok=false;break;}} if(ok)seeds.push([x,y,zoneGeo]); }   // reject seeds that are too close → no more shattered cells
     }
@@ -3333,6 +3339,12 @@
     el.style.display="block"; }
 
   // ===== editor UI =====
+  const carresEl=()=>document.getElementById("carres-stricts");
+  // UNE SEULE SOURCE DE VÉRITÉ. Lire la case à cocher directement paraissait plus simple, mais hors
+  // éditeur — jeu, simulation, export Godot — elle n'existe pas ou n'a pas de propriété « checked »,
+  // et la lecture retombait sur faux : le contraire du défaut voulu. C'est la variable qui fait foi ;
+  // la case ne fait que l'écrire.
+  const carresStricts=()=>CARRES_STRICTS;
   const distEl=document.getElementById("dist"),dens=document.getElementById("dens"),uteam=document.getElementById("uteam"),ucls=document.getElementById("ucls"),upod=document.getElementById("upod"),uasleep=document.getElementById("uasleep"),uhostage=document.getElementById("uhostage"),uname=document.getElementById("uname");
   Object.keys(CLASSES).filter(k=>k!=="sergent").forEach(k=>{const o=document.createElement("option");o.value=k;o.textContent=CLASSES[k].name;ucls.appendChild(o);});
   function btnRow(host,items){ host.innerHTML=""; items.forEach(([label,tool])=>{const b=document.createElement("button");b.textContent=label;b.dataset.tool=tool;b.className=editTool===tool?"on":"";b.onclick=()=>{editTool=tool;syncTools();refresh();};host.appendChild(b);}); }
@@ -3526,7 +3538,7 @@
   // TAILLE DES CARTES. 75 cases par poche et un plancher de 7 de large donnaient des régions de
   // ★1 à 66 cases — sur lesquelles une escouade de trois n'a pas la place de manœuvrer, et où une
   // forme creuse dégénère. On monte à 95 et 10 : ★1 passe de 66 à ~140 cases, ★2 de 138 à ~190.
-  let CEL_PAR_POD=95, LARGEUR_MIN=10;
+  let CEL_PAR_POD=95, LARGEUR_MIN=10, CARRES_STRICTS=true;
   // Les formes n'ont pas la même surface à réglages égaux : une croix à 20x16 fait 389 cellules là
   // où un rectangle en fait 806. Mesuré sur les mêmes 560 parties, cellules ~ k x largeur².
   const FORME_K={rect:1.98,L:1.25,S:1.41,croix:0.96,sablier:1.14,anneau:1.40,diag:1.15};
@@ -4108,6 +4120,8 @@
     for(let r=0;r<ROWS;r++)for(let c=0;c<COLS;c++){let bi=0,bd=1e9;for(let i=0;i<cs.length;i++){const d=(cs[i].x-c)**2+(cs[i].y-r)**2;if(d<bd){bd=d;bi=i;}}infl[r][c]=cs[bi].t;}
     seed=(seed*1103515245+12345)&0x7fffffff; rebuildShape(true); }
   distEl.oninput=()=>{document.getElementById("distv").textContent=distEl.value+"%";rebuildShape(true);};
+  { const cs=carresEl(); if(cs){ if(typeof cs.checked==="boolean")CARRES_STRICTS=cs.checked;   // l'état de la case au chargement
+      cs.onchange=()=>{ CARRES_STRICTS=!!cs.checked; rebuildShape(true); }; } }
   dens.oninput=()=>{document.getElementById("densv").textContent=dens.value;rebuildShape(true);};
   document.getElementById("regen").onclick=()=>{seed=(seed*1103515245+12345)&0x7fffffff;rebuildShape();};   // ↻: re-meshes from scratch (clears terrain & units)
   { const mf=document.getElementById("mesh-fractal"); if(mf)mf.onchange=()=>rebuildShape(); }   // fractale ⇄ plateau : re-maille

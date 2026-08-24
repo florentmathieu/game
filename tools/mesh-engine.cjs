@@ -18,6 +18,7 @@ function loadMesh(htmlPath){
     get turn(){return turn}, set turn(v){turn=v},
     get mode(){return mode}, set mode(v){mode=v},
     get W(){return W}, get H(){return H},
+    get CARRES_STRICTS(){return CARRES_STRICTS}, set CARRES_STRICTS(v){CARRES_STRICTS=!!v},
     setOpt(o){ if(o&&o.celParPod!=null)CEL_PAR_POD=o.celParPod; if(o&&o.largeurMin!=null)LARGEUR_MIN=o.largeurMin; }, get COLS(){return COLS}, get ROWS(){return ROWS},
     get AP_MAX(){return AP_MAX}, get MOB(){return MOB}, get FREE_MP(){return FREE_MP},
     get ESCOUADE_BASE(){return ESCOUADE_BASE}, set ESCOUADE_BASE(v){ESCOUADE_BASE=v}, aUnOfficier,
