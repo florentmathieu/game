@@ -602,7 +602,11 @@
       // ARME CONDITIONNELLE : l'arbalète n'existe que si le perk « Arbalest » l'a débloquée.
       // Elle ne tire qu'un carreau (chargeur 1) mais porte à 9 — et sert de lance-grenade long.
       ranged2:{...bow(75,5,6,9,1), verrou:"arbalest", nom:"crossbow"}}},   // artificier : charges de minage (= "crackers")
-    assassin:{name:"Stinger",hp:7,mob:8,parry:35,stealth:true,faded:true,wname:"sword",w:{melee:dagger(90,4,5,2,1),ranged:bow(70,3,4,7,4)}},   // le "nettoyeur" : règle les incidents discrètement (seul rôle de contact du joueur)
+    // Le Stinger est DISCRET (stealth : on ne le repère que de face), il n'est pas INVISIBLE.
+    // Il portait « faded », un trait de classe qui remet hidden=true à chaque fin de tour ennemi :
+    // il redevenait totalement indétectable tour après tour sans avoir rien dépensé. L'indétectable
+    // est le fait de la capacité Fade, et d'elle seule.
+    assassin:{name:"Stinger",hp:7,mob:8,parry:35,stealth:true,wname:"sword",w:{melee:dagger(90,4,5,2,1),ranged:bow(70,3,4,7,4)}},   // le "nettoyeur" : règle les incidents discrètement (seul rôle de contact du joueur)
     mage:{name:"Mage",hp:6,mob:7,abil:["biscuit"],abilRegles:{biscuit:{charges:1}},wname:"green fire",w:{ranged:{type:"ranged",aim:100,dmgMin:4,dmgMax:4,range:7},melee:sword(45,2,3)}},   // arcaniste du Consortium : tire l'essence RAFFINÉE extraite du monde (clip 3 = fioles) — sa magie est volée à ce qu'il détruit
     // ===== RÉSISTANCE LOCALE (ennemis ordinaires) — des gens modernes, pas des sauvages =====
     // Ils ont la MÊME technologie que toi, en version récupérée et remontée : l'écart n'est pas
