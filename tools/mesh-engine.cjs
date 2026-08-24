@@ -36,6 +36,7 @@ function loadMesh(htmlPath){
     U, CLASSES, reach, moveAlong, doAttack, inRange, hops, los, passable, occ, adjacent,
     apForMove, budget, bestEnemyTarget, nearestOpposing, wakePod, wakeEnemy, checkEnd, refresh, computeEVis,
     hostile, uAt, enemyActive, shotFrom, pathTo, cellAtXY, opaque, murCoupe, wallSeg, wkey,
+    get zoneRepli(){return zoneRepli}, peutSeReplier, execRepli,
     get lastOutcome(){return lastOutcome}, set lastOutcome(v){lastOutcome=v},
     get curMission(){return curMission}, set curMission(v){curMission=v},
     get turnNum(){return turnNum}, set turnNum(v){turnNum=v},

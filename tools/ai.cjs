@@ -103,9 +103,34 @@ function makeActUnit(M){
       if(peut("buttstroke")&&M.execButtstroke(u,a))return true;
     }
     return false; }
+  // COUPER LES PERTES. Une escouade décimée qui n'a plus vu un ennemi depuis longtemps ne
+  // trouvera pas les poches endormies restantes sur 300 cases : sans plafond de tours, elle
+  // tournerait indéfiniment. Le joueur, lui, se replie. On fait pareil — et c'est ce que mesure
+  // le banc : la décision de rentrer fait partie du jeu.
+  let sansContact=0, dernierTour=-1;
+  const REPLI_DELAI=12;   // tours sans le moindre ennemi en vue avant d'envisager la retraite
+  function envisagerRepli(u){
+    if(u.team!=="player"||u.sorti||!M.cells[u.cell]||!M.peutSeReplier||!M.zoneRepli.size)return false;
+    if(M.turnNum!==dernierTour){ dernierTour=M.turnNum;
+      const vu=M.units.some(e=>e.team==="enemy"&&e.hp>0&&M.visible.has(e.cell));
+      sansContact=vu?0:sansContact+1; }
+    if(sansContact<REPLI_DELAI)return false;
+    const debout=M.units.filter(x=>x.team==="player"&&x.hp>0&&!x.sorti);
+    const perdus=M.units.filter(x=>x.team==="player"&&x.hp<=0).length;
+    const asec=debout.every(x=>x.w.ranged&&x.clip!==undefined&&x.ammo<=0);
+    if(!perdus&&!asec)return false;                       // intacte et armée : elle continue de chercher
+    if(M.peutSeReplier(u))return M.execRepli(u);
+    const d=M.reach(u); let but=null,bh=Infinity;         // sinon on rentre vers la zone d'arrivée
+    for(const cs in d){ const c=+cs; const h=Math.min(...[...M.zoneRepli].map(z=>M.hops(c,z)));
+      if(h<bh){bh=h;but=c;} }
+    if(but!=null&&but!==u.cell&&bh<Math.min(...[...M.zoneRepli].map(z=>M.hops(u.cell,z)))){ M.moveAlong(u,but); return true; }
+    return false; }
+
   return function actUnit(u){
+    if(u.sorti||!M.cells[u.cell])return;   // celui qui a quitté le plateau n'y joue plus
     let guard=0;
     const extracting = u.team==="player" && M.curMission && M.curMission.objective==="extract";
+    if(envisagerRepli(u))return;
     if(!extracting)useAbilities(u);
     while(u.hp>0 && !M.over && (u.ap>0||u.freeAvail) && guard++<8){
       // Frappe de l'ombre : l'assassin bondit sur un ennemi proche (remplace l'attaque normale)

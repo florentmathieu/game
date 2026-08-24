@@ -1648,7 +1648,8 @@
   function budget(u){return (u.freeAvail?freeMpOf(u):0)+u.ap*mobOf(u);}
   function apForMove(u,cost){return Math.max(0,Math.ceil((cost-(u.freeAvail?freeMpOf(u):0))/mobOf(u)));}
   function edgeCell(id){const c=cells[id];if(!c||!c.poly)return false;const e=2;return c.poly.some(p=>p[0]<=e||p[0]>=W-e||p[1]<=e||p[1]>=H-e);}   // border cell: its polygon touches the map edge
-  function reach(u){const occu=occ();const dist={};dist[u.cell]=0;const pq=[[0,u.cell]];const B=budget(u);
+  function reach(u){if(!u||!cells[u.cell])return {};   // exfiltré ou replié : plus de case, donc plus de portée
+    const occu=occ();const dist={};dist[u.cell]=0;const pq=[[0,u.cell]];const B=budget(u);
     while(pq.length){let bi=0;for(let i=1;i<pq.length;i++)if(pq[i][0]<pq[bi][0])bi=i;const[d,id]=pq.splice(bi,1)[0];if(d>dist[id])continue;
       for(const n of cells[id].nb){if(occu.has(n))continue;if(mode==="play"&&(u.team==="player"?(!visible.has(n)||edgeCell(n)):u.team==="enemy"?(!evisible.has(n)||edgeCell(n)):false))continue;const c=enterCost(id,n);if(c===null)continue;const nd=d+c;if(nd<=B&&(dist[n]===undefined||nd<dist[n])){dist[n]=nd;pq.push([nd,n]);}}}   // player AND enemy limited to their field of view (fog + LoS); no border cells
     delete dist[u.cell];return dist;}
@@ -2396,6 +2397,15 @@
     a.sorti=true; a.cell=-1; a.ap=0; a.freeAvail=false;
     log(`▲ ${u.name} pulls ${a.name} out — extracted`,"player"); refresh(); checkEnd(); return true; }
 
+  // SE REPLIER. Quitter le plateau par où l'on est entré : le personnage sort vivant et reste
+  // dans l'escouade au débriefing. Quand il ne reste plus personne debout sur la carte, checkEnd
+  // conclut « Withdrawn » — mission perdue, mais sans le prix du sang.
+  const peutSeReplier=u=>!!u&&vraiJoueur(u)&&u.hp>0&&zoneRepli.has(u.cell);
+  function execRepli(u){ if(!peutSeReplier(u))return false;
+    pushPuff(u.cell,"#d8c79a"); u.sorti=true; u.cell=-1; u.ap=0; u.freeAvail=false;
+    log(`▲ ${u.name} pulls back off the map`,"player");
+    if(sel===u)sel=null; refresh(); checkEnd(); return true; }
+
   const BRUISE_R=2, BRUISE_PCT=30;
   function execBruise(u,a){ if(!abilDispo(u,"bruise"))return false;
     if(!a||a.team!==u.team||a.hp<=0||a===u||a.factice){setMsg("Bruise: choose an ally.");return false;}
@@ -2534,6 +2544,11 @@
 
   // ===== fog / turns =====
   let visible=new Set(), evisible=new Set(), turn="player", sel=null, over=false, amode=null, hoverCell=null, aimTarget=null, introBlocking=false, lastOutcome=null;
+  // ZONE DE REPLI : les cases par lesquelles l'escouade est arrivée, donc celles par lesquelles
+  // elle peut repartir. Sans elle, une mission d'élimination n'a aucune sortie — pas de plafond
+  // de tours, et `exfil` est un perk d'Officier de niveau 7 : une escouade décimée qui ne
+  // retrouve pas la dernière poche endormie tourne indéfiniment sur 300 cases.
+  let zoneRepli=new Set();
   let ability=null, smoke=new Map();   // ability = armed special ability (awaiting a target); smoke = smoked tiles -> turns remaining
   // champ de distance en sauts, borné : un seul parcours par unité au lieu d'un BFS complet PAR
   // CELLULE. computeVis tourne à chaque rafraîchissement, donc à chaque action.
@@ -3014,6 +3029,8 @@
       ctx.globalAlpha=done?0.45:1; ctx.fillText("⛏",c.cx,c.cy-3);
       ctx.globalAlpha=1; ctx.font="bold 10px system-ui"; ctx.fillStyle=done?"#9aa0aa":"#cdefff";
       ctx.fillText(`${c.oreP||0}/${need}`,c.cx,c.cy+11); ctx.restore(); }
+    if(mode==="play"&&!over&&zoneRepli.size){ for(const id of zoneRepli){ const c=cells[id]; if(!c)continue;
+        const ici=sel&&sel.cell===id; poly(c); ctx.strokeStyle=ici?"rgba(216,199,154,.95)":"rgba(216,199,154,.32)"; ctx.lineWidth=ici?2.5:1.5; ctx.setLineDash([5,4]); ctx.stroke(); ctx.setLineDash([]); } }
     if(mode==="edit"){ for(const c of cells)if(c.deploy){ poly(c); ctx.fillStyle="rgba(90,200,150,.28)"; ctx.fill(); ctx.strokeStyle="rgba(120,240,180,.7)"; ctx.lineWidth=2; ctx.stroke(); }   // squad deployment zone
       for(const c of cells)if(c.podAnchor){ const slp=c.podAnchor==="asleep"; poly(c); ctx.fillStyle=slp?"rgba(95,140,216,.26)":"rgba(216,99,95,.26)"; ctx.fill(); ctx.strokeStyle=slp?"rgba(120,170,255,.85)":"rgba(255,120,110,.85)"; ctx.lineWidth=2; ctx.stroke(); ctx.save(); ctx.font="bold 13px system-ui"; ctx.textAlign="center"; ctx.textBaseline="middle"; ctx.fillText(slp?"💤":"🎯",c.cx,c.cy); ctx.restore(); }   // enemy pod anchor (red = awake, blue/💤 = asleep)
       ctx.textAlign="center"; ctx.textBaseline="middle"; ctx.font="bold 11px system-ui";   // trigger zones: visible only in the editor
@@ -5415,6 +5432,7 @@
     playPartyDialog("after",()=>campEndResolve(t)); }   // squad dialogue "after the mission" (participants intact), then continue
   function campEndResolve(t){
     const win=t.indexOf("Victory")===0, n=campRun.camp.nodes.find(x=>x.id===campRun.nodeId);
+    if(t.indexOf("Withdrawn")===0){ saveCarry(); awardXp(); }   // repli : l'xp du terrain est acquise
     if(win){ saveCarry(); awardXp(); applyAttrition(true); if(campRun){campRun.potions=(inv.potion||0)+((curMission&&curMission.loot)||0); campRun.winCount=(campRun.winCount||0)+1;} const bonusMsg=grantBonus(true);   // loot + victory counter, then bonus reward (on the already-placed potions)
       const after=()=>{ const lost=checkMortalConditions(); const msgs=[]; if(bonusMsg)msgs.push(bonusMsg); if(lost.length)msgs.push("★ "+lost.join(", ")+" — their role is fulfilled: they are no longer safe from fate.");
         const proceed=()=>{ if(n&&n.win)runNode(n.win); else endCampaignRun("Campaign finished — victory!"); };
@@ -5462,6 +5480,12 @@
         if(cd>0){ const b=document.createElement("button"); b.className="cd"; b.disabled=true; b.title=A.label+" — on cooldown ("+cd+" turn"+(cd>1?"s":"")+")"; b.innerHTML=`<span class="bi" style="opacity:.4">${A.icon}</span><span class="cdn">${cd}</span>`; el.appendChild(b); continue; }   // on cooldown: grayed-out button + turns remaining
         if(sel.ap>=apRequis(sel,aid)&&(sel.ap>0||rg.cost===0))btn(A.icon,A.label+sfx,ability===aid,()=>armOrExec(aid)); }   // special abilities (active perks)
     }
+    // Se replier : proposé seulement sur la zone d'arrivée, et confirmé (c'est sans retour)
+    if(peutSeReplier(sel))btn("🚶","Pull back — leaves the map alive (mission lost, XP kept)",false,()=>{
+      const reste=units.filter(u=>vraiJoueur(u)&&u.hp>0).length;
+      const q=reste<=1?"Pull the last soldier out? The mission is lost — but nobody else falls."
+                      :`Pull ${sel.name} off the map? They take no further part in this mission.`;
+      if(confirm(q))execRepli(sel); });
     // End turn = button 0, always last
     const e=document.createElement("button");e.id="act-end";e.innerHTML=`<span class="bn">0</span><span class="bi">🙅</span>`;e.title="End turn";e.onclick=()=>{if(!over&&turn==="player")endTurn();};el.appendChild(e);}
   // populates the enemy pods around the anchors (on each game launch): a normal group (all awake)
@@ -5485,6 +5509,8 @@
       // les charges se rechargent d'une MISSION à l'autre, jamais pendant : on repart du stock du perk
       if(u.abilRule){ u.charges={}; for(const k in u.abilRule)if(u.abilRule[k].charges)u.charges[k]=u.abilRule[k].charges; }u.dmgTaken=0;u.asleep=!!u._asleep0;if(u.clip!==undefined)u.ammo=u.clip;if(u.freeReload0!==undefined)u.freeReload=u.freeReload0;if(u.crackers!==undefined)u.crackers=(u.crackers0!==undefined?u.crackers0:CLASSES[u.cls].crackers);} smoke=new Map();ability=null; _podCenters=null; turn="player";over=false;sel=null;amode=null;aimTarget=null;throwing=false;usingItem=false;inv={potion:campRun?(campRun.potions||0):0};
     fired=new Set(); podAlerted=new Set(); neutralSeen=new Set(); typesVus=new Set(campRun&&campRun.typesSeen?campRun.typesSeen:[]); geosVues=new Set(campRun&&campRun.geosSeen?campRun.geosSeen:[]); officierVu=!!(campRun&&campRun.officierVu); lastSeen=new Map(); turnNum=1; turnActions=0; lastOutcome=null; speechQ=[]; speaking=false; if(speechT){clearTimeout(speechT);speechT=null;} document.getElementById("combatline").style.display="none";
+    zoneRepli=new Set(cells.filter(c=>c.deploy).map(c=>c.id));
+    if(!zoneRepli.size)for(const u of units)if(u.team==="player"&&cells[u.cell])zoneRepli.add(u.cell);   // mission générée : pas de zone dessinée, on retient les cases de départ
     document.getElementById("over").classList.remove("show");document.getElementById("log").innerHTML="";setMsg("");setupBonus();refresh();
     banner("Player turn","player"); playMusic("missions"); emit("start",{}); emit("turn",{turn:1}); }
   document.getElementById("end").onclick=()=>{if(!over&&turn==="player"&&mode==="play")endTurn();};
@@ -6187,7 +6213,7 @@
     st[pick]="attacked"; campRun.lastAttackN=campRun.missionN||0;
     return gtx("messages.attack",{region:(map.cells[pick].name)||"A region"}); }
   function geoMissionEnd(resultTxt){ playPartyDialog("after",()=>geoMissionEndResolve(resultTxt)); }   // squad dialogue "after" (participants intact), then geoscape debrief
-  function geoMissionEndResolve(resultTxt){ const win=resultTxt.indexOf("Victory")===0; const ret=campRun.geoReturn; const st=campRun.geoStates[ret.nodeId]; saveCarry(); if(win)awardXp(); const deaths=applyAttrition(win); let bonusMsg=null,primeMsg=null,forgeMsg=null,atkMsg=null;
+  function geoMissionEndResolve(resultTxt){ const win=resultTxt.indexOf("Victory")===0, repli=resultTxt.indexOf("Withdrawn")===0; const ret=campRun.geoReturn; const st=campRun.geoStates[ret.nodeId]; saveCarry(); if(win||repli)awardXp(); const deaths=applyAttrition(win); let bonusMsg=null,primeMsg=null,forgeMsg=null,atkMsg=null;
     const frontBefore=primeFront();   // front from before the mission: regions opened by this victory won't decay this turn
     const fcell=geoPlay.map.cells[ret.cellId]; const rn=fcell&&fcell.name;
     if(win){ st[ret.cellId]="cleared"; campRun.potions=(inv.potion||0)+((curMission&&curMission.loot)||0); bonusMsg=grantBonus(win); campRun.winCount=(campRun.winCount||0)+1;
