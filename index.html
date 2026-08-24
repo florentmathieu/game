@@ -580,7 +580,10 @@
   function clampPan(){ panX=Math.min(0,Math.max(W-W*zoom,panX)); panY=Math.min(0,Math.max(H-H*zoom,panY)); }
   function resetView(){ zoom=1;panX=0;panY=0; }
   let FREE_MP=2,AP_MAX=2,MOB=3;   // movement (tunable: balancing / generation parameter)
-  let HEIGHT_BONUS=6,COVER_PEN=30,DEF_BRACE=20; const PB={1:30,2:15};   // tunable via the balancing panel
+  let HEIGHT_BONUS=6,COVER_PEN=30,DEF_BRACE=20,ROCHER_PEN=40; const PB={1:30,2:15};   // tunable via the balancing panel
+  // LE ROCHER EST UN COUVERT FRANC. Il ne cache plus la vue — on tire par-dessus — mais s'abriter
+  // derrière coûte cher à l'assaillant : 40 % contre 30 pour un mur de bâtiment et 15 pour un muret.
+  // C'est le meilleur couvert du jeu, et c'est voulu : un bloc de pierre vaut mieux qu'une cloison.
   // Les HAUTES HERBES ont leur propre valeur : elles gênent le tir sans rien arrêter, ce n'est pas
   // la même chose que se plaquer derrière un mur. Partager COVER_PEN aurait fait bouger les murets
   // (moitié) et les murs de bâtiment (plein) avec elles.
@@ -1794,10 +1797,11 @@
   // low-wall cover: partial, directional (full value from the front, none from the flank), and only
   // if the target is not higher than the cell across from it (the low ground is protected from the high).
   function muretCover(tgt,att){ const T=cells[tgt.cell],A=cells[att.cell]; let ax=A.cx-T.cx,ay=A.cy-T.cy; const al=Math.hypot(ax,ay)||1; ax/=al;ay/=al; let best=0;
-    for(const n of T.nb){ const plein=murBetween(tgt.cell,n); if(!plein&&!wallBetween(tgt.cell,n))continue;
+    for(const n of T.nb){ const roc=cells[n]&&cells[n].terr==="wall"; const plein=roc||murBetween(tgt.cell,n);
+      if(!plein&&!wallBetween(tgt.cell,n))continue;
       // Un muret ne couvre pas quand on domine le voisin : on est au-dessus, on tire par-dessus.
       // SAUF si l'assaillant est plus bas — là c'est un parapet, et il encaisse les tirs venus d'en bas.
-      if(!plein&&T.elev>cells[n].elev && A.elev>=T.elev) continue; let dx=cells[n].cx-T.cx,dy=cells[n].cy-T.cy; const dl=Math.hypot(dx,dy)||1; dx/=dl;dy/=dl; const align=ax*dx+ay*dy; if(align<=0)continue; best=Math.max(best,(plein?COVER_PEN:COVER_PEN/2)*align); }
+      if(!plein&&T.elev>cells[n].elev && A.elev>=T.elev) continue; let dx=cells[n].cx-T.cx,dy=cells[n].cy-T.cy; const dl=Math.hypot(dx,dy)||1; dx/=dl;dy/=dl; const align=ax*dx+ay*dy; if(align<=0)continue; best=Math.max(best,(roc?ROCHER_PEN:plein?COVER_PEN:COVER_PEN/2)*align); }
     return Math.round(best); }
   // bonus d'un perk restreint à une arme (« +2 dégât à l'épée ») : nul pour les autres armes.
   const bonusArme=(u,m,k)=>((u.armeBonus&&u.armeBonus[m]&&u.armeBonus[m][k])||0);
@@ -6400,6 +6404,7 @@
       {k:"FREE_MP",label:"Free movement",get:()=>FREE_MP,set:v=>FREE_MP=v,min:0,max:6,step:1} ]},
     {name:"Combat", items:[
       {k:"COVER_PEN",label:"Cover penalty",get:()=>COVER_PEN,set:v=>COVER_PEN=v,min:0,max:60,step:5,suffix:"%"},
+      {k:"ROCHER_PEN",label:"Rock cover",get:()=>ROCHER_PEN,set:v=>ROCHER_PEN=v,min:0,max:60,step:5,suffix:"%"},
       {k:"HERBE_PEN",label:"Tall grass penalty",get:()=>HERBE_PEN,set:v=>HERBE_PEN=v,min:0,max:40,step:5,suffix:"%"},
       {k:"HEIGHT_BONUS",label:"Height bonus (/level)",get:()=>HEIGHT_BONUS,set:v=>HEIGHT_BONUS=v,min:0,max:15,step:1,suffix:"%"},
       {k:"DEF_BRACE",label:"\"Brace\" defense",get:()=>DEF_BRACE,set:v=>DEF_BRACE=v,min:0,max:40,step:5,suffix:"%"},
