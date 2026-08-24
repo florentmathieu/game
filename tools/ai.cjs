@@ -114,7 +114,8 @@ function makeActUnit(M){
   let tailleCarte=-1, tourPrec=1e9;
   function majMemoire(){
     if(M.cells.length!==tailleCarte||M.turnNum<tourPrec){        // nouvelle mission : on oublie tout
-      connu.player=new Set(); connu.enemy=new Set(); tailleCarte=M.cells.length; }
+      connu.player=new Set(); connu.enemy=new Set(); tailleCarte=M.cells.length;
+      vues.player=new Map(); vues.enemy=new Map(); }   // nouvelle mission : on oublie aussi qui était où
     tourPrec=M.turnNum;
     for(const id of M.visible)connu.player.add(id);
     for(const id of M.evisible)connu.enemy.add(id); }
@@ -144,6 +145,26 @@ function makeActUnit(M){
     if(pas==null||pas===u.cell)return false;
     M.moveAlong(u,pas); return true; }
 
+  // QUI SAIT QUOI. nearestOpposing() balaie TOUTES les unités sans filtre de visibilité : l'IA
+  // du banc connaissait les positions ennemies et fonçait vers une cible jamais aperçue. On mesure
+  // l'écart avec OMNISCIENT=0 : chacun ne vise que ce que son camp voit, ou a vu (dernière position
+  // connue), et explore quand il ne sait rien.
+  const OMNISCIENT = process.env.OMNISCIENT!=="0";
+  const vues={player:new Map(), enemy:new Map()};   // unité -> dernière case où on l'a vue
+  function majVues(){
+    for(const t of M.units){ if(t.hp<=0)continue;
+      if(t.team==="enemy"&&M.visible.has(t.cell)&&M.enemyActive(t))vues.player.set(t,t.cell);
+      if(t.team==="player"&&M.evisible.has(t.cell))vues.enemy.set(t,t.cell); } }
+  function cibleConnue(u){
+    if(OMNISCIENT)return M.nearestOpposing(u);
+    const mem=vues[u.team]; if(!mem)return M.nearestOpposing(u);
+    let best=null,bd=Infinity;
+    for(const [t,cell] of mem){ if(t.hp<=0||t.sorti||!M.hostile(u,t)){mem.delete(t);continue;}
+      if(!M.cells[cell]){mem.delete(t);continue;}
+      const ref=(M.cells[t.cell]&&(M.visible.has(t.cell)||M.evisible.has(t.cell)))?t.cell:cell;
+      const d=M.hops(u.cell,ref); if(d<bd){bd=d;best=t;} }
+    return best; }
+
   // COUPER LES PERTES. Une escouade décimée qui n'a plus vu un ennemi depuis longtemps ne
   // trouvera pas les poches endormies restantes sur 300 cases : sans plafond de tours, elle
   // tournerait indéfiniment. Le joueur, lui, se replie. On fait pareil — et c'est ce que mesure
@@ -169,7 +190,7 @@ function makeActUnit(M){
 
   return function actUnit(u){
     if(u.sorti||!M.cells[u.cell])return;   // celui qui a quitté le plateau n'y joue plus
-    majMemoire();
+    majMemoire(); if(!OMNISCIENT)majVues();
     let guard=0;
     const extracting = u.team==="player" && M.curMission && M.curMission.objective==="extract";
     if(envisagerRepli(u))return;
@@ -223,9 +244,9 @@ function makeActUnit(M){
       // partageant cette IA, deux groupes aveugles l'un à l'autre tournaient en rond
       // indéfiniment — 26 missions ★3 sur 43 ne finissaient jamais, même en 90 tours.
       // On garde la même cible tant qu'elle vit.
-      let foe=(u.__cible&&u.__cible.hp>0&&M.hostile(u,u.__cible))?u.__cible:M.nearestOpposing(u);
-      if(!foe)return; u.__cible=foe;
-      const fc=M.cells[foe.cell];
+      let foe=(u.__cible&&u.__cible.hp>0&&M.hostile(u,u.__cible))?u.__cible:cibleConnue(u);
+      if(!foe){ if(explorer(u,null))continue; return; } u.__cible=foe;
+      const fc=M.cells[foe.cell]; if(!fc){ u.__cible=null; if(explorer(u,null))continue; return; }
       const recent=u.__recent||(u.__recent=[]);
       let best=null,bestKey=Infinity;
       const h0=M.hops(u.cell,foe.cell);
