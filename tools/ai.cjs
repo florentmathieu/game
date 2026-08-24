@@ -180,10 +180,15 @@ function makeActUnit(M){
       // en poussant la frontière de vision du côté de la cible.
       if(best!=null&&M.hops(best,foe.cell)>=h0){
         let expl=null,eb=-Infinity;
+        // UN VOISIN NOIR NE VAUT QUE S'IL EST FRANCHISSABLE. Compter tous les voisins non vus
+        // donnait la meilleure note aux cases COLLÉES AUX MURS : depuis l'intérieur d'une pièce,
+        // l'autre côté de la maçonnerie n'est jamais vu, donc jamais rayé de la liste. L'escouade
+        // tournait indéfiniment entre trois cases d'une même salle en croyant explorer.
         for(const cs in d){ const c=+cs; if(c===u.cell)continue;
-          const noir=M.cells[c].nb.filter(n=>!M.visible.has(n)).length;
+          const noir=M.cells[c].nb.filter(n=>!M.visible.has(n)&&M.passable(n)&&M.enterCost(c,n)!==null).length;
           if(!noir)continue;
-          const score=noir*1000 - M.hops(c,foe.cell)*10 + defValue(c);
+          const pen=recent.includes(c)?5000:0;
+          const score=noir*1000 - M.hops(c,foe.cell)*10 + defValue(c) - pen;
           if(score>eb){eb=score;expl=c;} }
         if(expl!=null)best=expl; }
       if(best==null)return;                                            // aucune case libre : tenir, laisser passer les autres
