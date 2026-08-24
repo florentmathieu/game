@@ -645,7 +645,12 @@
   // Les paliers 5 à 7 sont ÉCARTÉS : sur un acte 1 de douze missions, l'ancienne courbe amenait
   // 63 % des survivants au-delà du niveau 4 devant le Bastion. Les niveaux 5, 6 et 7 sont la
   // matière des actes 2 et 3 — les mettre hors de portée du premier acte, c'est les leur garder.
-  const XP_THRESH=[0,4,10,18,28,55,78,105];                 // XP cumulée pour atteindre le grade i
+  // XP cumulée pour atteindre le grade i. Les CINQ PREMIERS paliers sont calibrés sur l'acte 1
+  // et n'ont pas à bouger : celui du niveau 3 commande la voie, donc le moment du premier
+  // officier (mesuré à la mission 7 sur 15,6). Les TROIS DERNIERS sont écartés au-delà de ce que
+  // l'acte 1 peut rapporter — mesuré sur 14 campagnes, l'xp au Bastion va de 8 à 89, médiane 53 —
+  // pour que l'acte se termine au niveau 4 et qu'il reste de quoi progresser dans les actes 2 et 3.
+  const XP_THRESH=[0,4,10,18,28,100,160,225];
   const gradeFromXp=xp=>{ let g=0; for(let i=0;i<XP_THRESH.length;i++)if((xp||0)>=XP_THRESH[i])g=i; return g; };
   // catalog: per class, one A/B pair per grade (index 0 = 1st grade). mod = bonuses applied at deployment.
   // A = special ability (verb), B = numeric bonus. abil = id of an active ability (cf. ABIL).
