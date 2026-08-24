@@ -909,20 +909,28 @@
   // Une forme est décrite en coordonnées normalisées (0..1), donc indépendante de la taille du
   // plateau et du pavage. Le masque est appliqué APRÈS le maillage : on retire les cellules dont
   // le centre tombe hors de la forme, puis on reconstruit l'adjacence.
+  // UN COULOIR SE MESURE EN CASES, PAS EN FRACTIONS DE PLATEAU. Les masques découpaient des bandes
+  // exprimées en proportion : sur un grand plateau la couronne de « anneau » faisait quatre cases,
+  // sur un petit elle en faisait UNE. On se retrouvait à jouer un couloir circulaire d'une case de
+  // large autour d'un vide — aucune manœuvre possible, aucun couvert à contourner. Les bandes
+  // étroites ont désormais un plancher absolu ; quand le plateau est trop petit pour le tenir, la
+  // forme se referme d'elle-même (l'anneau redevient un disque) au lieu de dégénérer en fil.
+  const BANDE_MIN=3;                                        // largeur minimale d'un couloir, en CASES
+  const demi=(frac,dim)=>Math.max(frac,(BANDE_MIN/2)/Math.max(1,dim));   // demi-largeur, normalisée
   const BOARD_SHAPES={
     rect:   ()=>true,
     L:      (x,y)=>!(x>0.42&&y<0.58),                                   // un coin évidé
     S:      (x,y)=>!((y<0.38&&x>0.62)||(y>0.62&&x<0.38)),               // deux coins opposés évidés
-    croix:  (x,y)=>(x>0.36&&x<0.64)||(y>0.36&&y<0.64),                  // bras étroits, sinon ça reste un carré grignoté
-    sablier:(x,y)=>{ const t=Math.abs(y-0.5)*2; return Math.abs(x-0.5) < 0.10+0.40*t; },   // étranglement franc au centre
-    anneau: (x,y)=>Math.hypot(x-0.5,y-0.5)>0.30,                        // cour centrale : assez large pour se voir
+    croix:  (x,y,C,R)=>Math.abs(x-0.5)<demi(0.14,C)||Math.abs(y-0.5)<demi(0.14,R),   // bras étroits, mais jamais filiformes
+    sablier:(x,y,C,R)=>{ const t=Math.abs(y-0.5)*2; return Math.abs(x-0.5) < demi(0.10,C)+0.40*t; },   // étranglement franc au centre
+    anneau: (x,y,C,R)=>Math.hypot(x-0.5,y-0.5) > Math.max(0.08, 0.5-BANDE_MIN/Math.max(1,Math.min(C,R))),   // cour centrale : assez large pour se voir, couronne assez large pour s'y battre
     diag:   (x,y)=>Math.abs((x-0.5)+(y-0.5))<0.34,                      // bande diagonale nette
   };
   const boardShapeEl=()=>document.getElementById("board-shape");
   function applyBoardShape(){
     const el=boardShapeEl(); const k=el?el.value:"rect";
     const f=BOARD_SHAPES[k]; if(!f||k==="rect"||!cells.length)return;
-    const kept=cells.filter(c=>f(c.cx/W, c.cy/H));
+    const kept=cells.filter(c=>f(c.cx/W, c.cy/H, COLS, ROWS));
     if(kept.length<12)return;                                           // garde-fou : forme trop agressive
     cells=kept; cells.forEach((c,i)=>c.id=i); buildAdj();
     // ne garder que la PLUS GRANDE composante : une forme peut détacher un îlot.
@@ -3508,7 +3516,10 @@
   //     60 -> 30 %                              17 tours   <- la cible
   //     80 -> 39 %                              20 tours
   const PART_ABRI=0.10;   // part des cases en ABRI (couvert plein omnidirectionnel) sur une carte générée
-  let CEL_PAR_POD=75;
+  // TAILLE DES CARTES. 75 cases par poche et un plancher de 7 de large donnaient des régions de
+  // ★1 à 66 cases — sur lesquelles une escouade de trois n'a pas la place de manœuvrer, et où une
+  // forme creuse dégénère. On monte à 95 et 10 : ★1 passe de 66 à ~140 cases, ★2 de 138 à ~190.
+  let CEL_PAR_POD=95, LARGEUR_MIN=10;
   // Les formes n'ont pas la même surface à réglages égaux : une croix à 20x16 fait 389 cellules là
   // où un rectangle en fait 806. Mesuré sur les mêmes 560 parties, cellules ~ k x largeur².
   const FORME_K={rect:1.98,L:1.25,S:1.41,croix:0.96,sablier:1.14,anneau:1.40,diag:1.15};
@@ -3538,8 +3549,8 @@
     // et ne se joue pas. On le pose à 7 — pas plus haut, parce qu'un plancher gonfle la surface SANS
     // ajouter d'ennemis : ★1 devient mécaniquement la carte la plus creuse du jeu (voir la mesure
     // ci-dessous). 7x6 est le compromis retenu ; 8x7 doublait la marche à vide.
-    const bw=Math.max(7,Math.min(20,Math.round(Math.sqrt(CEL_PAR_POD*Math.max(1,pods)/k))));
-    return {bw,bh:Math.max(6,Math.min(16,Math.round(bw*0.8)))}; }
+    const bw=Math.max(LARGEUR_MIN,Math.min(20,Math.round(Math.sqrt(CEL_PAR_POD*Math.max(1,pods)/k))));
+    return {bw,bh:Math.max(Math.round(LARGEUR_MIN*0.85),Math.min(16,Math.round(bw*0.8)))}; }
   window.TAILLE_AUTO=(forme,pods,densite)=>tailleAuto(forme,pods,densite);
 
   // P (optional) = generation parameters: cover, diff, squad, podCount, podSpacing, podMinDist, podSize[min,max], classes
