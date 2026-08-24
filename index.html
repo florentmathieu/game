@@ -580,10 +580,9 @@
   function clampPan(){ panX=Math.min(0,Math.max(W-W*zoom,panX)); panY=Math.min(0,Math.max(H-H*zoom,panY)); }
   function resetView(){ zoom=1;panX=0;panY=0; }
   let FREE_MP=2,AP_MAX=2,MOB=3;   // movement (tunable: balancing / generation parameter)
-  let HEIGHT_BONUS=6,COVER_PEN=30,DEF_BRACE=20,ROCHER_PEN=40; const PB={1:30,2:15};   // tunable via the balancing panel
+  let HEIGHT_BONUS=6,COVER_PEN=30,DEF_BRACE=20,ROCHER_PEN=30; const PB={1:30,2:15};   // tunable via the balancing panel
   // LE ROCHER EST UN COUVERT FRANC. Il ne cache plus la vue — on tire par-dessus — mais s'abriter
-  // derrière coûte cher à l'assaillant : 40 % contre 30 pour un mur de bâtiment et 15 pour un muret.
-  // C'est le meilleur couvert du jeu, et c'est voulu : un bloc de pierre vaut mieux qu'une cloison.
+  // derrière coûte cher à l'assaillant : 30 %, comme un mur de bâtiment, contre 15 pour un muret.
   // Les HAUTES HERBES ont leur propre valeur : elles gênent le tir sans rien arrêter, ce n'est pas
   // la même chose que se plaquer derrière un mur. Partager COVER_PEN aurait fait bouger les murets
   // (moitié) et les murs de bâtiment (plein) avec elles.
