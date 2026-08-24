@@ -5680,7 +5680,10 @@
   function maybeAutoEnd(){ if(mode!=="play"||turn!=="player"||over||autoEndPending||anim)return; const ps=units.filter(u=>u.team==="player"&&u.hp>0); if(ps.length&&ps.every(u=>u.ap<=0&&!u.freeAvail)){ autoEndPending=true; setTimeout(()=>{autoEndPending=false; if(turn==="player"&&!over&&units.filter(u=>u.team==="player"&&u.hp>0).every(u=>u.ap<=0&&!u.freeAvail))endTurn();},120); } }
   function renderActs(){const el=document.getElementById("acts");el.innerHTML="";document.getElementById("ap").textContent=sel?`${sel.ap}/${AP_MAX}`:"–";if(turn!=="player"||over)return;
     let n=0; const btn=(icon,label,on,fn)=>{n++;const b=document.createElement("button");b.innerHTML=`<span class="bn">${n}</span><span class="bi">${icon}</span>`;b.title=label;if(on)b.className="on";b.onclick=fn;el.appendChild(b);};
-    const aim=(icon,label,m)=>btn(icon,label,amode===m,()=>{ if(amode===m&&aimTarget&&aimTarget.hp>0&&inRange(sel,aimTarget,m)){doAttack(sel,aimTarget,m);return;} amode=m;throwing=false;usingItem=false;autoTarget(m);renderActs(); });
+    // ARMER UNE ATTAQUE DOIT SE VOIR TOUT DE SUITE. autoTarget() désigne la cible, mais on ne
+    // repeignait que la barre d'actions : le trait de ligne de vue vers la cible n'apparaissait
+    // qu'au prochain dessin du plateau — donc après un Tab, qui lui appelle refresh(). On repeint.
+    const aim=(icon,label,m)=>btn(icon,label,amode===m,()=>{ if(amode===m&&aimTarget&&aimTarget.hp>0&&inRange(sel,aimTarget,m)){doAttack(sel,aimTarget,m);return;} amode=m;throwing=false;usingItem=false;autoTarget(m);refresh(); });
     if(sel){ const canShoot=sel.w.ranged&&(sel.clip===undefined||sel.ammo>0);
       if(canShoot)aim("🔫","Shoot — ends the turn","ranged");
       if(sel.w.melee)aim(sel.flank?"🗡":"⚔️",(sel.flank?"Daggers":"Melee")+" — ends the turn"+(sel.flank?` · back +${sel.flank.back} / flank +${sel.flank.side}`:""),"melee");
