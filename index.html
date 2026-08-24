@@ -1585,7 +1585,12 @@
                    for(const k of murs){ const ab=k.split("-").map(Number); if(los(ab[0],ab[1]))ko++; }
                    return murs.size-ko; })() }; })() };
   };
-  const opaque=id=>cells[id].terr==="wall"||smoke.has(id);   // rock OR smoke blocks line of sight
+  // LES ROCHERS NE CACHENT PLUS LA VUE. Ils restent infranchissables, mais on voit par-dessus.
+  // Ils coupaient la ligne de vue, donc le champ de vision, donc — reach() bornant le déplacement
+  // aux cases vues — l'accès à des cases pourtant dessinées et à deux pas. Depuis que le brouillard
+  // est un voile et que la carte s'affiche entière, ce refus ne se lisait plus comme une règle mais
+  // comme une panne. Seule la fumée aveugle désormais ; la maçonnerie, elle, coupe par murBetween.
+  const opaque=id=>smoke.has(id);
   const enterCost=(from,to)=>{ if(!passable(to))return null;
     if(murBetween(from,to))return null;                      // un mur plein ne se traverse pas
     const dz=cells[to].elev-cells[from].elev;
