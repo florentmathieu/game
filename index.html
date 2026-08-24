@@ -1250,12 +1250,27 @@
     if(Math.abs(A)<1e-6){let sx=0,sy=0;for(const v of p){sx+=v[0];sy+=v[1];}return [sx/p.length,sy/p.length];} return [cx/(6*A),cy/(6*A)]; }
   // INDEX SPATIAL pour cellAtXY (voir plus bas). Invalidé à chaque reconstruction du maillage.
   let _grille=null, _meshV=0;
+  // edgeNb : pour chaque arête d'une cellule, le voisin qui est DE L'AUTRE CÔTÉ. Le tracé de portée
+  // s'en sert pour sauter les arêtes intérieures à un palier ; à -1, chaque case est entièrement
+  // cerclée et le palier rouge, dessiné en dernier, recouvre le bleu et l'orange.
+  // On l'établissait en échantillonnant un point juste dehors avec cellAtXY — donc au travers de
+  // l'index spatial, et donc faux dès que l'index n'est pas à jour ou que la géométrie bouge encore.
+  // On le lit maintenant sur les SOMMETS PARTAGÉS : deux voisins qui partagent une arête en
+  // partagent les deux extrémités. C'est exact, et cela ne dépend d'aucun index.
+  function calcEdgeNb(){
+    const pres=(u,v)=>Math.abs(u[0]-v[0])<1.6&&Math.abs(u[1]-v[1])<1.6;
+    for(const c of cells){ const p=c.poly; c.edgeNb=[];
+      for(let k=0;k<p.length;k++){ const a=p[k],b=p[(k+1)%p.length]; let trouve=-1;
+        for(const n of c.nb){ const q=cells[n]&&cells[n].poly; if(!q)continue;
+          let ta=false,tb=false;
+          for(const v of q){ if(!ta&&pres(a,v))ta=true; if(!tb&&pres(b,v))tb=true; if(ta&&tb)break; }
+          if(ta&&tb){ trouve=n; break; } }
+        c.edgeNb[k]=trouve; } } }
   function buildAdj(){ _meshV++; _grille=null; const map=new Map(),segOf=new Map(); cells.forEach(c=>{c.nb=[];c.edgeNb=[];}); const edgeKeys=[];
     cells.forEach((c,i)=>{const p=c.poly;for(let k=0;k<p.length;k++){const a=p[k],b=p[(k+1)%p.length];const key=Math.round((a[0]+b[0])/5)+","+Math.round((a[1]+b[1])/5);if(!map.has(key)){map.set(key,[]);segOf.set(key,[a,b]);}map.get(key).push(i);edgeKeys.push([i,k,key]);}});
     wallSeg=new Map();
     for(const [key,arr] of map.entries())for(let a=0;a<arr.length;a++)for(let b=a+1;b<arr.length;b++){const x=arr[a],y=arr[b];if(x!==y&&!cells[x].nb.includes(y)){cells[x].nb.push(y);cells[y].nb.push(x);wallSeg.set(wkey(x,y),segOf.get(key));}}
-    // actual neighbor sharing each edge: geometric sample just outside the edge (robust for outlines)
-    cells.forEach(c=>{ const p=c.poly; for(let k=0;k<p.length;k++){ const a=p[k],b=p[(k+1)%p.length],mx=(a[0]+b[0])/2,my=(a[1]+b[1])/2; let dx=mx-c.cx,dy=my-c.cy; const L=Math.hypot(dx,dy)||1; dx/=L;dy/=L; const o=cellAtXY(mx+dx*3.5,my+dy*3.5); c.edgeNb[k]=(o&&o.id!==c.id)?o.id:-1; } }); }
+    calcEdgeNb(); }
   // ===== terrain distortion: the world warps from mission to mission (and act to act) =====
   // cumulative level based on the number of geoscape missions already undertaken (persists across acts)
   function corruptLevel(){ if(!campRun)return 0; return Math.min(1,(campRun.missionN||0)*0.06); }
@@ -1283,8 +1298,7 @@
     // par-dessus le bleu et l'orange) ET plus aucun clic ne trouve de personnage sur le plateau.
     // Le défaut ne se voit qu'une fois la distorsion accumulée : intact à la première mission.
     _meshV++; _grille=null;
-    // actual neighbor per edge: geometric sample just outside (robust on a warped mesh)
-    cells.forEach(c=>{ const p=c.poly; c.edgeNb=[]; for(let k=0;k<p.length;k++){ const a=p[k],b=p[(k+1)%p.length],mx=(a[0]+b[0])/2,my=(a[1]+b[1])/2; let dx=mx-c.cx,dy=my-c.cy; const L=Math.hypot(dx,dy)||1; dx/=L;dy/=L; const o=cellAtXY(mx+dx*3.5,my+dy*3.5); c.edgeNb[k]=(o&&o.id!==c.id&&c.nb.includes(o.id))?o.id:-1; } });
+    calcEdgeNb();   // les sommets ont bougé ensemble : les arêtes partagées le restent
     if(curMission)curMission._corrupt=level; }
   // shared edge between two neighboring cells: the edge of A whose midpoint is closest to an edge of B
   function sharedEdge(a,b){ let best=null,bd=Infinity; const pa=a.poly,pb=b.poly;
