@@ -3993,7 +3993,19 @@
   if(mname)mname.oninput=()=>{try{localStorage.setItem("mgf_mesh_mname",mname.value||"");}catch(e){}};
   const b64enc=s=>{const by=new TextEncoder().encode(s);let bin="";for(const c of by)bin+=String.fromCharCode(c);return btoa(bin);};
   const b64dec=s=>{const bin=atob((s||"").replace(/\n/g,""));return new TextDecoder().decode(Uint8Array.from(bin,c=>c.charCodeAt(0)));};
-  function ghCfg(){ let repo=(ghRepo.value||"").trim(),token=(ghTok.value||"").trim(),branch=(ghBr.value||"").trim();
+  // DEUX CHAMPS, UN SEUL JETON. L'onglet Mission et l'onglet Geoscape ont chacun leur case
+  // « GitHub token », et les deux écrivent la même clé. Mais ghCfg lisait TOUJOURS celle de
+  // l'onglet Mission d'abord, remplie au chargement depuis localStorage : coller un jeton neuf
+  // dans l'onglet Geoscape ne servait à rien, l'ancien — révoqué — repartait à chaque requête,
+  // et GitHub répondait 401 indéfiniment. Les deux cases sont maintenant tenues d'accord.
+  const ghTok2=()=>document.getElementById("geo-token");
+  function ghSetToken(v){ const t=(v||"").trim();
+    try{ if(t)localStorage.setItem("mgf_gh_token",t); else localStorage.removeItem("mgf_gh_token"); }catch(e){}
+    if(ghTok&&ghTok.value!==t)ghTok.value=t;
+    const g=ghTok2(); if(g&&g.value!==t)g.value=t; }
+  function ghCfg(){ let repo=(ghRepo.value||"").trim(),branch=(ghBr.value||"").trim();
+    let token=(ghTok&&ghTok.value||"").trim(); const g=ghTok2();
+    if(!token&&g)token=(g.value||"").trim();
     try{const c=JSON.parse(localStorage.getItem("mgf_gh")||"{}");if(!repo)repo=c.repo||"";if(!branch)branch=c.branch||"";if(!token)token=localStorage.getItem("mgf_gh_token")||"";}catch(e){}
     return {repo,token,branch:branch||"claude/intelligent-hypatia-nojupi"}; }
   async function ghGet(path,ref,cfg){ const r=await fetch(`https://api.github.com/repos/${cfg.repo}/contents/${path}?ref=${encodeURIComponent(ref)}&_=${Date.now()}`,{headers:{Authorization:"Bearer "+cfg.token,Accept:"application/vnd.github+json"},cache:"no-store"}); if(r.status===200){const j=await r.json();return{sha:j.sha,text:b64dec(j.content)};} return null; }
@@ -4048,7 +4060,10 @@
   document.getElementById("repo-save").onclick=publishToRepo;
   document.getElementById("repo-load").onclick=loadFromRepo;
   document.getElementById("repo-del").onclick=deleteFromRepo;
-  try{ const tok=localStorage.getItem("mgf_gh_token"); if(tok)ghTok.value=tok; const c=JSON.parse(localStorage.getItem("mgf_gh")||"{}"); if(c.repo)ghRepo.value=c.repo; ghBr.value=c.branch||"claude/intelligent-hypatia-nojupi"; }catch(e){}
+  try{ const tok=localStorage.getItem("mgf_gh_token"); if(tok)ghSetToken(tok); const c=JSON.parse(localStorage.getItem("mgf_gh")||"{}"); if(c.repo)ghRepo.value=c.repo; ghBr.value=c.branch||"claude/intelligent-hypatia-nojupi"; }catch(e){}
+  // saisir dans l'une des deux cases met l'autre à jour : plus de jeton fantôme dans l'onglet d'à côté
+  if(ghTok)ghTok.addEventListener("input",()=>ghSetToken(ghTok.value));
+  { const g=ghTok2(); if(g)g.addEventListener("input",()=>ghSetToken(g.value)); }
   fetchRepoMissions();
 
   // ===== events editor =====
@@ -5710,7 +5725,7 @@
   function geoFill(list){ const sel=document.getElementById("geo-loadsel"); if(sel)sel.innerHTML=list.length?list.map(x=>`<option value="${x.file}">${x.name}</option>`).join(""):`<option value="">(none)</option>`; }
   async function geoFetchList(){ const t=await fetchText("geoscapes-mesh/list.json",ghCfg()); let list=[]; if(t){try{const p=JSON.parse(t);if(Array.isArray(p))list=p;}catch(e){}} repoGeoscapes=list; geoFill(list); if(document.body.classList.contains("view-campaign")&&typeof renderDetail==="function")renderDetail(); }
   async function geoPublish(){ const gs=document.getElementById("geo-status"); const tokEl=document.getElementById("geo-token");
-    if(tokEl&&tokEl.value.trim()){ try{localStorage.setItem("mgf_gh_token",tokEl.value.trim());}catch(e){} }
+    if(tokEl&&tokEl.value.trim())ghSetToken(tokEl.value);
     const cfg=ghCfg(); const name=(document.getElementById("geo-name").value||"").trim();
     if(!name){gs.textContent="Give the territory a name.";return;} if(!cfg.token){gs.textContent="GitHub token required (Mission tab or field above).";return;} if(!cfg.repo||!cfg.branch){gs.textContent="Repository/branch required.";return;}
     const file=(name.toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/(^-|-$)/g,"")||"territory")+".json"; const o=geoExport(); o.name=name;
