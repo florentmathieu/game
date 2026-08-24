@@ -71,7 +71,7 @@ function loadMesh(htmlPath){
     get MC(){return MC},
     // contexte stratégique de la mission (acte + étoiles) : sans lui le banc d'essai tire
     // toujours dans la réserve d'un milieu d'acte 1, et n'affronte jamais les ennemis tardifs
-    get CTX(){return CTX_MISSION}, setCtx(a,e){ CTX_MISSION={acte:a||1,etoiles:e||3}; },
+    get CTX(){return CTX_MISSION}, setCtx(a,e){ if(a&&typeof a==="object"){ CTX_MISSION={acte:a.acte||1,etoiles:a.etoiles||3}; return; } CTX_MISSION={acte:a||1,etoiles:e||3}; },
     get REGLES(){return REGLES_ENNEMIS}, classesPourMission, rangDiff,
     // leviers d'équilibrage
     get CLS(){return CLASSES},

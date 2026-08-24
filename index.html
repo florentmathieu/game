@@ -3147,8 +3147,13 @@
   // et tout ce qui compare des difficultés compare des RANGS, pas des étoiles.
   //   acte 1 ★1..5 → 1..5 · acte 2 ★1..5 → 6..10 · acte 3 ★1..5 → 11..15
   const ETOILES_PAR_ACTE=5, ACTE_MAX=3;
-  const rangDiff=(acte,etoiles)=>(Math.max(1,Math.min(ACTE_MAX,acte||1))-1)*ETOILES_PAR_ACTE
-    +Math.max(1,Math.min(ETOILES_PAR_ACTE,etoiles||1));
+  // Le rang doit rester un NOMBRE quoi qu'on lui passe : un acte lu dans une sauvegarde peut
+  // arriver en chaîne, voire en objet. Un NaN ici ne casse rien de visible — il rend juste
+  // `seuilEnnemi(k)<=rang` faux partout, `classesPourMission` retombe sur son filet « jamais
+  // vide », et TOUTES les classes ennemies se retrouvent débloquées dès la première étoile.
+  const entier=(v,def)=>{ const n=Math.round(Number(v)); return Number.isFinite(n)&&n>0?n:def; };
+  const rangDiff=(acte,etoiles)=>(Math.max(1,Math.min(ACTE_MAX,entier(acte,1)))-1)*ETOILES_PAR_ACTE
+    +Math.max(1,Math.min(ETOILES_PAR_ACTE,entier(etoiles,1)));
   // Contexte de la mission en cours : d'où elle vient sur la carte stratégique. Hors campagne
   // (éditeur, partie libre) on prend un milieu d'acte 1 — sinon rien ne sortirait jamais.
   let CTX_MISSION={acte:1,etoiles:3};
