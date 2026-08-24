@@ -1267,11 +1267,51 @@
           let ta=false,tb=false;
           for(const v of q){ if(!ta&&pres(a,v))ta=true; if(!tb&&pres(b,v))tb=true; if(ta&&tb)break; }
           if(ta&&tb){ trouve=n; break; } }
+        // T-JONCTION : le voisin peut porter un sommet SUPPLÉMENTAIRE le long de cette arête, et
+        // n'en partager alors qu'une extrémité. Les deux cases se touchent pourtant bel et bien.
+        // Sans ce rattrapage, un trait était tracé entre deux cases de MÊME couleur, en plein
+        // milieu d'une zone atteignable. On échantillonne un point juste au-delà du milieu.
+        if(trouve<0){ const mx=(a[0]+b[0])/2,my=(a[1]+b[1])/2;
+          // ON SORT PAR LA NORMALE À L'ARÊTE, pas « à l'opposé du centre » : sur une cellule
+          // allongée ou concave, s'éloigner du centroïde ne traverse pas forcément l'arête visée,
+          // et l'échantillon retombait dans la case de départ.
+          let dx=-(b[1]-a[1]), dy=(b[0]-a[0]); const L=Math.hypot(dx,dy)||1; dx/=L;dy/=L;
+          if((mx+dx-c.cx)*(mx-c.cx)+(my+dy-c.cy)*(my-c.cy) < (mx-c.cx)*(mx-c.cx)+(my-c.cy)*(my-c.cy)){ dx=-dx; dy=-dy; }
+          const sx=mx+dx*3.5, sy=my+dy*3.5;
+          for(const n of c.nb){ const q=cells[n]&&cells[n].poly; if(!q)continue;
+            if(pointIn(q,sx,sy)){ trouve=n; break; } }
+          // DERNIER RECOURS : la case d'en face peut ne pas figurer dans nb — buildAdj apparie les
+          // arêtes par clé arrondie et en manque quelques-unes. Pour le TRACÉ, seul compte « qui est
+          // de l'autre côté », pas l'adjacence déclarée. Sans ce recours, douze traits restaient
+          // dessinés en plein milieu d'une zone, entre deux cases pourtant de même couleur.
+          if(trouve<0){ const o=cellAtXY(sx,sy); if(o&&o.id!==c.id)trouve=o.id; } }
         c.edgeNb[k]=trouve; } } }
   function buildAdj(){ _meshV++; _grille=null; const map=new Map(),segOf=new Map(); cells.forEach(c=>{c.nb=[];c.edgeNb=[];}); const edgeKeys=[];
-    cells.forEach((c,i)=>{const p=c.poly;for(let k=0;k<p.length;k++){const a=p[k],b=p[(k+1)%p.length];const key=Math.round((a[0]+b[0])/5)+","+Math.round((a[1]+b[1])/5);if(!map.has(key)){map.set(key,[]);segOf.set(key,[a,b]);}map.get(key).push(i);edgeKeys.push([i,k,key]);}});
+    // APPARIEMENT DES ARÊTES — PAR DISTANCE, PLUS PAR ARRONDI. La clé était
+    // round((ax+bx)/5)+","+round((ay+by)/5) : deux cellules partageant réellement une arête, dont
+    // un sommet différait d'un pixel, tombaient de part et d'autre d'un arrondi et se retrouvaient
+    // NON voisines. Pas de déplacement entre elles, pas de corps à corps, et un trait parasite en
+    // plein milieu de la zone atteignable. On range par grand seau puis on apparie sur la distance
+    // réelle des milieux, ce qu'aucun arrondi ne peut trancher de travers.
+    const SEAU=10, TOL=3;
+    const aretes=[];
+    cells.forEach((c,i)=>{const p=c.poly;for(let k=0;k<p.length;k++){const a=p[k],b=p[(k+1)%p.length];
+      const mx=(a[0]+b[0])/2,my=(a[1]+b[1])/2;
+      const e={i,k,a,b,mx,my,L:Math.hypot(b[0]-a[0],b[1]-a[1])};
+      aretes.push(e);
+      const key=Math.floor(mx/SEAU)+","+Math.floor(my/SEAU);
+      if(!map.has(key))map.set(key,[]); map.get(key).push(e); }});
     wallSeg=new Map();
-    for(const [key,arr] of map.entries())for(let a=0;a<arr.length;a++)for(let b=a+1;b<arr.length;b++){const x=arr[a],y=arr[b];if(x!==y&&!cells[x].nb.includes(y)){cells[x].nb.push(y);cells[y].nb.push(x);wallSeg.set(wkey(x,y),segOf.get(key));}}
+    for(const e of aretes){
+      const gi=Math.floor(e.mx/SEAU), gj=Math.floor(e.my/SEAU);
+      for(let dj=-1;dj<=1;dj++)for(let di=-1;di<=1;di++){
+        const arr=map.get((gi+di)+","+(gj+dj)); if(!arr)continue;
+        for(const f of arr){ if(f.i===e.i)continue;
+          if(Math.abs(f.mx-e.mx)>TOL||Math.abs(f.my-e.my)>TOL)continue;
+          if(Math.abs(f.L-e.L)>TOL*2)continue;                   // même arête, pas deux bouts distincts
+          if(cells[e.i].nb.includes(f.i))continue;
+          cells[e.i].nb.push(f.i); cells[f.i].nb.push(e.i);
+          wallSeg.set(wkey(e.i,f.i),[e.a,e.b]); } } }
     calcEdgeNb(); }
   // ===== terrain distortion: the world warps from mission to mission (and act to act) =====
   // cumulative level based on the number of geoscape missions already undertaken (persists across acts)
@@ -2023,7 +2063,7 @@
     rungun:{icon:"🏃",label:"Run and gun — this turn, moving no longer forbids shooting",target:"self"},
     precshot:{icon:"🎯",label:"Precision shot — +20% aim if you have not moved",target:"enemy"},
     surehit:{icon:"💯",label:"Guaranteed hit — the shot cannot miss",target:"enemy"},
-    burst:{icon:"🔫",label:"Burst of fire — two shots, −10% aim",target:"enemy"},
+    burst:{icon:"⚡🔫",label:"Burst of fire — two shots, −10% aim",target:"enemy"},
     boomshell:{icon:"🧨",label:"Explosive shells — the shot detonates (radius 2)",target:"enemy"},
     // ===== Sapper =====
     smoker:{icon:"🌫",label:"Smoker — smoke charge (uses the grenade launcher)",target:"cell"},
@@ -2736,7 +2776,7 @@
       d.className="rost"+(u===sel?" sel":"")+(u.hp<=0?" dead":((u.ap<=0&&turn==="player")?" spent":""));
       d.innerHTML=`<div><b>${u.name}</b> <span class="sub">${CLASSES[u.cls].name}${u.grade?' <span style="color:#e0b341">'+"★".repeat(u.grade)+'</span>':''}</span></div>`
         +`<div class="hpbar"><i style="width:${Math.max(0,u.hp)/u.max*100}%"></i></div>`
-        +`<div class="st">HP ${Math.max(0,u.hp)}/${u.max} · AP ${u.hp>0?u.ap+"/"+AP_MAX:"–"}${u.overwatch?(u.owMode==="ranged"?" · 👁🏹":" · 👁"):""}${u.bracing?" · 🛡guard":""}${u.stunned?" · ✦stunned":""}${u.slowed?" · ❄slowed":""}${u.crackers?" · 💣"+u.crackers:""}</div>`;
+        +`<div class="st">HP ${Math.max(0,u.hp)}/${u.max} · AP ${u.hp>0?u.ap+"/"+AP_MAX:"–"}${u.overwatch?(u.owMode==="ranged"?" · 👁🔫":" · 👁"):""}${u.bracing?" · 🛡guard":""}${u.stunned?" · ✦stunned":""}${u.slowed?" · ❄slowed":""}${u.crackers?" · 💣"+u.crackers:""}</div>`;
       d.onclick=()=>{ if(u.hp>0&&turn==="player"&&!over){ sel=u; amode=null;throwing=false;usingItem=false; refresh(); } };
       el.appendChild(d); }); }
   // hit chance that `att` (positioned at fromCell) would have on a target at tgtCell — used for offense AND threat
@@ -5591,9 +5631,9 @@
     let n=0; const btn=(icon,label,on,fn)=>{n++;const b=document.createElement("button");b.innerHTML=`<span class="bn">${n}</span><span class="bi">${icon}</span>`;b.title=label;if(on)b.className="on";b.onclick=fn;el.appendChild(b);};
     const aim=(icon,label,m)=>btn(icon,label,amode===m,()=>{ if(amode===m&&aimTarget&&aimTarget.hp>0&&inRange(sel,aimTarget,m)){doAttack(sel,aimTarget,m);return;} amode=m;throwing=false;usingItem=false;autoTarget(m);renderActs(); });
     if(sel){ const canShoot=sel.w.ranged&&(sel.clip===undefined||sel.ammo>0);
-      if(canShoot)aim("🏹","Shoot — ends the turn","ranged");
+      if(canShoot)aim("🔫","Shoot — ends the turn","ranged");
       if(sel.w.melee)aim(sel.flank?"🗡":"⚔️",(sel.flank?"Daggers":"Melee")+" — ends the turn"+(sel.flank?` · back +${sel.flank.back} / flank +${sel.flank.side}`:""),"melee");
-      if(sel.ap>0&&canShoot)btn("👁🏹","Overwatch — shoot (ends the turn)",sel.overwatch&&sel.owMode==="ranged",()=>doOverwatch("ranged"));
+      if(sel.ap>0&&canShoot)btn("👁🔫","Overwatch — shoot (ends the turn)",sel.overwatch&&sel.owMode==="ranged",()=>doOverwatch("ranged"));
       if(sel.ap>0&&sel.w.melee)btn("👁","Overwatch — melee (ends the turn)",sel.overwatch&&sel.owMode==="melee",()=>doOverwatch("melee"));
       if(sel.w.cracker&&sel.crackers>0&&sel.ap>0)btn("💣","Cracker ×"+sel.crackers+" — ends the turn",throwing,()=>{throwing=!throwing;usingItem=false;amode=null;setMsg(throwing?"Click a target tile (area — the landing spot is uncertain).":"");if(throwing)startCrackerJit();else{crackerJit=null;draw();}renderActs();});
       if(inv.potion>0&&sel.ap>0)btn("🧪","Potion ×"+inv.potion+" (1 AP, doesn't end the turn)",usingItem,()=>{usingItem=!usingItem;throwing=false;amode=null;setMsg(usingItem?"Click an ally (self/adjacent).":"");renderActs();});
@@ -5671,7 +5711,7 @@
     const m=u.w.ranged?"ranged":"melee",w=u.w[m]; const wn=(CLASSES[u.cls]&&CLASSES[u.cls].wname)||(u.w.ranged?(u.clip!==undefined?"crossbow":"bow"):(u.flank?"daggers":(w.bare?"bare hands":"sword")));
     const h=`<b>${u.name}</b> · ${CLASSES[u.cls].name}<br>HP ${Math.max(0,u.hp)}/${u.max} · ${wn} (${w.aim}%) · range ${w.range||1}`
         +(u.shieldBlock?` · 🛡 ${u.shieldBlock}%`:"")+(u.parry?` · 🗡 parry ${u.parry}%`:"")+(u.flank?` · back +${u.flank.back}/flank +${u.flank.side}`:"")
-        +(u.crackers?` · 💣×${u.crackers}`:"")+(u.asleep?" · 💤":"")+(u.pod!==undefined?` · pod ${u.pod}`:"")+(u.overwatch?(u.owMode==="ranged"?" · 👁🏹":" · 👁"):"");
+        +(u.crackers?` · 💣×${u.crackers}`:"")+(u.asleep?" · 💤":"")+(u.pod!==undefined?` · pod ${u.pod}`:"")+(u.overwatch?(u.owMode==="ranged"?" · 👁🔫":" · 👁"):"");
     f.innerHTML=h; f.style.display="block"; });   // card anchored at the top right (no longer follows the cursor)
   cv.addEventListener("mouseleave",()=>{document.getElementById("fiche").style.display="none"; if(hoverCell!=null){hoverCell=null;majBarreCase();draw();}});
   function cycleSel(dir){ if(mode!=="play"||turn!=="player")return; const ps=units.filter(u=>u.team==="player"&&u.hp>0); if(!ps.length)return; let i=ps.indexOf(sel); i=(i<0?0:(i+dir+ps.length)%ps.length); sel=ps[i]; amode=null;aimTarget=null;throwing=false;usingItem=false; refresh(); }
