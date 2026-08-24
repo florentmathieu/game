@@ -750,6 +750,26 @@
       camptext:!!(ct&&ct.classList.contains("show")), escouade:!!(sq&&sq.classList.contains("show")),
       cases:cells.length, vues:visible.size, edgeNbManquants:cells.filter(c=>!c.edgeNb||!c.edgeNb.length).length,
       unites:units.filter(u=>u.team==="player").map(u=>u.name+" c"+u.cell+" "+u.hp+"/"+u.max+" ap"+u.ap) }; };
+  // Sonde de clic : dit ce que le PROCHAIN clic sur le plateau a réellement touché.
+  // Un clic qui « ne fait rien » peut se perdre à trois endroits — les coordonnées, la cellule
+  // trouvée, ou l'aiguillage. Autant les lire tous les trois d'un coup.
+  window.__OUCLIC=()=>{ const cv2=document.getElementById("cv")||cv;
+    const h=e=>{ cv2.removeEventListener("pointerdown",h,true);
+      const r=cv2.getBoundingClientRect();
+      const bx=(e.clientX-r.left)*(cv2.width/(r.width||cv2.width)), by=(e.clientY-r.top)*(cv2.height/(r.height||cv2.height));
+      const X=(bx-panX)/zoom, Y=(by-panY)/zoom; const c=cellAtXY(X,Y); const u=c&&uAt(c.id);
+      const d=sel?reach(sel):null;
+      const info={ ecran:[Math.round(e.clientX),Math.round(e.clientY)], bouton:e.button,
+        rect:[Math.round(r.left),Math.round(r.top),Math.round(r.width),Math.round(r.height)],
+        canvas:[cv2.width,cv2.height], zoom, pan:[Math.round(panX),Math.round(panY)],
+        monde:[Math.round(X),Math.round(Y)], cellule:c?c.id:null, unite:u?u.name+"/"+u.team:null,
+        cible:e.target&&e.target.id||e.target&&e.target.tagName,
+        vueGeo:document.body.classList.contains("view-geoscape"), geoPlay:!!geoPlay,
+        enMission:!!(geoPlay&&geoPlay.inMission), mode, tour:turn,
+        bloque:{introBlocking,speaking,over}, atteignable:(d&&c)?(d[c.id]!==undefined):null };
+      window.__CLIC=info; console.log("CLIC →", JSON.stringify(info)); };
+    cv2.addEventListener("pointerdown",h,true);   // capture : on lit AVANT tout le monde
+    return "clique maintenant sur un personnage"; };
   window.PROGRESSION={GRADES,XP_THRESH,PERKS,RANDOM_PERKS,TRACKS,TRACK_PERKS,TRACK_LEVELS,TRACK_EXEMPT,isTrackLevel,usesTrack,rangClasse,
     gradeFromXp,perkPairFor:(m,l)=>perkPairFor(m,l)};
   // source des deux perks CONNUS pour un niveau donné (1-indexé) : la voie, sinon l'arbre de classe
