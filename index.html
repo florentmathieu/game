@@ -613,8 +613,8 @@
     // civilisationnel mais LOGISTIQUE (tu as l'usine et les pièces neuves, ils ont la casse et le bricolage).
     // `name` = la désignation du Consortium (vocabulaire d'inventaire) ; `trueName` = leur propre nom.
     archer:{name:"Irregular",trueName:"Hunter",hp:6,mob:6,enemyOnly:true,wname:"salvaged rifle",w:{ranged:bow(70,3,4,7,3)}},   // fusil de récup, une génération derrière le tien — portée 9 quand même
-    brute:{name:"Brute",trueName:"Defender",hp:11,mob:8,enemyOnly:true,abil:["opportunist"],wname:"breaker arm",w:{melee:sword(70,5,7)}},   // bras hydraulique de minage détourné en arme : il te démonte avec TON matériel
-    shieldbearer:{name:"Barricade",trueName:"Warden",hp:10,mob:6,shieldBlock:35,enemyOnly:true,abil:["shove","charge"],wname:"hull plate",w:{ranged:bow(60,3,5,7),melee:sword(60,3,5)}},   // plaque de coque découpée dans une navette abattue : encaisse ~45% des tirs de face/flanc
+    brute:{name:"Brute",trueName:"Defender",hp:8,mob:8,enemyOnly:true,abil:["opportunist"],wname:"breaker arm",w:{melee:sword(70,4,5)}},   // bras hydraulique de minage détourné en arme : il te démonte avec TON matériel
+    shieldbearer:{name:"Barricade",trueName:"Warden",hp:12,mob:6,shieldBlock:45,enemyOnly:true,abil:["shove","charge"],wname:"hull plate",w:{ranged:bow(60,3,5,7),melee:sword(60,3,5)}},   // plaque de coque découpée dans une navette abattue : encaisse ~45% des tirs de face/flanc
     bastard:{name:"Bastard",trueName:"Keeper",hp:7,mob:7,enemyOnly:true,abil:["blast","frost"],wname:"jury-rigged siphon",w:{ranged:bow(70,4,6,7,3),melee:sword(45,2,3)}},   // le chamane du futur : MÊME métier que ton Siphoner, siphon remonté à la main. Le Consortium ne lui reproche pas d'être arriéré — il lui reproche de ne pas avoir de licence
     // ===== LA CONTREPARTIE (rival) — l'autre puissance venue prendre le monde ; l'alibi moral du Consortium =====
     // Volontairement MAL CONNUE : désignations administratives, pas de noms propres. Absente par défaut
@@ -1701,11 +1701,18 @@
   const setAmmo=(u,m,v)=>{ if(m==="ranged2")u.ammo2=v; else u.ammo=v; };
   const chargee=(u,m)=>{ const c=clipDe(u,m); return c===undefined||ammoDe(u,m)>0; };
   const peutTirer=u=>modesTir(u).some(m=>chargee(u,m));
+  // MODE DE JEU. « normal » allège l'adversaire — deux PV et un dégât de moins — ; « difficile »
+  // le laisse tel que les fiches le décrivent. Le mode se choisit au lancement d'une campagne, se
+  // range dans la partie en cours (donc suit une reprise), et vaut « normal » partout ailleurs :
+  // « tester depuis ici », éditeur, escarmouche isolée.
+  let MODE_JEU="normal";
+  const MODE_PV=-2, MODE_DMG=-1;
   function U(team,cls,cell,opts){opts=opts||{};cls=clsVive(cls);const t=CLASSES[cls];const wtype=t.w.ranged?"ranged":"melee";const w=t.w[wtype];
     const u={team,cls,name:opts.name||t.name,cell,hp:t.hp,max:t.hp,ap:AP_MAX,freeAvail:true,mob:t.mob,facing:opts.facing!=null?opts.facing:(team==="enemy"?Math.PI:0),wtype,flank:w.flank||null,shieldBlock:t.shieldBlock||0,parry:t.parry||0,stealth:!!t.stealth,civ:!!t.civ,w:t.w,overwatch:false,reacted:false,owMode:null};
     u.w=armesLibres(t);   // les armes verrouillées attendent leur perk
     if(w.clip!==undefined){u.clip=w.clip;u.ammo=w.clip;} if(t.crackers){u.crackers=t.crackers;u.crackers0=t.crackers;}
     if(t.faded)u.faded=true;   // capacité de classe : commence chaque tour indétectable   // crackers0 = base (incl. perks) that startGame restores
+    if(team==="enemy"&&MODE_JEU==="normal"){ u.max=Math.max(1,u.max+MODE_PV); u.hp=u.max; u.dmgBonus=(u.dmgBonus||0)+MODE_DMG; }   // mode normal : l'adversaire encaisse et frappe moins
     if(opts.pod!=null&&opts.pod!=="")u.pod=+opts.pod; if(opts.asleep&&team==="enemy"){u.asleep=true;u._asleep0=true;} if(opts.hostage&&team==="neutral")u.hostage=true;
     if(opts.hvt&&team==="enemy")u.hvt=true;   // high-value target ("assassination" objective)
     if(opts.runner&&team==="enemy"){u.runner=true;u.asleep=false;u._asleep0=false;}   // fuyard ("interception") : court vers la sortie, ne combat pas
@@ -5349,11 +5356,12 @@
       const s={ nodeId:campRun.nodeId, winCount:campRun.winCount||0, potions:campRun.potions||0, missionN:campRun.missionN||0,
         roster:campRun.roster, carry:campRun.carry||{}, geoStates:campRun.geoStates||{}, primes:campRun.primes||{},
         seen:[...(campRun.seen||[])], firedEvents:[...(campRun.firedEvents||[])], firedDialogs:[...(campRun.firedDialogs||[])], typesSeen:[...(campRun.typesSeen||[])], geoNodeId:onGeo?geoPlay.node.id:null,
-        geoSeed:campRun.geoSeed||null, forge:campRun.forge||0, forgeBonus:campRun.forgeBonus||null, forgeDone:campRun.forgeDone||[], lastAttackN:campRun.lastAttackN||0 };
+        mode:campRun.mode||MODE_JEU, geoSeed:campRun.geoSeed||null, forge:campRun.forge||0, forgeBonus:campRun.forgeBonus||null, forgeDone:campRun.forgeDone||[], lastAttackN:campRun.lastAttackN||0 };
       localStorage.setItem(RUN_PREFIX+campSlug(campRun.camp.name),JSON.stringify(s)); }catch(e){} }
   function loadCampRunSave(name){ try{ const t=localStorage.getItem(RUN_PREFIX+campSlug(name)); if(t)return JSON.parse(t); }catch(e){} return null; }
   function clearCampRunSave(name){ try{ localStorage.removeItem(RUN_PREFIX+campSlug(name)); }catch(e){} }
-  function resumeCampaign(camp,save){ campRun={ camp, carry:save.carry||{}, winCount:save.winCount||0,
+  function resumeCampaign(camp,save){ MODE_JEU=(save.mode==="hard")?"hard":"normal";   // on reprend dans le mode où l'on a commencé
+    campRun={ camp, mode:MODE_JEU, carry:save.carry||{}, winCount:save.winCount||0,
       roster:Array.isArray(save.roster)?save.roster:[], nodeId:save.nodeId, from:"play", missionN:save.missionN||0,
       seen:new Set(save.seen||[]), potions:save.potions||0, firedEvents:new Set(save.firedEvents||[]),
       dialogs:(camp.dialogs||[]).slice(), firedDialogs:new Set(save.firedDialogs||[]), typesSeen:new Set(save.typesSeen||[]),
@@ -5561,8 +5569,9 @@
     const cur={mission:"nav-m",campaign:"nav-c",geoscape:"nav-g",play:"nav-p"}[v]; ["nav-m","nav-c","nav-g","nav-p"].forEach(id=>{const a=document.getElementById(id);if(a)a.classList.toggle("cur",id===cur);});
     if(v==="campaign"){ if(typeof drawGraph==="function")drawGraph(); }
     if(v==="geoscape"&&typeof geoEnter==="function")geoEnter(); }
-  function startCampaign(camp,from,fromNode){ const ephemeral=(from!=="play");   // launched from the editor (test): events (1st arrival…) replay each attempt and aren't remembered
-    campRun={camp,carry:{},winCount:0,roster:(camp.roster||[]).map(m=>({name:m.name,cls:m.cls,xp:m.xp||0,perks:Array.isArray(m.perks)?m.perks.slice():[],offered:{},stress:0,fatigue:0,special:m.special!==false,mortalAfter:m.mortalAfter||null,dead:false})),nodeId:null,from:from||"campaign",seen:new Set(),potions:0,ephemeral,dialogs:(camp.dialogs||[]).slice(),firedDialogs:new Set(),typesSeen:new Set(),firedEvents:new Set(ephemeral?[]:loadFiredEvents(camp.name))};
+  function startCampaign(camp,from,fromNode,mode){ const ephemeral=(from!=="play");   // launched from the editor (test): events (1st arrival…) replay each attempt and aren't remembered
+    MODE_JEU=(mode==="hard")?"hard":"normal";   // « tester depuis ici » n'en passe pas : c'est donc normal
+    campRun={camp,mode:MODE_JEU,carry:{},winCount:0,roster:(camp.roster||[]).map(m=>({name:m.name,cls:m.cls,xp:m.xp||0,perks:Array.isArray(m.perks)?m.perks.slice():[],offered:{},stress:0,fatigue:0,special:m.special!==false,mortalAfter:m.mortalAfter||null,dead:false})),nodeId:null,from:from||"campaign",seen:new Set(),potions:0,ephemeral,dialogs:(camp.dialogs||[]).slice(),firedDialogs:new Set(),typesSeen:new Set(),firedEvents:new Set(ephemeral?[]:loadFiredEvents(camp.name))};
     const saved=loadRosterProgress(camp.name); if(saved){ for(const m of campRun.roster){ const s=saved.find(x=>x.name===m.name&&x.cls===m.cls); if(s){ m.xp=s.xp||0; m.perks=Array.isArray(s.perks)?s.perks.slice():[]; m.offered=s.offered||{}; m.track=s.track||null; m.stress=s.stress||0; m.fatigue=s.fatigue||0; m.special=s.special!==false; m.dead=!!s.dead; } }   // resumes progression + attrition + deaths across games
       for(const s of saved){ if(s.name&&!campRun.roster.some(m=>m.name===s.name))campRun.roster.push({name:s.name,cls:s.cls,xp:s.xp||0,perks:Array.isArray(s.perks)?s.perks.slice():[],offered:s.offered||{},track:s.track||null,stress:s.stress||0,fatigue:s.fatigue||0,special:s.special!==false,mortalAfter:null,dead:!!s.dead}); } }   // scripted recruits (absent from the base roster) kept
     document.body.classList.remove("testing"); setView("play"); runNode(fromNode||camp.start); }
@@ -5570,11 +5579,19 @@
     if(!camp){ const t=await fetchText("campaigns-mesh/principale.json",ghCfg()); if(t){try{camp=JSON.parse(t);}catch(e){}} }
     if(camp&&Array.isArray(camp.nodes)&&camp.nodes.length){ const C={name:camp.name||"",start:camp.start||(camp.nodes[0]&&camp.nodes[0].id),roster:camp.roster||[],dialogs:camp.dialogs||[],nodes:camp.nodes,terrain:camp.terrain||null,recette:camp.recette||null,triggers:camp.triggers||[]};
       const save=loadCampRunSave(C.name);
+      // LE MODE SE CHOISIT UNE FOIS, AU DÉPART. Une reprise garde celui de la partie sauvegardée :
+      // changer de difficulté en cours d'acte rendrait toute mesure de progression incomparable.
+      const choisirMode=()=>askPush(
+        "Choose a difficulty. This cannot be changed once the act has begun.",
+        ()=>startCampaign(C,"play",null,"normal"),
+        ()=>startCampaign(C,"play",null,"hard"),
+        "🛡 Normal — the enemy has 2 fewer HP and deals 1 less damage",
+        "⚔ Hard — the enemy as the files describe it");
       if(save&&Array.isArray(save.roster)&&save.roster.length){   // an act is in progress: offer to resume
         askPush("An act is in progress — "+(save.winCount||0)+" mission(s) won. Resume where you left off, or start over?",
-          ()=>resumeCampaign(C,save), ()=>{ clearCampRunSave(C.name); startCampaign(C,"play"); },
+          ()=>resumeCampaign(C,save), ()=>{ clearCampRunSave(C.name); choisirMode(); },
           "▶ Resume the act", "↺ Restart the campaign"); return; }
-      startCampaign(C,"play"); }
+      choisirMode(); }
     else { document.body.classList.add("testing"); setView("play"); startGame(); } }
   function runNode(id){ if(!campRun)return; const n=campRun.camp.nodes.find(x=>x.id===id); if(!n){endCampaignRun("Campaign finished.");return;} campRun.nodeId=id;
     if(n.mortal)applyMortal(n.mortal);   // "their role is done": this node can make characters mortal

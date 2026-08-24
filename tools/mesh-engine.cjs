@@ -67,6 +67,7 @@ function loadMesh(htmlPath){
     execFireCloud, execCold, execColdArmor, opportunite,
     abilDispo, regleAbil, chargesRestantes, tourDesEsprits, tickBrulures, tickBoosts,
     corruptLevel, distortTerrain, polyCentroid,
+    get MODE_JEU(){return MODE_JEU}, set MODE_JEU(v){MODE_JEU=(v==="hard")?"hard":"normal"},
     // banc : fabrique l'index d'un plateau AUTRE que le plateau courant, pour rejouer le défaut
     perimerGrille(w,h){ const vW=W,vH=H; W=w;H=h; _grille=null; grilleSpatiale(); W=vW;H=vH; },
     get infl(){return infl}, setInfl(v){ infl=v; ROWS=infl.length; COLS=(infl[0]&&infl[0].length)||COLS; W=COLS*MC; H=ROWS*MC; },
