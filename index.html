@@ -766,7 +766,17 @@
         cible:e.target&&e.target.id||e.target&&e.target.tagName,
         vueGeo:document.body.classList.contains("view-geoscape"), geoPlay:!!geoPlay,
         enMission:!!(geoPlay&&geoPlay.inMission), mode, tour:turn,
-        bloque:{introBlocking,speaking,over}, atteignable:(d&&c)?(d[c.id]!==undefined):null };
+        bloque:{introBlocking,speaking,over}, atteignable:(d&&c)?(d[c.id]!==undefined):null,
+        // à côté de quoi, et de combien ? Un décalage systématique et un simple raté ne se
+        // ressemblent pas : l'un met des centaines de pixels, l'autre quelques-uns.
+        monde_taille:[W,H],
+        proches:cells.map(cc=>({id:cc.id,d:Math.round(Math.hypot(cc.cx-X,cc.cy-Y))}))
+                     .sort((a,b)=>a.d-b.d).slice(0,3),
+        persos:units.filter(v=>v.team==="player").map(v=>({nom:v.name,cell:v.cell,
+          monde:[Math.round(cells[v.cell].cx),Math.round(cells[v.cell].cy)],
+          ecran:[Math.round(r.left+(cells[v.cell].cx*zoom+panX)*(r.width/cv2.width)),
+                 Math.round(r.top +(cells[v.cell].cy*zoom+panY)*(r.height/cv2.height))],
+          ecartClic:Math.round(Math.hypot(cells[v.cell].cx-X,cells[v.cell].cy-Y))})) };
       window.__CLIC=info; console.log("CLIC →", JSON.stringify(info)); };
     cv2.addEventListener("pointerdown",h,true);   // capture : on lit AVANT tout le monde
     return "clique maintenant sur un personnage"; };
