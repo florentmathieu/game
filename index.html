@@ -1300,8 +1300,14 @@
   // 160 000 tests point-dans-polygone par appel de los(), que le moteur fait pour chaque paire à
   // chaque tour. On range donc les cellules dans une grille régulière, par boîte englobante, et
   // on ne teste plus que les quelques candidates de la case visée.
+  // L'INDEX DÉPEND AUSSI DES DIMENSIONS DU PLATEAU. Il ne se reconstruisait que sur _meshV, or sa
+  // découpe se calcule sur W et H : redimensionner le plateau sans reconstruire le maillage laissait
+  // une grille trop courte, et cellAtXY rendait null pour tout ce qui tombait au-delà — sans même
+  // tester un polygone. Sur un plateau passé de 720x530 à 792x864, tout ce qui était sous y≈608
+  // devenait inatteignable au clic : on visait ses propres personnages déployés en bas sans que rien
+  // ne réponde, alors que les ennemis, au milieu, restaient sélectionnables.
   function grilleSpatiale(){
-    if(_grille&&_grille.v===_meshV)return _grille;
+    if(_grille&&_grille.v===_meshV&&_grille.W===W&&_grille.H===H)return _grille;
     const T=Math.max(12,Math.hypot(W,H)/Math.max(4,Math.sqrt(cells.length)*1.3));
     const nx=Math.max(1,Math.ceil(W/T)+2), ny=Math.max(1,Math.ceil(H/T)+2);
     const cases=Array.from({length:nx*ny},()=>[]);
@@ -1311,10 +1317,16 @@
       const i0=Math.max(0,Math.floor(x0/T)), i1=Math.min(nx-1,Math.floor(x1/T));
       const j0=Math.max(0,Math.floor(y0/T)), j1=Math.min(ny-1,Math.floor(y1/T));
       for(let j=j0;j<=j1;j++) for(let i=i0;i<=i1;i++) cases[j*nx+i].push(c.id); }
-    return (_grille={v:_meshV,T,nx,ny,cases});
+    return (_grille={v:_meshV,W,H,T,nx,ny,cases});
   }
-  const cellAtXY=(x,y)=>{ const g=grilleSpatiale();
-    const i=Math.floor(x/g.T), j=Math.floor(y/g.T);
+  const cellAtXY=(x,y)=>{ let g=grilleSpatiale();
+    let i=Math.floor(x/g.T), j=Math.floor(y/g.T);
+    // FILET : un point HORS de la grille mais DANS le plateau ne peut venir que d'un index périmé.
+    // Plutôt que de rendre null — ce qui rendait des cellules bien réelles inatteignables au clic —
+    // on reconstruit une fois et on retente. Sans ce filet, une seule dimension oubliée quelque part
+    // suffit à rendre le bas de la carte muet, sans le moindre message.
+    if((i<0||j<0||i>=g.nx||j>=g.ny)&&x>=0&&y>=0&&x<=W&&y<=H){
+      _grille=null; g=grilleSpatiale(); i=Math.floor(x/g.T); j=Math.floor(y/g.T); }
     if(i<0||j<0||i>=g.nx||j>=g.ny)return null;
     const b=g.cases[j*g.nx+i];
     for(let k=0;k<b.length;k++){ const c=cells[b[k]]; if(c&&pointIn(c.poly,x,y))return c; }
