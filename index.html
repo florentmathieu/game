@@ -740,6 +740,16 @@
   const rangClasse=(m,lvl)=>{ if(usesTrack(m,lvl))return 0;
     let r=0; for(let l=1;l<=lvl;l++)if(!usesTrack(m,l))r++; return r; };
   // point d'accès pour les tests et les outils d'équilibrage (tools/)
+  // Diagnostic : ce qui gèle le plateau, lisible depuis la console pendant une partie.
+  window.__DIAG=()=>{ const sb=document.getElementById("storybox"), cl=document.getElementById("combatline"),
+      ct=document.getElementById("camptext"), sq=document.getElementById("squad");
+    return { introBlocking, speaking, over, turn, mode, tour:turnNum,
+      selection:sel?sel.name:null, filePersos:speechQ.length,
+      storybox:!!(sb&&sb.classList.contains("show")), storyboxVisible:!!(sb&&sb.offsetParent),
+      combatline:cl?cl.style.display:null, combatlineVisible:!!(cl&&cl.offsetParent),
+      camptext:!!(ct&&ct.classList.contains("show")), escouade:!!(sq&&sq.classList.contains("show")),
+      cases:cells.length, vues:visible.size, edgeNbManquants:cells.filter(c=>!c.edgeNb||!c.edgeNb.length).length,
+      unites:units.filter(u=>u.team==="player").map(u=>u.name+" c"+u.cell+" "+u.hp+"/"+u.max+" ap"+u.ap) }; };
   window.PROGRESSION={GRADES,XP_THRESH,PERKS,RANDOM_PERKS,TRACKS,TRACK_PERKS,TRACK_LEVELS,TRACK_EXEMPT,isTrackLevel,usesTrack,rangClasse,
     gradeFromXp,perkPairFor:(m,l)=>perkPairFor(m,l)};
   // source des deux perks CONNUS pour un niveau donné (1-indexé) : la voie, sinon l'arbre de classe
@@ -2861,7 +2871,22 @@
     // quand même. On pouvait donc choisir un personnage, voir sa portée s'afficher, et cliquer sur
     // le plateau sans que rien ne réponde — sans le moindre indice sur ce qui manquait.
     // Un clic sur le plateau fait maintenant avancer le dialogue, comme le bouton « … ».
-    if(introBlocking||speaking){ const b=document.getElementById("storybox-btn"); if(b&&b.offsetParent)b.click(); return; }
+    // UN ÉTAT MODAL SANS MODALE EST UN BUG. Deux panneaux bloquent le plateau, chacun avec son
+    // drapeau et chacun ne se refermant qu'en cliquant DESSUS : #storybox (texte d'intro) et
+    // #combatline (bulles de dialogue). Si le drapeau reste levé alors que le panneau n'est pas
+    // affiché — texte qui n'a pas chargé, bulle sortie de l'écran — le plateau ne répond plus
+    // jamais, tandis que la liste du roster continue de sélectionner : on croit le jeu cassé.
+    // Un clic sur le plateau fait avancer le panneau visible ; s'il n'y en a aucun, il lève le
+    // blocage au lieu de rester muet.
+    if(introBlocking||speaking){
+      const sb=document.getElementById("storybox"), bt=document.getElementById("storybox-btn");
+      const cl=document.getElementById("combatline");
+      const sbVu=!!(sb&&sb.classList.contains("show")&&sb.offsetParent);
+      const clVu=!!(cl&&cl.offsetParent&&cl.style.display!=="none");
+      if(sbVu&&bt){ bt.click(); return; }
+      if(clVu){ advanceSpeech(); return; }
+      introBlocking=false; speaking=false; speechQ.length=0;   // plus rien à lire : on rend la main
+      if(cl)cl.style.display="none"; hideStory(); refresh(); return; }
     if(over||turn!=="player")return;const cell=cellAtXY(X,Y);if(!cell)return;const id=cell.id;const u=uAt(id);
     if(ability&&sel){ resolveAbilityClick(id); return; }   // a special ability is armed: this click resolves it
     if(throwing&&sel){const cr=sel.w.cracker;if(cr&&sel.crackers>0&&sel.ap>0&&hops(sel.cell,id)<=porteeJet(sel)&&los(sel.cell,id))resolveThrow(sel,id);else setMsg("Cracker: out of range / no line of sight.");return;}
