@@ -103,6 +103,47 @@ function makeActUnit(M){
       if(peut("buttstroke")&&M.execButtstroke(u,a))return true;
     }
     return false; }
+  // ===== MÉMOIRE DE LA CARTE =====
+  // L'IA ne voyait que l'instant présent. Son exploration était gloutonne, sur un seul pas :
+  // « la case atteignable qui touche le plus de noir ». Une unité repassait donc indéfiniment sur
+  // les mêmes cases, et surtout elle ne savait pas TRAVERSER une zone déjà connue pour atteindre
+  // une frontière lointaine — le déplacement étant borné à la vue courante, il faut naviguer de
+  // proche en proche sur ce dont on se souvient. On tient donc, par camp, l'ensemble des cases
+  // jamais vues, et on marche vers la frontière de cet ensemble.
+  const connu={player:new Set(), enemy:new Set()};
+  let tailleCarte=-1, tourPrec=1e9;
+  function majMemoire(){
+    if(M.cells.length!==tailleCarte||M.turnNum<tourPrec){        // nouvelle mission : on oublie tout
+      connu.player=new Set(); connu.enemy=new Set(); tailleCarte=M.cells.length; }
+    tourPrec=M.turnNum;
+    for(const id of M.visible)connu.player.add(id);
+    for(const id of M.evisible)connu.enemy.add(id); }
+  const memoire=u=>connu[u.team]||connu.player;
+  // parcours sur la carte CONNUE (et non sur la vue courante) : rend le prédécesseur de chaque case
+  function champConnu(u){ const K=memoire(u), prev=new Map([[u.cell,-1]]), q=[u.cell]; let h=0;
+    while(h<q.length){ const c=q[h++];
+      for(const n of M.cells[c].nb){ if(prev.has(n)||!K.has(n)||!M.passable(n)||M.edgeCell(n))continue;
+        if(M.enterCost(c,n)===null)continue; prev.set(n,c); q.push(n); } }
+    return prev; }
+  // la frontière du CONNU : une case dont on se souvient, qui touche du jamais-vu franchissable
+  function frontiere(u){ const K=memoire(u), f=[];
+    for(const id of K){ if(!M.passable(id)||M.edgeCell(id))continue;
+      if(M.cells[id].nb.some(n=>!K.has(n)&&M.passable(n)&&M.enterCost(id,n)!==null))f.push(id); }
+    return f; }
+  // Marche vers la frontière la plus proche (départage : celle qui va du côté de la cible), en
+  // avançant cette fois-ci aussi loin que la vue courante le permet le long du chemin retenu.
+  function explorer(u,foe){
+    const prev=champConnu(u); const f=frontiere(u).filter(c=>prev.has(c)&&c!==u.cell);
+    if(!f.length)return false;
+    const prof=new Map(); for(const c of f){ let n=0,x=c; while(x!==u.cell&&n<9999){x=prev.get(x);n++;} prof.set(c,n); }
+    f.sort((a,b)=>(prof.get(a)-prof.get(b))||(foe?M.hops(a,foe.cell)-M.hops(b,foe.cell):0));
+    const but=f[0];
+    const chemin=[]; { let x=but; while(x!==u.cell){chemin.push(x); x=prev.get(x);} chemin.reverse(); }
+    const d=M.reach(u);
+    let pas=null; for(const c of chemin) if(d[c]!==undefined)pas=c;    // le plus loin sur le chemin que la vue autorise
+    if(pas==null||pas===u.cell)return false;
+    M.moveAlong(u,pas); return true; }
+
   // COUPER LES PERTES. Une escouade décimée qui n'a plus vu un ennemi depuis longtemps ne
   // trouvera pas les poches endormies restantes sur 300 cases : sans plafond de tours, elle
   // tournerait indéfiniment. Le joueur, lui, se replie. On fait pareil — et c'est ce que mesure
@@ -128,6 +169,7 @@ function makeActUnit(M){
 
   return function actUnit(u){
     if(u.sorti||!M.cells[u.cell])return;   // celui qui a quitté le plateau n'y joue plus
+    majMemoire();
     let guard=0;
     const extracting = u.team==="player" && M.curMission && M.curMission.objective==="extract";
     if(envisagerRepli(u))return;
@@ -198,24 +240,14 @@ function makeActUnit(M){
         const key=h*1e5 + eu - defValue(c)*30 + pen;                    // à sauts ~égaux, finir abrité/en hauteur (départage seulement)
         if(key<bestKey){bestKey=key;best=c;} }
       // EXPLORER QUAND ON NE PEUT PAS APPROCHER. Le déplacement est borné aux cases VUES : si
-      // l'ennemi se tient derrière un obstacle opaque, tout son voisinage est noir et aucune case
-      // atteignable ne réduit la distance. Sans repli, l'unité choisit une case à distance égale
-      // et fait du sur-place — c'est ce qui figeait 26 missions ★3 sur 43, sans fin.
-      // L'IA du jeu, elle, sait « marcher vers la zone jamais vue la plus proche » : on fait pareil,
-      // en poussant la frontière de vision du côté de la cible.
-      if(best!=null&&M.hops(best,foe.cell)>=h0){
-        let expl=null,eb=-Infinity;
-        // UN VOISIN NOIR NE VAUT QUE S'IL EST FRANCHISSABLE. Compter tous les voisins non vus
-        // donnait la meilleure note aux cases COLLÉES AUX MURS : depuis l'intérieur d'une pièce,
-        // l'autre côté de la maçonnerie n'est jamais vu, donc jamais rayé de la liste. L'escouade
-        // tournait indéfiniment entre trois cases d'une même salle en croyant explorer.
-        for(const cs in d){ const c=+cs; if(c===u.cell)continue;
-          const noir=M.cells[c].nb.filter(n=>!M.visible.has(n)&&M.passable(n)&&M.enterCost(c,n)!==null).length;
-          if(!noir)continue;
-          const pen=recent.includes(c)?5000:0;
-          const score=noir*1000 - M.hops(c,foe.cell)*10 + defValue(c) - pen;
-          if(score>eb){eb=score;expl=c;} }
-        if(expl!=null)best=expl; }
+      // la cible est derrière un obstacle opaque, aucune case atteignable ne réduit la distance et
+      // l'unité fait du sur-place. L'ancienne parade notait les cases à leur nombre de voisins
+      // noirs — un seul pas, sans mémoire : on repassait sur les mêmes cases, et on ne savait pas
+      // traverser une zone connue pour rejoindre une frontière lointaine. On navigue désormais sur
+      // la carte MÉMORISÉE jusqu'à la frontière du connu la plus proche.
+      if(best==null||M.hops(best,foe.cell)>=h0){
+        if(explorer(u,foe))continue;
+      }
       if(best==null)return;                                            // aucune case libre : tenir, laisser passer les autres
       M.moveAlong(u,best);
       recent.push(u.cell); if(recent.length>9)recent.shift();          // u.cell = destination après moveAlong
