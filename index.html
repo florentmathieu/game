@@ -6173,7 +6173,10 @@
     // UN OFFICIER COMMANDE PLUS DE MONDE. Sans lui l'escouade part à trois ; le premier
     // personnage qui prend la voie Officier ouvre la quatrième place, pour toute la campagne.
     // La mission écrite garde le dernier mot : on ne déploie jamais plus qu'elle n'a de cases.
-    const places=(m.units||[]).filter(u=>u.team==="player").length||1;
+    // m reste NULL sur une région générée (la case porte une recette, pas un fichier de mission) :
+    // lire m.units levait une TypeError avant même l'écran d'escouade, et plus aucun départ
+    // n'était possible. Le nombre de cases n'a de sens que pour une mission ÉCRITE.
+    const places=((m&&m.units)||[]).filter(u=>u.team==="player").length||1;
     const slots=gen?(ESCOUADE_BASE+(aUnOfficier()?1:0)):places;
     const regionName=(cel&&cel.gname)||"Mission";
     showSquadSelect(slots, regionName, (chosen)=>{ if(!chosen){ geoBanner("departure cancelled"); return; }   // Cancel = stay at camp
