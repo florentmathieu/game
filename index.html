@@ -777,6 +777,21 @@
           ecran:[Math.round(r.left+(cells[v.cell].cx*zoom+panX)*(r.width/cv2.width)),
                  Math.round(r.top +(cells[v.cell].cy*zoom+panY)*(r.height/cv2.height))],
           ecartClic:Math.round(Math.hypot(cells[v.cell].cx-X,cells[v.cell].cy-Y))})) };
+      // POURQUOI la case la plus proche n'a pas été retenue. Deux causes possibles, exclusives :
+      // son polygone ne contient pas le point (géométrie), ou l'index spatial ne l'a pas proposée
+      // au test (index périmé). On lit les deux.
+      const pr=cells.map(cc=>({id:cc.id,d:Math.hypot(cc.cx-X,cc.cy-Y)})).sort((a,b)=>a.d-b.d)[0];
+      if(pr){ const cc=cells[pr.id], g=grilleSpatiale();
+        const gi=Math.floor(X/g.T), gj=Math.floor(Y/g.T);
+        const seau=(gi>=0&&gj>=0&&gi<g.nx&&gj<g.ny)?g.cases[gj*g.nx+gi]:null;
+        const xs=cc.poly.map(q=>q[0]), ys=cc.poly.map(q=>q[1]);
+        let a=0; for(let i=0;i<cc.poly.length;i++){const u=cc.poly[i],v=cc.poly[(i+1)%cc.poly.length];a+=u[0]*v[1]-v[0]*u[1];}
+        info.enquete={ caseProche:pr.id, sommets:cc.poly.length, aire:Math.round(Math.abs(a)/2),
+          boite:[Math.round(Math.min(...xs)),Math.round(Math.min(...ys)),Math.round(Math.max(...xs)),Math.round(Math.max(...ys))],
+          centreDansSonPolygone:pointIn(cc.poly,cc.cx,cc.cy),
+          pointDansCePolygone:pointIn(cc.poly,X,Y),
+          grille:{T:Math.round(g.T),nx:g.nx,ny:g.ny,v:g.v,meshV:_meshV},
+          seau:seau?seau.length:null, seauContientLaCase:seau?seau.includes(pr.id):null }; }
       window.__CLIC=info; console.log("CLIC →", JSON.stringify(info)); };
     cv2.addEventListener("pointerdown",h,true);   // capture : on lit AVANT tout le monde
     return "clique maintenant sur un personnage"; };
