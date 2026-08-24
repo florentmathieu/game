@@ -1667,7 +1667,13 @@
   function murCoupe(A,B,u,v){ for(const id of [u,v]) for(const n of cells[id].nb){ const k=wkey(id,n);
       if(!murs.has(k))continue; const sg=wallSeg.get(k); if(!sg)continue;
       if(segInter([A.cx,A.cy],[B.cx,B.cy],sg[0],sg[1]))return true; } return false; }
-  function los(a,b){const A=cells[a],B=cells[b],N=Math.max(2,Math.round(Math.hypot(B.cx-A.cx,B.cy-A.cy)/5));
+  // À UNE CASE, ON VOIT. Le rayon centre-à-centre de deux voisins peut raser le coin d'un
+  // rocher posé en biais : la vue était alors refusée entre deux cases qu'on traverse
+  // librement. Or reach() n'autorise le pas que vers une case VUE — la carte se découpait en
+  // poches inatteignables, et la mission ne pouvait plus se finir. Un mur plein, lui, sépare.
+  function los(a,b){ if(a===b)return true;
+    if(cells[a]&&cells[a].nb.includes(b)&&!murBetween(a,b))return true;
+    const A=cells[a],B=cells[b],N=Math.max(2,Math.round(Math.hypot(B.cx-A.cx,B.cy-A.cy)/5));
     let prev=a;
     for(let k=1;k<N;k++){const t=k/N,x=A.cx+(B.cx-A.cx)*t,y=A.cy+(B.cy-A.cy)*t;const c=cellAtXY(x,y);if(!c)continue;
       if(c.id!==prev){ if(murs.size){ if(murBetween(prev,c.id))return false;

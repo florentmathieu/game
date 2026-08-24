@@ -35,7 +35,7 @@ function loadMesh(htmlPath){
     genMission, applyMissionObj, exportObj, startGame, setBoardSize, genMesh, buildAdj,
     U, CLASSES, reach, moveAlong, doAttack, inRange, hops, los, passable, occ, adjacent,
     apForMove, budget, bestEnemyTarget, nearestOpposing, wakePod, wakeEnemy, checkEnd, refresh, computeEVis,
-    hostile, uAt, enemyActive, shotFrom, pathTo,
+    hostile, uAt, enemyActive, shotFrom, pathTo, cellAtXY, opaque, murCoupe, wallSeg, wkey,
     get lastOutcome(){return lastOutcome}, set lastOutcome(v){lastOutcome=v},
     get curMission(){return curMission}, set curMission(v){curMission=v},
     get turnNum(){return turnNum}, set turnNum(v){turnNum=v},
@@ -66,7 +66,7 @@ function loadMesh(htmlPath){
     corruptLevel, distortTerrain, polyCentroid,
     get infl(){return infl}, setInfl(v){ infl=v; ROWS=infl.length; COLS=(infl[0]&&infl[0].length)||COLS; W=COLS*MC; H=ROWS*MC; },
     get wallSeg(){return wallSeg}, get murs(){return murs}, get portes(){return portes},
-    murBetween, enterCost,
+    murBetween, enterCost, edgeCell, get visible(){return visible}, get evisible(){return evisible},
     setDist(p){ distEl.value=String(p); }, setDens(g){ dens.value=String(g); },
     get MC(){return MC},
     // contexte stratégique de la mission (acte + étoiles) : sans lui le banc d'essai tire

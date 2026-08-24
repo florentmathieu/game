@@ -151,20 +151,44 @@ function makeActUnit(M){
       // hops ignore le brouillard : viser la frontière de vision la plus proche de l'ennemi fait
       // progresser même quand le chemin contourne un rocher (pas besoin d'un STRICT rapprochement,
       // sinon l'unité se fige dans une poche). Mémoire courte anti-va-et-vient.
-      const foe=M.nearestOpposing(u); if(!foe)return;
+      // CIBLE TENUE. nearestOpposing() rend le plus proche À CET INSTANT : quand deux ennemis
+      // alternent, l'unité change d'objectif chaque tour et fait du sur-place. Les deux camps
+      // partageant cette IA, deux groupes aveugles l'un à l'autre tournaient en rond
+      // indéfiniment — 26 missions ★3 sur 43 ne finissaient jamais, même en 90 tours.
+      // On garde la même cible tant qu'elle vit.
+      let foe=(u.__cible&&u.__cible.hp>0&&M.hostile(u,u.__cible))?u.__cible:M.nearestOpposing(u);
+      if(!foe)return; u.__cible=foe;
       const fc=M.cells[foe.cell];
       const recent=u.__recent||(u.__recent=[]);
       let best=null,bestKey=Infinity;
+      const h0=M.hops(u.cell,foe.cell);
       for(const cs in d){ const c=+cs; if(c===u.cell)continue;
         const cc=M.cells[c];
         const h=M.hops(c,foe.cell);
         const eu=Math.hypot(cc.cx-fc.cx,cc.cy-fc.cy);
-        const pen=recent.includes(c)?1e7:0;                            // éviter de revenir sur ses pas
+        // LA PÉNALITÉ NE DOIT PAS BATTRE LA PROGRESSION. À 1e7 contre un terme de distance qui
+        // plafonne à 1e6, éviter une case déjà vue l'emportait TOUJOURS sur se rapprocher : deux
+        // groupes aveugles tournaient en rond sans fin. On ne pénalise que ce qui ne rapproche pas.
+        const pen=(h>=h0&&recent.includes(c))?1e7:0;
         const key=h*1e5 + eu - defValue(c)*30 + pen;                    // à sauts ~égaux, finir abrité/en hauteur (départage seulement)
         if(key<bestKey){bestKey=key;best=c;} }
+      // EXPLORER QUAND ON NE PEUT PAS APPROCHER. Le déplacement est borné aux cases VUES : si
+      // l'ennemi se tient derrière un obstacle opaque, tout son voisinage est noir et aucune case
+      // atteignable ne réduit la distance. Sans repli, l'unité choisit une case à distance égale
+      // et fait du sur-place — c'est ce qui figeait 26 missions ★3 sur 43, sans fin.
+      // L'IA du jeu, elle, sait « marcher vers la zone jamais vue la plus proche » : on fait pareil,
+      // en poussant la frontière de vision du côté de la cible.
+      if(best!=null&&M.hops(best,foe.cell)>=h0){
+        let expl=null,eb=-Infinity;
+        for(const cs in d){ const c=+cs; if(c===u.cell)continue;
+          const noir=M.cells[c].nb.filter(n=>!M.visible.has(n)).length;
+          if(!noir)continue;
+          const score=noir*1000 - M.hops(c,foe.cell)*10 + defValue(c);
+          if(score>eb){eb=score;expl=c;} }
+        if(expl!=null)best=expl; }
       if(best==null)return;                                            // aucune case libre : tenir, laisser passer les autres
       M.moveAlong(u,best);
-      recent.push(u.cell); if(recent.length>5)recent.shift();          // u.cell = destination après moveAlong
+      recent.push(u.cell); if(recent.length>9)recent.shift();          // u.cell = destination après moveAlong
     }
   };
 }
