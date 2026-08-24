@@ -2726,6 +2726,7 @@
   // End conditions by OBJECTIVE (default "elimination"). Common defeats (hostage/NPC/wiped
   // squad) apply to all archetypes; victory depends on the mission's objective.
   function checkEnd(){
+    if(over)return;                                   // déjà soldée : ne pas rejouer la fin
     const obj=(curMission&&curMission.objective)||"eliminate";
     // --- common defeats ---
     if(units.some(u=>u.team==="neutral"&&u.hostage&&u.hp<=0))return end("Defeat — the hostage has fallen…");   // hostage/VIP killed = failure
@@ -2778,7 +2779,13 @@
     else if(b.kind==="target")done=!units.some(u=>u.bonus&&u.hp>0);
     if(done){ curMission.bonusDone=true; if(b.cell!=null&&cells[b.cell])cells[b.cell].bonusLoot=false;
       setMsg("✦ Bonus objective complete! (reward on victory)"); if(typeof log==="function")log("✦ Bonus objective complete — reward if the mission is won.","player"); if(typeof banner==="function")banner("Bonus objective complete ✦","player"); } }
-  function end(t){over=true;lastOutcome=t.indexOf("Victory")===0?"win":"loss";emit(lastOutcome==="win"?"win":"lose",{});if(campRun){campEnd(t);return;}document.getElementById("overtxt").textContent=t;document.getElementById("over").classList.add("show");draw();}
+  // UNE MISSION NE SE TERMINE QU'UNE FOIS. Rien n'empêchait un second appel : un tir de VIGILANCE
+  // se résout après la fin (reactTo → doAttack → checkEnd), la mission était déjà soldée, et le
+  // second passage repartait dans campEnd avec geoPlay.inMission déjà remis à faux. Le jeu croyait
+  // alors à une mission de nœud, affichait « Mission failed… », tentait de recharger la mission du
+  // nœud GEOSCAPE — qui n'en a pas —, obtenait « Mission not found: undefined » et terminait la
+  // campagne par « End. » Trois écrans, une seule cause.
+  function end(t){ if(over)return; over=true;lastOutcome=t.indexOf("Victory")===0?"win":"loss";emit(lastOutcome==="win"?"win":"lose",{});if(campRun){campEnd(t);return;}document.getElementById("overtxt").textContent=t;document.getElementById("over").classList.add("show");draw();}
   function log(m,team){if(mode!=="play")return;const el=document.getElementById("log");const d=document.createElement("div");d.className=team==="player"?"pl":"en";d.textContent=m;el.prepend(d);}
   let msgT=null;
   function setMsg(t){const el=document.getElementById("msg");el.textContent=t;if(msgT){clearTimeout(msgT);msgT=null;}if(t)msgT=setTimeout(()=>{el.textContent="";msgT=null;},4000);}   // ephemeral message: clears itself
@@ -5631,6 +5638,7 @@
           resolveText(n.intro,n.introFile).then(txt=>{ if(txt)playText(txt,true,()=>{introBlocking=false;hideStory();setMsg("");startB();}); else {introBlocking=false;startB();} }); }
         else startB(); };
       playPartyDialog("before",introB); return; }
+    if(!n||!n.mission){ showCampText("This node carries no mission — returning to the map.",()=>{ if(n&&n.next)runNode(n.next); else if(geoPlay&&geoPlay.node)runNode(geoPlay.node.id); else endCampaignRun("End."); }); return; }   // un nœud geoscape n'a pas de fichier de mission : ne pas clore la campagne pour autant
     const t=await fetchText("missions-mesh/"+n.mission,ghCfg()); if(!t){showCampText("Mission not found: "+n.mission,()=>endCampaignRun("End."));return;}
     try{applyMissionObj(JSON.parse(t),true);}catch(e){showCampText("Unreadable mission.",()=>endCampaignRun("End."));return;}
     distortTerrain(corruptLevel());   // progressive distortion (node missions before the geoscape stay intact: missionN=0)
