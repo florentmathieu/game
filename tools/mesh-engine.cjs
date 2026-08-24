@@ -86,8 +86,17 @@ function loadMesh(htmlPath){
   const VALS = { dens:"44", dist:"28", bw:"10", bh:"8", "gen-cover":"28", "gen-diff":"moyen", "gen-arch":"eliminate",
     "gh-branch":"", "gh-repo":"", "gh-token":"", "geo-n":"12", "geo-aspect":"3:2", "geo-name":"" };
   const els = {};
+  // LES CASES COCHÉES DU DOCUMENT. Le stub les rendait TOUTES décochées : « auto size » passait
+  // pour éteinte, et genMission gardait le plateau par défaut au lieu de le dimensionner sur le
+  // nombre de poches. Toutes les mesures d'équilibrage se jouaient donc sur la même carte, quelle
+  // que soit la difficulté. On lit l'état réel des cases dans le HTML.
+  const COCHEES = new Set();
+  for(const m of html.matchAll(/<input\b[^>]*>/g)){
+    const t = m[0]; if(!/\bchecked\b/.test(t)) continue;
+    const id = /id="([^"]+)"/.exec(t); if(id) COCHEES.add(id[1]);
+  }
   function makeEl(id){ return {
-    id, style:{}, value:(id in VALS?VALS[id]:""), textContent:"", innerHTML:"", dataset:{}, files:[], checked:false,
+    id, style:{}, value:(id in VALS?VALS[id]:""), textContent:"", innerHTML:"", dataset:{}, files:[], checked:COCHEES.has(id),
     width:720, height:560, onclick:null, oninput:null, onchange:null,
     addEventListener:noop, removeEventListener:noop, appendChild:noop, removeChild:noop, after:noop, append:noop,
     prepend:noop, insertBefore:noop, replaceChild:noop, setAttribute:noop, getAttribute:()=>null, focus:noop, blur:noop, cloneNode(){return makeEl("_");},
