@@ -1221,6 +1221,13 @@
     // wall-edges rebuilt from the warped polygons, restricted to real neighbor pairs
     wallSeg=new Map();
     cells.forEach((c)=>{ for(const j of c.nb){ if(j<=c.id)continue; const seg=sharedEdge(c,cells[j]); if(seg)wallSeg.set(wkey(c.id,j),seg); }});
+    // L'INDEX SPATIAL PARLE DE L'ANCIENNE GÉOMÉTRIE. grilleSpatiale() range chaque cellule dans
+    // les cases que couvrait sa boîte AVANT déformation, et ne se reconstruit que sur _meshV.
+    // Sans cette ligne, cellAtXY interroge des cases périmées : il rend null sur les cellules qui
+    // ont glissé — donc edgeNb=-1 partout (chaque case entièrement cerclée, le palier rouge tracé
+    // par-dessus le bleu et l'orange) ET plus aucun clic ne trouve de personnage sur le plateau.
+    // Le défaut ne se voit qu'une fois la distorsion accumulée : intact à la première mission.
+    _meshV++; _grille=null;
     // actual neighbor per edge: geometric sample just outside (robust on a warped mesh)
     cells.forEach(c=>{ const p=c.poly; c.edgeNb=[]; for(let k=0;k<p.length;k++){ const a=p[k],b=p[(k+1)%p.length],mx=(a[0]+b[0])/2,my=(a[1]+b[1])/2; let dx=mx-c.cx,dy=my-c.cy; const L=Math.hypot(dx,dy)||1; dx/=L;dy/=L; const o=cellAtXY(mx+dx*3.5,my+dy*3.5); c.edgeNb[k]=(o&&o.id!==c.id&&c.nb.includes(o.id))?o.id:-1; } });
     if(curMission)curMission._corrupt=level; }
@@ -2848,7 +2855,14 @@
     else if(editTool==="erase"){ units=units.filter(u=>u.cell!==id); }
     refresh();
   }
-  function playClick(X,Y){if(over||turn!=="player"||introBlocking||speaking)return;const cell=cellAtXY(X,Y);if(!cell)return;const id=cell.id;const u=uAt(id);
+  function playClick(X,Y){
+    // PENDANT L'INTRO, LE PLATEAU N'ÉTAIT PAS FIGÉ : IL ÉTAIT MUET. Le texte d'introduction bloque
+    // les clics jusqu'à ce qu'on le déroule, mais la liste en haut à gauche, elle, sélectionnait
+    // quand même. On pouvait donc choisir un personnage, voir sa portée s'afficher, et cliquer sur
+    // le plateau sans que rien ne réponde — sans le moindre indice sur ce qui manquait.
+    // Un clic sur le plateau fait maintenant avancer le dialogue, comme le bouton « … ».
+    if(introBlocking||speaking){ const b=document.getElementById("storybox-btn"); if(b&&b.offsetParent)b.click(); return; }
+    if(over||turn!=="player")return;const cell=cellAtXY(X,Y);if(!cell)return;const id=cell.id;const u=uAt(id);
     if(ability&&sel){ resolveAbilityClick(id); return; }   // a special ability is armed: this click resolves it
     if(throwing&&sel){const cr=sel.w.cracker;if(cr&&sel.crackers>0&&sel.ap>0&&hops(sel.cell,id)<=porteeJet(sel)&&los(sel.cell,id))resolveThrow(sel,id);else setMsg("Cracker: out of range / no line of sight.");return;}
     if(usingItem&&sel){if(u&&u.team==="player")applyItem(u);else setMsg("Choose an ally (self or adjacent).");return;}
