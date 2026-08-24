@@ -5417,6 +5417,17 @@
     list.sort((a,b)=>((b.e.priority||0)-(a.e.priority||0)));   // descending priority: the highest shows first
     const run=()=>{ if(!list.length){ cb(); return; } const {e,id}=list.shift(); if(!geoEventRecurring(e))campRun.firedEvents.add(id); applyGeoEvent(e); saveFiredEvents(); showEventText(e,run); };
     run(); }
+  // LE CHOIX DE CAPACITÉS EST DIFFÉRÉ JUSQU'AU GEOSCAPE. Il s'enchaînait dans la foulée de la
+  // mission, entre l'outro et le débriefing : on sortait du combat et on devait aussitôt trancher un
+  // choix irréversible. Il attend désormais le retour sur la carte stratégique — le joueur souffle,
+  // voit ce qu'il a pris, et choisit ensuite. La fin d'acte le règle avant de quitter le geoscape,
+  // pour que personne ne perde une promotion faute d'y être repassé.
+  // Aucun drapeau à porter : pendingPromotions() se déduit de l'xp et des perks déjà pris. On
+  // regarde l'état, pas une intention — ainsi une partie rechargée en cours de route retrouve
+  // naturellement ses promotions en attente au lieu de les perdre avec un booléen non sauvegardé.
+  function promoSiDue(cb){ cb=cb||function(){};
+    if(!campRun||!pendingPromotions().length){ cb(); return; }
+    showPromotions(()=>{ if(typeof saveCampRun==="function")saveCampRun(); cb(); }); }
   // level-up screen (between missions): for each grade gained, an irreversible A/B choice, then continue.
   // autoPromote (option/tests): if set, chooses without UI; otherwise, a clickable screen.
   let autoPromote=null;
@@ -5613,7 +5624,7 @@
     if(win){ saveCarry(); awardXp(); applyAttrition(true); if(campRun){campRun.potions=(inv.potion||0)+((curMission&&curMission.loot)||0); campRun.winCount=(campRun.winCount||0)+1;} const bonusMsg=grantBonus(true);   // loot + victory counter, then bonus reward (on the already-placed potions)
       const after=()=>{ const lost=checkMortalConditions(); const msgs=[]; if(bonusMsg)msgs.push(bonusMsg); if(lost.length)msgs.push("★ "+lost.join(", ")+" — their role is fulfilled: they are no longer safe from fate.");
         const proceed=()=>{ if(n&&n.win)runNode(n.win); else endCampaignRun("Campaign finished — victory!"); };
-        const cont=()=>showPromotions(()=> maybeOfferExtra(true,proceed) );
+        const cont=()=>maybeOfferExtra(true,proceed);   // le choix de capacités attend le geoscape
         const chain=()=>{ if(!msgs.length||autoPromote){cont();return;} showCampText(msgs.shift(),chain); }; chain(); };
       resolveText(n&&n.outro,n&&n.outroFile).then(txt=>{ if(txt)playText(txt,true,after); else after(); }); }
     else { if(n&&n.lose)runNode(n.lose); else showCampText("Mission failed…",()=>loadMissionNode(n,true)); } }
@@ -6175,7 +6186,7 @@
     else { showCampText("No territory defined for this node.",()=>{ if(node.next)runNode(node.next); else endCampaignRun("End."); }); return; }
     campRun.geoStates=campRun.geoStates||{}; if(!campRun.geoStates[node.id])campRun.geoStates[node.id]=m.cells.map(c=>c.state||"locked");
     geoPlay={node,map:m,inMission:false}; { const tt=document.getElementById("title"); if(tt)tt.style.display="none"; }
-    document.body.classList.add("geomap"); over=false; resetView(); geoBuildCells(); geoFitView(); hoverCell=null; primeInit(); geoBanner(); draw(); playMusic("geoscape"); runGeoEvents("arrive",()=>saveCampRun()); }   // hard-region bounties + 1st-arrival events, then resume point
+    document.body.classList.add("geomap"); over=false; resetView(); geoBuildCells(); geoFitView(); hoverCell=null; primeInit(); geoBanner(); draw(); playMusic("geoscape"); runGeoEvents("arrive",()=>promoSiDue(()=>saveCampRun())); }   // primes, textes de 1re arrivée, puis les promotions en attente
   function geoBanner(t){ const el=document.getElementById("geobanner"); if(!el||!geoPlay)return;
     const sub=t!=null?esc(t):"";   // by default: just the territory title; an explicit message (t) shows as a subtitle
     el.innerHTML=`<b>${esc(geoPlay.map.name||"Territory")}</b>${sub?(" — "+sub):""}`; renderGeoRoster(); }
@@ -6418,12 +6429,14 @@
     const showEvents=after=>{ if(!events.length){after();return;} announce(events.shift(),()=>showEvents(after)); };
     const toCamp=()=>{ document.body.classList.add("geomap"); resetView(); geoBuildCells(); geoFitView(); hoverCell=null; primeInit(); playMusic("geoscape");
       geoBanner(win?gtx("messages.secured"):gtx("messages.lost")); draw();
-      runGeoEvents("after",{region:rn,missionN:campRun.missionN},()=>runGeoEvents("debrief",()=>{ geoBuildCells(); draw(); geoBanner(); saveCampRun(); })); };   // post-mission text, then "region taken / N victories", redraws, resume point
-    const resolveDebrief=()=>{ if(geoEndReached(node,st)){ const nx=node.next; geoPlay=null; document.body.classList.remove("geomap");
-        announce(gtx(win?"messages.actEndWin":"messages.actEndLoss"),()=>{ if(nx)runNode(nx); else endCampaignRun("Act finished."); }); return; }
+      runGeoEvents("after",{region:rn,missionN:campRun.missionN},()=>runGeoEvents("debrief",()=>{ geoBuildCells(); draw(); geoBanner();
+        promoSiDue(()=>{ geoBuildCells(); draw(); geoBanner(); saveCampRun(); }); })); };   // post-mission text, then "region taken / N victories", redraws, resume point
+    const resolveDebrief=()=>{ if(geoEndReached(node,st)){ const nx=node.next;
+        promoSiDue(()=>{ geoPlay=null; document.body.classList.remove("geomap");
+          announce(gtx(win?"messages.actEndWin":"messages.actEndLoss"),()=>{ if(nx)runNode(nx); else endCampaignRun("Act finished."); }); }); return; }
       toCamp(); };
     const finish=()=>{ showEvents(()=> maybeOfferExtra(win,resolveDebrief) ); };   // losses/★/bonus, then a possible bonus mission offer, then return to camp
-    showPromotions(finish); }   // A/B promotions, then losses / ★ removals, then return to camp
+    finish(); }   // pertes / ★ / bonus, retour au camp — les promotions s'ouvrent là-bas
 
   function init(){
     let draft=null; try{ draft=JSON.parse(localStorage.getItem("mgf_mesh_draft")||"null"); }catch(e){}
