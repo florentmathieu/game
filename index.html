@@ -5660,10 +5660,16 @@
       const save=loadCampRunSave(C.name);
       // LE MODE SE CHOISIT UNE FOIS, AU DÉPART. Une reprise garde celui de la partie sauvegardée :
       // changer de difficulté en cours d'acte rendrait toute mesure de progression incomparable.
+      // COMMENCER, C'EST REPARTIR DE ZÉRO. clearRosterProgress existait mais n'était jamais appelée :
+      // « Restart » n'effaçait que la partie en cours, et la progression du roster — xp, perks,
+      // stress, fatigue, MORTS — survivait d'une campagne à l'autre. On repartait donc avec des
+      // personnages déjà gradés, et les scriptés indisponibles (épuisés ou morts) étaient remplacés
+      // par des remplaçants de même classe : les bons rôles, les mauvais noms. Seul « Reprendre
+      // l'acte » conserve désormais l'état ; tout début de campagne rend le roster d'origine.
       const choisirMode=()=>askPush(
         "Choose a difficulty. This cannot be changed once the act has begun.",
-        ()=>startCampaign(C,"play",null,"normal"),
-        ()=>startCampaign(C,"play",null,"hard"),
+        ()=>{ clearRosterProgress(C.name); startCampaign(C,"play",null,"normal"); },
+        ()=>{ clearRosterProgress(C.name); startCampaign(C,"play",null,"hard"); },
         "🛡 Normal — the enemy has 2 fewer HP and deals 1 less damage",
         "⚔ Hard — the enemy as the files describe it");
       if(save&&Array.isArray(save.roster)&&save.roster.length){   // an act is in progress: offer to resume
