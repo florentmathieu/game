@@ -318,7 +318,7 @@
       <button id="zauto" title="Lay out random zones (squares, hexagons, pentagons)">🎲 Auto zones</button></div>
     <div class="row" id="zones"></div>
     <div class="row"><label style="flex:1">Distortion <input id="dist" type="range" min="0" max="100" value="28"></label><span id="distv">28%</span></div>
-    <div class="row"><label style="font-size:.85rem"><input id="carres-stricts" type="checkbox" checked> Square tiles only — undistorted (uncheck for mixed hex/pentagon zones)</label></div>
+    <div class="row"><label style="font-size:.85rem"><input id="carres-stricts" type="checkbox" checked> Square tiles at generation (uncheck for aperiodic tilings and hex/pentagon zones)</label></div>
     <div class="row"><label style="flex:1">Density <input id="dens" type="range" min="30" max="64" value="44"></label><span id="densv">44</span> <button id="regen">↻</button></div>
     <div class="row"><label>Shape <select id="board-shape">
       <option value="rect">rectangle (full)</option>
@@ -1362,14 +1362,11 @@
   // shift each vertex by a DETERMINISTIC noise of its position: two cells sharing a vertex
   // shift it identically → the edges stay joined (seamless render) and adjacency is preserved.
   function distortTerrain(level){
-    // DES ANGLES DROITS RESTENT DROITS — MAIS LE MONDE SE CORROMPT QUAND MÊME. Cette fonction fait
-    // deux choses sans rapport : elle gauchit chaque sommet (4,9° d'écart à l'angle droit après
-    // trois missions, 26,6° après quinze — c'est ce qui donnait des « carrés déformés »), et elle
-    // note curMission._corrupt, qui commande le voile violet et les veines s'intensifiant au fil de
-    // l'acte. Seule la première est soumise à « Square tiles only » : la mise en scène reste, la
-    // géométrie ne bouge plus.
-    if(!cells.length)return;
-    if(CARRES_STRICTS||!level||level<=0){ if(curMission)curMission._corrupt=Math.max(0,level||0); return; }
+    // LA DÉFORMATION PROGRESSIVE EST VOULUE : le monde se tord à mesure que l'acte avance, et cela
+    // ne dépend d'aucun réglage de pavage. Ce que « Square tiles only » garantit, c'est le POINT DE
+    // DÉPART — une grille de carrés parfaits, ni Penrose, ni hexagones, ni graines secouées — pas
+    // son immuabilité. Une mission commence donc droite et se gauchit au fil des missions.
+    if(!level||level<=0||!cells.length){ if(curMission&&cells.length)curMission._corrupt=Math.max(0,level||0); return; }
     const A=level*9;
     // the distortion is PURELY geometric: freeze the topological adjacency (who neighbors whom)
     // BEFORE warping, otherwise re-pairing by rounded edge can create false adjacencies at
