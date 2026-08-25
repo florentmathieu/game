@@ -68,7 +68,8 @@ function loadMesh(htmlPath){
     execWarcry, execInspire, execInsult, execExfil, execBruise, execDecide, execFuckIt,
     execFireCloud, execCold, execColdArmor, opportunite,
     abilDispo, regleAbil, chargesRestantes, tourDesEsprits, tickBrulures, tickBoosts,
-    corruptLevel, distortTerrain, polyCentroid,
+    corruptLevel, distortTerrain, polyCentroid, muretCover,
+    get FLANC_DEG(){return FLANC_DEG}, set FLANC_DEG(v){FLANC_DEG=v},
     get MODE_JEU(){return MODE_JEU}, set MODE_JEU(v){MODE_JEU=(v==="hard")?"hard":"normal"},
     // banc : fabrique l'index d'un plateau AUTRE que le plateau courant, pour rejouer le défaut
     perimerGrille(w,h){ const vW=W,vH=H; W=w;H=h; _grille=null; grilleSpatiale(); W=vW;H=vH; },

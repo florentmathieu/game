@@ -587,7 +587,12 @@
   function clampPan(){ panX=Math.min(0,Math.max(W-W*zoom,panX)); panY=Math.min(0,Math.max(H-H*zoom,panY)); }
   function resetView(){ zoom=1;panX=0;panY=0; }
   let FREE_MP=2,AP_MAX=2,MOB=3;   // movement (tunable: balancing / generation parameter)
-  let HEIGHT_BONUS=6,COVER_PEN=30,DEF_BRACE=20,ROCHER_PEN=30; const PB={1:30,2:15};   // tunable via the balancing panel
+  let HEIGHT_BONUS=6,COVER_PEN=30,DEF_BRACE=20,ROCHER_PEN=30,FLANC_DEG=70; const PB={1:30,2:15};   // tunable via the balancing panel
+  // PRENDRE UN COUVERT DE BIAIS, C'EST LE CONTOURNER. Le couvert décroissait en cosinus de l'angle
+  // entre le tireur et l'obstacle : de face 100 %, mais encore 71 % à 45°, et il ne tombait à zéro
+  // qu'à exactement 90° — il fallait donc être pile sur la même ligne pour flanquer. FLANC_DEG est
+  // l'angle à partir duquel l'obstacle ne protège plus DU TOUT, et la décroissance est renormalisée
+  // pour l'atteindre franchement : pleine valeur de face, rien au-delà du seuil.
   // LE ROCHER EST UN COUVERT FRANC. Il ne cache plus la vue — on tire par-dessus — mais s'abriter
   // derrière coûte cher à l'assaillant : 30 %, comme un mur de bâtiment, contre 15 pour un muret.
   // Les HAUTES HERBES ont leur propre valeur : elles gênent le tir sans rien arrêter, ce n'est pas
@@ -1895,7 +1900,11 @@
       if(!plein&&!wallBetween(tgt.cell,n))continue;
       // Un muret ne couvre pas quand on domine le voisin : on est au-dessus, on tire par-dessus.
       // SAUF si l'assaillant est plus bas — là c'est un parapet, et il encaisse les tirs venus d'en bas.
-      if(!plein&&T.elev>cells[n].elev && A.elev>=T.elev) continue; let dx=cells[n].cx-T.cx,dy=cells[n].cy-T.cy; const dl=Math.hypot(dx,dy)||1; dx/=dl;dy/=dl; const align=ax*dx+ay*dy; if(align<=0)continue; best=Math.max(best,(roc?ROCHER_PEN:plein?COVER_PEN:COVER_PEN/2)*align); }
+      if(!plein&&T.elev>cells[n].elev && A.elev>=T.elev) continue; let dx=cells[n].cx-T.cx,dy=cells[n].cy-T.cy; const dl=Math.hypot(dx,dy)||1; dx/=dl;dy/=dl; const align=Math.max(-1,Math.min(1,ax*dx+ay*dy)); if(align<=0)continue;
+      const seuil=Math.cos(Math.max(1,Math.min(89,FLANC_DEG))*Math.PI/180);
+      if(align<=seuil)continue;                                   // flanqué : l'obstacle ne protège plus
+      const f=(align-seuil)/(1-seuil);                            // 1 de face, 0 au seuil
+      best=Math.max(best,(roc?ROCHER_PEN:plein?COVER_PEN:COVER_PEN/2)*f); }
     return Math.round(best); }
   // bonus d'un perk restreint à une arme (« +2 dégât à l'épée ») : nul pour les autres armes.
   const bonusArme=(u,m,k)=>((u.armeBonus&&u.armeBonus[m]&&u.armeBonus[m][k])||0);
@@ -6566,6 +6575,7 @@
     {name:"Combat", items:[
       {k:"COVER_PEN",label:"Cover penalty",get:()=>COVER_PEN,set:v=>COVER_PEN=v,min:0,max:60,step:5,suffix:"%"},
       {k:"ROCHER_PEN",label:"Rock cover",get:()=>ROCHER_PEN,set:v=>ROCHER_PEN=v,min:0,max:60,step:5,suffix:"%"},
+      {k:"FLANC_DEG",label:"Flank angle (cover ignored beyond)",get:()=>FLANC_DEG,set:v=>FLANC_DEG=v,min:30,max:89,step:5,suffix:"°"},
       {k:"HERBE_PEN",label:"Tall grass penalty",get:()=>HERBE_PEN,set:v=>HERBE_PEN=v,min:0,max:40,step:5,suffix:"%"},
       {k:"HEIGHT_BONUS",label:"Height bonus (/level)",get:()=>HEIGHT_BONUS,set:v=>HEIGHT_BONUS=v,min:0,max:15,step:1,suffix:"%"},
       {k:"DEF_BRACE",label:"\"Brace\" defense",get:()=>DEF_BRACE,set:v=>DEF_BRACE=v,min:0,max:40,step:5,suffix:"%"},
