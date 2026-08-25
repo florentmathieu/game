@@ -956,7 +956,13 @@
       cells=cells.filter(c=>comp.get(c.id)===main); cells.forEach((c,i)=>c.id=i); buildAdj(); }
   }
   function genMesh(gOverride,forceV){
-    if(!forceV&&meshTypeEl()){ const mt=meshTypeEl().value, fr=(document.getElementById("mesh-fractal")||{}).checked; if(mt==="penrose3"){ genPenrose(gOverride); return; } if(mt==="ammann"){ genAmmann(gOverride); return; } if(mt==="spectre"){ genSpectre(gOverride,fr); return; } if(mt==="hat"){ genHat(gOverride,fr); return; } if(mt==="pinwheel"){ genPinwheel(gOverride,fr); return; } }   // forceV : le geoscape reste toujours en Voronoï ; fr : île fractale (sinon remplit le plateau)
+    // LE PAVAGE APÉRIODIQUE PASSE AVANT TOUT LE RESTE. penrose3, ammann, spectre, hat et pinwheel
+    // pavent en losanges et en cerfs-volants : ce sont bien des quadrilatères — c'est ce qui m'avait
+    // trompé en comptant les côtés — mais leurs angles font 72° et 108°, soit 32° d'écart moyen à
+    // l'angle droit pour Penrose. Le sélecteur est persisté dans le brouillon d'éditeur, donc un
+    // choix fait une fois pavait ensuite TOUTES les missions générées. « Square tiles only » le
+    // court-circuite ; le décocher rend les pavages exotiques.
+    if(!forceV&&!CARRES_STRICTS&&meshTypeEl()){ const mt=meshTypeEl().value, fr=(document.getElementById("mesh-fractal")||{}).checked; if(mt==="penrose3"){ genPenrose(gOverride); return; } if(mt==="ammann"){ genAmmann(gOverride); return; } if(mt==="spectre"){ genSpectre(gOverride,fr); return; } if(mt==="hat"){ genHat(gOverride,fr); return; } if(mt==="pinwheel"){ genPinwheel(gOverride,fr); return; } }   // forceV : le geoscape reste toujours en Voronoï ; fr : île fractale (sinon remplit le plateau)
     const g=gOverride||+dens.value, dist=+distEl.value/100, rnd=mk(seed), h=g*0.866, jit=a=>(rnd()*2-1)*a;
     const typeAt=(x,y)=>infl[Math.min(ROWS-1,Math.floor(y/MC))][Math.min(COLS-1,Math.floor(x/MC))];
     const seeds=[];
