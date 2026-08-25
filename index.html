@@ -1362,13 +1362,14 @@
   // shift each vertex by a DETERMINISTIC noise of its position: two cells sharing a vertex
   // shift it identically → the edges stay joined (seamless render) and adjacency is preserved.
   function distortTerrain(level){
-    // DES ANGLES DROITS RESTENT DROITS. Cette déformation gauchit chaque sommet : à la génération
-    // les cases sont des carrés parfaits, mais au fil de l'acte elles deviennent des quadrilatères
-    // de plus en plus tordus — 4,9° d'écart à l'angle droit après trois missions, 26,6° après
-    // quinze. C'est ce qui donnait des « carrés déformés » alors que le pavage, lui, était sain.
-    // Elle est donc soumise au même réglage que le reste : décocher « Square tiles only » la rend.
-    if(CARRES_STRICTS)return;
-    if(!level||level<=0||!cells.length)return;
+    // DES ANGLES DROITS RESTENT DROITS — MAIS LE MONDE SE CORROMPT QUAND MÊME. Cette fonction fait
+    // deux choses sans rapport : elle gauchit chaque sommet (4,9° d'écart à l'angle droit après
+    // trois missions, 26,6° après quinze — c'est ce qui donnait des « carrés déformés »), et elle
+    // note curMission._corrupt, qui commande le voile violet et les veines s'intensifiant au fil de
+    // l'acte. Seule la première est soumise à « Square tiles only » : la mise en scène reste, la
+    // géométrie ne bouge plus.
+    if(!cells.length)return;
+    if(CARRES_STRICTS||!level||level<=0){ if(curMission)curMission._corrupt=Math.max(0,level||0); return; }
     const A=level*9;
     // the distortion is PURELY geometric: freeze the topological adjacency (who neighbors whom)
     // BEFORE warping, otherwise re-pairing by rounded edge can create false adjacencies at
