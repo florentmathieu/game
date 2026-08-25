@@ -153,6 +153,8 @@
     background:rgba(10,8,5,.96); border:1px solid #5a4530; border-radius:8px; padding:14px 16px; color:#e8ddc8; font-family:Georgia,serif; font-size:1.05rem; line-height:1.6; box-shadow:0 6px 24px rgba(0,0,0,.6) }
   #combatline .skip{ float:right; margin-left:14px; color:#caa24a; background:#1c150e; border:1px solid #5a4530; border-radius:6px; padding:3px 13px; font-weight:bold }
   #combatline .who{ color:#ffd479; font-weight:bold; margin-right:6px }
+  /* le geoscape reste caché tant que les textes d'arrivée se déroulent */
+  body.geo-attente #board{ visibility:hidden }
   /* La liste était plafonnée à 90 px — hauteur héritée de la colonne étroite où elle vivait. Le
      plafond saute : elle occupe toute la colonne de gauche, qui défile pour elle (#trig-left). */
   #triglist{ max-height:none; overflow:visible }
@@ -2847,7 +2849,13 @@
   // alors à une mission de nœud, affichait « Mission failed… », tentait de recharger la mission du
   // nœud GEOSCAPE — qui n'en a pas —, obtenait « Mission not found: undefined » et terminait la
   // campagne par « End. » Trois écrans, une seule cause.
-  function end(t){ if(over)return; over=true;lastOutcome=t.indexOf("Victory")===0?"win":"loss";emit(lastOutcome==="win"?"win":"lose",{});if(campRun){campEnd(t);return;}document.getElementById("overtxt").textContent=t;document.getElementById("over").classList.add("show");draw();}
+  function end(t){ if(over)return;
+    try{ window.__FIN={ texte:t, objectif:(curMission&&curMission.objective)||"eliminate", tour:turnNum,
+      joueurs:units.filter(u=>u.team==="player").map(u=>u.name+" "+u.hp+"/"+u.max+(u.sorti?" SORTI":"")),
+      ennemisVivants:units.filter(u=>u.team==="enemy"&&u.hp>0).length,
+      enMission:!!(geoPlay&&geoPlay.inMission), noeud:campRun&&campRun.nodeId,
+      pile:(new Error()).stack.split("\n").slice(1,7).join(" | ") }; }catch(e){}
+    over=true;lastOutcome=t.indexOf("Victory")===0?"win":"loss";emit(lastOutcome==="win"?"win":"lose",{});if(campRun){campEnd(t);return;}document.getElementById("overtxt").textContent=t;document.getElementById("over").classList.add("show");draw();}
   function log(m,team){if(mode!=="play")return;const el=document.getElementById("log");const d=document.createElement("div");d.className=team==="player"?"pl":"en";d.textContent=m;el.prepend(d);}
   let msgT=null;
   function setMsg(t){const el=document.getElementById("msg");el.textContent=t;if(msgT){clearTimeout(msgT);msgT=null;}if(t)msgT=setTimeout(()=>{el.textContent="";msgT=null;},4000);}   // ephemeral message: clears itself
@@ -4071,12 +4079,26 @@
     const podAnchors=[];
     if(far.length){
       podAnchors.push(far.reduce((a,b)=>((dist[b]*0.4+interior(b)*1.6)>(dist[a]*0.4+interior(a)*1.6))?b:a));   // 1st pod: deep BUT not glued to the edge
-      while(podAnchors.length<podCount&&podAnchors.length<far.length){ let best=null,bs=-1e9;
-        for(const id of far){ if(podAnchors.includes(id))continue;
+      // ÉCARTEMENT MINIMAL RÉELLEMENT IMPOSÉ. podSpacing était calculé (4 sauts) puis jamais lu :
+      // le garde-fou anti-agglutinement se contentait d'un « au moins 2 sauts » codé en dur, si bien
+      // que deux poches pouvaient se réveiller ensemble et tomber sur l'escouade d'un bloc. On exige
+      // l'écartement voulu, et on ne le relâche d'un cran que si le plateau ne peut pas l'offrir —
+      // plutôt que de perdre une poche.
+      let sep=Math.max(3,podSpacing);
+      // Le vivier « far » écarte les cases proches du départ ; quand il ne peut plus offrir
+      // l'écartement voulu, on s'autorise le reste du plateau AVANT de tasser les poches : une
+      // poche un peu plus près du départ vaut mieux que deux poches qui se réveillent ensemble.
+      const large=reachIds.filter(id=>!slots.includes(id)&&id!==anchor.id);
+      const choisir=(pool)=>{ let best=null,bs=-1e9;
+        for(const id of pool){ if(podAnchors.includes(id))continue;
           const spread=Math.min(...podAnchors.map(a=>hops(a,id)));   // far from the already-placed pods
+          if(spread<sep)continue;                                     // trop près d'une poche déjà posée
           const sc=spread*3 + interior(id)*1.2 + dist[id]*0.15;       // dispersion first, then interior, a bit of depth
           if(sc>bs){bs=sc;best=id;} }
-        if(best==null||Math.min(...podAnchors.map(a=>hops(a,best)))<2)break;   // avoids clumping
+        return best; };
+      while(podAnchors.length<podCount){
+        let best=choisir(far); if(best==null)best=choisir(large);
+        if(best==null){ if(sep>3){sep--; continue;} break; }            // on desserre en dernier recours
         podAnchors.push(best); } }
     if(!podAnchors.length&&far.length)podAnchors.push(far[0]);
     // Les missions GÉNÉRÉES ignoraient les poids par classe : elles tournaient en rotation pure,
@@ -6300,7 +6322,12 @@
     else { showCampText("No territory defined for this node.",()=>{ if(node.next)runNode(node.next); else endCampaignRun("End."); }); return; }
     campRun.geoStates=campRun.geoStates||{}; if(!campRun.geoStates[node.id])campRun.geoStates[node.id]=m.cells.map(c=>c.state||"locked");
     geoPlay={node,map:m,inMission:false}; { const tt=document.getElementById("title"); if(tt)tt.style.display="none"; }
-    document.body.classList.add("geomap"); over=false; resetView(); geoBuildCells(); geoFitView(); hoverCell=null; primeInit(); geoBanner(); draw(); playMusic("geoscape"); runGeoEvents("arrive",()=>promoSiDue(()=>saveCampRun())); }   // primes, textes de 1re arrivée, puis les promotions en attente
+    document.body.classList.add("geomap"); over=false; resetView(); geoBuildCells(); geoFitView(); hoverCell=null; primeInit(); geoBanner(); draw(); playMusic("geoscape");
+    // ON NE MONTRE PAS UN TERRAIN VIDE. Les textes de première arrivée sont chargés de façon
+    // asynchrone : entre l'affichage du geoscape et leur apparition, on voyait la carte nue.
+    // On la masque le temps de la séquence, et on la découvre une fois les textes déroulés.
+    document.body.classList.add("geo-attente");
+    runGeoEvents("arrive",()=>{ document.body.classList.remove("geo-attente"); draw(); promoSiDue(()=>saveCampRun()); }); }   // primes, textes de 1re arrivée, puis les promotions en attente
   function geoBanner(t){ const el=document.getElementById("geobanner"); if(!el||!geoPlay)return;
     const sub=t!=null?esc(t):"";   // by default: just the territory title; an explicit message (t) shows as a subtitle
     el.innerHTML=`<b>${esc(geoPlay.map.name||"Territory")}</b>${sub?(" — "+sub):""}`; renderGeoRoster(); }
