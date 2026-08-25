@@ -42,7 +42,13 @@
   #hud-bl #msg{ background:rgba(12,9,6,.86); border:1px solid #5a4530; border-radius:8px; padding:4px 9px; margin:0 0 6px; display:inline-block; min-height:0 } #hud-bl #msg:empty{ display:none }
   #hud-bl #acts{ display:flex; flex-direction:column; gap:6px; background:none; border:0; padding:0 } #hud-bl #acts:empty{ display:none }
   #hud-bl #acts button{ width:64px; height:64px; padding:0; margin:0; display:flex; flex-direction:column; align-items:center; justify-content:center; line-height:1; background:rgba(12,9,6,.9); border:1px solid #5a4530; border-radius:9px; box-shadow:0 2px 8px rgba(0,0,0,.45) }
-  #hud-bl #acts button .bn{ font-size:.72rem; opacity:.65; margin-bottom:2px } #hud-bl #acts button .bi{ font-size:1.7rem }
+  #hud-bl #acts button .bn{ font-size:.72rem; opacity:.65; margin-bottom:2px } #hud-bl #acts button .bi{ font-size:1.7rem; display:flex; align-items:center }
+  /* Les pictogrammes dessinés (le fusil) se calent sur la taille du texte qui les entoure, et
+     prennent sa couleur : dans un bouton, dans une ligne de roster, partout. */
+  .ico{ width:1.15em; height:auto; display:inline-block; vertical-align:-.14em; fill:currentColor }
+  #hud-bl #acts button .bi .ico{ width:1.6em }
+  #hud-bl #acts button .bi .ico-sm{ width:1.05em; margin-left:1px }
+  .ico-sm{ width:.95em }
   #hud-bl #acts button.on{ background:#5a4a20; border-color:#caa24a }
   #hud-bl #acts button.cd{ opacity:.7; border-color:#3a2c1c; cursor:default; position:relative }
   #hud-bl #acts button.cd .cdn{ position:absolute; top:4px; right:7px; font-size:.95rem; font-weight:bold; color:#7fb0d8 }
@@ -2068,6 +2074,20 @@
     emit("cracker",{actorName:thrower.name,actorCls:thrower.cls,actorTeam:thrower.team,enemiesHit,alliesHit,killed}); checkEnd(); refresh(); }
 
   // ===== special abilities (active perks) =====
+  // LE FUSIL EST DESSINÉ, PAS UN EMOJI. Toutes les polices modernes rendent 🔫 en pistolet à eau
+  // depuis qu'Apple puis les autres l'ont remplacé — aucun emoji d'arme à feu n'y échappe. Un tracé
+  // vectoriel, à la couleur du texte, est la seule façon d'avoir un fusil qui ressemble à un fusil.
+  const ICO_FUSIL=`<svg class="ico" viewBox="0 0 32 14" aria-hidden="true">`
+    +`<path d="M0.6 6.2 8 4.9v4.6L1.2 8.4A.7.7 0 0 1 .6 7.7Z"/>`
+    +`<path d="M7.6 5.0h8.6v3.3H7.6z"/><path d="M14.6 3.2h1.5v2.0h-1.5z"/>`
+    +`<path d="M16.0 5.4h6.2v2.5h-6.2z"/><path d="M17.2 4.3h3.6v1.2h-3.6z"/>`
+    +`<path d="M22.0 5.9h9.4v1.4h-9.4z"/><path d="M27.6 2.6h1.3v3.3h-1.3z"/>`
+    +`<path d="M9.6 8.3h2.5l-1.0 4.6a.5.5 0 0 1-.6.4l-1.2-.3a.5.5 0 0 1-.4-.6Z"/>`
+    +`<path d="M13.2 8.3h2.3l-.4 4.4a.5.5 0 0 1-.6.4l-1.3-.2a.5.5 0 0 1-.4-.5Z"/>`
+    +`<path d="M12.2 8.6h1.0v1.3h-1.0z"/></svg>`;
+  // En vigilance, l'œil et le fusil partagent le même bouton : le fusil s'y fait plus petit, sinon
+  // le composé déborde du cadre de 64 px et la crosse se fait rogner.
+  const ICO_VIGIE=`👁`+ICO_FUSIL.replace('class="ico"','class="ico ico-sm"');
   const ABIL={
     smoke:{icon:"🌫",label:"Smoke Bomb — veils line of sight (area, 1 AP)",target:"cell"},
     breach:{icon:"💥",label:"Shaped Charge — destroys a rock/low wall (ends the turn)",target:"cell"},
@@ -2088,7 +2108,7 @@
     rungun:{icon:"🏃",label:"Run and gun — this turn, moving no longer forbids shooting",target:"self"},
     precshot:{icon:"🎯",label:"Precision shot — +20% aim if you have not moved",target:"enemy"},
     surehit:{icon:"💯",label:"Guaranteed hit — the shot cannot miss",target:"enemy"},
-    burst:{icon:"⚡🔫",label:"Burst of fire — two shots, −10% aim",target:"enemy"},
+    burst:{icon:"⚡"+ICO_FUSIL,label:"Burst of fire — two shots, −10% aim",target:"enemy"},
     boomshell:{icon:"🧨",label:"Explosive shells — the shot detonates (radius 2)",target:"enemy"},
     // ===== Sapper =====
     smoker:{icon:"🌫",label:"Smoker — smoke charge (uses the grenade launcher)",target:"cell"},
@@ -2808,7 +2828,7 @@
       d.className="rost"+(u===sel?" sel":"")+(u.hp<=0?" dead":((u.ap<=0&&turn==="player")?" spent":""));
       d.innerHTML=`<div><b>${u.name}</b> <span class="sub">${CLASSES[u.cls].name}${u.grade?' <span style="color:#e0b341">'+"★".repeat(u.grade)+'</span>':''}</span></div>`
         +`<div class="hpbar"><i style="width:${Math.max(0,u.hp)/u.max*100}%"></i></div>`
-        +`<div class="st">HP ${Math.max(0,u.hp)}/${u.max} · AP ${u.hp>0?u.ap+"/"+AP_MAX:"–"}${u.overwatch?(u.owMode==="ranged"?" · 👁🔫":" · 👁"):""}${u.bracing?" · 🛡guard":""}${u.stunned?" · ✦stunned":""}${u.slowed?" · ❄slowed":""}${u.crackers?" · 💣"+u.crackers:""}</div>`;
+        +`<div class="st">HP ${Math.max(0,u.hp)}/${u.max} · AP ${u.hp>0?u.ap+"/"+AP_MAX:"–"}${u.overwatch?(u.owMode==="ranged"?" · "+ICO_VIGIE:" · 👁"):""}${u.bracing?" · 🛡guard":""}${u.stunned?" · ✦stunned":""}${u.slowed?" · ❄slowed":""}${u.crackers?" · 💣"+u.crackers:""}</div>`;
       d.onclick=()=>{ if(u.hp>0&&turn==="player"&&!over){ sel=u; amode=null;throwing=false;usingItem=false; refresh(); } };
       el.appendChild(d); }); }
   // hit chance that `att` (positioned at fromCell) would have on a target at tgtCell — used for offense AND threat
@@ -5699,9 +5719,9 @@
     // qu'au prochain dessin du plateau — donc après un Tab, qui lui appelle refresh(). On repeint.
     const aim=(icon,label,m)=>btn(icon,label,amode===m,()=>{ if(amode===m&&aimTarget&&aimTarget.hp>0&&inRange(sel,aimTarget,m)){doAttack(sel,aimTarget,m);return;} amode=m;throwing=false;usingItem=false;autoTarget(m);refresh(); });
     if(sel){ const canShoot=sel.w.ranged&&(sel.clip===undefined||sel.ammo>0);
-      if(canShoot)aim("🔫","Shoot — ends the turn","ranged");
+      if(canShoot)aim(ICO_FUSIL,"Shoot — ends the turn","ranged");
       if(sel.w.melee)aim(sel.flank?"🗡":"⚔️",(sel.flank?"Daggers":"Melee")+" — ends the turn"+(sel.flank?` · back +${sel.flank.back} / flank +${sel.flank.side}`:""),"melee");
-      if(sel.ap>0&&canShoot)btn("👁🔫","Overwatch — shoot (ends the turn)",sel.overwatch&&sel.owMode==="ranged",()=>doOverwatch("ranged"));
+      if(sel.ap>0&&canShoot)btn(ICO_VIGIE,"Overwatch — shoot (ends the turn)",sel.overwatch&&sel.owMode==="ranged",()=>doOverwatch("ranged"));
       if(sel.ap>0&&sel.w.melee)btn("👁","Overwatch — melee (ends the turn)",sel.overwatch&&sel.owMode==="melee",()=>doOverwatch("melee"));
       if(sel.w.cracker&&sel.crackers>0&&sel.ap>0)btn("💣","Cracker ×"+sel.crackers+" — ends the turn",throwing,()=>{throwing=!throwing;usingItem=false;amode=null;setMsg(throwing?"Click a target tile (area — the landing spot is uncertain).":"");if(throwing)startCrackerJit();else{crackerJit=null;draw();}renderActs();});
       if(inv.potion>0&&sel.ap>0)btn("🧪","Potion ×"+inv.potion+" (1 AP, doesn't end the turn)",usingItem,()=>{usingItem=!usingItem;throwing=false;amode=null;setMsg(usingItem?"Click an ally (self/adjacent).":"");renderActs();});
@@ -5779,7 +5799,7 @@
     const m=u.w.ranged?"ranged":"melee",w=u.w[m]; const wn=(CLASSES[u.cls]&&CLASSES[u.cls].wname)||(u.w.ranged?(u.clip!==undefined?"crossbow":"bow"):(u.flank?"daggers":(w.bare?"bare hands":"sword")));
     const h=`<b>${u.name}</b> · ${CLASSES[u.cls].name}<br>HP ${Math.max(0,u.hp)}/${u.max} · ${wn} (${w.aim}%) · range ${w.range||1}`
         +(u.shieldBlock?` · 🛡 ${u.shieldBlock}%`:"")+(u.parry?` · 🗡 parry ${u.parry}%`:"")+(u.flank?` · back +${u.flank.back}/flank +${u.flank.side}`:"")
-        +(u.crackers?` · 💣×${u.crackers}`:"")+(u.asleep?" · 💤":"")+(u.pod!==undefined?` · pod ${u.pod}`:"")+(u.overwatch?(u.owMode==="ranged"?" · 👁🔫":" · 👁"):"");
+        +(u.crackers?` · 💣×${u.crackers}`:"")+(u.asleep?" · 💤":"")+(u.pod!==undefined?` · pod ${u.pod}`:"")+(u.overwatch?(u.owMode==="ranged"?" · "+ICO_VIGIE:" · 👁"):"");
     f.innerHTML=h; f.style.display="block"; });   // card anchored at the top right (no longer follows the cursor)
   cv.addEventListener("mouseleave",()=>{document.getElementById("fiche").style.display="none"; if(hoverCell!=null){hoverCell=null;majBarreCase();draw();}});
   function cycleSel(dir){ if(mode!=="play"||turn!=="player")return; const ps=units.filter(u=>u.team==="player"&&u.hp>0); if(!ps.length)return; let i=ps.indexOf(sel); i=(i<0?0:(i+dir+ps.length)%ps.length); sel=ps[i]; amode=null;aimTarget=null;throwing=false;usingItem=false; refresh(); }
