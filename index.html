@@ -1348,7 +1348,14 @@
   function corruptLevel(){ if(!campRun)return 0; return Math.min(1,(campRun.missionN||0)*0.06); }
   // shift each vertex by a DETERMINISTIC noise of its position: two cells sharing a vertex
   // shift it identically → the edges stay joined (seamless render) and adjacency is preserved.
-  function distortTerrain(level){ if(!level||level<=0||!cells.length)return;
+  function distortTerrain(level){
+    // DES ANGLES DROITS RESTENT DROITS. Cette déformation gauchit chaque sommet : à la génération
+    // les cases sont des carrés parfaits, mais au fil de l'acte elles deviennent des quadrilatères
+    // de plus en plus tordus — 4,9° d'écart à l'angle droit après trois missions, 26,6° après
+    // quinze. C'est ce qui donnait des « carrés déformés » alors que le pavage, lui, était sain.
+    // Elle est donc soumise au même réglage que le reste : décocher « Square tiles only » la rend.
+    if(CARRES_STRICTS)return;
+    if(!level||level<=0||!cells.length)return;
     const A=level*9;
     // the distortion is PURELY geometric: freeze the topological adjacency (who neighbors whom)
     // BEFORE warping, otherwise re-pairing by rounded edge can create false adjacencies at
