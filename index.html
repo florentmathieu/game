@@ -318,7 +318,7 @@
       <button id="zauto" title="Lay out random zones (squares, hexagons, pentagons)">🎲 Auto zones</button></div>
     <div class="row" id="zones"></div>
     <div class="row"><label style="flex:1">Distortion <input id="dist" type="range" min="0" max="100" value="28"></label><span id="distv">28%</span></div>
-    <div class="row"><label style="font-size:.85rem"><input id="carres-stricts" type="checkbox" checked> Square tiles stay square (distortion applies to hex/pentagon only)</label></div>
+    <div class="row"><label style="font-size:.85rem"><input id="carres-stricts" type="checkbox" checked> Square tiles only — undistorted (uncheck for mixed hex/pentagon zones)</label></div>
     <div class="row"><label style="flex:1">Density <input id="dens" type="range" min="30" max="64" value="44"></label><span id="densv">44</span> <button id="regen">↻</button></div>
     <div class="row"><label>Shape <select id="board-shape">
       <option value="rect">rectangle (full)</option>
@@ -881,7 +881,13 @@
   let RND=mk(7), seed=7, mode="edit", editTool="zone:square", islandTrim=true;   // islandTrim: removes edge cells (island effect), mission + geoscape
 
   const MC=72; let COLS=Math.ceil(W/MC), ROWS=Math.ceil(H/MC);
-  const defZone=(c)=> c<COLS/3?"square": c<2*COLS/3?"mix":"hex";
+  // LE CARRÉ EST LE DÉFAUT. defZone découpait tout plateau neuf en tiers — carrés à gauche, mixte
+  // au milieu, HEXAGONES à droite — si bien qu'une campagne sans profil de terrain jouait des cartes
+  // majoritairement hexagonales sans que personne ne l'ait demandé. On pave en carrés, et les autres
+  // pavages restent accessibles expressément : en peignant les zones dans l'éditeur, par un profil
+  // de terrain d'acte, ou en décochant « Square tiles only ».
+  let CARRES_STRICTS=true;
+  const defZone=(c)=> CARRES_STRICTS ? "square" : (c<COLS/3?"square": c<2*COLS/3?"mix":"hex");
   let infl=Array.from({length:ROWS},()=>Array(COLS).fill("square"));
   for(let r=0;r<ROWS;r++)for(let c=0;c<COLS;c++) infl[r][c]=defZone(c);
   // resizes the board: COLS×ROWS zone-tiles of MC px, keeps the existing zones
@@ -2028,7 +2034,10 @@
     const gx=a[0]+(b[0]-a[0])*f, gy=a[1]+(b[1]-a[1])*f;
     anim.h=segs[i].saut*Math.sin(Math.PI*f); anim.sol=[gx,gy];   // le sol reste sous le pion : c'est l'ombre qui donne la hauteur
     return [gx, gy-anim.h]; }
-  function doOverwatch(m){ if(!sel||sel.ap<=0||!sel.w[m])return; sel.overwatch=true; sel.owMode=m; sel.ap=0; sel.freeAvail=false; sel.reacted=false; amode=null; setMsg("On overwatch — will react to enemy movement."); refresh(); }
+  // LA VIGILANCE EST UNE AFFAIRE DE TIR. Guetter au corps à corps revenait à frapper quiconque
+  // passe à portée de bras, ce qui double l'attaque d'opportunité et rend le contact ingérable.
+  // Seul le tir la déclenche désormais — pour le joueur comme pour tout ce qui la pose.
+  function doOverwatch(m){ if(m!=="ranged")return; if(!sel||sel.ap<=0||!sel.w[m])return; sel.overwatch=true; sel.owMode=m; sel.ap=0; sel.freeAvail=false; sel.reacted=false; amode=null; setMsg("On overwatch — will react to enemy movement."); refresh(); }
   // ===== cracker (area) =====
   let throwing=false, usingItem=false, inv={potion:2}, crackerJit=null, crackerTimer=null;
   // cracker preview: the landing area "trembles" from tile to tile among the possible scatters around the aimed tile
@@ -2208,7 +2217,7 @@
     const r=regleAbil(u,"vanish"); if(!r.cd&&!r.charges&&u.vanishUsed){setMsg("Fade already used this fight.");return false;}
     u.hidden=true; u.vanishUsed=true; lastSeen.delete(u); payerAbil(u,"vanish"); log(`▲ ${u.name} fades away`,"player"); refresh(); return true; }
   function execTaunt(u){ if(!abilDispo(u,"taunt"))return false; u.taunt=true; payerAbil(u,"taunt"); log(`▲ ${u.name} taunts the enemy`,"player"); refresh(); return true; }
-  function execHoldline(u){ if(!abilDispo(u,"holdline"))return false; let n=0; for(const a of units)if(a.team==="player"&&a.hp>0&&a!==u&&adjacent(u.cell,a.cell)&&a.ap>0){ const m=(a.w.ranged&&(a.clip===undefined||a.ammo>0))?"ranged":(a.w.melee?"melee":null); if(m){a.overwatch=true;a.owMode=m;a.reacted=false;n++;} }
+  function execHoldline(u){ if(!abilDispo(u,"holdline"))return false; let n=0; for(const a of units)if(a.team==="player"&&a.hp>0&&a!==u&&adjacent(u.cell,a.cell)&&a.ap>0){ const m=(a.w.ranged&&(a.clip===undefined||a.ammo>0))?"ranged":null; if(m){a.overwatch=true;a.owMode=m;a.reacted=false;n++;} }   // pas de vigilance au contact
     payerAbil(u,"holdline"); log(`▲ ${u.name}: "Hold the line!" (${n} all${n>1?"ies":"y"} on overwatch)`,"player"); refresh(); return true; }
   function execWall(u){ if(!abilDispo(u,"wall"))return false; u.wallStance=true; payerAbil(u,"wall"); log(`▲ ${u.name} forms a mobile wall`,"player"); refresh(); return true; }
   // ===== mage spells =====
@@ -2828,7 +2837,7 @@
       d.className="rost"+(u===sel?" sel":"")+(u.hp<=0?" dead":((u.ap<=0&&turn==="player")?" spent":""));
       d.innerHTML=`<div><b>${u.name}</b> <span class="sub">${CLASSES[u.cls].name}${u.grade?' <span style="color:#e0b341">'+"★".repeat(u.grade)+'</span>':''}</span></div>`
         +`<div class="hpbar"><i style="width:${Math.max(0,u.hp)/u.max*100}%"></i></div>`
-        +`<div class="st">HP ${Math.max(0,u.hp)}/${u.max} · AP ${u.hp>0?u.ap+"/"+AP_MAX:"–"}${u.overwatch?(u.owMode==="ranged"?" · "+ICO_VIGIE:" · 👁"):""}${u.bracing?" · 🛡guard":""}${u.stunned?" · ✦stunned":""}${u.slowed?" · ❄slowed":""}${u.crackers?" · 💣"+u.crackers:""}</div>`;
+        +`<div class="st">HP ${Math.max(0,u.hp)}/${u.max} · AP ${u.hp>0?u.ap+"/"+AP_MAX:"–"}${u.overwatch?" · "+ICO_VIGIE:""}${u.bracing?" · 🛡guard":""}${u.stunned?" · ✦stunned":""}${u.slowed?" · ❄slowed":""}${u.crackers?" · 💣"+u.crackers:""}</div>`;
       d.onclick=()=>{ if(u.hp>0&&turn==="player"&&!over){ sel=u; amode=null;throwing=false;usingItem=false; refresh(); } };
       el.appendChild(d); }); }
   // hit chance that `att` (positioned at fromCell) would have on a target at tgtCell — used for offense AND threat
@@ -3558,7 +3567,7 @@
   // TAILLE DES CARTES. 75 cases par poche et un plancher de 7 de large donnaient des régions de
   // ★1 à 66 cases — sur lesquelles une escouade de trois n'a pas la place de manœuvrer, et où une
   // forme creuse dégénère. On monte à 95 et 10 : ★1 passe de 66 à ~140 cases, ★2 de 138 à ~190.
-  let CEL_PAR_POD=95, LARGEUR_MIN=10, CARRES_STRICTS=true;
+  let CEL_PAR_POD=95, LARGEUR_MIN=10;
   // Les formes n'ont pas la même surface à réglages égaux : une croix à 20x16 fait 389 cellules là
   // où un rectangle en fait 806. Mesuré sur les mêmes 560 parties, cellules ~ k x largeur².
   const FORME_K={rect:1.98,L:1.25,S:1.41,croix:0.96,sablier:1.14,anneau:1.40,diag:1.15};
@@ -5722,7 +5731,6 @@
       if(canShoot)aim(ICO_FUSIL,"Shoot — ends the turn","ranged");
       if(sel.w.melee)aim(sel.flank?"🗡":"⚔️",(sel.flank?"Daggers":"Melee")+" — ends the turn"+(sel.flank?` · back +${sel.flank.back} / flank +${sel.flank.side}`:""),"melee");
       if(sel.ap>0&&canShoot)btn(ICO_VIGIE,"Overwatch — shoot (ends the turn)",sel.overwatch&&sel.owMode==="ranged",()=>doOverwatch("ranged"));
-      if(sel.ap>0&&sel.w.melee)btn("👁","Overwatch — melee (ends the turn)",sel.overwatch&&sel.owMode==="melee",()=>doOverwatch("melee"));
       if(sel.w.cracker&&sel.crackers>0&&sel.ap>0)btn("💣","Cracker ×"+sel.crackers+" — ends the turn",throwing,()=>{throwing=!throwing;usingItem=false;amode=null;setMsg(throwing?"Click a target tile (area — the landing spot is uncertain).":"");if(throwing)startCrackerJit();else{crackerJit=null;draw();}renderActs();});
       if(inv.potion>0&&sel.ap>0)btn("🧪","Potion ×"+inv.potion+" (1 AP, doesn't end the turn)",usingItem,()=>{usingItem=!usingItem;throwing=false;amode=null;setMsg(usingItem?"Click an ally (self/adjacent).":"");renderActs();});
       if(sel.clip!==undefined&&sel.ammo<sel.clip&&(sel.ap>0||sel.freeReload>0))btn("🔄",sel.freeReload>0?"Reload (FREE, "+sel.freeReload+" left)":"Reload (1 AP, doesn't end the turn)",false,()=>{if(sel.freeReload>0)sel.freeReload--;else sel.ap--;sel.ammo=sel.clip;refresh();});
@@ -5799,7 +5807,7 @@
     const m=u.w.ranged?"ranged":"melee",w=u.w[m]; const wn=(CLASSES[u.cls]&&CLASSES[u.cls].wname)||(u.w.ranged?(u.clip!==undefined?"crossbow":"bow"):(u.flank?"daggers":(w.bare?"bare hands":"sword")));
     const h=`<b>${u.name}</b> · ${CLASSES[u.cls].name}<br>HP ${Math.max(0,u.hp)}/${u.max} · ${wn} (${w.aim}%) · range ${w.range||1}`
         +(u.shieldBlock?` · 🛡 ${u.shieldBlock}%`:"")+(u.parry?` · 🗡 parry ${u.parry}%`:"")+(u.flank?` · back +${u.flank.back}/flank +${u.flank.side}`:"")
-        +(u.crackers?` · 💣×${u.crackers}`:"")+(u.asleep?" · 💤":"")+(u.pod!==undefined?` · pod ${u.pod}`:"")+(u.overwatch?(u.owMode==="ranged"?" · "+ICO_VIGIE:" · 👁"):"");
+        +(u.crackers?` · 💣×${u.crackers}`:"")+(u.asleep?" · 💤":"")+(u.pod!==undefined?` · pod ${u.pod}`:"")+(u.overwatch?" · "+ICO_VIGIE:"");
     f.innerHTML=h; f.style.display="block"; });   // card anchored at the top right (no longer follows the cursor)
   cv.addEventListener("mouseleave",()=>{document.getElementById("fiche").style.display="none"; if(hoverCell!=null){hoverCell=null;majBarreCase();draw();}});
   function cycleSel(dir){ if(mode!=="play"||turn!=="player")return; const ps=units.filter(u=>u.team==="player"&&u.hp>0); if(!ps.length)return; let i=ps.indexOf(sel); i=(i<0?0:(i+dir+ps.length)%ps.length); sel=ps[i]; amode=null;aimTarget=null;throwing=false;usingItem=false; refresh(); }
@@ -6673,7 +6681,7 @@
           // à guetter. Courir deux fois sous le feu, c'est traverser à découvert sans riposte.
           if(!u._aBouge&&simDeplacer(u,champExplo,true)){ u._aBouge=true; continue; }
           if(simTirer(u))continue;
-          if(u.ap>0&&(u.w.ranged||u.w.melee)){ const s=sel; sel=u; doOverwatch(u.w.ranged?"ranged":"melee"); sel=s; continue; }
+          if(u.ap>0&&u.w.ranged){ const s=sel; sel=u; doOverwatch("ranged"); sel=s; continue; }
         } else if(simDeplacer(u,champExplo,false)) continue;
         u.ap=0; u.freeAvail=false; }        // rien à faire : il tient sa position
       u._aBouge=false; } }
